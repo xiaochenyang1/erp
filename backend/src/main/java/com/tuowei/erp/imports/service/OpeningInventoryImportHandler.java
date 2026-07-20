@@ -1,0 +1,186 @@
+package com.tuowei.erp.imports.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.imports.model.ImportJobEntity;
+import com.tuowei.erp.imports.model.ImportJobRowEntity;
+import com.tuowei.erp.imports.web.ImportRowErrorResponse;
+import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
+import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
+import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
+import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
+import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
+import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
+import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
+import com.tuowei.erp.masterdata.product.model.ProductEntity;
+import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
+import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
+import org.springframework.stereotype.Component;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+
+@Component
+public class OpeningInventoryImportHandler extends AbstractImportHandler {
+
+    private final WarehouseMapper warehouseMapper;
+    private final ProductMapper productMapper;
+    private final InventoryBalanceMapper inventoryBalanceMapper;
+    private final InventoryTransactionMapper inventoryTransactionMapper;
+    private final InventoryPostingService inventoryPostingService;
+
+    public OpeningInventoryImportHandler(
+            ImportValidationSupport support,
+            WarehouseMapper warehouseMapper,
+            ProductMapper productMapper,
+            InventoryBalanceMapper inventoryBalanceMapper,
+            InventoryTransactionMapper inventoryTransactionMapper,
+            InventoryPostingService inventoryPostingService
+    ) {
+        super(support);
+        this.warehouseMapper = warehouseMapper;
+        this.productMapper = productMapper;
+        this.inventoryBalanceMapper = inventoryBalanceMapper;
+        this.inventoryTransactionMapper = inventoryTransactionMapper;
+        this.inventoryPostingService = inventoryPostingService;
+    }
+
+    @Override
+    public String importType() {
+        return ImportConstants.OPENING_INVENTORY;
+    }
+
+    @Override
+    public ImportRowPlan validate(int rowNo, Map<String, String> raw, ImportValidationContext context) {
+        List<ImportRowErrorResponse> errors = support.errorList();
+        Map<String, Object> normalized = support.linkedMap();
+        String warehouseCode = support.required(raw, "warehouse_code", errors);
+        String productCode = support.required(raw, "product_code", errors);
+        BigDecimal qtyOnHand = support.quantity(raw, "qty_on_hand", errors);
+        BigDecimal amountOnHand = support.amount(raw, "amount_on_hand", errors);
+        LocalDate openingDate = support.date(raw, "opening_date", errors);
+        String lotNo = support.optionalText(raw, "lot_no");
+        LocalDate productionDate = optionalDate(raw, "production_date", errors);
+        LocalDate expiryDate = optionalDate(raw, "expiry_date", errors);
+        if (qtyOnHand.compareTo(BigDecimal.ZERO) <= 0) {
+            errors.add(new ImportRowErrorResponse("qty_on_hand", "期初库存数量必须大于0"));
+        }
+        if (amountOnHand.compareTo(BigDecimal.ZERO) < 0) {
+            errors.add(new ImportRowErrorResponse("amount_on_hand", "期初库存金额不能小于0"));
+        }
+        WarehouseEntity warehouse = null;
+        ProductEntity product = null;
+        if (warehouseCode != null) {
+            warehouse = warehouseMapper.selectOne(new LambdaQueryWrapper<WarehouseEntity>()
+                    .eq(WarehouseEntity::getCompanyId, context.companyId())
+                    .eq(WarehouseEntity::getAccountBookId, context.accountBookId())
+                    .eq(WarehouseEntity::getWarehouseCode, warehouseCode)
+                    .eq(WarehouseEntity::getStatus, "ACTIVE")
+                    .eq(WarehouseEntity::getDeletedFlag, 0));
+            if (warehouse == null) {
+                errors.add(new ImportRowErrorResponse("warehouse_code", "仓库不存在或已停用"));
+            }
+        }
+        if (productCode != null) {
+            product = productMapper.selectOne(new LambdaQueryWrapper<ProductEntity>()
+                    .eq(ProductEntity::getCompanyId, context.companyId())
+                    .eq(ProductEntity::getAccountBookId, context.accountBookId())
+                    .eq(ProductEntity::getProductCode, productCode)
+                    .eq(ProductEntity::getStatus, "ACTIVE")
+                    .eq(ProductEntity::getDeletedFlag, 0));
+            if (product == null) {
+                errors.add(new ImportRowErrorResponse("product_code", "商品不存在或已停用"));
+            }
+        }
+        if (product != null) {
+            if (lotControlled(product) && lotNo == null) {
+                errors.add(new ImportRowErrorResponse("lot_no", "启用批次管理的商品必须填写批次号"));
+            }
+            if (shelfLifeControlled(product) && expiryDate == null) {
+                errors.add(new ImportRowErrorResponse("expiry_date", "启用效期管理的商品必须填写有效期"));
+            }
+            if (!lotControlled(product) && (lotNo != null || productionDate != null || expiryDate != null)) {
+                errors.add(new ImportRowErrorResponse("lot_no", "未启用批次管理的商品不能填写批次信息"));
+            }
+        }
+        if (warehouseCode != null && productCode != null) {
+            String duplicateKey = warehouseCode + "|" + productCode
+                    + (product != null && lotControlled(product) ? "|" + lotNo : "");
+            support.duplicateInFile(seen(context, "openingInventory"), duplicateKey, "product_code", errors);
+        }
+        if (warehouse != null && product != null) {
+            InventoryBalanceEntity balance = inventoryBalanceMapper.selectOne(new LambdaQueryWrapper<InventoryBalanceEntity>()
+                    .eq(InventoryBalanceEntity::getCompanyId, context.companyId())
+                    .eq(InventoryBalanceEntity::getAccountBookId, context.accountBookId())
+                    .eq(InventoryBalanceEntity::getWarehouseId, warehouse.getId())
+                    .eq(InventoryBalanceEntity::getProductId, product.getId()));
+            if (balance != null && (support.scaleQuantity(balance.getQtyOnHand()).compareTo(BigDecimal.ZERO) != 0
+                    || support.scaleAmount(balance.getAmountOnHand()).compareTo(BigDecimal.ZERO) != 0)) {
+                errors.add(new ImportRowErrorResponse("product_code", "该仓库商品已有库存余额，不能导入期初库存"));
+            }
+        }
+        normalized.put("warehouseId", warehouse == null ? null : warehouse.getId());
+        normalized.put("productId", product == null ? null : product.getId());
+        normalized.put("qtyOnHand", qtyOnHand);
+        normalized.put("amountOnHand", amountOnHand);
+        normalized.put("openingDate", openingDate == null ? null : openingDate.toString());
+        normalized.put("lotNo", lotNo);
+        normalized.put("productionDate", productionDate == null ? null : productionDate.toString());
+        normalized.put("expiryDate", expiryDate == null ? null : expiryDate.toString());
+        normalized.put("remark", support.optionalText(raw, "remark"));
+        return new ImportRowPlan(normalized, errors);
+    }
+
+    @Override
+    public int commit(ImportJobEntity job, List<ImportJobRowEntity> rows, AuditMetadata audit) {
+        Long normalTxnCount = inventoryTransactionMapper.selectCount(new LambdaQueryWrapper<InventoryTransactionEntity>()
+                .eq(InventoryTransactionEntity::getCompanyId, audit.companyId())
+                .eq(InventoryTransactionEntity::getAccountBookId, audit.accountBookId())
+                .ne(InventoryTransactionEntity::getBizType, ImportConstants.OPENING_INVENTORY)
+                .ne(InventoryTransactionEntity::getBizType, "OPENING_BALANCE"));
+        if (exists(normalTxnCount)) {
+            throw new IllegalArgumentException("已有正常库存流水，不能再导入期初库存");
+        }
+        for (ImportJobRowEntity row : rows) {
+            Map<String, Object> normalized = normalized(row);
+            inventoryPostingService.postInbound(new InventoryPostingCommand(
+                    longValue(normalized, "warehouseId"),
+                    longValue(normalized, "productId"),
+                    "OPENING_BALANCE",
+                    "OPEN-INV-" + job.getId(),
+                    row.getId(),
+                    decimalValue(normalized, "qtyOnHand"),
+                    decimalValue(normalized, "amountOnHand"),
+                    text(normalized, "remark"),
+                    dateValue(normalized, "openingDate"),
+                    text(normalized, "lotNo"),
+                    dateValue(normalized, "productionDate"),
+                    dateValue(normalized, "expiryDate")
+            ), audit);
+        }
+        return rows.size();
+    }
+
+    private LocalDate optionalDate(Map<String, String> raw, String column, List<ImportRowErrorResponse> errors) {
+        String value = support.optionalText(raw, column);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value);
+        } catch (Exception ex) {
+            errors.add(new ImportRowErrorResponse(column, column + "格式不正确，必须是yyyy-MM-dd"));
+            return null;
+        }
+    }
+
+    private boolean lotControlled(ProductEntity product) {
+        return Integer.valueOf(1).equals(product.getLotControlled());
+    }
+
+    private boolean shelfLifeControlled(ProductEntity product) {
+        return Integer.valueOf(1).equals(product.getShelfLifeControlled());
+    }
+}

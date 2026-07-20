@@ -1,0 +1,46 @@
+# 本地开发 profile（默认激活）。
+# 警告：本文件仅供本机开发联调使用，禁止用于生产环境。
+#   - 使用本地 MySQL 弱口令、固定开发用 JWT 密钥、开放 Swagger；
+#   - 排除 Redis 自动装配，缓存与登录限流自动降级为本地内存实现。
+# 生产部署请使用 prod profile（application-prod.yml，全部经环境变量注入并有启动校验）。
+#
+# 联调库约定（2026-07-16）：
+#   - 默认连接干净库 erp_codex_runtime（ui-smoke / 验收脚本共用）。
+#   - 历史脏库 erp 存在 Flyway checksum 漂移，禁止日常联调；需要时再显式覆盖 datasource.url。
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:mysql://localhost:3306/erp_codex_runtime?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: 12345678
+  flyway:
+    enabled: true
+    clean-disabled: true
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+erp:
+  bootstrap:
+    local-admin-password: ${ERP_LOCAL_ADMIN_PASSWORD:LocalAdmin123}
+  # 本机联调/验收脚本会多次登录（admin + runtime_smoke），关闭 IP 级注解限流避免 429。
+  rate-limit:
+    enabled: false
+  security:
+    public-api-docs-enabled: true
+    cors:
+      allowed-origins: http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000
+    jwt:
+      secret: local-dev-only-secret-not-for-production-32bytes
+      access-token-ttl-seconds: 7200
+      refresh-token-ttl-seconds: 1209600

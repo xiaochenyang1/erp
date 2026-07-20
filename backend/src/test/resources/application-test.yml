@@ -1,0 +1,70 @@
+spring:
+  main:
+    banner-mode: 'off'
+  datasource:
+    url: ${ERP_TEST_DATASOURCE_URL:jdbc:mysql://localhost:3306/erp_test?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${ERP_TEST_DATASOURCE_USERNAME:root}
+    password: ${ERP_TEST_DATASOURCE_PASSWORD:12345678}
+    hikari:
+      maximum-pool-size: 3
+      minimum-idle: 0
+      idle-timeout: 10000
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 5s
+  jackson:
+    time-zone: Asia/Shanghai
+erp:
+  app:
+    code: erp-server
+    name: ERP Server Test
+    timezone: Asia/Shanghai
+  rate-limit:
+    enabled: false
+  error:
+    expose-unexpected-message: true
+  attachment:
+    storage-root: target/test-attachments
+    max-file-size-bytes: 20971520
+  idempotency:
+    enabled: true
+    ttl-seconds: 86400
+    max-replay-body-bytes: 1048576
+    max-request-body-bytes: 1048576
+  import:
+    max-file-size-bytes: 5242880
+    max-rows: 5000
+    max-cell-length: 4096
+    commit-batch-size: 500
+  report:
+    max-export-rows: 5000
+    export-batch-size: 500
+  exception-rule:
+    scheduler:
+      enabled: false
+      fixed-delay-ms: 60000
+      initial-delay-ms: 60000
+  security:
+    public-api-docs-enabled: true
+    jwt:
+      secret: test-secret-key-for-unit-tests-32bytes-min
+      access-token-ttl-seconds: 7200
+      refresh-token-ttl-seconds: 1209600
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+logging:
+  level:
+    root: WARN
+mybatis-plus:
+  global-config:
+    banner: false
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl

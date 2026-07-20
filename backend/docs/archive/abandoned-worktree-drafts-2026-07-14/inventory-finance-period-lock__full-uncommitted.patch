@@ -1,0 +1,190 @@
+diff --git a/src/main/java/com/tuowei/erp/common/security/PermissionCodes.java b/src/main/java/com/tuowei/erp/common/security/PermissionCodes.java
+index a21a474..ccf6755 100644
+--- a/src/main/java/com/tuowei/erp/common/security/PermissionCodes.java
++++ b/src/main/java/com/tuowei/erp/common/security/PermissionCodes.java
+@@ -149,6 +149,9 @@ public final class PermissionCodes {
+     public static final String FINANCE_PERIOD_MANAGE = "finance:period:manage";
+     public static final String FINANCE_PERIOD_CLOSE = "finance:period:close";
+     public static final String FINANCE_PERIOD_REOPEN = "finance:period:reopen";
++    public static final String FINANCE_VOUCHER_VIEW = "finance:voucher:view";
++    public static final String FINANCE_VOUCHER_AUDIT = "finance:voucher:audit";
++    public static final String FINANCE_VOUCHER_POST = "finance:voucher:post";
+     public static final String WORKFLOW_VIEW = "workflow:view";
+     public static final String REPORT_VIEW = "report:view";
+ 
+@@ -294,6 +297,9 @@ public final class PermissionCodes {
+     public static final String HAS_FINANCE_PERIOD_MANAGE = "hasAuthority('" + FINANCE_PERIOD_MANAGE + "')";
+     public static final String HAS_FINANCE_PERIOD_CLOSE = "hasAuthority('" + FINANCE_PERIOD_CLOSE + "')";
+     public static final String HAS_FINANCE_PERIOD_REOPEN = "hasAuthority('" + FINANCE_PERIOD_REOPEN + "')";
++    public static final String HAS_FINANCE_VOUCHER_VIEW = "hasAuthority('" + FINANCE_VOUCHER_VIEW + "')";
++    public static final String HAS_FINANCE_VOUCHER_AUDIT = "hasAuthority('" + FINANCE_VOUCHER_AUDIT + "')";
++    public static final String HAS_FINANCE_VOUCHER_POST = "hasAuthority('" + FINANCE_VOUCHER_POST + "')";
+     public static final String HAS_WORKFLOW_VIEW = "hasAuthority('" + WORKFLOW_VIEW + "')";
+     public static final String HAS_REPORT_VIEW = "hasAuthority('" + REPORT_VIEW + "')";
+ 
+diff --git a/src/main/java/com/tuowei/erp/finance/voucher/model/VoucherEntity.java b/src/main/java/com/tuowei/erp/finance/voucher/model/VoucherEntity.java
+index 448f713..a41dfa6 100644
+--- a/src/main/java/com/tuowei/erp/finance/voucher/model/VoucherEntity.java
++++ b/src/main/java/com/tuowei/erp/finance/voucher/model/VoucherEntity.java
+@@ -25,6 +25,12 @@ public class VoucherEntity {
+     private String status;
+     private Integer deletedFlag;
+     private String remark;
++    private Long auditedBy;
++    private LocalDateTime auditedTime;
++    private Long postedBy;
++    private LocalDateTime postedTime;
++    private Long unpostedBy;
++    private LocalDateTime unpostedTime;
+     private Long createdBy;
+     private LocalDateTime createdTime;
+     private Long updatedBy;
+@@ -56,6 +62,18 @@ public class VoucherEntity {
+     public void setDeletedFlag(Integer deletedFlag) { this.deletedFlag = deletedFlag; }
+     public String getRemark() { return remark; }
+     public void setRemark(String remark) { this.remark = remark; }
++    public Long getAuditedBy() { return auditedBy; }
++    public void setAuditedBy(Long auditedBy) { this.auditedBy = auditedBy; }
++    public LocalDateTime getAuditedTime() { return auditedTime; }
++    public void setAuditedTime(LocalDateTime auditedTime) { this.auditedTime = auditedTime; }
++    public Long getPostedBy() { return postedBy; }
++    public void setPostedBy(Long postedBy) { this.postedBy = postedBy; }
++    public LocalDateTime getPostedTime() { return postedTime; }
++    public void setPostedTime(LocalDateTime postedTime) { this.postedTime = postedTime; }
++    public Long getUnpostedBy() { return unpostedBy; }
++    public void setUnpostedBy(Long unpostedBy) { this.unpostedBy = unpostedBy; }
++    public LocalDateTime getUnpostedTime() { return unpostedTime; }
++    public void setUnpostedTime(LocalDateTime unpostedTime) { this.unpostedTime = unpostedTime; }
+     public Long getCreatedBy() { return createdBy; }
+     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
+     public LocalDateTime getCreatedTime() { return createdTime; }
+diff --git a/src/main/resources/db/migration/V41__finance_voucher_audit_posting_schema.sql b/src/main/resources/db/migration/V41__finance_voucher_audit_posting_schema.sql
+new file mode 100644
+index 0000000..ee58731
+--- /dev/null
++++ b/src/main/resources/db/migration/V41__finance_voucher_audit_posting_schema.sql
+@@ -0,0 +1,72 @@
++CREATE TABLE fin_voucher_new (
++    id BIGINT PRIMARY KEY,
++    company_id BIGINT NOT NULL DEFAULT 1,
++    account_book_id BIGINT NOT NULL DEFAULT 1,
++    voucher_no VARCHAR(64) NOT NULL,
++    source_type VARCHAR(64) NOT NULL,
++    source_id BIGINT NOT NULL,
++    source_no VARCHAR(64) NOT NULL,
++    biz_date DATE NOT NULL,
++    amount DECIMAL(18, 2) NOT NULL,
++    status VARCHAR(32) NOT NULL DEFAULT 'GENERATED' CHECK (status IN ('GENERATED', 'AUDITED', 'POSTED', 'CANCELLED')),
++    deleted_flag TINYINT NOT NULL DEFAULT 0,
++    remark VARCHAR(255),
++    audited_by BIGINT,
++    audited_time TIMESTAMP,
++    posted_by BIGINT,
++    posted_time TIMESTAMP,
++    unposted_by BIGINT,
++    unposted_time TIMESTAMP,
++    created_by BIGINT NOT NULL DEFAULT 0,
++    created_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    updated_by BIGINT NOT NULL DEFAULT 0,
++    updated_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    version INT NOT NULL DEFAULT 0
++);
++
++INSERT INTO fin_voucher_new
++(id, company_id, account_book_id, voucher_no, source_type, source_id, source_no, biz_date,
++ amount, status, deleted_flag, remark, created_by, created_time, updated_by, updated_time, version)
++SELECT id, company_id, account_book_id, voucher_no, source_type, source_id, source_no, biz_date,
++       amount, status, deleted_flag, remark, created_by, created_time, updated_by, updated_time, version
++FROM fin_voucher;
++
++DROP TABLE fin_voucher;
++
++ALTER TABLE fin_voucher_new RENAME TO fin_voucher;
++
++CREATE UNIQUE INDEX uk_fin_voucher_voucher_no ON fin_voucher (voucher_no);
++CREATE UNIQUE INDEX uk_fin_voucher_source ON fin_voucher (source_type, source_id);
++
++INSERT INTO sys_menu
++(id, parent_id, menu_type, menu_code, menu_name, path, component, permission, sort_no, visible_flag,
++ status, deleted_flag, created_by, updated_by, version)
++VALUES
++    (5040, 5030, 'MENU', 'FINANCE_VOUCHER', '财务凭证', '/finance/vouchers',
++     'finance/voucher/index', 'finance:voucher:view', 6, 1, 'ACTIVE', 0, 0, 0, 0),
++    (5041, 5040, 'BUTTON', 'FINANCE_VOUCHER_AUDIT', '凭证审核', NULL,
++     NULL, 'finance:voucher:audit', 1, 1, 'ACTIVE', 0, 0, 0, 0),
++    (5042, 5040, 'BUTTON', 'FINANCE_VOUCHER_POST', '凭证过账', NULL,
++     NULL, 'finance:voucher:post', 2, 1, 'ACTIVE', 0, 0, 0, 0)
++ON DUPLICATE KEY UPDATE
++    parent_id = VALUES(parent_id),
++    menu_type = VALUES(menu_type),
++    menu_name = VALUES(menu_name),
++    path = VALUES(path),
++    component = VALUES(component),
++    permission = VALUES(permission),
++    sort_no = VALUES(sort_no),
++    visible_flag = VALUES(visible_flag),
++    status = VALUES(status),
++    deleted_flag = VALUES(deleted_flag),
++    updated_by = VALUES(updated_by);
++
++INSERT INTO sys_role_menu
++(id, role_id, menu_id, created_by)
++VALUES
++    (7060, 3002, 5040, 0),
++    (7061, 3002, 5041, 0),
++    (7062, 3002, 5042, 0)
++ON DUPLICATE KEY UPDATE
++    role_id = VALUES(role_id),
++    menu_id = VALUES(menu_id);
+diff --git a/src/test/java/com/tuowei/erp/finance/voucher/VoucherAuditPostingMigrationTest.java b/src/test/java/com/tuowei/erp/finance/voucher/VoucherAuditPostingMigrationTest.java
+new file mode 100644
+index 0000000..55bdfcb
+--- /dev/null
++++ b/src/test/java/com/tuowei/erp/finance/voucher/VoucherAuditPostingMigrationTest.java
+@@ -0,0 +1,46 @@
++package com.tuowei.erp.finance.voucher;
++
++import org.assertj.core.api.Assertions;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.test.context.ActiveProfiles;
++
++@SpringBootTest
++@ActiveProfiles("test")
++class VoucherAuditPostingMigrationTest {
++
++    @Autowired
++    private JdbcTemplate jdbcTemplate;
++
++    @Test
++    void voucherTableHasAuditAndPostingColumns() {
++        Assertions.assertThat(columnExists("fin_voucher", "audited_by")).isTrue();
++        Assertions.assertThat(columnExists("fin_voucher", "audited_time")).isTrue();
++        Assertions.assertThat(columnExists("fin_voucher", "posted_by")).isTrue();
++        Assertions.assertThat(columnExists("fin_voucher", "posted_time")).isTrue();
++        Assertions.assertThat(columnExists("fin_voucher", "unposted_by")).isTrue();
++        Assertions.assertThat(columnExists("fin_voucher", "unposted_time")).isTrue();
++    }
++
++    @Test
++    void voucherPermissionsAreSeeded() {
++        Integer count = jdbcTemplate.queryForObject("""
++                select count(*)
++                from sys_menu
++                where permission in ('finance:voucher:view', 'finance:voucher:audit', 'finance:voucher:post')
++                """, Integer.class);
++        Assertions.assertThat(count).isEqualTo(3);
++    }
++
++    private boolean columnExists(String tableName, String columnName) {
++        Integer count = jdbcTemplate.queryForObject("""
++                select count(*)
++                from information_schema.columns
++                where lower(table_name) = ?
++                  and lower(column_name) = ?
++                """, Integer.class, tableName, columnName);
++        return count != null && count == 1;
++    }
++}

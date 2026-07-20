@@ -1,0 +1,60 @@
+package com.tuowei.erp.common.security;
+
+public interface FinancePermissionCodes {
+
+    String FINANCE_PAYMENT_VIEW = "finance:payment:view";
+    String FINANCE_PAYMENT_CREATE = "finance:payment:create";
+    String FINANCE_PAYMENT_CANCEL = "finance:payment:cancel";
+    String FINANCE_RECEIPT_VIEW = "finance:receipt:view";
+    String FINANCE_RECEIPT_CREATE = "finance:receipt:create";
+    String FINANCE_RECEIPT_CANCEL = "finance:receipt:cancel";
+    String FINANCE_FUND_VIEW = "finance:fund:view";
+    String FINANCE_FUND_MANAGE = "finance:fund:manage";
+    String FINANCE_FUND_RECONCILE = "finance:fund:reconcile";
+    String FINANCE_RECEIVABLE_VIEW = "finance:receivable:view";
+    String FINANCE_PAYABLE_VIEW = "finance:payable:view";
+    String FINANCE_SUBJECT_MANAGE = "finance:subject:manage";
+    String FINANCE_EXPENSE_MANAGE = "finance:expense:manage";
+    String FINANCE_VOUCHER_VIEW = "finance:voucher:view";
+    String FINANCE_VOUCHER_MANAGE = "finance:voucher:manage";
+    String FINANCE_VOUCHER_APPROVE = "finance:voucher:approve";
+    String FINANCE_VOUCHER_POST = "finance:voucher:post";
+    String FINANCE_LEDGER_VIEW = "finance:ledger:view";
+    String FINANCE_PERIOD_VIEW = "finance:period:view";
+    String FINANCE_PERIOD_MANAGE = "finance:period:manage";
+    String FINANCE_PERIOD_CLOSE = "finance:period:close";
+    String FINANCE_PERIOD_REOPEN = "finance:period:reopen";
+    String FINANCE_INVOICE_VIEW = "finance:invoice:view";
+    String FINANCE_INVOICE_MANAGE = "finance:invoice:manage";
+    String FINANCE_AGING_VIEW = "finance:aging:view";
+    String FINANCE_STATEMENT_VIEW = "finance:statement:view";
+    String FINANCE_MARGIN_VIEW = "finance:margin:view";
+
+    String HAS_FINANCE_PAYMENT_VIEW = "hasAuthority('" + FINANCE_PAYMENT_VIEW + "')";
+    String HAS_FINANCE_PAYMENT_CREATE = "hasAuthority('" + FINANCE_PAYMENT_CREATE + "')";
+    String HAS_FINANCE_PAYMENT_CANCEL = "hasAuthority('" + FINANCE_PAYMENT_CANCEL + "')";
+    String HAS_FINANCE_RECEIPT_VIEW = "hasAuthority('" + FINANCE_RECEIPT_VIEW + "')";
+    String HAS_FINANCE_RECEIPT_CREATE = "hasAuthority('" + FINANCE_RECEIPT_CREATE + "')";
+    String HAS_FINANCE_RECEIPT_CANCEL = "hasAuthority('" + FINANCE_RECEIPT_CANCEL + "')";
+    String HAS_FINANCE_FUND_VIEW = "hasAuthority('" + FINANCE_FUND_VIEW + "')";
+    String HAS_FINANCE_FUND_MANAGE = "hasAuthority('" + FINANCE_FUND_MANAGE + "')";
+    String HAS_FINANCE_FUND_RECONCILE = "hasAuthority('" + FINANCE_FUND_RECONCILE + "')";
+    String HAS_FINANCE_RECEIVABLE_VIEW = "hasAuthority('" + FINANCE_RECEIVABLE_VIEW + "')";
+    String HAS_FINANCE_PAYABLE_VIEW = "hasAuthority('" + FINANCE_PAYABLE_VIEW + "')";
+    String HAS_FINANCE_SUBJECT_MANAGE = "hasAuthority('" + FINANCE_SUBJECT_MANAGE + "')";
+    String HAS_FINANCE_EXPENSE_MANAGE = "hasAuthority('" + FINANCE_EXPENSE_MANAGE + "')";
+    String HAS_FINANCE_VOUCHER_VIEW = "hasAuthority('" + FINANCE_VOUCHER_VIEW + "')";
+    String HAS_FINANCE_VOUCHER_MANAGE = "hasAuthority('" + FINANCE_VOUCHER_MANAGE + "')";
+    String HAS_FINANCE_VOUCHER_APPROVE = "hasAuthority('" + FINANCE_VOUCHER_APPROVE + "')";
+    String HAS_FINANCE_VOUCHER_POST = "hasAuthority('" + FINANCE_VOUCHER_POST + "')";
+    String HAS_FINANCE_LEDGER_VIEW = "hasAuthority('" + FINANCE_LEDGER_VIEW + "')";
+    String HAS_FINANCE_PERIOD_VIEW = "hasAuthority('" + FINANCE_PERIOD_VIEW + "')";
+    String HAS_FINANCE_PERIOD_MANAGE = "hasAuthority('" + FINANCE_PERIOD_MANAGE + "')";
+    String HAS_FINANCE_PERIOD_CLOSE = "hasAuthority('" + FINANCE_PERIOD_CLOSE + "')";
+    String HAS_FINANCE_PERIOD_REOPEN = "hasAuthority('" + FINANCE_PERIOD_REOPEN + "')";
+    String HAS_FINANCE_INVOICE_VIEW = "hasAuthority('" + FINANCE_INVOICE_VIEW + "')";
+    String HAS_FINANCE_INVOICE_MANAGE = "hasAuthority('" + FINANCE_INVOICE_MANAGE + "')";
+    String HAS_FINANCE_AGING_VIEW = "hasAuthority('" + FINANCE_AGING_VIEW + "')";
+    String HAS_FINANCE_STATEMENT_VIEW = "hasAuthority('" + FINANCE_STATEMENT_VIEW + "')";
+    String HAS_FINANCE_MARGIN_VIEW = "hasAuthority('" + FINANCE_MARGIN_VIEW + "')";
+}

@@ -1,0 +1,245 @@
+# Prometheus告警规则配置
+# 配合 docs/production-readiness-audit.md 使用
+
+groups:
+  - name: erp_server_alerts
+    interval: 30s
+    rules:
+      # ========================================
+      # 基础设施告警
+      # ========================================
+
+      - alert: HighCPUUsage
+        expr: system_cpu_usage > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "CPU使用率过高"
+          description: "实例 {{ $labels.instance }} CPU使用率 {{ $value | humanizePercentage }}，持续5分钟"
+          action: "检查是否有CPU密集型任务，考虑扩容"
+
+      - alert: CriticalCPUUsage
+        expr: system_cpu_usage > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "CPU使用率严重过高"
+          description: "实例 {{ $labels.instance }} CPU使用率 {{ $value | humanizePercentage }}，系统可能无响应"
+          action: "立即扩容或重启过载实例"
+
+      - alert: HighMemoryUsage
+        expr: jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          component: jvm
+        annotations:
+          summary: "JVM堆内存使用率过高"
+          description: "实例 {{ $labels.instance }} JVM堆内存使用 {{ $value | humanizePercentage }}"
+          action: "检查是否有内存泄漏，考虑增加堆内存"
+
+      - alert: DiskSpaceLow
+        expr: disk_free_bytes / disk_total_bytes < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "磁盘空间不足"
+          description: "实例 {{ $labels.instance }} 磁盘剩余空间 {{ $value | humanizePercentage }}"
+          action: "清理日志或扩容磁盘"
+
+      # ========================================
+      # 应用健康告警
+      # ========================================
+
+      - alert: ServiceDown
+        expr: up{job="erp-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: application
+        annotations:
+          summary: "ERP服务不可用"
+          description: "实例 {{ $labels.instance }} 已下线超过1分钟"
+          action: "立即检查服务状态，查看日志，必要时重启"
+
+      - alert: HealthCheckFailed
+        expr: erp_health_status != 1
+        for: 2m
+        labels:
+          severity: critical
+          component: application
+        annotations:
+          summary: "健康检查失败"
+          description: "实例 {{ $labels.instance }} 健康检查失败"
+          action: "检查数据库、Redis等依赖服务"
+
+      - alert: HighErrorRate
+        expr: rate(http_server_requests_seconds_count{status=~"5.."}[5m]) / rate(http_server_requests_seconds_count[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "HTTP 5xx错误率过高"
+          description: "实例 {{ $labels.instance }} 5xx错误率 {{ $value | humanizePercentage }}"
+          action: "查看应用日志，定位错误原因"
+
+      - alert: SlowRequests
+        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "请求响应时间过长"
+          description: "实例 {{ $labels.instance }} P95响应时间 {{ $value }}秒"
+          action: "检查慢查询、慢接口，优化性能"
+
+      # ========================================
+      # 业务健康告警
+      # ========================================
+
+      - alert: BusinessHealthDegraded
+        expr: erp_business_health_status{component!="all"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: business
+        annotations:
+          summary: "业务组件异常"
+          description: "组件 {{ $labels.component }} 健康状态异常"
+          action: "检查对应业务模块日志和数据"
+
+      - alert: HighRateLimitRejects
+        expr: rate(erp_rate_limit_rejected_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "API限流触发频繁"
+          description: "实例 {{ $labels.instance }} 每秒拒绝 {{ $value }} 个请求"
+          action: "检查是否有恶意攻击或合法流量激增"
+
+      - alert: AuditLogErrors
+        expr: rate(erp_audit_log_errors_total[5m]) > 1
+        for: 10m
+        labels:
+          severity: warning
+          component: audit
+        annotations:
+          summary: "审计日志记录失败"
+          description: "实例 {{ $labels.instance }} 审计日志记录失败"
+          action: "检查日志文件权限和磁盘空间"
+
+      # ========================================
+      # 数据库告警
+      # ========================================
+
+      - alert: DatabaseConnectionPoolLow
+        expr: hikaricp_connections_active / hikaricp_connections_max > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "数据库连接池使用率过高"
+          description: "连接池使用率 {{ $value | humanizePercentage }}"
+          action: "增加连接池大小或优化查询"
+
+      - alert: SlowDatabaseQueries
+        expr: rate(erp_slow_query_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "慢查询数量过多"
+          description: "每分钟慢查询 {{ $value }} 个"
+          action: "检查慢查询日志，优化SQL或添加索引"
+
+      # ========================================
+      # Redis告警
+      # ========================================
+
+      - alert: RedisConnectionErrors
+        expr: rate(erp_redis_connection_errors_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Redis连接失败"
+          description: "实例 {{ $labels.instance }} Redis连接错误"
+          action: "检查Redis服务状态和网络连接"
+
+      - alert: CacheHitRateLow
+        expr: rate(erp_cache_hits_total[5m]) / (rate(erp_cache_hits_total[5m]) + rate(erp_cache_misses_total[5m])) < 0.7
+        for: 10m
+        labels:
+          severity: info
+          component: performance
+        annotations:
+          summary: "缓存命中率偏低"
+          description: "缓存命中率 {{ $value | humanizePercentage }}"
+          action: "检查缓存配置和TTL设置"
+
+# ========================================
+# AlertManager配置示例
+# 配置文件: alertmanager.yml
+# ========================================
+#
+# global:
+#   resolve_timeout: 5m
+#   smtp_smarthost: 'smtp.example.com:587'
+#   smtp_from: 'alertmanager@example.com'
+#   smtp_auth_username: 'alertmanager@example.com'
+#   smtp_auth_password: 'password'
+#
+# route:
+#   group_by: ['alertname', 'severity']
+#   group_wait: 10s
+#   group_interval: 10s
+#   repeat_interval: 12h
+#   receiver: 'default'
+#   routes:
+#     - match:
+#         severity: critical
+#       receiver: 'critical-alerts'
+#       continue: true
+#     - match:
+#         severity: warning
+#       receiver: 'warning-alerts'
+#
+# receivers:
+#   - name: 'default'
+#     email_configs:
+#       - to: 'team@example.com'
+#
+#   - name: 'critical-alerts'
+#     email_configs:
+#       - to: 'oncall@example.com'
+#         headers:
+#           Subject: '[CRITICAL] {{ .GroupLabels.alertname }}'
+#     webhook_configs:
+#       - url: 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN'
+#         send_resolved: true
+#
+#   - name: 'warning-alerts'
+#     email_configs:
+#       - to: 'team@example.com'
+#         headers:
+#           Subject: '[WARNING] {{ .GroupLabels.alertname }}'
+#
+# inhibit_rules:
+#   - source_match:
+#       severity: 'critical'
+#     target_match:
+#       severity: 'warning'
+#     equal: ['alertname', 'instance']

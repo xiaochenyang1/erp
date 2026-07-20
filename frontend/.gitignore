@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+.npm-cache
+*.local
+.DS_Store
+.vscode
+.idea
+*.log
+*.lock
+*.tsbuildinfo
+*.backup

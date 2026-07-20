@@ -1,0 +1,21 @@
+FROM eclipse-temurin:17-jre-jammy
+
+ENV SPRING_PROFILES_ACTIVE=prod \
+    JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+RUN groupadd --system erp && useradd --system --gid erp --home-dir /app erp
+COPY docker-dist/erp-server-1.0.0.jar /app/erp-server.jar
+RUN mkdir -p /var/lib/erp-server/attachments \
+    && chown -R erp:erp /app /var/lib/erp-server
+
+USER erp
+EXPOSE 8080
+
+STOPSIGNAL SIGTERM
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=10 CMD curl --fail --silent http://127.0.0.1:8080/actuator/health | grep '"status":"UP"' || exit 1
+
+ENTRYPOINT ["sh", "-c", "if [ -z \"${ERP_DATASOURCE_URL:-}\" ] && [ -n \"${MYSQL_DATABASE:-}\" ]; then export ERP_DATASOURCE_URL=\"jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true\"; fi; if [ -z \"${ERP_DATASOURCE_USERNAME:-}\" ] && [ -n \"${MYSQL_USER:-}\" ]; then export ERP_DATASOURCE_USERNAME=\"$MYSQL_USER\"; fi; if [ -z \"${ERP_DATASOURCE_PASSWORD:-}\" ] && [ -n \"${MYSQL_PASSWORD:-}\" ]; then export ERP_DATASOURCE_PASSWORD=\"$MYSQL_PASSWORD\"; fi; exec java $JAVA_OPTS -jar /app/erp-server.jar"]

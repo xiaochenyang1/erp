@@ -1,0 +1,117 @@
+package com.tuowei.erp.common.config;
+
+import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
+import com.tuowei.erp.system.auth.service.UserSessionService;
+import com.tuowei.erp.system.auth.web.UserSessionPageQuery;
+import com.tuowei.erp.system.config.service.SequenceRuleService;
+import com.tuowei.erp.system.config.service.SystemConfigService;
+import com.tuowei.erp.system.config.web.SequenceRulePageQuery;
+import com.tuowei.erp.system.config.web.SystemConfigPageQuery;
+import com.tuowei.erp.system.dept.service.DeptService;
+import com.tuowei.erp.system.dept.web.DeptPageQuery;
+import com.tuowei.erp.system.dict.service.SystemDictService;
+import com.tuowei.erp.system.dict.web.DictTypePageQuery;
+import com.tuowei.erp.system.log.service.SystemLogService;
+import com.tuowei.erp.system.log.web.AuditLogPageQuery;
+import com.tuowei.erp.system.log.web.LoginLogPageQuery;
+import com.tuowei.erp.system.log.web.OperationLogPageQuery;
+import com.tuowei.erp.system.menu.service.MenuService;
+import com.tuowei.erp.system.menu.web.MenuPageQuery;
+import com.tuowei.erp.system.notification.service.NotificationService;
+import com.tuowei.erp.system.notification.web.NotificationPageQuery;
+import com.tuowei.erp.system.post.service.PostService;
+import com.tuowei.erp.system.post.web.PostPageQuery;
+import com.tuowei.erp.system.readiness.service.ReadinessService;
+import com.tuowei.erp.system.readiness.web.ReadinessRunPageQuery;
+import com.tuowei.erp.system.role.service.RoleService;
+import com.tuowei.erp.system.role.web.RolePageQuery;
+import com.tuowei.erp.system.user.service.UserService;
+import com.tuowei.erp.system.user.web.UserPageQuery;
+import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.lang.reflect.Method;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class ReadOnlyTransactionStructureTest {
+
+    @Test
+    void systemLogQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
+        assertReadOnly(SystemLogService.class.getMethod("listLoginLogs", LoginLogPageQuery.class));
+        assertReadOnly(SystemLogService.class.getMethod("listOperationLogs", OperationLogPageQuery.class));
+        assertReadOnly(SystemLogService.class.getMethod("listAuditLogs", AuditLogPageQuery.class));
+    }
+
+    @Test
+    void inventoryAlertLowStockQueryUsesReadOnlyTransaction() throws NoSuchMethodException {
+        assertReadOnly(InventoryAlertService.class.getMethod("listLowStock", Long.class, Long.class));
+    }
+
+    @Test
+    void attachmentQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
+        assertReadOnly(AttachmentService.class, "list", AttachmentPageQuery.class);
+        assertReadOnly(AttachmentService.class, "download", Long.class);
+    }
+
+    @Test
+    void readinessQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
+        assertReadOnly(ReadinessService.class, "listRuns", ReadinessRunPageQuery.class);
+        assertReadOnly(ReadinessService.class, "detail", Long.class);
+    }
+
+    @Test
+    void systemAdministrationQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
+        assertReadOnly(UserService.class, "list", UserPageQuery.class);
+        assertReadOnly(UserService.class, "getById", Long.class);
+        assertReadOnly(UserService.class, "getAssignedRoles", Long.class);
+
+        assertReadOnly(RoleService.class, "list", RolePageQuery.class);
+        assertReadOnly(RoleService.class, "getById", Long.class);
+        assertReadOnly(RoleService.class, "getAssignedMenus", Long.class);
+
+        assertReadOnly(MenuService.class, "list", MenuPageQuery.class);
+        assertReadOnly(MenuService.class, "tree");
+        assertReadOnly(MenuService.class, "getById", Long.class);
+
+        assertReadOnly(DeptService.class, "list", DeptPageQuery.class);
+        assertReadOnly(DeptService.class, "tree");
+        assertReadOnly(DeptService.class, "getById", Long.class);
+
+        assertReadOnly(PostService.class, "list", PostPageQuery.class);
+        assertReadOnly(PostService.class, "getById", Long.class);
+
+        assertReadOnly(SystemDictService.class, "listTypes", DictTypePageQuery.class);
+        assertReadOnly(SystemDictService.class, "getTypeById", Long.class);
+        assertReadOnly(SystemDictService.class, "listItems", String.class);
+        assertReadOnly(SystemDictService.class, "requireEnabledItem", String.class, String.class, String.class);
+
+        assertReadOnly(SystemConfigService.class, "list", SystemConfigPageQuery.class);
+        assertReadOnly(SystemConfigService.class, "getById", Long.class);
+
+        assertReadOnly(SequenceRuleService.class, "list", SequenceRulePageQuery.class);
+        assertReadOnly(SequenceRuleService.class, "getById", Long.class);
+
+        assertReadOnly(UserSessionService.class, "list", UserSessionPageQuery.class);
+
+        assertReadOnly(NotificationService.class, "listMine", NotificationPageQuery.class);
+        assertReadOnly(NotificationService.class, "countUnreadMine");
+    }
+
+    private static void assertReadOnly(Class<?> serviceClass, String methodName, Class<?>... parameterTypes)
+            throws NoSuchMethodException {
+        assertReadOnly(serviceClass.getMethod(methodName, parameterTypes));
+    }
+
+    private static void assertReadOnly(Method method) {
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        assertThat(transactional)
+                .as("%s should declare @Transactional(readOnly = true)", method)
+                .isNotNull();
+        assertThat(transactional.readOnly())
+                .as("%s should be read-only", method)
+                .isTrue();
+    }
+}

@@ -1,0 +1,88 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: ${ERP_DOCKER_LOG_MAX_SIZE:-50m}
+    max-file: ${ERP_DOCKER_LOG_MAX_FILE:-5}
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: erp-mysql
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - ${ERP_COMPOSE_ENV_FILE:-.env.prod}
+    environment:
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+08:00
+    profiles:
+      - core
+      - expose-infra
+    ports:
+      - "${MYSQL_BIND_HOST:-127.0.0.1}:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - erp-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: erp-redis
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - ${ERP_COMPOSE_ENV_FILE:-.env.prod}
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass \"$${ERP_REDIS_PASSWORD}\""]
+    profiles:
+      - core
+      - expose-infra
+    ports:
+      - "${REDIS_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - erp-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${ERP_REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  erp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erp-server
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - ${ERP_COMPOSE_ENV_FILE:-.env.prod}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      ERP_REDIS_HOST: redis
+      ERP_REDIS_PORT: 6379
+      ERP_ATTACHMENT_STORAGE_ROOT: /var/lib/erp-server/attachments
+    ports:
+      - "${ERP_SERVER_BIND_HOST:-127.0.0.1}:${ERP_SERVER_PORT:-8080}:8080"
+    volumes:
+      - erp-attachments:/var/lib/erp-server/attachments
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health | grep '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+volumes:
+  erp-mysql-data:
+  erp-redis-data:
+  erp-attachments:

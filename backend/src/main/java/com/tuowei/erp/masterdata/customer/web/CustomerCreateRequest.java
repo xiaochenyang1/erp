@@ -1,0 +1,18 @@
+package com.tuowei.erp.masterdata.customer.web;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+import java.math.BigDecimal;
+
+public record CustomerCreateRequest(
+        @NotBlank(message = "customerCode不能为空") String customerCode,
+        @NotBlank(message = "customerName不能为空") String customerName,
+        String contactName,
+        String contactPhone,
+        @NotBlank(message = "settlementMethod不能为空") String settlementMethod,
+        @NotNull(message = "creditLimit不能为空") BigDecimal creditLimit,
+        String address,
+        String remark
+) {
+}

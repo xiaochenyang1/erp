@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: erp-server
+  jackson:
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+  mvc:
+    problemdetails:
+      enabled: false
+
+server:
+  port: 8080
+
+erp:
+  app:
+    code: erp-server
+    name: ERP Server
+    timezone: Asia/Shanghai
+  error:
+    expose-unexpected-message: false
+  attachment:
+    storage-root: ${ERP_ATTACHMENT_STORAGE_ROOT:./data/attachments}
+    max-file-size-bytes: ${ERP_ATTACHMENT_MAX_FILE_SIZE_BYTES:20971520}
+    # 过账/提交前强制附件的业务类型（逗号分隔），默认费用单
+    required-business-types: ${ERP_ATTACHMENT_REQUIRED_TYPES:EXPENSE}
+    min-required-count: ${ERP_ATTACHMENT_MIN_REQUIRED_COUNT:1}
+  idempotency:
+    enabled: ${ERP_IDEMPOTENCY_ENABLED:true}
+    ttl-seconds: ${ERP_IDEMPOTENCY_TTL_SECONDS:86400}
+    max-replay-body-bytes: ${ERP_IDEMPOTENCY_MAX_REPLAY_BODY_BYTES:1048576}
+    max-request-body-bytes: ${ERP_IDEMPOTENCY_MAX_REQUEST_BODY_BYTES:1048576}
+  import:
+    max-file-size-bytes: ${ERP_IMPORT_MAX_FILE_SIZE_BYTES:5242880}
+    max-rows: ${ERP_IMPORT_MAX_ROWS:5000}
+    max-cell-length: ${ERP_IMPORT_MAX_CELL_LENGTH:4096}
+    commit-batch-size: ${ERP_IMPORT_COMMIT_BATCH_SIZE:500}
+  report:
+    max-export-rows: ${ERP_REPORT_MAX_EXPORT_ROWS:5000}
+    export-batch-size: ${ERP_REPORT_EXPORT_BATCH_SIZE:500}
+  exception-rule:
+    scheduler:
+      enabled: ${ERP_EXCEPTION_RULE_SCHEDULER_ENABLED:true}
+      fixed-delay-ms: ${ERP_EXCEPTION_RULE_SCHEDULER_FIXED_DELAY_MS:60000}
+      initial-delay-ms: ${ERP_EXCEPTION_RULE_SCHEDULER_INITIAL_DELAY_MS:60000}
+  security:
+    public-api-docs-enabled: false
+    trusted-proxies: ${ERP_TRUSTED_PROXIES:}
+    principal-cache-invalidation:
+      mode: ${ERP_PRINCIPAL_CACHE_INVALIDATION_MODE:local}
+    jwt:
+      secret: ${ERP_JWT_SECRET}
+      access-token-ttl-seconds: ${ERP_JWT_ACCESS_TOKEN_TTL_SECONDS:7200}
+      refresh-token-ttl-seconds: ${ERP_JWT_REFRESH_TOKEN_TTL_SECONDS:1209600}

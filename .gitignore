@@ -1,0 +1,31 @@
+# Backend
+backend/target/
+backend/.m2/
+backend/.m2-release/
+backend/.claude/
+backend/.worktrees/
+backend/data/
+backend/.env
+backend/.env.*
+!backend/.env.example
+!backend/.env.*.example
+backend/.kotlin
+backend/.idea/
+backend/*.iws
+backend/*.iml
+backend/*.ipr
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.npm-cache/
+frontend/*.local
+frontend/*.tsbuildinfo
+frontend/*.backup
+frontend/.idea/
+
+# Common
+.DS_Store
+*.log
+.vscode

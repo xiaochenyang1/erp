@@ -1,0 +1,27 @@
+services:
+  mysql:
+    env_file:
+      - .env.preprod-local
+  redis:
+    env_file:
+      - .env.preprod-local
+  erp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.prebuilt
+    env_file:
+      - .env.preprod-local
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      ERP_REDIS_HOST: redis
+      ERP_REDIS_PORT: 6379
+      ERP_ATTACHMENT_STORAGE_ROOT: /var/lib/erp-server/attachments
+      ERP_DATASOURCE_URL: jdbc:mysql://mysql:3306/erp_server?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      ERP_DATASOURCE_USERNAME: erp_app
+      ERP_DATASOURCE_PASSWORD: LocalPreprodAppPass_32chars_okx
+      ERP_REDIS_PASSWORD: LocalPreprodRedisPass_32chars_ok
+      ERP_JWT_SECRET: LocalPreprodJwtSecret_at_least_48_bytes_long_for_this_lane
+      ERP_BOOTSTRAP_ADMIN_PASSWORD: LocalPreprodAdmin1
+      ERP_RATE_LIMIT_ENABLED: "false"
+      # Spring relaxed binding for erp.rate-limit.enabled
+      SPRING_APPLICATION_JSON: '{"erp":{"rate-limit":{"enabled":false}}}'

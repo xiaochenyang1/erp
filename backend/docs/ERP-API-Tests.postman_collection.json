@@ -1,0 +1,593 @@
+{
+  "info": {
+    "name": "ERP系统API测试集合",
+    "description": "ERP系统前后端对接完整测试集合\n\n包含：库存、采购、生产、财务四大模块的API测试\n\n作者：Claude Code\n日期：2026-06-16",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "00-认证",
+      "item": [
+        {
+          "name": "登录获取Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.token) {",
+                  "        pm.environment.set('token', jsonData.data.token);",
+                  "        pm.collectionVariables.set('token', jsonData.data.token);",
+                  "        console.log('Token已保存：' + jsonData.data.token);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01-库存模块",
+      "item": [
+        {
+          "name": "库存调整",
+          "item": [
+            {
+              "name": "创建库存调整单",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('状态码为200', function() {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('返回数据包含adjustmentNo', function() {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data).to.have.property('adjustmentNo');",
+                      "    pm.expect(jsonData.data.status).to.eql('DRAFT');",
+                      "    pm.collectionVariables.set('adjustmentId', jsonData.data.id);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"warehouseId\": 1,\n  \"adjustmentDate\": \"2026-06-16\",\n  \"type\": \"GAIN\",\n  \"lines\": [\n    {\n      \"productId\": 1,\n      \"direction\": \"IN\",\n      \"qty\": 100,\n      \"unitCost\": 10.50,\n      \"reason\": \"盘盈\"\n    }\n  ],\n  \"remark\": \"测试库存调整\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/adjustments",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "adjustments"]
+                },
+                "description": "创建库存调整单 - 新增接口测试"
+              }
+            },
+            {
+              "name": "查询调整单列表",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('状态码为200', function() {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('返回分页数据', function() {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data).to.have.property('content');",
+                      "    pm.expect(jsonData.data).to.have.property('totalElements');",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/adjustments?pageNo=1&pageSize=20&status=DRAFT",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "adjustments"],
+                  "query": [
+                    {
+                      "key": "pageNo",
+                      "value": "1"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "20"
+                    },
+                    {
+                      "key": "status",
+                      "value": "DRAFT"
+                    }
+                  ]
+                },
+                "description": "查询调整单列表 - 新增接口测试"
+              }
+            },
+            {
+              "name": "过账调整单",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('状态码为200', function() {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('状态变为POSTED', function() {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data.status).to.eql('POSTED');",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/adjustments/{{adjustmentId}}/post",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "adjustments", "{{adjustmentId}}", "post"]
+                },
+                "description": "过账调整单"
+              }
+            },
+            {
+              "name": "取消调整单（应失败）",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('应返回错误', function() {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([400, 422]);",
+                      "});",
+                      "",
+                      "pm.test('错误信息正确', function() {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.message).to.include('过账');",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/adjustments/{{adjustmentId}}/cancel",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "adjustments", "{{adjustmentId}}", "cancel"]
+                },
+                "description": "尝试取消已过账的单据，应该失败"
+              }
+            }
+          ]
+        },
+        {
+          "name": "库存盘点",
+          "item": [
+            {
+              "name": "创建盘点单",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('状态码为200', function() {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "var jsonData = pm.response.json();",
+                      "pm.collectionVariables.set('checkId', jsonData.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"warehouseId\": 1,\n  \"checkDate\": \"2026-06-16\",\n  \"lines\": [\n    {\n      \"productId\": 1,\n      \"actualQty\": 95,\n      \"unitCost\": 10.50\n    }\n  ],\n  \"remark\": \"测试盘点\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/checks",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "checks"]
+                }
+              }
+            },
+            {
+              "name": "查询盘点列表",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('状态码为200', function() {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('返回分页数据', function() {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data).to.have.property('content');",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/checks?pageNo=1&pageSize=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "checks"],
+                  "query": [
+                    {
+                      "key": "pageNo",
+                      "value": "1"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "查询盘点列表 - 新增接口测试"
+              }
+            },
+            {
+              "name": "生成调整",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('状态码为200', function() {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('状态变为ADJUSTED', function() {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data.status).to.eql('ADJUSTED');",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/checks/{{checkId}}/adjust",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "checks", "{{checkId}}", "adjust"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "库存调拨",
+          "item": [
+            {
+              "name": "创建调拨单",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('状态码为200', function() {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "var jsonData = pm.response.json();",
+                      "pm.collectionVariables.set('transferId', jsonData.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fromWarehouseId\": 1,\n  \"toWarehouseId\": 2,\n  \"transferDate\": \"2026-06-16\",\n  \"lines\": [\n    {\n      \"productId\": 1,\n      \"qty\": 50,\n      \"unitCost\": 10.50\n    }\n  ],\n  \"remark\": \"测试调拨\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "transfers"]
+                }
+              }
+            },
+            {
+              "name": "查询调拨列表",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('状态码为200', function() {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('返回分页数据', function() {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data).to.have.property('content');",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/transfers?pageNo=1&pageSize=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "transfers"],
+                  "query": [
+                    {
+                      "key": "pageNo",
+                      "value": "1"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "查询调拨列表 - 新增接口测试"
+              }
+            },
+            {
+              "name": "过账调拨单",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('状态码为200', function() {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/inventory/transfers/{{transferId}}/post",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "inventory", "transfers", "{{transferId}}", "post"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02-采购模块",
+      "item": [
+        {
+          "name": "创建采购订单",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('purchaseOrderId', jsonData.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": 1,\n  \"orderDate\": \"2026-06-16\",\n  \"expectedDate\": \"2026-06-30\",\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 100,\n      \"price\": 10.00\n    }\n  ],\n  \"remark\": \"测试采购订单\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/purchase/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "purchase", "orders"]
+            }
+          }
+        },
+        {
+          "name": "提交审批",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/purchase/orders/{{purchaseOrderId}}/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "purchase", "orders", "{{purchaseOrderId}}", "submit"]
+            }
+          }
+        },
+        {
+          "name": "审批通过",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/purchase/orders/{{purchaseOrderId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "purchase", "orders", "{{purchaseOrderId}}", "approve"]
+            }
+          }
+        },
+        {
+          "name": "关闭订单（新功能）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('状态变为CLOSED', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('CLOSED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/purchase/orders/{{purchaseOrderId}}/close",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "purchase", "orders", "{{purchaseOrderId}}", "close"]
+            },
+            "description": "关闭采购订单 - 新增功能测试"
+          }
+        },
+        {
+          "name": "订单跟踪（新功能）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('返回跟踪信息', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('order');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/purchase/orders/{{purchaseOrderId}}/trace",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "purchase", "orders", "{{purchaseOrderId}}", "trace"]
+            },
+            "description": "查询订单跟踪信息 - 新增功能测试"
+          }
+        },
+        {
+          "name": "导出订单列表（新功能）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Content-Type为CSV', function() {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('csv');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/purchase/orders/export?status=APPROVED",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "purchase", "orders", "export"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "APPROVED"
+                }
+              ]
+            },
+            "description": "导出采购订单列表为CSV - 新增功能测试"
+          }
+        }
+      ]
+    }
+  ]
+}

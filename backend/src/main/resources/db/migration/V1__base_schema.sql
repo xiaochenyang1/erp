@@ -1,0 +1,5 @@
+CREATE TABLE sys_bootstrap_marker (
+    id BIGINT NOT NULL PRIMARY KEY,
+    marker_code VARCHAR(64) NOT NULL,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

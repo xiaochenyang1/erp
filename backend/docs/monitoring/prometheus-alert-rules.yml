@@ -1,0 +1,47 @@
+groups:
+  - name: erp-business-health
+    rules:
+      - alert: ErpReadinessP0P1Unpassed
+        expr: erp_business_health_check_count{check="READINESS_UNPASSED_P0_P1"} > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: ERP readiness P0/P1 checks are not fully passed
+          description: One or more P0/P1 readiness items are pending, failed, blocked, or skipped.
+
+      - alert: ErpRecentImportFailures
+        expr: erp_business_health_check_count{check="IMPORT_FAILED_RECENT"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: ERP import jobs failed in the last 24 hours
+          description: Recent failed import jobs need operator review before release approval.
+
+      - alert: ErpNegativeInventoryBalance
+        expr: erp_business_health_check_count{check="NEGATIVE_INVENTORY_BALANCE"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: ERP negative inventory balances exist
+          description: Negative stock balances were detected by the business-health summary.
+
+      - alert: ErpNoOpenAccountingPeriod
+        expr: erp_business_health_check_count{check="OPEN_PERIOD_COUNT"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: ERP has no open accounting period
+          description: Current account book has no OPEN accounting period; business posting may be blocked.
+
+      - alert: ErpBusinessHealthWarn
+        expr: erp_business_health_overall_status > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: ERP business health is WARN
+          description: At least one ERP business-health check reports WARN.

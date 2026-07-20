@@ -1,0 +1,522 @@
+USE erp_server;
+
+CREATE TABLE IF NOT EXISTS sys_bootstrap_marker (
+    id BIGINT NOT NULL PRIMARY KEY,
+    marker_code VARCHAR(64) NOT NULL,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sys_dept (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    parent_id BIGINT NOT NULL DEFAULT 0,
+    dept_code VARCHAR(64) NOT NULL,
+    dept_name VARCHAR(64) NOT NULL,
+    leader_user_id BIGINT,
+    sort_no INT NOT NULL DEFAULT 0,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_post (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    dept_id BIGINT NOT NULL,
+    post_code VARCHAR(64) NOT NULL,
+    post_name VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_user (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    username VARCHAR(64) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    real_name VARCHAR(64) NOT NULL,
+    mobile VARCHAR(32),
+    employee_no VARCHAR(64),
+    dept_id BIGINT,
+    post_id BIGINT,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_role (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    role_code VARCHAR(64) NOT NULL,
+    role_name VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_menu (
+    id BIGINT NOT NULL PRIMARY KEY,
+    parent_id BIGINT NOT NULL DEFAULT 0,
+    menu_type VARCHAR(32) NOT NULL,
+    menu_code VARCHAR(64) NOT NULL,
+    menu_name VARCHAR(64) NOT NULL,
+    path VARCHAR(255),
+    component VARCHAR(255),
+    permission VARCHAR(128),
+    sort_no INT NOT NULL DEFAULT 0,
+    visible_flag TINYINT NOT NULL DEFAULT 1,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_user_role (
+    id BIGINT NOT NULL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    role_id BIGINT NOT NULL,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sys_role_menu (
+    id BIGINT NOT NULL PRIMARY KEY,
+    role_id BIGINT NOT NULL,
+    menu_id BIGINT NOT NULL,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sys_config (
+    id BIGINT NOT NULL PRIMARY KEY,
+    config_code VARCHAR(64) NOT NULL,
+    config_name VARCHAR(64) NOT NULL,
+    config_value VARCHAR(255) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_sequence_rule (
+    id BIGINT NOT NULL PRIMARY KEY,
+    biz_type VARCHAR(64) NOT NULL,
+    prefix VARCHAR(32) NOT NULL,
+    date_pattern VARCHAR(32) NOT NULL,
+    seq_length INT NOT NULL,
+    current_value BIGINT NOT NULL DEFAULT 0,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS md_warehouse (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    warehouse_code VARCHAR(64) NOT NULL,
+    warehouse_name VARCHAR(64) NOT NULL,
+    dept_id BIGINT NOT NULL,
+    manager_user_id BIGINT NOT NULL,
+    address VARCHAR(255),
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS md_product (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    product_code VARCHAR(64) NOT NULL,
+    product_name VARCHAR(128) NOT NULL,
+    product_type VARCHAR(32) NOT NULL,
+    category_name VARCHAR(64) NOT NULL,
+    specification VARCHAR(128),
+    unit_name VARCHAR(32) NOT NULL,
+    purchase_price DECIMAL(18, 2) NOT NULL,
+    sale_price DECIMAL(18, 2) NOT NULL,
+    tax_rate DECIMAL(8, 4) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    lot_controlled TINYINT NOT NULL DEFAULT 0,
+    shelf_life_controlled TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS md_customer (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    customer_code VARCHAR(64) NOT NULL,
+    customer_name VARCHAR(128) NOT NULL,
+    contact_name VARCHAR(64),
+    contact_phone VARCHAR(32),
+    settlement_method VARCHAR(32) NOT NULL,
+    credit_limit DECIMAL(18, 2) NOT NULL,
+    address VARCHAR(255),
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS md_supplier (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    supplier_code VARCHAR(64) NOT NULL,
+    supplier_name VARCHAR(128) NOT NULL,
+    contact_name VARCHAR(64),
+    contact_phone VARCHAR(32),
+    settlement_method VARCHAR(32) NOT NULL,
+    address VARCHAR(255),
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS pur_order (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    order_no VARCHAR(64) NOT NULL,
+    supplier_id BIGINT NOT NULL,
+    order_date DATE NOT NULL,
+    delivery_date DATE,
+    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    approval_status VARCHAR(32) NOT NULL DEFAULT 'NOT_SUBMITTED',
+    receipt_status VARCHAR(32) NOT NULL DEFAULT 'NOT_RECEIVED',
+    total_quantity DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    total_amount DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    total_tax_amount DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS pur_order_line (
+    id BIGINT NOT NULL PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    line_no INT NOT NULL,
+    product_id BIGINT NOT NULL,
+    qty DECIMAL(18, 4) NOT NULL,
+    price DECIMAL(18, 2) NOT NULL,
+    tax_rate DECIMAL(8, 4) NOT NULL,
+    tax_amount DECIMAL(18, 2) NOT NULL,
+    amount DECIMAL(18, 2) NOT NULL,
+    received_qty DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS pur_receipt (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    receipt_no VARCHAR(64) NOT NULL,
+    order_id BIGINT NOT NULL,
+    warehouse_id BIGINT NOT NULL,
+    receipt_date DATE NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    total_quantity DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    total_amount DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    total_tax_amount DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS pur_receipt_line (
+    id BIGINT NOT NULL PRIMARY KEY,
+    receipt_id BIGINT NOT NULL,
+    line_no INT NOT NULL,
+    order_line_id BIGINT NOT NULL,
+    product_id BIGINT NOT NULL,
+    qty DECIMAL(18, 4) NOT NULL,
+    price DECIMAL(18, 2) NOT NULL,
+    tax_rate DECIMAL(8, 4) NOT NULL,
+    amount DECIMAL(18, 2) NOT NULL,
+    tax_amount DECIMAL(18, 2) NOT NULL,
+    returned_qty DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    lot_no VARCHAR(64),
+    production_date DATE,
+    expiry_date DATE,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS pur_return (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    return_no VARCHAR(64) NOT NULL,
+    receipt_id BIGINT NOT NULL,
+    warehouse_id BIGINT NOT NULL,
+    return_date DATE NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    total_quantity DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    total_amount DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    total_tax_amount DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS pur_return_line (
+    id BIGINT NOT NULL PRIMARY KEY,
+    return_id BIGINT NOT NULL,
+    line_no INT NOT NULL,
+    receipt_line_id BIGINT NOT NULL,
+    order_line_id BIGINT NOT NULL,
+    product_id BIGINT NOT NULL,
+    qty DECIMAL(18, 4) NOT NULL,
+    price DECIMAL(18, 2) NOT NULL,
+    tax_rate DECIMAL(8, 4) NOT NULL,
+    amount DECIMAL(18, 2) NOT NULL,
+    tax_amount DECIMAL(18, 2) NOT NULL,
+    lot_no VARCHAR(64),
+    production_date DATE,
+    expiry_date DATE,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS inv_balance (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    warehouse_id BIGINT NOT NULL,
+    product_id BIGINT NOT NULL,
+    qty_on_hand DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    qty_reserved DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    amount_on_hand DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS inv_lot_balance (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    warehouse_id BIGINT NOT NULL,
+    product_id BIGINT NOT NULL,
+    lot_no VARCHAR(64) NOT NULL,
+    production_date DATE,
+    expiry_date DATE,
+    first_inbound_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    qty_on_hand DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    qty_reserved DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    amount_on_hand DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS inv_reservation (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    warehouse_id BIGINT NOT NULL,
+    product_id BIGINT NOT NULL,
+    source_type VARCHAR(32) NOT NULL,
+    source_id BIGINT NOT NULL,
+    source_no VARCHAR(64) NOT NULL,
+    source_line_id BIGINT NOT NULL,
+    reserved_qty DECIMAL(18, 4) NOT NULL,
+    released_qty DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    remaining_qty DECIMAL(18, 4) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS inv_txn (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    warehouse_id BIGINT NOT NULL,
+    product_id BIGINT NOT NULL,
+    biz_type VARCHAR(32) NOT NULL,
+    biz_no VARCHAR(64) NOT NULL,
+    biz_line_id BIGINT NOT NULL,
+    direction VARCHAR(16) NOT NULL,
+    qty DECIMAL(18, 4) NOT NULL,
+    amount DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    unit_cost DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    occurred_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lot_no VARCHAR(64),
+    production_date DATE,
+    expiry_date DATE,
+    lot_key VARCHAR(80) NOT NULL DEFAULT '',
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS inv_transfer (
+    id BIGINT NOT NULL PRIMARY KEY,
+    company_id BIGINT NOT NULL DEFAULT 1,
+    account_book_id BIGINT NOT NULL DEFAULT 1,
+    transfer_no VARCHAR(64) NOT NULL,
+    from_warehouse_id BIGINT NOT NULL,
+    to_warehouse_id BIGINT NOT NULL,
+    transfer_date DATE NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    total_quantity DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    total_amount DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS inv_transfer_line (
+    id BIGINT NOT NULL PRIMARY KEY,
+    transfer_id BIGINT NOT NULL,
+    line_no INT NOT NULL,
+    product_id BIGINT NOT NULL,
+    qty DECIMAL(18, 4) NOT NULL,
+    unit_cost DECIMAL(18, 4) NOT NULL DEFAULT 0,
+    amount DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    lot_no VARCHAR(64),
+    production_date DATE,
+    expiry_date DATE,
+    remark VARCHAR(255),
+    created_by BIGINT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_login_log (
+    id BIGINT NOT NULL PRIMARY KEY,
+    user_id BIGINT,
+    username VARCHAR(64) NOT NULL,
+    result VARCHAR(32) NOT NULL,
+    message VARCHAR(512),
+    login_ip VARCHAR(64),
+    user_agent VARCHAR(512),
+    login_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sys_operation_log (
+    id BIGINT NOT NULL PRIMARY KEY,
+    user_id BIGINT,
+    username VARCHAR(64),
+    module VARCHAR(64) NOT NULL,
+    operation VARCHAR(128) NOT NULL,
+    biz_no VARCHAR(128),
+    result VARCHAR(32) NOT NULL,
+    message VARCHAR(512),
+    request_method VARCHAR(16),
+    request_uri VARCHAR(512),
+    operation_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sys_audit_log (
+    id BIGINT NOT NULL PRIMARY KEY,
+    audit_type VARCHAR(64) NOT NULL,
+    business_type VARCHAR(64) NOT NULL,
+    business_id BIGINT,
+    business_no VARCHAR(128),
+    action VARCHAR(128) NOT NULL,
+    operator_id BIGINT,
+    operator_name VARCHAR(64),
+    snapshot_json LONGTEXT,
+    message VARCHAR(512),
+    audit_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

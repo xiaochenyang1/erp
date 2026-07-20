@@ -1,0 +1,17 @@
+package com.tuowei.erp.masterdata.customer.web;
+
+import java.math.BigDecimal;
+
+public record CustomerResponse(
+        Long id,
+        String customerCode,
+        String customerName,
+        String contactName,
+        String contactPhone,
+        String settlementMethod,
+        BigDecimal creditLimit,
+        String address,
+        String status,
+        String remark
+) {
+}

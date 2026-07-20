@@ -1,0 +1,667 @@
+<template>
+  <div class="app-container">
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+      <el-tab-pane label="操作日志" name="operation">
+    <!-- 搜索栏 -->
+    <el-card shadow="never" class="search-card">
+      <el-form :model="queryForm" inline>
+        <el-form-item label="模块">
+          <el-input v-model="queryForm.module" placeholder="请输入模块" clearable style="width: 150px" />
+        </el-form-item>
+        <el-form-item label="操作">
+          <el-input v-model="queryForm.operation" placeholder="请输入操作" clearable style="width: 150px" />
+        </el-form-item>
+        <el-form-item label="业务编号">
+          <el-input v-model="queryForm.bizNo" placeholder="请输入业务编号" clearable style="width: 180px" />
+        </el-form-item>
+        <el-form-item label="操作人">
+          <el-input v-model="queryForm.operatorName" placeholder="请输入操作人" clearable style="width: 150px" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryForm.status" placeholder="请选择" clearable style="width: 120px">
+            <el-option label="成功" value="SUCCESS" />
+            <el-option label="失败" value="FAIL" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="日期范围">
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            style="width: 280px"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
+          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button v-permission="'system:log:view'" :icon="Download" @click="handleExport">导出</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <!-- 表格 -->
+    <el-card shadow="never" class="table-card">
+      <template #header>
+        <span>操作日志</span>
+      </template>
+
+      <el-table v-loading="loading" :data="tableData" border stripe>
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <el-descriptions :column="1" border>
+              <el-descriptions-item label="请求URL">
+                {{ row.requestUrl }}
+              </el-descriptions-item>
+              <el-descriptions-item label="请求方法">
+                {{ row.method }}
+              </el-descriptions-item>
+              <el-descriptions-item label="业务编号" v-if="row.bizNo">
+                {{ row.bizNo }}
+              </el-descriptions-item>
+              <el-descriptions-item label="日志消息" v-if="row.message">
+                {{ row.message }}
+              </el-descriptions-item>
+              <el-descriptions-item label="请求参数" v-if="row.requestParams">
+                <el-text tag="pre" style="max-height: 200px; overflow: auto">{{ formatJson(row.requestParams) }}</el-text>
+              </el-descriptions-item>
+              <el-descriptions-item label="响应数据" v-if="row.responseData">
+                <el-text tag="pre" style="max-height: 200px; overflow: auto">{{ formatJson(row.responseData) }}</el-text>
+              </el-descriptions-item>
+              <el-descriptions-item label="User-Agent" v-if="row.userAgent">
+                {{ row.userAgent }}
+              </el-descriptions-item>
+              <el-descriptions-item label="错误信息" v-if="row.errorMsg">
+                <el-text type="danger">{{ row.errorMsg }}</el-text>
+              </el-descriptions-item>
+            </el-descriptions>
+          </template>
+        </el-table-column>
+        <el-table-column prop="module" label="模块" width="100" />
+        <el-table-column prop="operation" label="操作" width="120" />
+        <el-table-column prop="operatorName" label="操作人" width="120" />
+        <el-table-column prop="ipAddress" label="IP地址" width="140" />
+        <el-table-column prop="status" label="状态" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'SUCCESS' ? 'success' : 'danger'" size="small">
+              {{ row.status === 'SUCCESS' ? '成功' : '失败' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="executionTime" label="耗时(ms)" width="100" align="right">
+          <template #default="{ row }">
+            <el-text :type="getExecutionTimeType(row.executionTime)">
+              {{ row.executionTime }}
+            </el-text>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="操作时间" width="160" />
+        <el-table-column label="操作" width="100" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link :icon="View" @click="handleView(row)">
+              查看
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 分页 -->
+      <el-pagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.size"
+        :total="pagination.total"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handlePageChange"
+        @current-change="handlePageChange"
+        style="margin-top: 20px; justify-content: flex-end"
+      />
+    </el-card>
+
+      </el-tab-pane>
+
+      <el-tab-pane label="登录日志" name="login">
+        <el-card shadow="never" class="search-card">
+          <el-form :model="loginQueryForm" inline>
+            <el-form-item label="用户名">
+              <el-input v-model="loginQueryForm.username" placeholder="请输入用户名" clearable style="width: 180px" />
+            </el-form-item>
+            <el-form-item label="结果">
+              <el-select v-model="loginQueryForm.result" placeholder="请选择" clearable style="width: 120px">
+                <el-option label="成功" value="SUCCESS" />
+                <el-option label="失败" value="FAIL" />
+                <el-option label="失败" value="FAILURE" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="日期范围">
+              <el-date-picker
+                v-model="loginDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="YYYY-MM-DD"
+                style="width: 280px"
+              />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :icon="Search" @click="handleLoginQuery">查询</el-button>
+              <el-button :icon="Refresh" @click="handleLoginReset">重置</el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
+
+        <el-card shadow="never" class="table-card">
+          <template #header>
+            <span>登录日志</span>
+          </template>
+
+          <el-table v-loading="loginLoading" :data="loginTableData" border stripe>
+            <el-table-column prop="username" label="用户名" width="140" />
+            <el-table-column prop="userId" label="用户ID" width="160" show-overflow-tooltip />
+            <el-table-column prop="result" label="结果" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="isSuccess(row.result) ? 'success' : 'danger'" size="small">
+                  {{ isSuccess(row.result) ? '成功' : '失败' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="message" label="消息" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="loginIp" label="登录IP" width="150" />
+            <el-table-column prop="loginTime" label="登录时间" width="170" />
+            <el-table-column prop="userAgent" label="User-Agent" min-width="260" show-overflow-tooltip />
+          </el-table>
+
+          <el-pagination
+            v-model:current-page="loginPagination.page"
+            v-model:page-size="loginPagination.size"
+            :total="loginPagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleLoginPageChange"
+            @current-change="handleLoginPageChange"
+            style="margin-top: 20px; justify-content: flex-end"
+          />
+        </el-card>
+      </el-tab-pane>
+
+      <el-tab-pane label="审计日志" name="audit">
+        <el-card shadow="never" class="search-card">
+          <el-form :model="auditQueryForm" inline>
+            <el-form-item label="审计类型">
+              <el-input v-model="auditQueryForm.auditType" placeholder="请输入审计类型" clearable style="width: 150px" />
+            </el-form-item>
+            <el-form-item label="业务类型">
+              <el-input v-model="auditQueryForm.businessType" placeholder="请输入业务类型" clearable style="width: 150px" />
+            </el-form-item>
+            <el-form-item label="业务编号">
+              <el-input v-model="auditQueryForm.businessNo" placeholder="请输入业务编号" clearable style="width: 180px" />
+            </el-form-item>
+            <el-form-item label="动作">
+              <el-input v-model="auditQueryForm.action" placeholder="请输入动作" clearable style="width: 140px" />
+            </el-form-item>
+            <el-form-item label="操作人">
+              <el-input v-model="auditQueryForm.operatorName" placeholder="请输入操作人" clearable style="width: 150px" />
+            </el-form-item>
+            <el-form-item label="日期范围">
+              <el-date-picker
+                v-model="auditDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="YYYY-MM-DD"
+                style="width: 280px"
+              />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :icon="Search" @click="handleAuditQuery">查询</el-button>
+              <el-button :icon="Refresh" @click="handleAuditReset">重置</el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
+
+        <el-card shadow="never" class="table-card">
+          <template #header>
+            <span>审计日志</span>
+          </template>
+
+          <el-table v-loading="auditLoading" :data="auditTableData" border stripe>
+            <el-table-column type="expand">
+              <template #default="{ row }">
+                <el-descriptions :column="1" border>
+                  <el-descriptions-item label="快照" v-if="row.snapshotJson">
+                    <el-text tag="pre" style="max-height: 240px; overflow: auto">{{ formatJson(row.snapshotJson) }}</el-text>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="消息" v-if="row.message">
+                    {{ row.message }}
+                  </el-descriptions-item>
+                </el-descriptions>
+              </template>
+            </el-table-column>
+            <el-table-column prop="auditType" label="审计类型" width="130" />
+            <el-table-column prop="businessType" label="业务类型" width="140" />
+            <el-table-column prop="businessNo" label="业务编号" width="160" show-overflow-tooltip />
+            <el-table-column prop="businessId" label="业务ID" width="160" show-overflow-tooltip />
+            <el-table-column prop="action" label="动作" width="120" />
+            <el-table-column prop="operatorName" label="操作人" width="140" />
+            <el-table-column prop="operatorId" label="操作人ID" width="160" show-overflow-tooltip />
+            <el-table-column prop="auditTime" label="审计时间" width="170" />
+            <el-table-column prop="message" label="消息" min-width="220" show-overflow-tooltip />
+          </el-table>
+
+          <el-pagination
+            v-model:current-page="auditPagination.page"
+            v-model:page-size="auditPagination.size"
+            :total="auditPagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleAuditPageChange"
+            @current-change="handleAuditPageChange"
+            style="margin-top: 20px; justify-content: flex-end"
+          />
+        </el-card>
+      </el-tab-pane>
+    </el-tabs>
+
+    <!-- 详情对话框 -->
+    <el-dialog v-model="detailDialogVisible" title="日志详情" width="900px">
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="日志ID">{{ detailData.id }}</el-descriptions-item>
+        <el-descriptions-item label="模块">{{ detailData.module }}</el-descriptions-item>
+        <el-descriptions-item label="操作">{{ detailData.operation }}</el-descriptions-item>
+        <el-descriptions-item label="操作人">{{ detailData.operatorName }}</el-descriptions-item>
+        <el-descriptions-item label="IP地址">{{ detailData.ipAddress }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="detailData.status === 'SUCCESS' ? 'success' : 'danger'">
+            {{ detailData.status === 'SUCCESS' ? '成功' : '失败' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="耗时">
+          <el-text :type="getExecutionTimeType(detailData.executionTime)">
+            {{ detailData.executionTime }} ms
+          </el-text>
+        </el-descriptions-item>
+        <el-descriptions-item label="操作时间">{{ detailData.createdAt }}</el-descriptions-item>
+        <el-descriptions-item label="请求URL" :span="2">{{ detailData.requestUrl }}</el-descriptions-item>
+        <el-descriptions-item label="请求方法" :span="2">{{ detailData.method }}</el-descriptions-item>
+        <el-descriptions-item label="业务编号" :span="2">{{ detailData.bizNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="日志消息" :span="2">{{ detailData.message || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="User-Agent" :span="2">{{ detailData.userAgent }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-divider />
+
+      <h4>请求参数</h4>
+      <el-input
+        v-model="detailData.requestParams"
+        type="textarea"
+        :rows="8"
+        readonly
+        style="margin-top: 10px"
+      />
+
+      <el-divider v-if="detailData.responseData" />
+
+      <h4 v-if="detailData.responseData">响应数据</h4>
+      <el-input
+        v-if="detailData.responseData"
+        v-model="detailData.responseData"
+        type="textarea"
+        :rows="8"
+        readonly
+        style="margin-top: 10px"
+      />
+
+      <el-divider v-if="detailData.errorMsg" />
+
+      <h4 v-if="detailData.errorMsg">错误信息</h4>
+      <el-alert
+        v-if="detailData.errorMsg"
+        :title="detailData.errorMsg"
+        type="error"
+        :closable="false"
+        style="margin-top: 10px"
+      />
+
+      <template #footer>
+        <el-button @click="detailDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { Search, Refresh, Download, View } from '@element-plus/icons-vue'
+import {
+  getAuditLogs,
+  getLoginLogs,
+  getOperationLogs,
+  getOperationLog,
+  exportOperationLogs,
+  type AuditLog,
+  type AuditLogQuery,
+  type LoginLog,
+  type LoginLogQuery,
+  type OperationLog,
+  type OperationLogQuery
+} from '@/api/system'
+import { downloadBlob } from '@/utils/download'
+
+const route = useRoute()
+const readQueryString = (key: string) => {
+  const value = route.query[key]
+  return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
+}
+
+const activeTab = ref('operation')
+
+// 查询表单
+const queryForm = reactive<OperationLogQuery>({
+  module: '',
+  operation: '',
+  bizNo: '',
+  operatorName: '',
+  status: '',
+  startDate: '',
+  endDate: ''
+})
+queryForm.bizNo = readQueryString('keyword')
+
+const dateRange = ref<string[]>([])
+const loginDateRange = ref<string[]>([])
+const auditDateRange = ref<string[]>([])
+
+const loginQueryForm = reactive<LoginLogQuery>({
+  username: '',
+  result: '',
+  loginTimeFrom: '',
+  loginTimeTo: ''
+})
+
+const auditQueryForm = reactive<AuditLogQuery>({
+  auditType: '',
+  businessType: '',
+  businessNo: readQueryString('keyword'),
+  action: '',
+  operatorName: '',
+  auditTimeFrom: '',
+  auditTimeTo: ''
+})
+
+// 表格数据
+const loading = ref(false)
+const tableData = ref<OperationLog[]>([])
+const loginLoading = ref(false)
+const loginTableData = ref<LoginLog[]>([])
+const auditLoading = ref(false)
+const auditTableData = ref<AuditLog[]>([])
+
+// 分页
+const pagination = reactive({
+  page: 1,
+  size: 20,
+  total: 0
+})
+const loginPagination = reactive({
+  page: 1,
+  size: 20,
+  total: 0
+})
+const auditPagination = reactive({
+  page: 1,
+  size: 20,
+  total: 0
+})
+
+// 详情对话框
+const detailDialogVisible = ref(false)
+const detailData = ref<OperationLog>({} as OperationLog)
+
+// 加载数据
+const loadData = async () => {
+  loading.value = true
+  try {
+    const res = await getOperationLogs(buildQueryParams())
+    tableData.value = res.records || []
+    pagination.total = res.total || 0
+  } catch (error) {
+    console.error('加载日志失败:', error)
+    ElMessage.error('加载数据失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const loadLoginLogs = async () => {
+  loginLoading.value = true
+  try {
+    const res = await getLoginLogs(buildLoginQueryParams())
+    loginTableData.value = res.records || []
+    loginPagination.total = res.total || 0
+  } catch (error) {
+    ElMessage.error('加载登录日志失败')
+  } finally {
+    loginLoading.value = false
+  }
+}
+
+const loadAuditLogs = async () => {
+  auditLoading.value = true
+  try {
+    const res = await getAuditLogs(buildAuditQueryParams())
+    auditTableData.value = res.records || []
+    auditPagination.total = res.total || 0
+  } catch (error) {
+    ElMessage.error('加载审计日志失败')
+  } finally {
+    auditLoading.value = false
+  }
+}
+
+// 查询
+const handleQuery = () => {
+  syncDateRange()
+  pagination.page = 1
+  loadData()
+}
+
+const handlePageChange = () => {
+  syncDateRange()
+  loadData()
+}
+
+const handleLoginQuery = () => {
+  syncLoginDateRange()
+  loginPagination.page = 1
+  loadLoginLogs()
+}
+
+const handleLoginPageChange = () => {
+  syncLoginDateRange()
+  loadLoginLogs()
+}
+
+const handleLoginReset = () => {
+  loginQueryForm.username = ''
+  loginQueryForm.result = ''
+  loginQueryForm.loginTimeFrom = ''
+  loginQueryForm.loginTimeTo = ''
+  loginDateRange.value = []
+  loginPagination.page = 1
+  loadLoginLogs()
+}
+
+const handleAuditQuery = () => {
+  syncAuditDateRange()
+  auditPagination.page = 1
+  loadAuditLogs()
+}
+
+const handleAuditPageChange = () => {
+  syncAuditDateRange()
+  loadAuditLogs()
+}
+
+const handleAuditReset = () => {
+  auditQueryForm.auditType = ''
+  auditQueryForm.businessType = ''
+  auditQueryForm.businessNo = ''
+  auditQueryForm.action = ''
+  auditQueryForm.operatorName = ''
+  auditQueryForm.auditTimeFrom = ''
+  auditQueryForm.auditTimeTo = ''
+  auditDateRange.value = []
+  auditPagination.page = 1
+  loadAuditLogs()
+}
+
+const handleTabChange = () => {
+  if (activeTab.value === 'login' && loginTableData.value.length === 0) {
+    loadLoginLogs()
+  }
+  if (activeTab.value === 'audit' && auditTableData.value.length === 0) {
+    loadAuditLogs()
+  }
+}
+
+// 重置
+const handleReset = () => {
+  queryForm.module = ''
+  queryForm.operation = ''
+  queryForm.bizNo = ''
+  queryForm.operatorName = ''
+  queryForm.status = ''
+  queryForm.startDate = ''
+  queryForm.endDate = ''
+  dateRange.value = []
+  pagination.page = 1
+  loadData()
+}
+
+// 查看
+const handleView = async (row: OperationLog) => {
+  try {
+    detailData.value = await getOperationLog(row.id)
+    detailDialogVisible.value = true
+  } catch (error) {
+    ElMessage.error('加载详情失败')
+  }
+}
+
+// 导出
+const handleExport = async () => {
+  try {
+    syncDateRange()
+    const blob = await exportOperationLogs(buildQueryParams())
+    downloadBlob(blob, `操作日志_${Date.now()}.csv`)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    ElMessage.error('导出失败')
+  }
+}
+
+const syncDateRange = () => {
+  if (dateRange.value && dateRange.value.length === 2) {
+    queryForm.startDate = dateRange.value[0]
+    queryForm.endDate = dateRange.value[1]
+  } else {
+    queryForm.startDate = ''
+    queryForm.endDate = ''
+  }
+}
+
+const syncLoginDateRange = () => {
+  if (loginDateRange.value && loginDateRange.value.length === 2) {
+    loginQueryForm.loginTimeFrom = toStartDateTime(loginDateRange.value[0])
+    loginQueryForm.loginTimeTo = toEndDateTime(loginDateRange.value[1])
+  } else {
+    loginQueryForm.loginTimeFrom = ''
+    loginQueryForm.loginTimeTo = ''
+  }
+}
+
+const syncAuditDateRange = () => {
+  if (auditDateRange.value && auditDateRange.value.length === 2) {
+    auditQueryForm.auditTimeFrom = toStartDateTime(auditDateRange.value[0])
+    auditQueryForm.auditTimeTo = toEndDateTime(auditDateRange.value[1])
+  } else {
+    auditQueryForm.auditTimeFrom = ''
+    auditQueryForm.auditTimeTo = ''
+  }
+}
+
+const buildQueryParams = (): OperationLogQuery => ({
+  ...queryForm,
+  pageNo: pagination.page,
+  pageSize: pagination.size
+})
+
+const buildLoginQueryParams = (): LoginLogQuery => ({
+  ...loginQueryForm,
+  username: loginQueryForm.username?.trim() || undefined,
+  result: loginQueryForm.result || undefined,
+  loginTimeFrom: loginQueryForm.loginTimeFrom || undefined,
+  loginTimeTo: loginQueryForm.loginTimeTo || undefined,
+  pageNo: loginPagination.page,
+  pageSize: loginPagination.size
+})
+
+const buildAuditQueryParams = (): AuditLogQuery => ({
+  ...auditQueryForm,
+  auditType: auditQueryForm.auditType?.trim() || undefined,
+  businessType: auditQueryForm.businessType?.trim() || undefined,
+  businessNo: auditQueryForm.businessNo?.trim() || undefined,
+  action: auditQueryForm.action?.trim() || undefined,
+  operatorName: auditQueryForm.operatorName?.trim() || undefined,
+  auditTimeFrom: auditQueryForm.auditTimeFrom || undefined,
+  auditTimeTo: auditQueryForm.auditTimeTo || undefined,
+  pageNo: auditPagination.page,
+  pageSize: auditPagination.size
+})
+
+const toStartDateTime = (date?: string) => date ? `${date}T00:00:00` : undefined
+const toEndDateTime = (date?: string) => date ? `${date}T23:59:59` : undefined
+
+// 获取执行时间类型
+const getExecutionTimeType = (time: number) => {
+  if (time < 500) return 'success'
+  if (time < 2000) return 'warning'
+  return 'danger'
+}
+
+const isSuccess = (result?: string) => result === 'SUCCESS'
+
+// 格式化JSON
+const formatJson = (jsonStr: string) => {
+  try {
+    const obj = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr
+    return JSON.stringify(obj, null, 2)
+  } catch {
+    return jsonStr
+  }
+}
+
+onMounted(() => {
+  loadData()
+})
+</script>
+
+<style scoped>
+.app-container {
+  padding: 20px;
+}
+
+.search-card {
+  margin-bottom: 20px;
+}
+
+.table-card {
+  margin-bottom: 20px;
+}
+</style>
