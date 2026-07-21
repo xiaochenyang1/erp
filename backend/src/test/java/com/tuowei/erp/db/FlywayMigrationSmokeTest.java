@@ -7,17 +7,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
-import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Comparator;
-import java.util.Objects;
-import java.util.stream.Stream;
 
 class FlywayMigrationSmokeTest {
 
-    private static final String H2_INCOMPATIBLE_MIGRATION = "V77__finance_expense_approval_status.sql";
     private static JdbcTemplate jdbcTemplate;
 
     @BeforeAll
@@ -28,7 +21,9 @@ class FlywayMigrationSmokeTest {
         dataSource.setUsername("sa");
         dataSource.setPassword("");
 
-        Path migrationDir = h2CompatibleMigrationDirectory();
+        Path migrationDir = H2MigrationTestSupport.copyCompatibleMigrations(
+                FlywayMigrationSmokeTest.class,
+                "flyway-smoke-migrations");
         Flyway.configure()
                 .dataSource(dataSource)
                 .locations("filesystem:" + migrationDir.toAbsolutePath().toString().replace('\\', '/'))
@@ -36,24 +31,6 @@ class FlywayMigrationSmokeTest {
                 .migrate();
 
         jdbcTemplate = new JdbcTemplate(dataSource);
-    }
-
-    private static Path h2CompatibleMigrationDirectory() throws Exception {
-        URL migrationUrl = Objects.requireNonNull(
-                FlywayMigrationSmokeTest.class.getClassLoader().getResource("db/migration"),
-                "db/migration resource not found");
-        Path sourceDir = Path.of(migrationUrl.toURI());
-        Path targetDir = Files.createTempDirectory("flyway-smoke-migrations");
-        try (Stream<Path> migrations = Files.list(sourceDir)) {
-            for (Path migration : migrations
-                    .filter(Files::isRegularFile)
-                    .filter(path -> !path.getFileName().toString().equals(H2_INCOMPATIBLE_MIGRATION))
-                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                    .toList()) {
-                Files.copy(migration, targetDir.resolve(migration.getFileName()), StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
-        return targetDir;
     }
 
     @Test
@@ -445,6 +422,41 @@ class FlywayMigrationSmokeTest {
                     (993203, 993201, 1, 993601, 993701,
                      'SMOKE', 993801, 'SRC-SAME', 993901,
                      1, 1)
+                """)).isInstanceOf(Exception.class);
+    }
+
+    @Test
+    void createsTenantScopedProductBarcodeColumnAndUniqueIndex() {
+        assertColumnsExist("md_product", "barcode");
+        assertIndexColumns("md_product", "uk_md_product_company_book_barcode",
+                "company_id", "account_book_id", "barcode");
+
+        jdbcTemplate.update("""
+                insert into md_product
+                    (id, company_id, account_book_id, product_code, product_name,
+                     product_type, category_name, unit_name, purchase_price,
+                     sale_price, tax_rate, barcode)
+                values
+                    (995901, 995001, 1, 'BARCODE-A-1', '条码测试商品1',
+                     'STANDARD', 'TEST', '件', 1.00, 1.20, 0.1300, '6901234567890')
+                """);
+        jdbcTemplate.update("""
+                insert into md_product
+                    (id, company_id, account_book_id, product_code, product_name,
+                     product_type, category_name, unit_name, purchase_price,
+                     sale_price, tax_rate, barcode)
+                values
+                    (995902, 995001, 2, 'BARCODE-A-2', '条码测试商品2',
+                     'STANDARD', 'TEST', '件', 1.00, 1.20, 0.1300, '6901234567890')
+                """);
+        Assertions.assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into md_product
+                    (id, company_id, account_book_id, product_code, product_name,
+                     product_type, category_name, unit_name, purchase_price,
+                     sale_price, tax_rate, barcode)
+                values
+                    (995903, 995001, 1, 'BARCODE-A-3', '条码测试商品3',
+                     'STANDARD', 'TEST', '件', 1.00, 1.20, 0.1300, '6901234567890')
                 """)).isInstanceOf(Exception.class);
     }
 

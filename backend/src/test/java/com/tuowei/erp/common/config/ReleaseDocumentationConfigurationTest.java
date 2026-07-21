@@ -13,7 +13,7 @@ class ReleaseDocumentationConfigurationTest {
 
     @Test
     void releaseDocumentationKeepsTestCountsTiedToLatestCommandOutput() throws IOException {
-        String audit = readDoc("production-readiness-audit.md");
+        String audit = readArchivedDoc("production-readiness-audit.md");
         String checklist = readDoc("business-readiness-checklist.md");
 
         assertThat(audit)
@@ -133,12 +133,17 @@ class ReleaseDocumentationConfigurationTest {
 
     @Test
     void historicalAuditReportsAreClearlyMarkedAsArchivedSnapshots() throws IOException {
-        assertArchivedHistoricalSnapshot(readDoc("GLOBAL_PROJECT_AUDIT.md"));
-        assertArchivedHistoricalSnapshot(readDoc("BACKEND_API_DEVELOPMENT_PROGRESS.md"));
+        assertArchivedHistoricalSnapshot(readArchivedDoc("GLOBAL_PROJECT_AUDIT.md"));
+        assertArchivedHistoricalSnapshot(readArchivedDoc("BACKEND_API_DEVELOPMENT_PROGRESS.md"));
+        assertArchivedHistoricalSnapshot(readArchivedDoc("production-readiness-audit.md"));
     }
 
     private static String readDoc(String fileName) throws IOException {
         return Files.readString(Path.of("docs", fileName), StandardCharsets.UTF_8);
+    }
+
+    private static String readArchivedDoc(String fileName) throws IOException {
+        return Files.readString(Path.of("docs", "archive", "2026-06-stale", fileName), StandardCharsets.UTF_8);
     }
 
     private static void assertArchivedHistoricalSnapshot(String content) {

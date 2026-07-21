@@ -22,6 +22,8 @@ public class ProductEntity {
 
     private String productName;
 
+    private String barcode;
+
     private String productType;
 
     private String categoryName;
@@ -97,6 +99,14 @@ public class ProductEntity {
 
     public void setProductName(String productName) {
         this.productName = productName;
+    }
+
+    public String getBarcode() {
+        return barcode;
+    }
+
+    public void setBarcode(String barcode) {
+        this.barcode = barcode;
     }
 
     public String getProductType() {

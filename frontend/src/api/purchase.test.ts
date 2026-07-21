@@ -1,19 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const get = vi.fn()
+const put = vi.fn()
 vi.mock('@/utils/request', () => ({
   request: {
     get: (...args: unknown[]) => get(...args),
     post: vi.fn(),
-    put: vi.fn(),
+    put: (...args: unknown[]) => put(...args),
     delete: vi.fn()
   }
 }))
 
-import { getPurchaseOrder, getPurchaseOrders } from '@/api/purchase'
+import { getPurchaseOrder, getPurchaseOrders, updatePurchaseReceipt } from '@/api/purchase'
 
 beforeEach(() => {
   get.mockReset()
+  put.mockReset()
 })
 
 describe('purchase API 归一化', () => {
@@ -50,5 +52,39 @@ describe('purchase API 归一化', () => {
     })
     const page = await getPurchaseOrders({ pageNo: 1, pageSize: 20 })
     expect(String(page.records[0].id)).toBe('9007199254740993')
+  })
+
+  it('updatePurchaseReceipt 提交界面当前 quantity 而不是旧 qty', async () => {
+    put.mockResolvedValue({
+      id: '1',
+      receiptNo: 'PR1',
+      orderId: '2',
+      supplierName: '供应商',
+      warehouseId: '3',
+      warehouseName: '入库仓',
+      receiptDate: '2026-07-20',
+      status: 'DRAFT',
+      items: []
+    })
+
+    await updatePurchaseReceipt('1', {
+      orderId: '2',
+      warehouseId: '3',
+      receiptDate: '2026-07-20',
+      items: [{
+        orderLineId: '4',
+        productId: '5',
+        quantity: 2,
+        qty: 9
+      }]
+    })
+
+    expect(put).toHaveBeenCalledWith('/purchase/receipts/1', {
+      orderId: '2',
+      warehouseId: '3',
+      receiptDate: '2026-07-20',
+      remark: undefined,
+      lines: [{ orderLineId: '4', qty: 2, remark: undefined }]
+    })
   })
 })

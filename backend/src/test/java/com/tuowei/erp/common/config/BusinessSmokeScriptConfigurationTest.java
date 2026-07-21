@@ -67,4 +67,47 @@ class BusinessSmokeScriptConfigurationTest {
                 .contains(".\\scripts\\business-smoke.ps1")
                 .contains("业务只读冒烟");
     }
+
+    @Test
+    void uiSmokeUsesAnIsolatedChromeProfilePerRun() throws IOException {
+        String script = Files.readString(Path.of("scripts", "ui-smoke.mjs"), StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("const chromeProfileDir = join(targetDir, `ui-smoke-chrome-profile-${process.pid}-${Date.now()}`)")
+                .contains("`--user-data-dir=${chromeProfileDir}`")
+                .doesNotContain("ui-smoke-chrome-profile'`)");
+    }
+
+    @Test
+    void uiSmokeDisablesHeadlessGpuDiskCachesForWindowsStability() throws IOException {
+        String script = Files.readString(Path.of("scripts", "ui-smoke.mjs"), StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("'--disable-gpu-shader-disk-cache'")
+                .contains("'--disable-gpu-program-cache'")
+                .contains("'--disable-extensions'")
+                .contains("'--disable-background-networking'");
+    }
+
+    @Test
+    void uiSmokeBarcodeWorkflowUsesSelfContainedDomExpressions() throws IOException {
+        String script = Files.readString(Path.of("scripts", "ui-smoke.mjs"), StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("function visibleElementWithTextExpression(selector, text)")
+                .contains("return visibleElementWithTextExpression('.el-dialog', text)")
+                .contains("return visibleElementWithTextExpression('.el-message-box', text)")
+                .contains("visibleTextExpression('document.body', '确认清零当前')")
+                .doesNotContain("visibleTextExpression('document', '确认清零当前')");
+    }
+
+    @Test
+    void uiSmokeAllowsResponsiveWindowSizeOverride() throws IOException {
+        String script = Files.readString(Path.of("scripts", "ui-smoke.mjs"), StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains(": resolve(backendDir, '..', 'frontend')")
+                .contains("const chromeWindowSize = process.env.UI_SMOKE_WINDOW_SIZE || '1440,1000'")
+                .contains("`--window-size=${chromeWindowSize}`");
+    }
 }

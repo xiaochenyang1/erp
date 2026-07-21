@@ -19,7 +19,7 @@ class MysqlFlywayMigrationSmokeTest {
     @EnabledIfSystemProperty(named = "erp.testcontainers.enabled", matches = "true")
     void appliesMigrationsOnMysqlDialect() throws Exception {
         try (MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
-                .withDatabaseName("erp_test")
+                .withDatabaseName("erp_codex_test")
                 .withUsername("erp")
                 .withPassword("erp")) {
             mysql.start();

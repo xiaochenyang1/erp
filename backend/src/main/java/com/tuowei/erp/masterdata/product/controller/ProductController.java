@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -52,6 +53,12 @@ public class ProductController {
     @GetMapping("/export")
     public ResponseEntity<StreamingResponseBody> export(ProductPageQuery query) {
         return csv("products.csv", productService.exportProducts(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_MASTERDATA_PRODUCT_VIEW)
+    @GetMapping("/by-barcode")
+    public ApiResponse<ProductResponse> byBarcode(@RequestParam String barcode) {
+        return ApiResponse.success(productService.getByBarcode(barcode));
     }
 
     @PreAuthorize(PermissionCodes.HAS_MASTERDATA_PRODUCT_VIEW)

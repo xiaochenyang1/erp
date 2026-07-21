@@ -29,7 +29,7 @@ class ReadinessAcceptanceScriptRegistrationConfigurationTest {
     void releaseDocumentsExplainReadinessRunEvidenceRegistration() throws IOException {
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(deployment)
                 .contains("-ReadinessRunId")
@@ -86,7 +86,7 @@ class ReadinessAcceptanceScriptRegistrationConfigurationTest {
         String helper = Files.readString(Path.of("scripts", "readiness-evidence.ps1"), StandardCharsets.UTF_8);
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(helper)
                 .contains("function Save-ReadinessEvidenceFallbackPackage")
@@ -124,7 +124,7 @@ class ReadinessAcceptanceScriptRegistrationConfigurationTest {
         Path scriptPath = Path.of("scripts", "replay-readiness-evidence.ps1");
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(scriptPath).exists().isRegularFile();
 
@@ -205,7 +205,7 @@ class ReadinessAcceptanceScriptRegistrationConfigurationTest {
         Path scriptPath = Path.of("scripts", "verify-readiness-evidence-upload.ps1");
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(scriptPath).exists().isRegularFile();
 

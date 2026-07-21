@@ -268,6 +268,7 @@ node scripts\ui-smoke.mjs
 - Controller 写端点与前端页面/API 的联调缺口已清零；剩余工作主要是持续补强真实浏览器证据和发布侧门禁，不再是“后端有写端点但前端没接线”的老问题。
 - 手工凭证页面已完成真实浏览器全生命周期 workflow：API 预置借/贷会计科目和开放期间 -> 页面「录入凭证」填凭证日期/摘要、逐行选科目并录借贷金额、校验「借贷平衡」后保存草稿 -> 行内「提交」->「审批」->「过账」->「作废」填原因红冲，每步通过同一浏览器会话回查后端确认状态流转到 `DRAFT/PENDING/APPROVED/POSTED/CANCELLED`、`postedVoucherId` 与 `reversalVoucherId` 已落库。最新样例凭证：`MV202607130004`。workflow 名 `manual-voucher-create-submit-approve-post-cancel`。
 - 采购来料质检(IQC)检验单已完成真实浏览器 workflow：API 预置需检验商品(`inspectionRequired=true`)、已审批采购订单和一张 **DRAFT** 采购入库单 -> 页面「新建检验单」选草稿入库单自动带出检验行 -> 提交 -> 判定录入合格 3 / 不合格 1 -> 通过同一浏览器会话回查后端确认检验单 `JUDGED`、合格/不合格数量落库，并验证**仅合格品入库**口径：引用的草稿入库单行数量由 4 回写为合格数 3。最新样例检验单：`QC202607130003`，采购收货 `PR202607130005`。workflow 名 `qc-inspection-create-submit-judge-only-qualified`。
+- P2-7 Web 扫码录入已完成真实浏览器 workflow 验证：产品条码通过 V119 持久化，`/api/masterdata/products/by-barcode` 提供租户内精确查找，采购收货草稿编辑与销售发货草稿编辑均支持扫码枪 Enter 录入后把匹配商品行数量累加到 1。当前证据命令：`UI_SMOKE_ROUTES=0 UI_SMOKE_WORKFLOW=purchase-receipt-draft-edit,sales-delivery-draft-edit node scripts\ui-smoke.mjs`，2 个 workflow 均 `passed=true`，截图落在 `target/ui-smoke-*-barcode.png`。
 - 全套 34 个 `ui-smoke.mjs` workflow 已在干净联调库 `erp_codex_runtime` 上跑通、0 失败、无控制台异常/网络失败/API 4xx/5xx、鉴权重定向或权限拒绝。运行方式：`UI_SMOKE_ROUTES=0 node scripts\ui-smoke.mjs`(harness 自启后端 jar + Vite dev + Headless Chrome)。
 
 ### 2026-07-13 再补：补齐"后端就绪但前端缺失"的三页 + 前端测试基线 + 按钮权限安全子批
@@ -309,6 +310,6 @@ node scripts\ui-smoke.mjs
 5. **财务/质检在 `docs/FQ-SIGNOFF-FINAL-2026-07-16.md` 签字**（当前唯一业务门禁）
 6. ~~有 Docker 的环境跑 `.\scripts\release-check.ps1 -IncludeTestcontainers`~~ **已完成**（2026-07-17，commit 当时基线 + Docker core DECIDED_GO）
 7. ~~Track B 扩展 API 证据~~ **已完成**（`node scripts/extension-features-api-smoke.cjs` → **15/15**，证据 `target/extension-features-api-smoke/`；覆盖询价→PO、发票确认/作废、信用超限拦截、OQC 闸门）
-8. 本机 readiness 子项回填用 `.\scripts\register-readiness-item-result.ps1`（能证则 PASSED，不能证则保持 BLOCKED）
+8. 本机 readiness 子项回填用 `.\scripts\register-readiness-item-result.ps1`，覆盖 `FINANCE_LEDGER`、`PERIOD_LOCK`、`INVENTORY_FINANCE_RECONCILIATION`、`INITIAL_IMPORT`、`BACKUP_ROLLBACK`（能证则 PASSED，不能证则保持 BLOCKED）
 9. 可选：独立机房预生产；C4 巨石拆分 / C5 缓存深化单独立项
 10. 发布前若工作树有未入候选的 WIP：干净 commit 后重跑 release-check + ui-smoke + extension-features-api-smoke

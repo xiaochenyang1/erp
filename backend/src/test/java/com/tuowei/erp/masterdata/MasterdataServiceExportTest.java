@@ -87,8 +87,8 @@ class MasterdataServiceExportTest {
         productService(mapper).exportProducts(query).writeTo(outputStream);
 
         String csv = outputStream.toString(StandardCharsets.UTF_8);
-        assertThat(csv).startsWith("\uFEFFproductCode,productName,productType,categoryName,specification,unitName,purchasePrice,salePrice,taxRate,status,lotControlled,shelfLifeControlled,inspectionRequired,remark\r\n");
-        assertThat(csv).contains("P001,螺栓,STANDARD,标准件,M8,个,1.50,2.00,13.00,ACTIVE,true,false,false,product export\r\n");
+        assertThat(csv).startsWith("\uFEFFproductCode,productName,barcode,productType,categoryName,specification,unitName,purchasePrice,salePrice,taxRate,status,lotControlled,shelfLifeControlled,inspectionRequired,remark\r\n");
+        assertThat(csv).contains("P001,螺栓,6901234567890,STANDARD,标准件,M8,个,1.50,2.00,13.00,ACTIVE,true,false,false,product export\r\n");
         verifySelectListScoped(mapper, ProductEntity.class);
     }
 
@@ -208,6 +208,7 @@ class MasterdataServiceExportTest {
         entity.setAccountBookId(AUDIT.accountBookId());
         entity.setProductCode("P001");
         entity.setProductName("螺栓");
+        entity.setBarcode("6901234567890");
         entity.setProductType("STANDARD");
         entity.setCategoryName("标准件");
         entity.setSpecification("M8");

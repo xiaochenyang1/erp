@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "check:contracts": "node scripts/check-production-order-warehouse-contract.mjs",
+    "check:contracts": "node --test scripts/check-contract-utils.test.mjs && node scripts/check-production-order-warehouse-contract.mjs",
     "lint": "eslint \"src/**/*.{vue,ts}\"",
     "lint:fix": "eslint \"src/**/*.{vue,ts}\" --fix"
   },

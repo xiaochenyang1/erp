@@ -15,6 +15,7 @@ import { getFinanceAgingSummary, getGrossMarginSummary } from '@/api/finance'
 import { getSalesQuotes } from '@/api/sales'
 import { runMrpPlan } from '@/api/inventory'
 import { markNotificationsReadBatch } from '@/api/notification'
+import { getProductByBarcode } from '@/api/masterdata'
 
 beforeEach(() => {
   get.mockReset()
@@ -84,5 +85,23 @@ describe('P2 扩展 API 归一化', () => {
     const res = await markNotificationsReadBatch(['1', '2'])
     expect(res.updated).toBe(2)
     expect(post).toHaveBeenCalledWith('/system/notifications/read-batch', { recipientIds: ['1', '2'] })
+  })
+
+  it('getProductByBarcode 修剪条码并归一化商品 id', async () => {
+    get.mockResolvedValue({
+      id: '9007199254740993',
+      productCode: 'P-BARCODE',
+      productName: '扫码商品',
+      barcode: '6901234567890',
+      status: 'ACTIVE'
+    })
+
+    const product = await getProductByBarcode(' 6901234567890 ')
+
+    expect(get).toHaveBeenCalledWith('/masterdata/products/by-barcode', {
+      params: { barcode: '6901234567890' }
+    })
+    expect(product.id).toBe('9007199254740993')
+    expect(product.barcode).toBe('6901234567890')
   })
 })

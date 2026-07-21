@@ -2,6 +2,7 @@ package com.tuowei.erp.masterdata.product.web;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
@@ -18,6 +19,7 @@ public record ProductCreateRequest(
         Boolean lotControlled,
         Boolean shelfLifeControlled,
         Boolean inspectionRequired,
-        String remark
+        String remark,
+        @Size(max = 128, message = "商品条码长度不能超过128个字符") String barcode
 ) {
 }

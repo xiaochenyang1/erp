@@ -68,7 +68,7 @@ class ProductionManufacturingAcceptanceScriptConfigurationTest {
     void releaseDocumentsReferenceProductionManufacturingAcceptanceScript() throws IOException {
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(deployment)
                 .contains(".\\scripts\\production-manufacturing-acceptance.ps1")

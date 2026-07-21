@@ -228,6 +228,17 @@
 
         <!-- 发货明细 -->
         <el-divider content-position="left">发货明细</el-divider>
+        <div v-if="!isView && formData.items.length > 0" class="scan-toolbar">
+          <BarcodeScanField :disabled="scanLoading" @scan="handleBarcodeScan" />
+          <el-button class="scan-toolbar__reset" :disabled="scanLoading" @click="resetScanQuantities">
+            <el-icon><RefreshLeft /></el-icon>
+            清零数量
+          </el-button>
+          <div class="scan-toolbar__summary" aria-live="polite">
+            <span>本次数量 <strong>{{ deliveryQuantityTotal }}</strong></span>
+            <span v-if="scanFeedback" class="scan-toolbar__feedback">{{ scanFeedback }}</span>
+          </div>
+        </div>
         <el-table :data="formData.items" border max-height="400">
           <el-table-column label="产品编码" prop="productCode" width="150" />
           <el-table-column label="产品名称" prop="productName" width="180" />
@@ -246,10 +257,7 @@
               <el-input-number
                 v-model="row.quantity"
                 :min="0"
-                :max="Math.max(
-                  (row.orderedQuantity || 0) - (row.deliveredQuantity || 0),
-                  Number(row.quantity) || 0
-                )"
+                :max="getDeliveryMaximum(row)"
                 :precision="2"
                 :disabled="isView"
                 style="width: 100%"
@@ -279,10 +287,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { RefreshLeft } from '@element-plus/icons-vue'
 import {
   getSalesDeliveries,
   getSalesDelivery,
@@ -292,12 +301,16 @@ import {
   postSalesDelivery,
   type SalesDeliveryQuery,
   type SalesDeliveryCreateRequest,
-  type SalesDelivery
+  type SalesDelivery,
+  type SalesDeliveryItem
 } from '@/api/sales'
 import { printSalesDelivery } from '@/utils/bizPrint'
 import { getSalesOrders, getSalesOrder, type SalesOrder } from '@/api/sales'
-import { getCustomers, type Customer } from '@/api/masterdata'
+import { getCustomers, getProduct, getProductByBarcode, type Customer } from '@/api/masterdata'
 import { getWarehouses, type Warehouse } from '@/api/masterdata'
+import { BarcodeScanField } from '@/components/common'
+import { incrementScannedLine } from '@/utils/barcode'
+import { hydrateProductLineLabels } from '@/utils/productLines'
 
 const route = useRoute()
 const readQueryString = (key: string) => {
@@ -338,6 +351,8 @@ const orders = ref<SalesOrder[]>([])
 // 对话框
 const dialogVisible = ref(false)
 const submitLoading = ref(false)
+const scanLoading = ref(false)
+const scanFeedback = ref('')
 const dialogTitle = ref('')
 const isView = ref(false)
 const editingId = ref<string | number>('')
@@ -351,6 +366,10 @@ const formData = reactive<SalesDeliveryCreateRequest>({
   items: [],
   remark: ''
 })
+const deliveryQuantityTotal = computed(() => formData.items.reduce(
+  (total, item) => total + Number(item.quantity || 0),
+  0
+))
 
 // 表单验证规则
 const formRules: FormRules = {
@@ -492,7 +511,7 @@ const handleEdit = async (row: SalesDelivery) => {
     formData.warehouseId = detail.warehouseId
     formData.deliveryDate = detail.deliveryDate
     formData.remark = detail.remark || ''
-    formData.items = (detail.items || detail.lines || []).map(item => {
+    const deliveryItems = (detail.items || detail.lines || []).map(item => {
       const orderLineId = item.orderLineId ?? item.orderItemId
       const orderItem = orderItems.find(oi => String(oi.id) === String(orderLineId))
       const qty = Number(item.quantity ?? item.qty ?? 0)
@@ -512,6 +531,7 @@ const handleEdit = async (row: SalesDelivery) => {
         remark: item.remark || ''
       }
     })
+    formData.items = await hydrateProductLineLabels(deliveryItems, getProduct)
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error('加载发货单失败')
@@ -562,7 +582,7 @@ const handleOrderChange = async () => {
     const order = await getSalesOrder(formData.orderId)
 
     // 填充发货明细
-    formData.items = order.items.map(item => ({
+    const orderItems = order.items.map(item => ({
       orderItemId: item.id,
       productId: item.productId,
       productCode: item.productCode,
@@ -572,8 +592,61 @@ const handleOrderChange = async () => {
       quantity: Math.max(0, item.quantity - (item.deliveredQuantity || 0)),
       remark: ''
     }))
+    formData.items = await hydrateProductLineLabels(orderItems, getProduct)
   } catch (error) {
     ElMessage.error('加载订单详情失败')
+  }
+}
+
+const getDeliveryMaximum = (item: SalesDeliveryItem) => Math.max(
+  Number(item.quantity || 0),
+  Number(item.orderedQuantity || 0) - Number(item.deliveredQuantity || 0),
+  0
+)
+
+const resetScanQuantities = async () => {
+  try {
+    await ElMessageBox.confirm('确认清零当前发货数量吗？', '扫码计数', {
+      confirmButtonText: '清零',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    formData.items.forEach((item) => {
+      item.quantity = 0
+      item.qty = 0
+    })
+    scanFeedback.value = '数量已清零'
+  } catch (error: any) {
+    if (error !== 'cancel' && error?.action !== 'cancel') {
+      ElMessage.error('清零数量失败')
+    }
+  }
+}
+
+const handleBarcodeScan = async (barcode: string) => {
+  if (!formData.orderId || formData.items.length === 0) {
+    ElMessage.warning('请先选择销售订单')
+    return
+  }
+
+  scanLoading.value = true
+  try {
+    const product = await getProductByBarcode(barcode)
+    const result = incrementScannedLine(formData.items, product.id, getDeliveryMaximum)
+    if (result.status === 'not-found') {
+      ElMessage.warning(`商品 ${product.productCode} 不在当前销售订单中`)
+      return
+    }
+    if (result.status === 'at-maximum') {
+      ElMessage.warning(`商品 ${product.productCode} 已达到可发货数量`)
+      return
+    }
+    formData.items[result.index].qty = result.quantity
+    scanFeedback.value = `${product.productCode} · ${result.quantity}`
+  } catch (error) {
+    ElMessage.warning(error instanceof Error ? error.message : '条码查询失败')
+  } finally {
+    scanLoading.value = false
   }
 }
 
@@ -624,6 +697,7 @@ const resetForm = () => {
   formData.deliveryDate = new Date().toISOString().split('T')[0]
   formData.items = []
   formData.remark = ''
+  scanFeedback.value = ''
   formRef.value?.clearValidate()
 }
 
@@ -648,6 +722,49 @@ onMounted(() => {
   .el-pagination {
     margin-top: 20px;
     justify-content: flex-end;
+  }
+}
+
+.scan-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.scan-toolbar__reset {
+  min-height: 40px;
+}
+
+.scan-toolbar__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 132px;
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.scan-toolbar__summary strong,
+.scan-toolbar__feedback {
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-toolbar__feedback {
+  color: #067647;
+}
+
+@media (max-width: 720px) {
+  .scan-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scan-toolbar__reset {
+    width: 100%;
   }
 }
 </style>

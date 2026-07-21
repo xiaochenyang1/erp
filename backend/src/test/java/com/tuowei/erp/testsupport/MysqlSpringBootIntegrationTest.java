@@ -7,7 +7,7 @@ import org.testcontainers.containers.MySQLContainer;
 public abstract class MysqlSpringBootIntegrationTest {
 
     private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4")
-            .withDatabaseName("erp_test")
+            .withDatabaseName("erp_codex_test")
             .withUsername("erp")
             .withPassword("erp");
 

@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+import { interfaceIncludes } from './check-contract-utils.mjs'
+
 const root = resolve(import.meta.dirname, '..')
 const orderView = readFileSync(resolve(root, 'src/views/production/orders/index.vue'), 'utf8')
 const bomView = readFileSync(resolve(root, 'src/views/production/boms/index.vue'), 'utf8')
@@ -47,6 +49,8 @@ const financePeriodView = readFileSync(resolve(root, 'src/views/finance/periods/
 const fundApi = readFileSync(resolve(root, 'src/api/fund.ts'), 'utf8')
 const fundView = readFileSync(resolve(root, 'src/views/finance/funds/index.vue'), 'utf8')
 const masterdataApi = readFileSync(resolve(root, 'src/api/masterdata.ts'), 'utf8')
+const barcodeScanField = readFileSync(resolve(root, 'src/components/common/BarcodeScanField.vue'), 'utf8')
+const barcodeUtils = readFileSync(resolve(root, 'src/utils/barcode.ts'), 'utf8')
 const productView = readFileSync(resolve(root, 'src/views/masterdata/products/index.vue'), 'utf8')
 const customerView = readFileSync(resolve(root, 'src/views/masterdata/customers/index.vue'), 'utf8')
 const supplierView = readFileSync(resolve(root, 'src/views/masterdata/suppliers/index.vue'), 'utf8')
@@ -1030,7 +1034,6 @@ for (const fragment of [
 for (const fragment of [
   'export interface LedgerEntry {\n  id: number',
   'voucherDate: string',
-  'balance: number',
   'createdAt: string',
   'return request.get<PageResponse<LedgerEntry>>',
   'return request.get<LedgerSummary>'
@@ -1038,6 +1041,10 @@ for (const fragment of [
   if (financeApi.includes(fragment)) {
     errors.push(`总账 API 仍保留旧字段、假分页或 Long ID 数字精度风险片段: ${fragment}`)
   }
+}
+
+if (interfaceIncludes(financeApi, 'LedgerSummary', 'balance: number')) {
+  errors.push('总账 API 仍保留旧字段、假分页或 Long ID 数字精度风险片段: balance: number')
 }
 
 for (const fragment of [
@@ -3006,6 +3013,60 @@ for (const fragment of [
 ]) {
   if (purchaseReturnView.includes(fragment)) {
     errors.push(`采购退货页仍保留采购收货单假查看片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'barcode?: string',
+  'export const getProductByBarcode =',
+  "request.get<Product>('/masterdata/products/by-barcode'",
+  'params: { barcode: normalizedBarcode }'
+]) {
+  if (!masterdataApi.includes(fragment)) {
+    errors.push(`商品条码 API 缺少真实后端契约片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'aria-label="打开摄像头扫码"',
+  'navigator.mediaDevices.getUserMedia',
+  'BarcodeDetector',
+  "emit('cameraState', state)",
+  'stream?.getTracks().forEach',
+  'onBeforeUnmount(stopCamera)'
+]) {
+  if (!barcodeScanField.includes(fragment)) {
+    errors.push(`扫码组件缺少摄像头/扫码枪兼容片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'export const incrementScannedLine',
+  'String(line.productId) === String(scannedProductId)',
+  "status: 'not-found'",
+  "status: 'at-maximum'"
+]) {
+  if (!barcodeUtils.includes(fragment)) {
+    errors.push(`扫码数量工具缺少安全匹配或上限片段: ${fragment}`)
+  }
+}
+
+for (const [name, content] of [
+  ['采购收货页', purchaseReceiptView],
+  ['销售发货页', salesDeliveryView]
+]) {
+  for (const fragment of [
+    '<BarcodeScanField',
+    '@scan="handleBarcodeScan"',
+    'getProductByBarcode',
+    'incrementScannedLine',
+    'hydrateProductLineLabels',
+    'const resetScanQuantities = async () =>',
+    'const handleBarcodeScan = async (barcode: string) =>'
+  ]) {
+    if (!content.includes(fragment)) {
+      errors.push(`${name}缺少 Web 扫码录入片段: ${fragment}`)
+    }
   }
 }
 

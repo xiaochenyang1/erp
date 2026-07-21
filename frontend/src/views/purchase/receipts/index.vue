@@ -195,7 +195,20 @@
         </div>
 
         <div class="form-section" v-if="form.items.length > 0">
-          <div class="section-title">收货明细</div>
+          <div class="section-title scan-section-title">
+            <span>收货明细</span>
+            <el-button :disabled="scanLoading" @click="resetScanQuantities">
+              <el-icon><RefreshLeft /></el-icon>
+              清零数量
+            </el-button>
+          </div>
+          <div class="scan-toolbar">
+            <BarcodeScanField :disabled="scanLoading" @scan="handleBarcodeScan" />
+            <div class="scan-toolbar__summary" aria-live="polite">
+              <span>本次数量 <strong>{{ receiptQuantityTotal }}</strong></span>
+              <span v-if="scanFeedback" class="scan-toolbar__feedback">{{ scanFeedback }}</span>
+            </div>
+          </div>
           <el-table :data="form.items" border class="items-table">
             <el-table-column label="序号" type="index" width="60" align="center" />
             <el-table-column label="商品名称" prop="productName" min-width="180" />
@@ -205,7 +218,7 @@
                 <el-input-number
                   v-model="row.quantity"
                   :min="0"
-                  :max="row.orderedQuantity"
+                  :max="getReceiptMaximum(row)"
                   :controls="false"
                   style="width: 100%"
                 />
@@ -430,7 +443,8 @@ import {
   CircleClose,
   Document,
   List,
-  Clock
+  Clock,
+  RefreshLeft
 } from '@element-plus/icons-vue'
 import {
   getPurchaseReceipts,
@@ -445,11 +459,14 @@ import {
   type PurchaseReceipt,
   type PurchaseReceiptQuery,
   type PurchaseReceiptCreateRequest,
-  type PurchaseOrder
+  type PurchaseOrder,
+  type PurchaseReceiptItem
 } from '@/api/purchase'
 import { printPurchaseReceipt } from '@/utils/bizPrint'
-import { getWarehouses, type Warehouse } from '@/api/masterdata'
-import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
+import { getProduct, getProductByBarcode, getWarehouses, type Warehouse } from '@/api/masterdata'
+import { BarcodeScanField, PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
+import { incrementScannedLine } from '@/utils/barcode'
+import { hydrateProductLineLabels } from '@/utils/productLines'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
 
@@ -490,6 +507,8 @@ const dialogVisible = ref(false)
 const editingId = ref<string | number>('')
 const formRef = ref<FormInstance>()
 const submitLoading = ref(false)
+const scanLoading = ref(false)
+const scanFeedback = ref('')
 const detailVisible = ref(false)
 const currentRow = ref<PurchaseReceipt>()
 const linkedOrderVisible = ref(false)
@@ -508,6 +527,10 @@ const form = reactive<PurchaseReceiptCreateRequest>({
   items: [],
   remark: ''
 })
+const receiptQuantityTotal = computed(() => form.items.reduce(
+  (total, item) => total + Number(item.quantity || 0),
+  0
+))
 
 // 表单验证规则
 const formRules: FormRules = {
@@ -599,17 +622,19 @@ const handleEdit = async (row: PurchaseReceipt) => {
     form.warehouseId = detail.warehouseId
     form.receiptDate = detail.receiptDate
     form.remark = detail.remark || ''
-    form.items = (detail.items || detail.lines || []).map(item => ({
+    const receiptItems = (detail.items || detail.lines || []).map(item => ({
       orderItemId: item.orderItemId,
       orderLineId: item.orderLineId ?? item.orderItemId,
       productId: item.productId,
       productCode: item.productCode,
       productName: item.productName,
       orderedQuantity: item.orderedQuantity ?? item.quantity,
+      receivedQuantity: 0,
       quantity: item.quantity,
       qty: item.qty ?? item.quantity,
       remark: item.remark || ''
     }))
+    form.items = await hydrateProductLineLabels(receiptItems, getProduct)
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error('加载收货单失败')
@@ -621,16 +646,69 @@ const handleOrderChange = async (orderId: string | number) => {
   const summary = availableOrders.value.find(o => String(o.id) === String(orderId))
   const order = summary?.items?.length ? summary : await getPurchaseOrder(orderId)
   if (order) {
-    form.items = order.items.map(item => ({
+    const orderItems = order.items.map(item => ({
       orderItemId: item.id,
       orderLineId: item.id,
       productId: item.productId,
       productCode: item.productCode,
       productName: item.productName,
       orderedQuantity: item.quantity,
-      quantity: item.quantity,
+      receivedQuantity: item.receivedQty || 0,
+      quantity: Math.max(0, item.quantity - (item.receivedQty || 0)),
       remark: ''
     }))
+    form.items = await hydrateProductLineLabels(orderItems, getProduct)
+  }
+}
+
+const getReceiptMaximum = (item: PurchaseReceiptItem) => Math.max(
+  0,
+  Number(item.orderedQuantity || 0) - Number(item.receivedQuantity || 0)
+)
+
+const resetScanQuantities = async () => {
+  try {
+    await ElMessageBox.confirm('确认清零当前收货数量吗？', '扫码计数', {
+      confirmButtonText: '清零',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    form.items.forEach((item) => {
+      item.quantity = 0
+      item.qty = 0
+    })
+    scanFeedback.value = '数量已清零'
+  } catch (error: any) {
+    if (error !== 'cancel' && error?.action !== 'cancel') {
+      ElMessage.error('清零数量失败')
+    }
+  }
+}
+
+const handleBarcodeScan = async (barcode: string) => {
+  if (!form.orderId || form.items.length === 0) {
+    ElMessage.warning('请先选择采购订单')
+    return
+  }
+
+  scanLoading.value = true
+  try {
+    const product = await getProductByBarcode(barcode)
+    const result = incrementScannedLine(form.items, product.id, getReceiptMaximum)
+    if (result.status === 'not-found') {
+      ElMessage.warning(`商品 ${product.productCode} 不在当前采购订单中`)
+      return
+    }
+    if (result.status === 'at-maximum') {
+      ElMessage.warning(`商品 ${product.productCode} 已达到可收货数量`)
+      return
+    }
+    form.items[result.index].qty = result.quantity
+    scanFeedback.value = `${product.productCode} · ${result.quantity}`
+  } catch (error) {
+    ElMessage.warning(error instanceof Error ? error.message : '条码查询失败')
+  } finally {
+    scanLoading.value = false
   }
 }
 
@@ -765,6 +843,7 @@ const resetForm = () => {
   form.receiptDate = ''
   form.items = []
   form.remark = ''
+  scanFeedback.value = ''
   formRef.value?.resetFields()
 }
 
@@ -1028,6 +1107,44 @@ onMounted(() => {
   border-bottom: 2px solid #06b6d4;
 }
 
+.scan-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scan-section-title :deep(.el-button) {
+  min-height: 40px;
+}
+
+.scan-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 44px;
+  margin-bottom: 14px;
+}
+
+.scan-toolbar__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 132px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.scan-toolbar__summary strong,
+.scan-toolbar__feedback {
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-toolbar__feedback {
+  color: #047857;
+}
+
 .items-table {
   margin-top: 12px;
 }
@@ -1064,5 +1181,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   color: #64748b;
+}
+
+@media (max-width: 720px) {
+  .scan-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>

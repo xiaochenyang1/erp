@@ -7,7 +7,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url))
 const backendDir = resolve(scriptDir, '..')
 const frontendDir = process.env.ERP_FRONTEND_DIR
   ? resolve(process.env.ERP_FRONTEND_DIR)
-  : resolve(backendDir, '..', 'erp-frontend')
+  : resolve(backendDir, '..', 'frontend')
 const targetDir = join(backendDir, 'target')
 const chromePath = resolveChromePath()
 
@@ -259,6 +259,7 @@ async function prepareSalesOrderFixture(auth) {
   const product = await apiRequest(auth, 'POST', '/masterdata/products', {
     productCode: `UISP${suffix}`,
     productName: `UI销售商品${suffix}`,
+    barcode: `UISB${suffix}`,
     productType: 'GOODS',
     categoryName: 'UI销售联调',
     specification: 'UI smoke',
@@ -545,6 +546,7 @@ async function preparePurchaseOrderFixture(auth) {
   const product = await apiRequest(auth, 'POST', '/masterdata/products', {
     productCode: `UIPP${suffix}`,
     productName: `UI采购商品${suffix}`,
+    barcode: `UIPB${suffix}`,
     productType: 'GOODS',
     categoryName: 'UI采购联调',
     specification: 'UI smoke',
@@ -851,12 +853,27 @@ async function setBrowserAuth(cdp, auth) {
   `)
 }
 
+function visibleElementWithTextExpression(selector, text) {
+  return `
+    (() => {
+      const visible = (element) => {
+        if (!element) return false;
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      };
+      return [...document.querySelectorAll(${JSON.stringify(selector)})]
+        .find((element) => visible(element) && element.innerText.includes(${JSON.stringify(text)}));
+    })()
+  `
+}
+
 function dialogExpression(text) {
-  return `[...document.querySelectorAll('.el-dialog')].find((dialog) => visible(dialog) && dialog.innerText.includes(${JSON.stringify(text)}))`
+  return visibleElementWithTextExpression('.el-dialog', text)
 }
 
 function messageBoxExpression(text) {
-  return `[...document.querySelectorAll('.el-message-box')].find((box) => visible(box) && box.innerText.includes(${JSON.stringify(text)}))`
+  return visibleElementWithTextExpression('.el-message-box', text)
 }
 
 function visibleTextExpression(scopeExpression, text) {
@@ -964,6 +981,26 @@ async function setElementValue(cdp, elementExpression, value, label) {
       return element.value === ${JSON.stringify(value)};
     })()
   `, label)
+}
+
+async function pressElementKey(cdp, elementExpression, key, label) {
+  await waitForPage(cdp, `
+    (() => {
+      const visible = (element) => {
+        if (!element) return false;
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      };
+      const element = ${elementExpression};
+      if (!visible(element)) return false;
+      element.focus();
+      element.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, code: ${JSON.stringify(key)}, bubbles: true }));
+      element.dispatchEvent(new KeyboardEvent('keyup', { key: ${JSON.stringify(key)}, code: ${JSON.stringify(key)}, bubbles: true }));
+      return true;
+    })()
+  `, label)
+  await sleep(250)
 }
 
 async function pageDiagnostics(cdp, label) {
@@ -4552,7 +4589,9 @@ async function prepareDraftPurchaseReceiptFixture(auth) {
     suffix: fixture.suffix,
     id: receipt.id,
     docNo: receipt.receiptNo,
-    detailPath: `/purchase/receipts/${receipt.id}`
+    detailPath: `/purchase/receipts/${receipt.id}`,
+    barcode: fixture.product.barcode,
+    productCode: fixture.product.productCode
   }
 }
 
@@ -4612,7 +4651,9 @@ async function prepareDraftSalesDeliveryFixture(auth) {
     suffix: fixture.suffix,
     id: delivery.id,
     docNo: delivery.deliveryNo,
-    detailPath: `/sales/deliveries/${delivery.id}`
+    detailPath: `/sales/deliveries/${delivery.id}`,
+    barcode: fixture.product.barcode,
+    productCode: fixture.product.productCode
   }
 }
 
@@ -4644,6 +4685,40 @@ async function prepareDraftSalesReturnFixture(auth) {
     docNo: salesReturn.returnNo,
     detailPath: `/sales/returns/${salesReturn.id}`
   }
+}
+
+async function runDraftBarcodeScan(cdp, prepared, editDialog, step) {
+  if (!prepared.barcode) {
+    throw new Error(`${step} fixture is missing product barcode`)
+  }
+
+  await markSmokeStep(cdp, `${step}:reset-scan-quantity`)
+  await clickButton(cdp, '清零数量', editDialog)
+  await waitForPage(
+    cdp,
+    visibleTextExpression('document.body', '确认清零当前'),
+    `${step} reset quantity confirm`
+  )
+  await invokeButton(cdp, '清零', `${step} reset quantity confirm button`, messageBoxExpression('确认清零当前'))
+
+  const quantityInput = `${editDialog}.querySelector('.el-input-number input')`
+  await waitForPage(cdp, `Number((${quantityInput})?.value) === 0`, `${step} quantity reset to zero`)
+
+  const barcodeInput = `${editDialog}.querySelector('input[placeholder="扫描或输入商品条码"]')`
+  await markSmokeStep(cdp, `${step}:scan-barcode`)
+  await setElementValue(cdp, barcodeInput, prepared.barcode, `${step} barcode input`)
+  await pressElementKey(cdp, barcodeInput, 'Enter', `${step} scanner Enter`)
+  await waitForPage(cdp, `
+    Number((${quantityInput})?.value) === 1
+      && ${editDialog}.innerText.includes(${JSON.stringify(prepared.productCode)})
+  `, `${step} scanned quantity incremented`, 15000)
+
+  prepared.expectedLineQty = 1
+  const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
+  writeFileSync(
+    join(targetDir, `ui-smoke-${step}-barcode.png`),
+    Buffer.from(screenshot.data, 'base64')
+  )
 }
 
 // 草稿单据 PUT 编辑通用 workflow：四个单据页(采购收货/采购退货/销售发货/销售退货)的
@@ -4704,6 +4779,9 @@ async function runDraftEditWorkflow(cdp, auth, opts) {
     `, `${opts.docLabel} edit dialog`)
 
     const editDialog = `(${dialogExpression(opts.editTitle)} || document.createElement('div'))`
+    if (opts.beforeSave) {
+      await opts.beforeSave(cdp, prepared, editDialog)
+    }
     await markSmokeStep(cdp, `${opts.step}:update-remark`)
     await setElementValue(cdp, `${editDialog}.querySelector('textarea')`, newRemark, `${opts.docLabel} remark input`)
     await clickButton(cdp, '确定', editDialog)
@@ -4717,7 +4795,12 @@ async function runDraftEditWorkflow(cdp, auth, opts) {
         if (!response.ok) return false;
         const payload = await response.json();
         const detail = payload?.data;
-        return detail?.remark === ${JSON.stringify(newRemark)} && detail?.status === 'DRAFT';
+        const detailLines = detail?.lines || detail?.items || [];
+        return detail?.remark === ${JSON.stringify(newRemark)}
+          && detail?.status === 'DRAFT'
+          && (${prepared.expectedLineQty == null
+            ? 'true'
+            : `Number(detailLines[0]?.qty ?? detailLines[0]?.quantity) === ${JSON.stringify(prepared.expectedLineQty)}`});
       })()
     `, `${opts.docLabel} draft remark updated and status still DRAFT`, 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, `after ${opts.step} edit submit`))}`)
@@ -4732,6 +4815,8 @@ async function runDraftEditWorkflow(cdp, auth, opts) {
     name: opts.name,
     docNo: prepared.docNo,
     editedRemark: newRemark,
+    scannedBarcode: prepared.barcode || null,
+    lineQty: prepared.expectedLineQty || null,
     passed: failures.length === 0,
     failures
   }
@@ -4747,7 +4832,13 @@ function runPurchaseReceiptDraftEditWorkflow(cdp, auth) {
     searchPlaceholder: '请输入收货单号',
     searchButton: '搜索',
     editTitle: '编辑采购收货',
-    prepareDraft: prepareDraftPurchaseReceiptFixture
+    prepareDraft: prepareDraftPurchaseReceiptFixture,
+    beforeSave: (browser, prepared, dialog) => runDraftBarcodeScan(
+      browser,
+      prepared,
+      dialog,
+      'purchase-receipt-draft-edit'
+    )
   })
 }
 
@@ -4775,7 +4866,13 @@ function runSalesDeliveryDraftEditWorkflow(cdp, auth) {
     searchPlaceholder: '请输入发货单号',
     searchButton: '查询',
     editTitle: '编辑销售发货',
-    prepareDraft: prepareDraftSalesDeliveryFixture
+    prepareDraft: prepareDraftSalesDeliveryFixture,
+    beforeSave: (browser, prepared, dialog) => runDraftBarcodeScan(
+      browser,
+      prepared,
+      dialog,
+      'sales-delivery-draft-edit'
+    )
   })
 }
 
@@ -6515,6 +6612,8 @@ async function runSalesOrderUnapproveWorkflow(cdp, auth) {
 
 async function main() {
   mkdirSync(targetDir, { recursive: true })
+  const chromeProfileDir = join(targetDir, `ui-smoke-chrome-profile-${process.pid}-${Date.now()}`)
+  const chromeWindowSize = process.env.UI_SMOKE_WINDOW_SIZE || '1440,1000'
 
   start('backend', 'java', [
     '-jar',
@@ -6538,12 +6637,16 @@ async function main() {
   start('chrome', chromePath, [
     '--headless=new',
     '--disable-gpu',
-    '--window-size=1440,1000',
+    '--disable-gpu-shader-disk-cache',
+    '--disable-gpu-program-cache',
+    '--disable-extensions',
+    '--disable-background-networking',
+    `--window-size=${chromeWindowSize}`,
     '--no-first-run',
     '--no-default-browser-check',
     '--remote-allow-origins=*',
     '--remote-debugging-port=9223',
-    `--user-data-dir=${join(targetDir, 'ui-smoke-chrome-profile')}`,
+    `--user-data-dir=${chromeProfileDir}`,
     'about:blank'
   ], backendDir)
 

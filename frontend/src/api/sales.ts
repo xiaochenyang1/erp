@@ -173,6 +173,8 @@ export interface SalesDeliveryItem {
   productId: string | number
   productCode?: string
   productName?: string
+  orderedQuantity?: number
+  deliveredQuantity?: number
   quantity: number
   qty?: number
   price?: number

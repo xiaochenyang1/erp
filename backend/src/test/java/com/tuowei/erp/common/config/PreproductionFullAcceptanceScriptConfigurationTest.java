@@ -57,7 +57,7 @@ class PreproductionFullAcceptanceScriptConfigurationTest {
         String script = Files.readString(Path.of("scripts", "preprod-full-acceptance.ps1"), StandardCharsets.UTF_8);
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(script)
                 .contains(". (Join-Path $PSScriptRoot \"readiness-evidence.ps1\")")
@@ -86,7 +86,7 @@ class PreproductionFullAcceptanceScriptConfigurationTest {
         String script = Files.readString(Path.of("scripts", "preprod-full-acceptance.ps1"), StandardCharsets.UTF_8);
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(script)
                 .contains("function Invoke-PreflightValidation")
@@ -123,7 +123,7 @@ class PreproductionFullAcceptanceScriptConfigurationTest {
         String script = Files.readString(Path.of("scripts", "preprod-full-acceptance.ps1"), StandardCharsets.UTF_8);
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(script)
                 .contains("[switch]$PreflightOnly")
@@ -156,7 +156,7 @@ class PreproductionFullAcceptanceScriptConfigurationTest {
         String script = Files.readString(Path.of("scripts", "preprod-full-acceptance.ps1"), StandardCharsets.UTF_8);
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(script)
                 .contains("function New-FullAcceptanceInvocationArguments")
@@ -190,7 +190,7 @@ class PreproductionFullAcceptanceScriptConfigurationTest {
         String script = Files.readString(Path.of("scripts", "preprod-full-acceptance.ps1"), StandardCharsets.UTF_8);
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(script)
                 .contains("function Add-FailureTriageIndex")
@@ -228,7 +228,7 @@ class PreproductionFullAcceptanceScriptConfigurationTest {
         String script = Files.readString(Path.of("scripts", "preprod-full-acceptance.ps1"), StandardCharsets.UTF_8);
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(script)
                 .contains("function Save-EvidenceIndexManifest")
@@ -265,7 +265,7 @@ class PreproductionFullAcceptanceScriptConfigurationTest {
     void releaseDocumentsReferenceFullAcceptanceScript() throws IOException {
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(deployment)
                 .contains(".\\scripts\\preprod-full-acceptance.ps1")

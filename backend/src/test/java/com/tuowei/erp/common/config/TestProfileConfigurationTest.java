@@ -37,7 +37,7 @@ class TestProfileConfigurationTest {
 
         assertThat(testProperties.getProperty("spring.datasource.url"))
                 .as("Default test profile must not run Flyway against the developer business schema.")
-                .isEqualTo("${ERP_TEST_DATASOURCE_URL:jdbc:mysql://localhost:3306/erp_test?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}");
+                .isEqualTo("${ERP_TEST_DATASOURCE_URL:jdbc:mysql://localhost:3306/erp_codex_test?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}");
         assertThat(testProperties.getProperty("spring.datasource.driver-class-name"))
                 .isEqualTo("com.mysql.cj.jdbc.Driver");
         assertThat(testProperties.getProperty("spring.datasource.username"))

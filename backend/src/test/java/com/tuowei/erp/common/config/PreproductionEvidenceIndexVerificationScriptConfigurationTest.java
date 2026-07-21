@@ -58,7 +58,7 @@ class PreproductionEvidenceIndexVerificationScriptConfigurationTest {
     void releaseDocumentsReferenceEvidenceIndexVerification() throws IOException {
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(deployment)
                 .contains(".\\scripts\\verify-preprod-evidence-index.ps1")
@@ -84,7 +84,7 @@ class PreproductionEvidenceIndexVerificationScriptConfigurationTest {
         Path scriptPath = Path.of("scripts", "verify-preprod-acceptance-gate.ps1");
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(scriptPath).exists().isRegularFile();
 
@@ -149,7 +149,7 @@ class PreproductionEvidenceIndexVerificationScriptConfigurationTest {
         Path scriptPath = Path.of("scripts", "verify-preprod-acceptance-gate-report.ps1");
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(scriptPath).exists().isRegularFile();
 
@@ -200,7 +200,7 @@ class PreproductionEvidenceIndexVerificationScriptConfigurationTest {
         Path scriptPath = Path.of("scripts", "decide-readiness-release.ps1");
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(scriptPath).exists().isRegularFile();
 
@@ -247,7 +247,7 @@ class PreproductionEvidenceIndexVerificationScriptConfigurationTest {
         Path scriptPath = Path.of("scripts", "export-release-evidence-bundle.ps1");
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(scriptPath).exists().isRegularFile();
 
@@ -470,7 +470,7 @@ class PreproductionEvidenceIndexVerificationScriptConfigurationTest {
         Path scriptPath = Path.of("scripts", "verify-release-evidence-artifacts-index.ps1");
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(scriptPath).exists().isRegularFile();
 
@@ -636,7 +636,7 @@ class PreproductionEvidenceIndexVerificationScriptConfigurationTest {
         Path scriptPath = Path.of("scripts", "verify-release-evidence-bundle.ps1");
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
-        String audit = Files.readString(Path.of("docs", "production-readiness-audit.md"), StandardCharsets.UTF_8);
+        String audit = Files.readString(Path.of("docs", "archive", "2026-06-stale", "production-readiness-audit.md"), StandardCharsets.UTF_8);
 
         assertThat(scriptPath).exists().isRegularFile();
 

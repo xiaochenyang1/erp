@@ -54,7 +54,7 @@ class ProductLotControlServiceTest {
         Assertions.assertThatThrownBy(() -> productService.create(new ProductCreateRequest(
                 "LOT-PROD-001", "效期商品", "STANDARD", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                false, true, false, "bad flags"
+                false, true, false, "bad flags", null
         ))).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("启用效期管理必须同时启用批次管理");
     }
@@ -65,7 +65,7 @@ class ProductLotControlServiceTest {
         ProductResponse created = productService.create(new ProductCreateRequest(
                 "LOT-PROD-002", "已有库存商品", "STANDARD", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                false, false, false, "stock exists"
+                false, false, false, "stock exists", null
         ));
         jdbcTemplate.update("""
                 insert into inv_balance
@@ -77,7 +77,7 @@ class ProductLotControlServiceTest {
         Assertions.assertThatThrownBy(() -> productService.update(created.id(), new ProductUpdateRequest(
                 "已有库存商品", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                true, false, false, "turn on lot"
+                true, false, false, "turn on lot", null
         ))).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("商品已有库存，不能直接启用批次管理");
     }
@@ -88,7 +88,7 @@ class ProductLotControlServiceTest {
         ProductResponse created = productService.create(new ProductCreateRequest(
                 "LOT-PROD-003", "默认标记商品", "STANDARD", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                null, null, null, "null flags"
+                null, null, null, "null flags", null
         ));
 
         Assertions.assertThat(created.lotControlled()).isFalse();
@@ -101,14 +101,14 @@ class ProductLotControlServiceTest {
         ProductResponse created = productService.create(new ProductCreateRequest(
                 "LOT-PROD-004", "批次库存商品", "STANDARD", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                true, false, false, "lot stock exists"
+                true, false, false, "lot stock exists", null
         ));
         insertLotBalance(created.id(), new BigDecimal("1.0000"), BigDecimal.ZERO, BigDecimal.ZERO);
 
         Assertions.assertThatThrownBy(() -> productService.update(created.id(), new ProductUpdateRequest(
                 "批次库存商品", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                false, false, false, "turn off lot"
+                false, false, false, "turn off lot", null
         ))).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("商品存在批次库存，不能关闭批次管理");
     }
@@ -119,14 +119,14 @@ class ProductLotControlServiceTest {
         ProductResponse created = productService.create(new ProductCreateRequest(
                 "LOT-PROD-005", "预留库存商品", "STANDARD", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                false, false, false, "reserved stock exists"
+                false, false, false, "reserved stock exists", null
         ));
         insertBalance(created.id(), BigDecimal.ZERO, new BigDecimal("2.0000"), BigDecimal.ZERO);
 
         Assertions.assertThatThrownBy(() -> productService.update(created.id(), new ProductUpdateRequest(
                 "预留库存商品", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                true, false, false, "turn on lot"
+                true, false, false, "turn on lot", null
         ))).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("商品已有库存，不能直接启用批次管理");
     }
@@ -137,14 +137,14 @@ class ProductLotControlServiceTest {
         ProductResponse created = productService.create(new ProductCreateRequest(
                 "LOT-PROD-006", "金额库存商品", "STANDARD", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                false, false, false, "amount stock exists"
+                false, false, false, "amount stock exists", null
         ));
         insertBalance(created.id(), BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("10.00"));
 
         Assertions.assertThatThrownBy(() -> productService.update(created.id(), new ProductUpdateRequest(
                 "金额库存商品", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                true, false, false, "turn on lot"
+                true, false, false, "turn on lot", null
         ))).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("商品已有库存，不能直接启用批次管理");
     }
@@ -155,14 +155,14 @@ class ProductLotControlServiceTest {
         ProductResponse created = productService.create(new ProductCreateRequest(
                 "LOT-PROD-007", "零库存商品", "STANDARD", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                false, false, false, "zero stock"
+                false, false, false, "zero stock", null
         ));
         insertBalance(created.id(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
 
         ProductResponse updated = productService.update(created.id(), new ProductUpdateRequest(
                 "零库存商品", "批次测试", "规格", "件",
                 new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("13.0000"),
-                true, false, false, "turn on lot"
+                true, false, false, "turn on lot", null
         ));
 
         Assertions.assertThat(updated.lotControlled()).isTrue();

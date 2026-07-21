@@ -20,7 +20,6 @@ import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -309,14 +308,6 @@ public class SalesDeliveryService {
         productValidator.requireProducts(
                 deliveryLines.stream().map(SalesDeliveryLineEntity::getProductId).toList(),
                 audit.companyId(), audit.accountBookId());
-
-        for (SalesDeliveryLineEntity deliveryLine : deliveryLines) {
-            var product = productValidator.requireProduct(deliveryLine.getProductId(), audit.companyId(), audit.accountBookId());
-            if (product.getLotControlled() != null && product.getLotControlled() == 1
-                    && (deliveryLine.getLotNo() == null || deliveryLine.getLotNo().isBlank())) {
-                throw new IllegalArgumentException("商品启用批次管理，出库行必须填写批号");
-            }
-        }
 
         for (SalesDeliveryLineEntity deliveryLine : deliveryLines) {
             SalesOrderLineEntity orderLine = requireOrderLine(orderLines, deliveryLine.getOrderLineId());

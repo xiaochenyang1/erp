@@ -297,6 +297,7 @@ export interface PurchaseReceiptItem {
   productCode?: string
   productName?: string
   orderedQuantity?: number
+  receivedQuantity?: number
   qty?: number
   quantity: number
   price?: number
@@ -405,7 +406,7 @@ const toPurchaseReceiptPayload = (data: PurchaseReceiptCreateRequest) => ({
   remark: data.remark,
   lines: data.items.map((item) => ({
     orderLineId: item.orderLineId || item.orderItemId,
-    qty: item.qty ?? item.quantity,
+    qty: item.quantity,
     remark: item.remark
   }))
 })

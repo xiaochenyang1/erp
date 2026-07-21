@@ -17,6 +17,7 @@ public record ProductResponse(
         Boolean lotControlled,
         Boolean shelfLifeControlled,
         Boolean inspectionRequired,
-        String remark
+        String remark,
+        String barcode
 ) {
 }

@@ -7,13 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
-import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Comparator;
-import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
  * 回归守卫:V103 手工释放预占按钮(5018 / inventory:reservation:release)必须已绑定 ERP_ADMIN(3002)。
@@ -23,7 +17,6 @@ import java.util.stream.Stream;
  */
 class InventoryReservationReleaseButtonBindMigrationTest {
 
-    private static final String H2_INCOMPATIBLE_MIGRATION = "V77__finance_expense_approval_status.sql";
     private static final long ERP_ADMIN_ROLE_ID = 3002L;
     private static JdbcTemplate jdbcTemplate;
 
@@ -35,7 +28,9 @@ class InventoryReservationReleaseButtonBindMigrationTest {
         dataSource.setUsername("sa");
         dataSource.setPassword("");
 
-        Path migrationDir = h2CompatibleMigrationDirectory();
+        Path migrationDir = H2MigrationTestSupport.copyCompatibleMigrations(
+                InventoryReservationReleaseButtonBindMigrationTest.class,
+                "inv-reservation-release-bind-migrations");
         Flyway.configure()
                 .dataSource(dataSource)
                 .locations("filesystem:" + migrationDir.toAbsolutePath().toString().replace('\\', '/'))
@@ -71,21 +66,4 @@ class InventoryReservationReleaseButtonBindMigrationTest {
         Assertions.assertThat(boundCount).isEqualTo(1L);
     }
 
-    private static Path h2CompatibleMigrationDirectory() throws Exception {
-        URL migrationUrl = Objects.requireNonNull(
-                InventoryReservationReleaseButtonBindMigrationTest.class.getClassLoader().getResource("db/migration"),
-                "db/migration resource not found");
-        Path sourceDir = Path.of(migrationUrl.toURI());
-        Path targetDir = Files.createTempDirectory("inv-reservation-release-bind-migrations");
-        try (Stream<Path> migrations = Files.list(sourceDir)) {
-            for (Path migration : migrations
-                    .filter(Files::isRegularFile)
-                    .filter(path -> !path.getFileName().toString().equals(H2_INCOMPATIBLE_MIGRATION))
-                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                    .toList()) {
-                Files.copy(migration, targetDir.resolve(migration.getFileName()), StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
-        return targetDir;
-    }
 }

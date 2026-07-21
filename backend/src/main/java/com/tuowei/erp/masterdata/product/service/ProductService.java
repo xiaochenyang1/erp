@@ -19,6 +19,7 @@ import com.tuowei.erp.masterdata.product.web.ProductPageQuery;
 import com.tuowei.erp.masterdata.product.web.ProductResponse;
 import com.tuowei.erp.masterdata.product.web.ProductUpdateRequest;
 import com.tuowei.erp.system.dict.service.SystemDictService;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,7 @@ public class ProductService {
     private static final List<String> PRODUCT_EXPORT_HEADERS = List.of(
             "productCode",
             "productName",
+            "barcode",
             "productType",
             "categoryName",
             "specification",
@@ -81,12 +83,15 @@ public class ProductService {
         boolean lotControlled = enabled(request.lotControlled());
         boolean shelfLifeControlled = enabled(request.shelfLifeControlled());
         validateLotFlags(lotControlled, shelfLifeControlled);
+        String barcode = normalizeBarcode(request.barcode());
+        ensureBarcodeAvailable(barcode, null, audit);
 
         ProductEntity entity = new ProductEntity();
         entity.setCompanyId(audit.companyId());
         entity.setAccountBookId(audit.accountBookId());
         entity.setProductCode(request.productCode());
         entity.setProductName(request.productName());
+        entity.setBarcode(barcode);
         entity.setProductType(systemDictService.requireEnabledItem(DICT_PRODUCT_TYPE, request.productType(), "商品类型不在启用字典项中"));
         entity.setCategoryName(request.categoryName());
         entity.setSpecification(request.specification());
@@ -106,13 +111,37 @@ public class ProductService {
         entity.setUpdatedTime(now);
         entity.setVersion(0);
 
-        productMapper.insert(entity);
+        try {
+            productMapper.insert(entity);
+        } catch (DuplicateKeyException ex) {
+            throw new IllegalArgumentException("商品编码或条码已存在", ex);
+        }
         return toResponse(entity);
     }
 
     @Transactional(readOnly = true)
     public ProductResponse getById(Long id) {
         return toResponse(requireProduct(id));
+    }
+
+    @Transactional(readOnly = true)
+    public ProductResponse getByBarcode(String barcode) {
+        String normalized = normalizeBarcode(barcode);
+        if (normalized == null) {
+            throw new IllegalArgumentException("商品条码不能为空");
+        }
+        AuditMetadata audit = auditMetadataFactory.current();
+        ProductEntity entity = productMapper.selectOne(new LambdaQueryWrapper<ProductEntity>()
+                .eq(ProductEntity::getCompanyId, audit.companyId())
+                .eq(ProductEntity::getAccountBookId, audit.accountBookId())
+                .eq(ProductEntity::getDeletedFlag, 0)
+                .eq(ProductEntity::getStatus, "ACTIVE")
+                .eq(ProductEntity::getBarcode, normalized)
+                .last("limit 1"));
+        if (entity == null) {
+            throw new IllegalArgumentException("商品不存在");
+        }
+        return toResponse(entity);
     }
 
     @Transactional(readOnly = true)
@@ -163,6 +192,8 @@ public class ProductService {
         boolean requestLotControlled = enabled(request.lotControlled());
         boolean requestShelfLifeControlled = enabled(request.shelfLifeControlled());
         validateLotFlags(requestLotControlled, requestShelfLifeControlled);
+        String barcode = normalizeBarcode(request.barcode());
+        ensureBarcodeAvailable(barcode, entity.getId(), audit);
         if (!enabled(entity.getLotControlled()) && requestLotControlled && hasAggregateStock(entity.getId(), audit.companyId())) {
             throw new IllegalArgumentException("商品已有库存，不能直接启用批次管理");
         }
@@ -170,6 +201,7 @@ public class ProductService {
             throw new IllegalArgumentException("商品存在批次库存，不能关闭批次管理");
         }
         entity.setProductName(request.productName());
+        entity.setBarcode(barcode);
         entity.setCategoryName(request.categoryName());
         entity.setSpecification(request.specification());
         entity.setUnitName(request.unitName());
@@ -182,7 +214,11 @@ public class ProductService {
         entity.setRemark(request.remark());
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(audit.now());
-        OptimisticLockGuard.requireUpdated(productMapper.updateById(entity), "商品已被其他操作修改，请刷新后重试");
+        try {
+            OptimisticLockGuard.requireUpdated(productMapper.updateById(entity), "商品已被其他操作修改，请刷新后重试");
+        } catch (DuplicateKeyException ex) {
+            throw new IllegalArgumentException("商品编码或条码已存在", ex);
+        }
         return toResponse(entity);
     }
 
@@ -231,7 +267,9 @@ public class ProductService {
         if (StringUtils.hasText(keyword)) {
             wrapper.and(query -> query.like(ProductEntity::getProductCode, keyword)
                     .or()
-                    .like(ProductEntity::getProductName, keyword));
+                    .like(ProductEntity::getProductName, keyword)
+                    .or()
+                    .like(ProductEntity::getBarcode, keyword));
         }
         if (StringUtils.hasText(status)) {
             wrapper.eq(ProductEntity::getStatus, status);
@@ -246,6 +284,7 @@ public class ProductService {
         return Arrays.asList(
                 record.productCode(),
                 record.productName(),
+                record.barcode(),
                 record.productType(),
                 record.categoryName(),
                 record.specification(),
@@ -274,6 +313,31 @@ public class ProductService {
             return null;
         }
         return normalized.toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeBarcode(String barcode) {
+        String normalized = normalizeNullableText(barcode);
+        if (normalized != null && normalized.length() > 128) {
+            throw new IllegalArgumentException("商品条码长度不能超过128个字符");
+        }
+        return normalized;
+    }
+
+    private void ensureBarcodeAvailable(String barcode, Long excludedProductId, AuditMetadata audit) {
+        if (barcode == null) {
+            return;
+        }
+        LambdaQueryWrapper<ProductEntity> wrapper = new LambdaQueryWrapper<ProductEntity>()
+                .eq(ProductEntity::getCompanyId, audit.companyId())
+                .eq(ProductEntity::getAccountBookId, audit.accountBookId())
+                .eq(ProductEntity::getBarcode, barcode);
+        if (excludedProductId != null) {
+            wrapper.ne(ProductEntity::getId, excludedProductId);
+        }
+        wrapper.last("limit 1");
+        if (productMapper.selectOne(wrapper) != null) {
+            throw new IllegalArgumentException("商品条码已存在");
+        }
     }
 
     private void validateLotFlags(boolean lotControlled, boolean shelfLifeControlled) {
@@ -332,7 +396,8 @@ public class ProductService {
                 enabled(entity.getLotControlled()),
                 enabled(entity.getShelfLifeControlled()),
                 enabled(entity.getInspectionRequired()),
-                entity.getRemark()
+                entity.getRemark(),
+                entity.getBarcode()
         );
     }
 

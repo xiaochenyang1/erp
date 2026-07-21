@@ -72,6 +72,16 @@ export const getProduct = (id: string | number) => {
   return request.get<Product>(`/masterdata/products/${id}`).then(normalizeProduct)
 }
 
+export const getProductByBarcode = (barcode: string) => {
+  const normalizedBarcode = barcode.trim()
+  if (!normalizedBarcode) {
+    return Promise.reject(new Error('商品条码不能为空'))
+  }
+  return request.get<Product>('/masterdata/products/by-barcode', {
+    params: { barcode: normalizedBarcode }
+  }).then(normalizeProduct)
+}
+
 export const createProduct = (data: ProductSaveRequest) => {
   return request.post<Product>('/masterdata/products', data).then(normalizeProduct)
 }
