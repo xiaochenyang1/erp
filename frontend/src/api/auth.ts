@@ -56,6 +56,11 @@ export interface UpdateProfileRequest {
   timeZone?: string
 }
 
+export interface UpdatePreferencesRequest {
+  locale: string
+  timeZone: string
+}
+
 // 运行时菜单树节点（后端按当前用户角色过滤后返回）
 export interface RuntimeMenu {
   id: string
@@ -112,6 +117,10 @@ export const changePassword = (data: ChangePasswordRequest) => {
  */
 export const updateProfile = (data: UpdateProfileRequest) => {
   return request.put<UserInfo>('/auth/profile', data).then(normalizeUserInfo)
+}
+
+export const updatePreferences = (data: UpdatePreferencesRequest) => {
+  return request.put<UserInfo>('/auth/preferences', data).then(normalizeUserInfo)
 }
 
 /**

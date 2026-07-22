@@ -226,6 +226,7 @@ import {
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
   changePassword,
+  updatePreferences,
   updateProfile,
   type ChangePasswordRequest,
   type UpdateProfileRequest
@@ -246,12 +247,8 @@ const { t } = useI18n()
 
 const persistDisplayPreferences = async () => {
   const info = userStore.userInfo
-  if (!info?.realName) return
-  const updated = await updateProfile({
-    realName: info.realName,
-    email: info.email,
-    mobile: info.mobile,
-    avatar: info.avatar,
+  if (!info) return
+  const updated = await updatePreferences({
     locale: appStore.locale,
     timeZone: appStore.timeZone
   })

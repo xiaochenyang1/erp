@@ -4,11 +4,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // 这是最高价值的确定性逻辑 —— 后端 Long ID 若被前端当 number 处理会丢精度。
 const get = vi.fn()
 const post = vi.fn()
+const put = vi.fn()
 vi.mock('@/utils/request', () => ({
   request: {
     get: (...args: unknown[]) => get(...args),
     post: (...args: unknown[]) => post(...args),
-    put: vi.fn(),
+    put: (...args: unknown[]) => put(...args),
     delete: vi.fn()
   }
 }))
@@ -16,12 +17,14 @@ vi.mock('@/utils/request', () => ({
 import {
   login,
   getUserInfo,
-  getRuntimeMenuTree
+  getRuntimeMenuTree,
+  updatePreferences
 } from '@/api/auth'
 
 beforeEach(() => {
   get.mockReset()
   post.mockReset()
+  put.mockReset()
 })
 
 describe('auth API 归一化', () => {
@@ -75,5 +78,12 @@ describe('auth API 归一化', () => {
     expect(tree[0].parentId).toBeUndefined()
     expect(tree[0].children?.[0].id).toBe('5002')
     expect(tree[0].children?.[0].parentId).toBe('5001')
+  })
+
+  it('updatePreferences 调用专用偏好接口', async () => {
+    put.mockResolvedValue({ id: '1', username: 'admin', locale: 'en-US', timeZone: 'UTC' })
+    const result = await updatePreferences({ locale: 'en-US', timeZone: 'UTC' })
+    expect(put).toHaveBeenCalledWith('/auth/preferences', { locale: 'en-US', timeZone: 'UTC' })
+    expect(result.locale).toBe('en-US')
   })
 })

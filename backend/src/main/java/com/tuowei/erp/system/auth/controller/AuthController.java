@@ -10,6 +10,7 @@ import com.tuowei.erp.system.auth.web.LoginResponse;
 import com.tuowei.erp.system.auth.web.LogoutRequest;
 import com.tuowei.erp.system.auth.web.RefreshTokenRequest;
 import com.tuowei.erp.system.auth.web.UpdateProfileRequest;
+import com.tuowei.erp.system.auth.web.UpdatePreferencesRequest;
 import com.tuowei.erp.system.auth.web.UserInfoResponse;
 import com.tuowei.erp.system.menu.web.MenuResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -73,6 +74,13 @@ public class AuthController {
     @AuditLog(module = "认证", operation = AuditLog.OperationType.UPDATE, description = "更新个人资料")
     public ApiResponse<UserInfoResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
         return ApiResponse.success(authService.updateProfile(request));
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/preferences")
+    @AuditLog(module = "认证", operation = AuditLog.OperationType.UPDATE, description = "更新显示偏好")
+    public ApiResponse<UserInfoResponse> updatePreferences(@Valid @RequestBody UpdatePreferencesRequest request) {
+        return ApiResponse.success(authService.updatePreferences(request));
     }
 
     @PreAuthorize("isAuthenticated()")

@@ -14,6 +14,7 @@ import com.tuowei.erp.system.auth.web.LoginUserResponse;
 import com.tuowei.erp.system.auth.web.LogoutRequest;
 import com.tuowei.erp.system.auth.web.RefreshTokenRequest;
 import com.tuowei.erp.system.auth.web.UpdateProfileRequest;
+import com.tuowei.erp.system.auth.web.UpdatePreferencesRequest;
 import com.tuowei.erp.system.auth.web.UserInfoResponse;
 import com.tuowei.erp.common.web.ClientIpResolver;
 import com.tuowei.erp.system.log.service.SystemLogService;
@@ -222,6 +223,19 @@ public class AuthService {
     public UserInfoResponse getUserInfo() {
         ErpPrincipal principal = currentUserContext.requirePrincipal();
         UserEntity user = requireActiveUser(principal.userId());
+        return toUserInfoResponse(user, principal);
+    }
+
+    @Transactional
+    public UserInfoResponse updatePreferences(UpdatePreferencesRequest request) {
+        ErpPrincipal principal = currentUserContext.requirePrincipal();
+        UserEntity user = requireActiveUser(principal.userId());
+        user.setLocale(normalizePreference(request.locale(), SUPPORTED_LOCALES, "locale"));
+        user.setTimeZone(normalizePreference(request.timeZone(), SUPPORTED_TIME_ZONES, "timeZone"));
+        user.setUpdatedBy(principal.userId());
+        user.setUpdatedTime(LocalDateTime.now(clock));
+        OptimisticLockGuard.requireUpdated(userMapper.updateById(user), "用户已被其他操作修改，请刷新后重试");
+        principalCache.evictUser(principal.userId());
         return toUserInfoResponse(user, principal);
     }
 
