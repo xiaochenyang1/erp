@@ -174,6 +174,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { AlarmClock, CircleCheck, CircleClose, EditPen, Refresh, Search, TrendCharts, Warning } from '@element-plus/icons-vue'
+import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   getExceptionSlaPolicies,
   updateExceptionSlaPolicy,
@@ -362,8 +363,7 @@ const priorityType = (value?: string) => {
 }
 
 const formatDateTime = (value?: string) => {
-  if (!value) return '-'
-  return value.replace('T', ' ').slice(0, 19)
+  return formatLocalizedDateTime(value) || '-'
 }
 
 onMounted(() => {

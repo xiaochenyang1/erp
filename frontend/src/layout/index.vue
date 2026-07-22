@@ -3,7 +3,7 @@
     <!-- 侧边栏 -->
     <aside :class="['layout-sidebar', { collapsed: appStore.sidebarCollapsed }]">
       <div class="sidebar-logo">
-        <span v-if="!appStore.sidebarCollapsed" class="logo-text">ERP系统</span>
+        <span v-if="!appStore.sidebarCollapsed" class="logo-text">{{ $t('app.shortName') }}</span>
         <span v-else class="logo-mini">ERP</span>
       </div>
 
@@ -34,6 +34,27 @@
         </div>
 
         <div class="header-right">
+          <el-popover placement="bottom-end" :width="320" trigger="click">
+            <template #reference>
+              <el-icon class="header-icon" :title="$t('settings.title')"><Setting /></el-icon>
+            </template>
+            <div class="preference-panel">
+              <strong>{{ $t('settings.title') }}</strong>
+              <label>{{ $t('settings.language') }}</label>
+              <el-select :model-value="appStore.locale" @update:model-value="handleLocaleChange">
+                <el-option :label="$t('settings.zhCN')" value="zh-CN" />
+                <el-option :label="$t('settings.enUS')" value="en-US" />
+              </el-select>
+              <label>{{ $t('settings.timezone') }}</label>
+              <el-select :model-value="appStore.timeZone" @update:model-value="handleTimeZoneChange">
+                <el-option :label="$t('settings.shanghai')" value="Asia/Shanghai" />
+                <el-option :label="$t('settings.utc')" value="UTC" />
+                <el-option :label="$t('settings.newYork')" value="America/New_York" />
+                <el-option :label="$t('settings.london')" value="Europe/London" />
+              </el-select>
+            </div>
+          </el-popover>
+
           <!-- 全屏 -->
           <el-icon class="header-icon" @click="toggleFullscreen">
             <FullScreen />
@@ -58,15 +79,15 @@
               <el-dropdown-menu>
                 <el-dropdown-item command="profile">
                   <el-icon><User /></el-icon>
-                  个人中心
+                  {{ $t('user.profile') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="password">
                   <el-icon><Lock /></el-icon>
-                  修改密码
+                  {{ $t('user.password') }}
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
-                  退出登录
+                  {{ $t('user.logout') }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -88,7 +109,7 @@
 
     <el-dialog
       v-model="profileDialogVisible"
-      title="个人中心"
+      :title="$t('user.profile')"
       width="560px"
       @close="resetProfileForm"
     >
@@ -134,16 +155,16 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="profileDialogVisible = false">取消</el-button>
+        <el-button @click="profileDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="profileSubmitting" @click="submitProfileChange">
-          保存
+          {{ $t('common.save') }}
         </el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="passwordDialogVisible"
-      title="修改密码"
+      :title="$t('user.password')"
       width="520px"
       @close="resetPasswordForm"
     >
@@ -177,9 +198,9 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="passwordDialogVisible = false">取消</el-button>
+        <el-button @click="passwordDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="passwordSubmitting" @click="submitPasswordChange">
-          保存
+          {{ $t('common.save') }}
         </el-button>
       </template>
     </el-dialog>
@@ -189,6 +210,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   Fold,
   Expand,
@@ -198,7 +220,8 @@ import {
   User,
   Lock,
   SwitchButton,
-  ArrowDown
+  ArrowDown,
+  Setting
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
@@ -212,11 +235,22 @@ import { useUserStore } from '@/store/modules/user'
 import { useMenuStore } from '@/store/modules/menu'
 import SidebarItem from './components/SidebarItem.vue'
 import router from '@/router'
+import { isSupportedLocale } from '@/i18n'
+import { isSupportedTimeZone } from '@/utils/locale'
 
 const route = useRoute()
 const appStore = useAppStore()
 const userStore = useUserStore()
 const menuStore = useMenuStore()
+const { t } = useI18n()
+
+const handleLocaleChange = (value: string) => {
+  if (isSupportedLocale(value)) appStore.setLocale(value)
+}
+
+const handleTimeZoneChange = (value: string) => {
+  if (isSupportedTimeZone(value)) appStore.setTimeZone(value)
+}
 const profileDialogVisible = ref(false)
 const profileSubmitting = ref(false)
 const profileFormRef = ref<FormInstance>()
@@ -392,11 +426,11 @@ const submitProfileChange = async () => {
       if (updated.permissions?.length) {
         userStore.permissions = updated.permissions
       }
-      ElMessage.success('个人资料已保存')
+      ElMessage.success(t('user.saved'))
       profileDialogVisible.value = false
     } catch (error) {
       console.error('保存个人资料失败:', error)
-      ElMessage.error('保存个人资料失败')
+      ElMessage.error(t('user.saveFailed'))
     } finally {
       profileSubmitting.value = false
     }
@@ -424,7 +458,7 @@ const submitPasswordChange = async () => {
         oldPassword: passwordForm.oldPassword,
         newPassword: passwordForm.newPassword
       })
-      ElMessage.success('密码修改成功，请重新登录')
+      ElMessage.success(t('user.passwordChanged'))
       passwordDialogVisible.value = false
       await userStore.doLogout()
     } finally {
@@ -435,9 +469,9 @@ const submitPasswordChange = async () => {
 
 // 退出登录
 const handleLogout = () => {
-  ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
+  ElMessageBox.confirm(t('user.logoutConfirm'), t('common.confirm'), {
+    confirmButtonText: t('common.confirm'),
+    cancelButtonText: t('common.cancel'),
     type: 'warning'
   })
     .then(() => {
@@ -518,6 +552,17 @@ html.dark .layout-header {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.preference-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.preference-panel label {
+  margin-top: 4px;
+  color: #606266;
+  font-size: 13px;
 }
 
 .toggle-icon,

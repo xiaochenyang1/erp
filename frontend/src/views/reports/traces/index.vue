@@ -259,6 +259,7 @@ import {
   Warning
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 import {
   getBusinessTrace,
   type BusinessTraceDocument,
@@ -446,22 +447,21 @@ const submitTimelineComment = async () => {
 }
 
 const formatMoney = (amount?: number) => {
-  return `¥${Number(amount || 0).toLocaleString('zh-CN', {
+  return `¥${formatLocalizedNumber(Number(amount || 0), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })}`
 }
 
 const formatNumber = (value?: number) => {
-  return Number(value || 0).toLocaleString('zh-CN', {
+  return formatLocalizedNumber(Number(value || 0), {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4
   })
 }
 
 const formatDateTime = (value?: string) => {
-  if (!value) return ''
-  return value.replace('T', ' ').slice(0, 19)
+  return formatLocalizedDateTime(value)
 }
 
 const documentTagType = (type: string) => {

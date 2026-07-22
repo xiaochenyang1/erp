@@ -1,5 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { readStoredLocale, setI18nLocale, type SupportedLocale } from '@/i18n'
+import {
+  DEFAULT_TIME_ZONE,
+  isSupportedTimeZone,
+  type SupportedTimeZone
+} from '@/utils/locale'
 
 export const useAppStore = defineStore('app', () => {
   // 侧边栏是否折叠
@@ -12,6 +18,11 @@ export const useAppStore = defineStore('app', () => {
 
   // 主题模式 - 从localStorage读取初始值
   const isDark = ref(localStorage.getItem('theme') === 'dark')
+  const locale = ref<SupportedLocale>(readStoredLocale())
+  const storedTimeZone = localStorage.getItem('timeZone')
+  const timeZone = ref<SupportedTimeZone>(
+    isSupportedTimeZone(storedTimeZone) ? storedTimeZone : DEFAULT_TIME_ZONE
+  )
 
   // 初始化主题
   const initTheme = () => {
@@ -20,6 +31,22 @@ export const useAppStore = defineStore('app', () => {
     } else {
       document.documentElement.classList.remove('dark')
     }
+  }
+
+  const initPreferences = () => {
+    initTheme()
+    setI18nLocale(locale.value)
+  }
+
+  const setLocale = (nextLocale: SupportedLocale) => {
+    locale.value = nextLocale
+    localStorage.setItem('locale', nextLocale)
+    setI18nLocale(nextLocale)
+  }
+
+  const setTimeZone = (nextTimeZone: SupportedTimeZone) => {
+    timeZone.value = nextTimeZone
+    localStorage.setItem('timeZone', nextTimeZone)
   }
 
   // 切换主题
@@ -39,6 +66,11 @@ export const useAppStore = defineStore('app', () => {
     toggleSidebar,
     isDark,
     initTheme,
-    toggleTheme
+    toggleTheme,
+    locale,
+    timeZone,
+    initPreferences,
+    setLocale,
+    setTimeZone
   }
 })

@@ -137,6 +137,14 @@ npm run openapi:check
 
 `npm run check:contracts` 已包含漂移检查，并由前端 CI 执行。
 
+## 语言与时区
+
+用户可在顶部个人菜单中切换界面语言和显示时区，偏好保存在浏览器本地。当前支持简体中文、英文，以及 Asia/Shanghai、UTC、America/New_York 和 Europe/London。
+
+后端不含时区的 `LocalDateTime` 按 Asia/Shanghai 解析，然后转换到用户选择的显示时区。`YYYY-MM-DD` 类型的业务日期（如会计期间、交付日）是日历日期，不做时区换算。
+
+新页面应使用 `src/utils/locale.ts` 中的日期和数字格式化函数，避免写死 `zh-CN` 或直接截取时间字符串。
+
 ## 浏览器支持
 
 - Chrome >= 90

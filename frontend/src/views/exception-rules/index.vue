@@ -365,6 +365,7 @@ import {
   Tickets,
   Warning
 } from '@element-plus/icons-vue'
+import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   disableExceptionRule,
   enableExceptionRule,
@@ -698,8 +699,7 @@ const scanStatusType = (value?: string) => {
 }
 
 const formatDateTime = (value?: string) => {
-  if (!value) return '-'
-  return value.replace('T', ' ').slice(0, 19)
+  return formatLocalizedDateTime(value) || '-'
 }
 
 const normalizeOptionalId = (value?: string | number) => {

@@ -1,5 +1,14 @@
 <template>
   <div class="login-container">
+    <el-select
+      class="locale-switch"
+      :model-value="appStore.locale"
+      size="small"
+      @update:model-value="appStore.setLocale"
+    >
+      <el-option :label="$t('settings.zhCN')" value="zh-CN" />
+      <el-option :label="$t('settings.enUS')" value="en-US" />
+    </el-select>
     <!-- 背景装饰 -->
     <div class="login-background">
       <div class="circle circle-1"></div>
@@ -14,7 +23,7 @@
           <div class="logo-icon">
             <el-icon :size="48"><Management /></el-icon>
           </div>
-          <h1 class="system-title">ERP管理系统</h1>
+          <h1 class="system-title">{{ $t('app.name') }}</h1>
           <p class="system-desc">Enterprise Resource Planning</p>
         </div>
 
@@ -40,8 +49,8 @@
     <div class="login-form-container">
       <div class="login-box">
         <div class="login-header">
-          <h2 class="login-title">欢迎登录</h2>
-          <p class="login-subtitle">请输入您的账号密码</p>
+          <h2 class="login-title">{{ $t('login.welcome') }}</h2>
+          <p class="login-subtitle">{{ $t('login.subtitle') }}</p>
         </div>
 
         <el-form
@@ -54,7 +63,7 @@
           <el-form-item prop="username">
             <el-input
               v-model="loginForm.username"
-              placeholder="请输入用户名"
+              :placeholder="$t('login.username')"
               size="large"
               clearable
             >
@@ -68,7 +77,7 @@
             <el-input
               v-model="loginForm.password"
               type="password"
-              placeholder="请输入密码"
+              :placeholder="$t('login.password')"
               size="large"
               show-password
             >
@@ -79,8 +88,8 @@
           </el-form-item>
 
           <el-form-item>
-            <el-checkbox v-model="rememberMe">记住密码</el-checkbox>
-            <el-link type="primary" :underline="false" style="float: right">忘记密码？</el-link>
+            <el-checkbox v-model="rememberMe">{{ $t('login.remember') }}</el-checkbox>
+            <el-link type="primary" :underline="false" style="float: right">{{ $t('login.forgot') }}</el-link>
           </el-form-item>
 
           <el-form-item>
@@ -91,14 +100,14 @@
               class="login-button"
               @click="handleLogin"
             >
-              {{ loading ? '登录中...' : '登录' }}
+              {{ loading ? $t('login.submitting') : $t('login.submit') }}
             </el-button>
           </el-form-item>
         </el-form>
 
         <div class="login-footer">
           <el-divider>
-            <span class="divider-text">测试账号</span>
+            <span class="divider-text">{{ $t('login.testAccount') }}</span>
           </el-divider>
           <div class="test-accounts">
             <el-tag type="success" size="small">admin / LocalAdmin123（已填充）</el-tag>
@@ -110,13 +119,17 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { User, Lock, Management, Monitor, DataAnalysis, DocumentChecked } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/store/modules/user'
+import { useAppStore } from '@/store/modules/app'
 
 // Store
 const userStore = useUserStore()
+const appStore = useAppStore()
+const { t } = useI18n()
 
 // 表单引用
 const loginFormRef = ref<FormInstance>()
@@ -134,32 +147,32 @@ const rememberMe = ref(false)
 const loading = ref(false)
 
 // 功能特性
-const features = [
+const features = computed(() => [
   {
     icon: Monitor,
-    title: '集成管理',
-    desc: '采购、销售、库存、财务一体化管理'
+    title: t('login.feature1Title'),
+    desc: t('login.feature1Desc')
   },
   {
     icon: DataAnalysis,
-    title: '数据分析',
-    desc: '实时报表，智能决策支持'
+    title: t('login.feature2Title'),
+    desc: t('login.feature2Desc')
   },
   {
     icon: DocumentChecked,
-    title: '流程审批',
-    desc: '多级审批，权限精细控制'
+    title: t('login.feature3Title'),
+    desc: t('login.feature3Desc')
   }
-]
+])
 
 // 表单验证规则
-const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+const rules = computed<FormRules>(() => ({
+  username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码至少6位', trigger: 'blur' }
+    { required: true, message: t('login.passwordRequired'), trigger: 'blur' },
+    { min: 6, message: t('login.passwordMin'), trigger: 'blur' }
   ]
-}
+}))
 
 // 登录处理
 const handleLogin = async () => {
@@ -186,6 +199,14 @@ const handleLogin = async () => {
   min-height: 100vh;
   position: relative;
   overflow: hidden;
+}
+
+.locale-switch {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  width: 128px;
+  z-index: 3;
 }
 
 /* 背景装饰 */

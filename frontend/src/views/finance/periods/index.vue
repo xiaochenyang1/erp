@@ -534,6 +534,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 import {
   Calendar,
   CircleCheck,
@@ -906,20 +907,20 @@ const formatMonth = (periodMonth: string) => {
 }
 
 const formatDateTime = (value?: string) => {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-'
+  return formatLocalizedDateTime(value) || '-'
 }
 
 const formatAmount = (amount?: number | string) => {
   const value = Number(amount ?? 0)
   return Number.isFinite(value)
-    ? value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ? formatLocalizedNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : '0.00'
 }
 
 const formatQty = (qty?: number | string) => {
   const value = Number(qty ?? 0)
   return Number.isFinite(value)
-    ? value.toLocaleString('zh-CN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+    ? formatLocalizedNumber(value, { minimumFractionDigits: 4, maximumFractionDigits: 4 })
     : '0.0000'
 }
 

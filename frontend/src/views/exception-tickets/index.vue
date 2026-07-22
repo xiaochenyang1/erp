@@ -318,6 +318,7 @@ import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { Clock, Close, Finished, Plus, Refresh, Search, User, Warning } from '@element-plus/icons-vue'
+import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   assignExceptionTicket,
   closeExceptionTicket,
@@ -650,8 +651,7 @@ const isOverdue = (ticket: ExceptionTicket) => {
 }
 
 const formatDateTime = (value?: string) => {
-  if (!value) return ''
-  return value.replace('T', ' ').slice(0, 19)
+  return formatLocalizedDateTime(value)
 }
 
 const normalizeOptionalId = (value?: string | number) => {

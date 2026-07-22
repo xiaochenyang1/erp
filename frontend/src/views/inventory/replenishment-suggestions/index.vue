@@ -265,6 +265,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 import {
   cancelInventoryReplenishmentSuggestion,
   convertInventoryReplenishmentSuggestion,
@@ -490,13 +491,12 @@ const loadOptions = async () => {
   }
 }
 
-const formatNumber = (value?: number) => Number(value ?? 0).toLocaleString('zh-CN', {
+const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
   maximumFractionDigits: 4
 })
 
 const formatDateTime = (value?: string) => {
-  if (!value) return '-'
-  return value.replace('T', ' ').slice(0, 19)
+  return formatLocalizedDateTime(value) || '-'
 }
 
 onMounted(() => {

@@ -186,6 +186,7 @@ import {
   type WorkflowTaskQuery
 } from '@/api/workflow'
 import { getUsers } from '@/api/system'
+import { formatLocalizedDateTime } from '@/utils/locale'
 
 const route = useRoute()
 const loading = ref(false)
@@ -355,7 +356,7 @@ const taskStatusType = (status: string) => {
 }
 
 const formatTime = (value?: string) => {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-'
+  return formatLocalizedDateTime(value) || '-'
 }
 
 onMounted(() => {

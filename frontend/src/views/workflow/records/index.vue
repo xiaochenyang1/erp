@@ -109,6 +109,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
+import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   getBusinessWorkflowRecords,
   getWorkflowRecords,
@@ -258,7 +259,7 @@ const actionType = (action: string) => {
 }
 
 const formatTime = (value?: string) => {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-'
+  return formatLocalizedDateTime(value) || '-'
 }
 
 onMounted(() => {

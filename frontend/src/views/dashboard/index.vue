@@ -323,6 +323,7 @@ import {
   type OperationsDashboardTodo
 } from '@/api/dashboard'
 import { getFinanceAgingSummary, type FinanceAgingSummary } from '@/api/finance'
+import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 
 use([BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
@@ -492,12 +493,11 @@ const updateSettlementChart = () => {
 }
 
 const formatNumber = (num?: number) => {
-  return Number(num || 0).toLocaleString('zh-CN')
+  return formatLocalizedNumber(Number(num || 0))
 }
 
 const formatDateTime = (value?: string) => {
-  if (!value) return '-'
-  return value.replace('T', ' ').slice(0, 16)
+  return formatLocalizedDateTime(value) || '-'
 }
 
 const formatPriority = (priority: string) => {
