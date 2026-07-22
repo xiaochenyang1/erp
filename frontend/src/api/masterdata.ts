@@ -1,23 +1,17 @@
 import { request } from '@/utils/request'
 import type { PageQuery, PageResponse } from '@/types/common'
+import type { components as ProductApiComponents } from '@/api/generated/product'
 
 // ==================== 产品管理 ====================
 
-export interface Product {
-  id: string
-  productCode: string           // 后端字段
-  productName: string           // 后端字段
-  productType?: string          // 后端字段
-  categoryName?: string
-  specification?: string        // 后端字段（注意：单数）
-  unitName?: string            // 后端字段
-  salePrice?: number           // 后端字段（销售单价）
-  purchasePrice?: number       // 后端字段（采购单价/成本单价）
-  taxRate?: number             // 税率
-  barcode?: string
+type ProductContract = ProductApiComponents['schemas']['ProductResponse']
+export type ProductCreateContract = ProductApiComponents['schemas']['ProductCreateRequest']
+export type ProductUpdateContract = ProductApiComponents['schemas']['ProductUpdateRequest']
+type ProductQueryContract = ProductApiComponents['schemas']['ProductPageQuery']
+
+export interface Product extends Omit<ProductContract, 'id' | 'status'> {
+  id: string                    // Jackson 将雪花 ID 序列化为字符串
   status: 'ACTIVE' | 'INACTIVE'
-  inspectionRequired?: boolean // 采购来料是否需检验
-  remark?: string
   createdTime?: string
   updatedTime?: string
 
@@ -30,7 +24,7 @@ export interface Product {
   costPrice?: number          // 别名
 }
 
-export interface ProductQuery extends PageQuery {
+export interface ProductQuery extends PageQuery, Omit<ProductQueryContract, 'pageNo' | 'pageSize'> {
   code?: string
   name?: string
   keyword?: string
@@ -53,6 +47,10 @@ export interface ProductSaveRequest {
   unitPrice?: number
   costPrice?: number
   barcode?: string
+  productType?: string
+  taxRate?: number
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
   status?: string
   inspectionRequired?: boolean
   remark?: string
@@ -60,7 +58,7 @@ export interface ProductSaveRequest {
 
 // 产品API
 export const getProducts = (params: ProductQuery) => {
-  return request.get<PageResponse<Product>>('/masterdata/products', {
+  return request.get<PageResponse<ProductContract>>('/masterdata/products', {
     params: toProductQueryParams(params)
   }).then((page) => ({
     ...page,
@@ -69,7 +67,7 @@ export const getProducts = (params: ProductQuery) => {
 }
 
 export const getProduct = (id: string | number) => {
-  return request.get<Product>(`/masterdata/products/${id}`).then(normalizeProduct)
+  return request.get<ProductContract>(`/masterdata/products/${id}`).then(normalizeProduct)
 }
 
 export const getProductByBarcode = (barcode: string) => {
@@ -77,25 +75,25 @@ export const getProductByBarcode = (barcode: string) => {
   if (!normalizedBarcode) {
     return Promise.reject(new Error('商品条码不能为空'))
   }
-  return request.get<Product>('/masterdata/products/by-barcode', {
+  return request.get<ProductContract>('/masterdata/products/by-barcode', {
     params: { barcode: normalizedBarcode }
   }).then(normalizeProduct)
 }
 
 export const createProduct = (data: ProductSaveRequest) => {
-  return request.post<Product>('/masterdata/products', data).then(normalizeProduct)
+  return request.post<ProductContract>('/masterdata/products', toProductCreateContract(data)).then(normalizeProduct)
 }
 
 export const updateProduct = (id: string | number, data: ProductSaveRequest) => {
-  return request.put<Product>(`/masterdata/products/${id}`, data).then(normalizeProduct)
+  return request.put<ProductContract>(`/masterdata/products/${id}`, toProductUpdateContract(data)).then(normalizeProduct)
 }
 
 export const deleteProduct = (id: string | number) => {
-  return request.post<Product>(`/masterdata/products/${id}/disable`).then(normalizeProduct)
+  return request.post<ProductContract>(`/masterdata/products/${id}/disable`).then(normalizeProduct)
 }
 
 export const enableProduct = (id: string | number) => {
-  return request.post<Product>(`/masterdata/products/${id}/enable`).then(normalizeProduct)
+  return request.post<ProductContract>(`/masterdata/products/${id}/enable`).then(normalizeProduct)
 }
 
 export const exportProducts = (params: ProductQuery) => {
@@ -113,15 +111,53 @@ const toProductQueryParams = (params: ProductQuery) => {
   }
 }
 
-const normalizeProduct = (product: Product): Product => ({
+const requiredText = (value: string | undefined, field: string) => {
+  const normalized = value?.trim()
+  if (!normalized) throw new Error(`${field}不能为空`)
+  return normalized
+}
+
+const requiredNumber = (value: number | undefined, field: string) => {
+  if (value === undefined || value === null || !Number.isFinite(Number(value))) {
+    throw new Error(`${field}不能为空`)
+  }
+  return Number(value)
+}
+
+const toProductCommonContract = (data: ProductSaveRequest): ProductUpdateContract => ({
+  productName: requiredText(data.productName || data.name, '产品名称'),
+  categoryName: requiredText(data.categoryName, '产品分类'),
+  specification: data.specification || data.specifications,
+  unitName: requiredText(data.unitName || data.unit, '单位'),
+  salePrice: requiredNumber(data.salePrice ?? data.unitPrice, '销售单价'),
+  purchasePrice: requiredNumber(data.purchasePrice ?? data.costPrice, '成本单价'),
+  taxRate: requiredNumber(data.taxRate, '税率'),
+  barcode: data.barcode?.trim() || undefined,
+  lotControlled: Boolean(data.lotControlled),
+  shelfLifeControlled: Boolean(data.shelfLifeControlled),
+  inspectionRequired: Boolean(data.inspectionRequired),
+  remark: data.remark?.trim() || undefined
+})
+
+export const toProductCreateContract = (data: ProductSaveRequest): ProductCreateContract => ({
+  ...toProductCommonContract(data),
+  productCode: requiredText(data.productCode || data.code, '产品编码'),
+  productType: requiredText(data.productType, '商品类型')
+})
+
+export const toProductUpdateContract = (data: ProductSaveRequest): ProductUpdateContract =>
+  toProductCommonContract(data)
+
+const normalizeProduct = (product: ProductContract): Product => ({
   ...product,
   id: String(product.id),
-  code: product.code || product.productCode,
-  name: product.name || product.productName,
-  specifications: product.specifications || product.specification,
-  unit: product.unit || product.unitName,
-  unitPrice: product.unitPrice ?? product.salePrice,
-  costPrice: product.costPrice ?? product.purchasePrice
+  status: product.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+  code: product.productCode,
+  name: product.productName,
+  specifications: product.specification,
+  unit: product.unitName,
+  unitPrice: product.salePrice,
+  costPrice: product.purchasePrice
 })
 
 // ==================== 客户管理 ====================

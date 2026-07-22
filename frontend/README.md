@@ -116,6 +116,27 @@ server: {
 
 生产环境在 `.env.production` 中配置。
 
+### OpenAPI 类型同步
+
+产品主数据模块已使用后端 springdoc 生成类型。版本化契约位于
+`../backend/docs/openapi/product-api.json`，生成文件位于
+`src/api/generated/product.ts`，禁止手工修改生成文件。
+
+后端在本机运行并开放 `/v3/api-docs` 后刷新契约与类型：
+
+```bash
+npm run openapi:refresh
+```
+
+仅从已提交契约重新生成，或检查生成文件是否漂移：
+
+```bash
+npm run openapi:generate
+npm run openapi:check
+```
+
+`npm run check:contracts` 已包含漂移检查，并由前端 CI 执行。
+
 ## 浏览器支持
 
 - Chrome >= 90

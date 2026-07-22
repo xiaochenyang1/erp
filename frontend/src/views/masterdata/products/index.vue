@@ -189,6 +189,13 @@
         <el-form-item label="产品名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入产品名称" maxlength="100" />
         </el-form-item>
+        <el-form-item v-if="!formData.id" label="商品类型" prop="productType">
+          <el-select v-model="formData.productType" placeholder="请选择商品类型">
+            <el-option label="实物商品" value="PHYSICAL" />
+            <el-option label="库存商品" value="GOODS" />
+            <el-option label="服务" value="SERVICE" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="产品分类" prop="categoryName">
           <el-input v-model="formData.categoryName" placeholder="请输入产品分类" maxlength="100" />
         </el-form-item>
@@ -225,6 +232,16 @@
             style="width: 100%"
           />
         </el-form-item>
+        <el-form-item label="税率（%）" prop="taxRate">
+          <el-input-number
+            v-model="formData.taxRate"
+            :min="0"
+            :max="100"
+            :precision="2"
+            :controls="false"
+            style="width: 100%"
+          />
+        </el-form-item>
         <el-form-item label="条形码" prop="barcode">
           <el-input v-model="formData.barcode" placeholder="请输入条形码" />
         </el-form-item>
@@ -237,6 +254,13 @@
         <el-form-item label="来料需检验" prop="inspectionRequired" :style="{ gridColumn: '1 / -1' }">
           <el-switch v-model="formData.inspectionRequired" />
           <span class="form-tip">开启后，该商品的采购入库单在过账前必须先完成来料检验</span>
+        </el-form-item>
+        <el-form-item label="批次管理" prop="lotControlled">
+          <el-switch v-model="formData.lotControlled" />
+        </el-form-item>
+        <el-form-item label="保质期管理" prop="shelfLifeControlled">
+          <el-switch v-model="formData.shelfLifeControlled" :disabled="!formData.lotControlled" />
+          <span class="form-tip">保质期管理必须同时开启批次管理</span>
         </el-form-item>
         <el-form-item label="备注" prop="remark" :style="{ gridColumn: '1 / -1' }">
           <el-input
@@ -505,14 +529,18 @@ const currentRow = ref<Product>()
 const formData = reactive<ProductSaveRequest & { id?: string }>({
   code: '',
   name: '',
+  productType: 'PHYSICAL',
   categoryName: '',
   specifications: '',
   unit: '',
   unitPrice: undefined,
   costPrice: undefined,
+  taxRate: 13,
   barcode: '',
   status: 'ACTIVE',
   inspectionRequired: false,
+  lotControlled: false,
+  shelfLifeControlled: false,
   remark: ''
 })
 
@@ -525,7 +553,13 @@ const formRules = {
   name: [
     { required: true, message: '请输入产品名称', trigger: 'blur' },
     { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
-  ]
+  ],
+  productType: [{ required: true, message: '请选择商品类型', trigger: 'change' }],
+  categoryName: [{ required: true, message: '请输入产品分类', trigger: 'blur' }],
+  unit: [{ required: true, message: '请选择单位', trigger: 'change' }],
+  unitPrice: [{ required: true, message: '请输入销售单价', trigger: 'blur' }],
+  costPrice: [{ required: true, message: '请输入成本单价', trigger: 'blur' }],
+  taxRate: [{ required: true, message: '请输入税率', trigger: 'blur' }]
 }
 
 // 加载数据
@@ -582,14 +616,18 @@ const handleCreate = () => {
     id: undefined,
     code: '',
     name: '',
+    productType: 'PHYSICAL',
     categoryName: '',
     specifications: '',
     unit: '',
     unitPrice: undefined,
     costPrice: undefined,
+    taxRate: 13,
     barcode: '',
     status: 'ACTIVE',
     inspectionRequired: false,
+    lotControlled: false,
+    shelfLifeControlled: false,
     remark: ''
   })
   dialogVisible.value = true
@@ -601,14 +639,18 @@ const handleEdit = (row: Product) => {
     id: row.id,
     code: row.productCode || row.code,
     name: row.productName || row.name,
+    productType: row.productType,
     categoryName: row.categoryName,
     specifications: row.specification || row.specifications,  // 注意字段名
     unit: row.unitName || row.unit,
     unitPrice: row.salePrice || row.unitPrice,
     costPrice: row.purchasePrice || row.costPrice,
-    barcode: '',
+    taxRate: row.taxRate ?? 13,
+    barcode: row.barcode || '',
     status: row.status,
     inspectionRequired: row.inspectionRequired ?? false,
+    lotControlled: row.lotControlled ?? false,
+    shelfLifeControlled: row.shelfLifeControlled ?? false,
     remark: row.remark
   })
   dialogVisible.value = true
@@ -664,25 +706,11 @@ const handleEnable = async (row: Product) => {
 const handleSubmit = async (values: any) => {
   submitting.value = true
   try {
-    // 转换字段名以适配后端
-    const payload = {
-      productCode: values.code,
-      productName: values.name,
-      categoryName: values.categoryName || '',
-      specification: values.specifications,  // 注意：后端是单数
-      unitName: values.unit,
-      salePrice: values.unitPrice,
-      purchasePrice: values.costPrice,
-      status: values.status,
-      inspectionRequired: values.inspectionRequired,
-      remark: values.remark
-    }
-
     if (formData.id) {
-      await updateProduct(formData.id, payload)
+      await updateProduct(formData.id, values)
       ElMessage.success('更新成功')
     } else {
-      await createProduct(payload)
+      await createProduct(values)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false

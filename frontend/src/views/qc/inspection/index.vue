@@ -165,7 +165,7 @@
     <!-- 编辑草稿 -->
     <el-dialog v-model="editVisible" :title="editDialogTitle" width="860px" destroy-on-close>
       <div class="dialog-sub">
-        检验单号：{{ editingInspectionNo }}　来源单据不可改；仅草稿可编辑检验日期、备注与行检验数量
+        检验单号：{{ editingInspectionNo }}。来源单据不可改；仅草稿可编辑检验日期、备注与行检验数量
       </div>
       <el-form :model="editForm" label-width="110px" style="margin-bottom: 8px">
         <el-form-item :label="editForm.inspectionType === 'OQC' ? '销售出库单' : '采购入库单'">
@@ -214,7 +214,7 @@
 
     <!-- 判定检验单 -->
     <el-dialog v-model="judgeVisible" title="判定检验单" width="820px">
-      <div class="dialog-sub">检验单号：{{ current?.inspectionNo }}　合格+不合格数量之和须等于检验数量</div>
+      <div class="dialog-sub">检验单号：{{ current?.inspectionNo }}。合格+不合格数量之和须等于检验数量</div>
       <el-table :data="judgeLines" border size="small">
         <el-table-column prop="lineNo" label="行" width="60" />
         <el-table-column prop="productId" label="商品ID" min-width="150" />

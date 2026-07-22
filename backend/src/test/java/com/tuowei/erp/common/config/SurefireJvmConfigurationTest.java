@@ -25,6 +25,16 @@ class SurefireJvmConfigurationTest {
     }
 
     @Test
+    void surefireLoadsMockitoAsAnExplicitJavaAgent()
+            throws IOException, ParserConfigurationException, SAXException {
+        Element plugin = plugin("org.apache.maven.plugins", "maven-surefire-plugin");
+
+        assertThat(plugin).isNotNull();
+        assertThat(text(plugin, "argLine"))
+                .contains("-javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar");
+    }
+
+    @Test
     void surefireDoesNotIgnoreTestFailures()
             throws IOException, ParserConfigurationException, SAXException {
         Element plugin = plugin("org.apache.maven.plugins", "maven-surefire-plugin");

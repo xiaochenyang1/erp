@@ -349,6 +349,10 @@
 
 ### Task 8: Replace Heavy Contract Checking with OpenAPI-Driven Generation
 
+**Current status (2026-07-22):** 产品主数据试点已完成。后端版本化契约为
+`docs/openapi/product-api.json`，前端生成类型为 `src/api/generated/product.ts`；
+`npm run check:contracts` 已包含生成漂移检查。其余模块按需渐进迁移，不阻塞本任务验收。
+
 **Priority:** P2
 
 **Files:**
@@ -369,13 +373,13 @@
 
 **Expected Benefit:** Contract drift becomes schema-driven, reproducible, and less dependent on brittle hand-maintained string checks.
 
-- [ ] Choose the generation approach before implementation:
+- [x] Choose the generation approach before implementation:
   - recommended: generated types plus a thin request wrapper
   - acceptable: generated full client for a narrow module subset first
-- [ ] Export and version a stable OpenAPI artifact from the backend.
-- [ ] Generate frontend client/types for a pilot surface before broad rollout.
-- [ ] Replace or shrink the monolithic manual contract script once the pilot proves reliable.
-- [ ] Add CI verification so schema drift is visible in pull requests.
+- [x] Export and version a stable OpenAPI artifact from the backend.
+- [x] Generate frontend client/types for a pilot surface before broad rollout.
+- [x] Replace or shrink the monolithic manual contract script once the pilot proves reliable.
+- [x] Add CI verification so schema drift is visible in pull requests.
 
 **Acceptance:**
 - At least one frontend API surface is generated from backend OpenAPI instead of hand-maintained contracts.

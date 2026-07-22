@@ -436,7 +436,7 @@ for (const fragment of [
 }
 
 const masterdataLongIdContracts = [
-  { name: '产品', type: 'Product', plural: 'Products', path: 'products', normalize: 'normalizeProduct' },
+  // 产品契约已迁移到版本化 OpenAPI + openapi-typescript，不再做字符串片段检查。
   { name: '客户', type: 'Customer', plural: 'Customers', path: 'customers', normalize: 'normalizeCustomer' },
   { name: '供应商', type: 'Supplier', plural: 'Suppliers', path: 'suppliers', normalize: 'normalizeSupplier' },
   { name: '仓库', type: 'Warehouse', plural: 'Warehouses', path: 'warehouses', normalize: 'normalizeWarehouse' }
@@ -500,18 +500,6 @@ for (const view of [
   }
   if (view.content.includes('id?: number')) {
     errors.push(`${view.name}编辑表单仍保留 Long ID 数字精度风险片段: id?: number`)
-  }
-}
-
-for (const fragment of [
-  'export interface ProductQuery extends PageQuery',
-  'categoryName?: string',
-  'productCode: values.code',
-  'productName: values.name',
-  'categoryName: values.categoryName'
-]) {
-  if (!masterdataApi.includes(fragment) && !productView.includes(fragment)) {
-    errors.push(`产品主数据缺少后端分类名称契约片段: ${fragment}`)
   }
 }
 
@@ -3013,17 +3001,6 @@ for (const fragment of [
 ]) {
   if (purchaseReturnView.includes(fragment)) {
     errors.push(`采购退货页仍保留采购收货单假查看片段: ${fragment}`)
-  }
-}
-
-for (const fragment of [
-  'barcode?: string',
-  'export const getProductByBarcode =',
-  "request.get<Product>('/masterdata/products/by-barcode'",
-  'params: { barcode: normalizedBarcode }'
-]) {
-  if (!masterdataApi.includes(fragment)) {
-    errors.push(`商品条码 API 缺少真实后端契约片段: ${fragment}`)
   }
 }
 
