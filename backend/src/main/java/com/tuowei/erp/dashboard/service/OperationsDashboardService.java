@@ -25,9 +25,13 @@ import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
 import com.tuowei.erp.workflow.model.WorkflowTaskEntity;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.text.MessageFormat;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -54,6 +58,7 @@ public class OperationsDashboardService {
     private final OperationLogMapper operationLogMapper;
     private final SalesDeliveryLineMapper salesDeliveryLineMapper;
     private final Clock clock;
+    private final MessageSource messageSource;
 
     public OperationsDashboardService(
             AuditMetadataFactory auditMetadataFactory,
@@ -65,7 +70,8 @@ public class OperationsDashboardService {
             SalesOrderMapper salesOrderMapper,
             OperationLogMapper operationLogMapper,
             SalesDeliveryLineMapper salesDeliveryLineMapper,
-            Clock clock
+            Clock clock,
+            MessageSource messageSource
     ) {
         this.auditMetadataFactory = auditMetadataFactory;
         this.workflowTaskMapper = workflowTaskMapper;
@@ -77,6 +83,7 @@ public class OperationsDashboardService {
         this.operationLogMapper = operationLogMapper;
         this.salesDeliveryLineMapper = salesDeliveryLineMapper;
         this.clock = clock;
+        this.messageSource = messageSource;
     }
 
     @Transactional(readOnly = true)
@@ -245,11 +252,14 @@ public class OperationsDashboardService {
     }
 
     private OperationsDashboardTodoResponse workflowTodo(WorkflowTaskEntity task) {
+        String reference = defaultText(task.getBusinessNo(), businessTypeLabel(task.getBusinessType()));
         return new OperationsDashboardTodoResponse(
                 "workflow-" + task.getId(),
                 "WORKFLOW",
-                defaultText(task.getTitle(), "审批任务待处理"),
-                defaultText(task.getBusinessNo(), task.getBusinessType()),
+                "-".equals(reference)
+                        ? message("dashboard.todo.workflow.pending", "审批待处理")
+                        : message("dashboard.todo.workflow.title", "待审批：{0}", reference),
+                businessTypeLabel(task.getBusinessType()),
                 "HIGH",
                 workflowTaskRoute(task),
                 task.getCreatedTime()
@@ -281,8 +291,8 @@ public class OperationsDashboardService {
         return new OperationsDashboardTodoResponse(
                 "low-stock-" + lowStock.ruleId(),
                 "LOW_STOCK",
-                "库存低于预警：商品 " + lowStock.productId(),
-                "仓库 " + lowStock.warehouseId() + " 缺口 " + lowStock.shortageQty(),
+                message("dashboard.todo.lowStock.title", "库存低于预警：商品 {0}", lowStock.productId()),
+                message("dashboard.todo.lowStock.description", "仓库 {0} 缺口 {1}", lowStock.warehouseId(), lowStock.shortageQty()),
                 "MEDIUM",
                 "/inventory/alerts",
                 generatedAt
@@ -293,8 +303,17 @@ public class OperationsDashboardService {
         return new OperationsDashboardTodoResponse(
                 "receivable-" + receivable.getId(),
                 "RECEIVABLE_OVERDUE",
-                "应收逾期：" + defaultText(receivable.getReceivableNo(), receivable.getSourceNo()),
-                "业务日期 " + receivable.getBizDate() + "，未结金额 " + remaining(receivable.getOriginalAmount(), receivable.getSettledAmount()),
+                message(
+                        "dashboard.todo.receivable.title",
+                        "应收逾期：{0}",
+                        defaultText(receivable.getReceivableNo(), receivable.getSourceNo())
+                ),
+                message(
+                        "dashboard.todo.receivable.description",
+                        "业务日期 {0}，未结金额 {1}",
+                        defaultText(receivable.getBizDate() == null ? null : receivable.getBizDate().toString(), "-"),
+                        remaining(receivable.getOriginalAmount(), receivable.getSettledAmount()).toPlainString()
+                ),
                 "HIGH",
                 "/finance/receivables",
                 receivable.getBizDate() == null ? null : receivable.getBizDate().atStartOfDay()
@@ -305,8 +324,17 @@ public class OperationsDashboardService {
         return new OperationsDashboardTodoResponse(
                 "payable-" + payable.getId(),
                 "PAYABLE_OVERDUE",
-                "应付逾期：" + defaultText(payable.getPayableNo(), payable.getSourceNo()),
-                "业务日期 " + payable.getBizDate() + "，未结金额 " + remaining(payable.getOriginalAmount(), payable.getSettledAmount()),
+                message(
+                        "dashboard.todo.payable.title",
+                        "应付逾期：{0}",
+                        defaultText(payable.getPayableNo(), payable.getSourceNo())
+                ),
+                message(
+                        "dashboard.todo.payable.description",
+                        "业务日期 {0}，未结金额 {1}",
+                        defaultText(payable.getBizDate() == null ? null : payable.getBizDate().toString(), "-"),
+                        remaining(payable.getOriginalAmount(), payable.getSettledAmount()).toPlainString()
+                ),
                 "HIGH",
                 "/finance/payables",
                 payable.getBizDate() == null ? null : payable.getBizDate().atStartOfDay()
@@ -317,8 +345,15 @@ public class OperationsDashboardService {
         return new OperationsDashboardTodoResponse(
                 "failed-operation-" + operationLog.getId(),
                 "FAILED_OPERATION",
-                "操作失败：" + defaultText(operationLog.getBizNo(), operationLog.getOperation()),
-                defaultText(operationLog.getMessage(), operationLog.getRequestUri()),
+                message(
+                        "dashboard.todo.failed.title",
+                        "操作失败：{0}",
+                        defaultText(operationLog.getBizNo(), operationLog.getOperation())
+                ),
+                defaultText(
+                        operationLog.getRequestUri(),
+                        defaultText(operationLog.getModule(), operationLog.getOperation())
+                ),
                 "MEDIUM",
                 "/system/logs",
                 operationLog.getOperationTime()
@@ -346,6 +381,25 @@ public class OperationsDashboardService {
             return preferred;
         }
         return fallback == null || fallback.isBlank() ? "-" : fallback;
+    }
+
+    private String businessTypeLabel(String businessType) {
+        if (!StringUtils.hasText(businessType)) {
+            return "-";
+        }
+        return switch (businessType) {
+            case "PURCHASE_ORDER" -> message("dashboard.todo.businessType.purchaseOrder", "采购订单");
+            case "SALES_ORDER" -> message("dashboard.todo.businessType.salesOrder", "销售订单");
+            case "EXPENSE" -> message("dashboard.todo.businessType.expense", "费用单");
+            default -> businessType;
+        };
+    }
+
+    private String message(String code, String fallback, Object... args) {
+        if (messageSource == null) {
+            return args == null || args.length == 0 ? fallback : MessageFormat.format(fallback, args);
+        }
+        return messageSource.getMessage(code, args, fallback, LocaleContextHolder.getLocale());
     }
 
     private int priorityRank(String priority) {

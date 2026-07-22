@@ -229,7 +229,7 @@ public class ProductService {
 
     @Transactional
     public ProductResponse disable(Long id) {
-        return updateStatus(id, "DISABLED");
+        return updateStatus(id, "INACTIVE");
     }
 
     private ProductEntity requireProduct(Long id) {

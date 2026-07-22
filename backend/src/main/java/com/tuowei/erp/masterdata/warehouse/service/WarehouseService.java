@@ -163,7 +163,7 @@ public class WarehouseService {
 
     @Transactional
     public WarehouseResponse disable(Long id) {
-        return updateStatus(id, "DISABLED");
+        return updateStatus(id, "INACTIVE");
     }
 
     private WarehouseEntity requireWarehouse(Long id) {

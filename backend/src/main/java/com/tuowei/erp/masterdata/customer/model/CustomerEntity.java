@@ -22,9 +22,13 @@ public class CustomerEntity {
 
     private String customerName;
 
+    private String customerType;
+
     private String contactName;
 
     private String contactPhone;
+
+    private String email;
 
     private String settlementMethod;
 
@@ -89,6 +93,14 @@ public class CustomerEntity {
         this.customerName = customerName;
     }
 
+    public String getCustomerType() {
+        return customerType;
+    }
+
+    public void setCustomerType(String customerType) {
+        this.customerType = customerType;
+    }
+
     public String getContactName() {
         return contactName;
     }
@@ -103,6 +115,14 @@ public class CustomerEntity {
 
     public void setContactPhone(String contactPhone) {
         this.contactPhone = contactPhone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getSettlementMethod() {

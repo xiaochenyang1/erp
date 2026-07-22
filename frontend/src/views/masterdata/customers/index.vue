@@ -11,21 +11,21 @@
             <div class="icon-ripple"></div>
           </div>
           <div class="header-text">
-            <h1 class="page-title">客户管理</h1>
-            <p class="page-subtitle">维护客户关系，管理客户档案与信用信息</p>
+            <h1 class="page-title">{{ texts.pageTitle }}</h1>
+            <p class="page-subtitle">{{ texts.pageSubtitle }}</p>
           </div>
         </div>
         <div class="header-stats">
           <div class="stat-card">
-            <span class="stat-label">客户总数</span>
+            <span class="stat-label">{{ texts.totalCustomers }}</span>
             <span class="stat-value">{{ total }}</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">企业客户</span>
+            <span class="stat-label">{{ texts.companyCustomers }}</span>
             <span class="stat-value company">{{ companyCount }}</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">个人客户</span>
+            <span class="stat-label">{{ texts.individualCustomers }}</span>
             <span class="stat-value individual">{{ individualCount }}</span>
           </div>
         </div>
@@ -34,32 +34,32 @@
 
     <!-- 搜索栏 -->
     <search-bar v-model="searchForm" @search="handleSearch" @reset="handleReset">
-      <el-form-item label="客户编码" prop="code">
+      <el-form-item :label="texts.customerCode" prop="code">
         <el-input
           v-model="searchForm.code"
-          placeholder="请输入客户编码"
+          :placeholder="texts.enterCustomerCode"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="客户名称" prop="name">
+      <el-form-item :label="texts.customerName" prop="name">
         <el-input
           v-model="searchForm.name"
-          placeholder="请输入客户名称"
+          :placeholder="texts.enterCustomerName"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="客户类型" prop="type">
-        <el-select v-model="searchForm.type" placeholder="请选择客户类型" clearable>
-          <el-option label="企业" value="COMPANY" />
-          <el-option label="个人" value="INDIVIDUAL" />
+      <el-form-item :label="texts.customerType" prop="type">
+        <el-select v-model="searchForm.type" :placeholder="texts.selectCustomerType" clearable>
+          <el-option :label="texts.company" value="COMPANY" />
+          <el-option :label="texts.individual" value="INDIVIDUAL" />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态" prop="status">
-        <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
-          <el-option label="启用" value="ACTIVE" />
-          <el-option label="停用" value="INACTIVE" />
+      <el-form-item :label="texts.status" prop="status">
+        <el-select v-model="searchForm.status" :placeholder="texts.selectStatus" clearable>
+          <el-option :label="texts.active" value="ACTIVE" />
+          <el-option :label="texts.inactive" value="INACTIVE" />
         </el-select>
       </el-form-item>
     </search-bar>
@@ -79,12 +79,12 @@
       class="customer-table"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column prop="code" label="客户编码" width="140" fixed>
+      <el-table-column prop="code" :label="texts.customerCode" width="140" fixed>
         <template #default="{ row }">
           <span class="code-badge customer">{{ row.code }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="客户名称" min-width="180" show-overflow-tooltip>
+      <el-table-column prop="name" :label="texts.customerName" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">
           <div class="customer-name">
             <el-icon class="customer-icon">
@@ -94,45 +94,45 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="type" label="客户类型" width="110" align="center">
+      <el-table-column prop="type" :label="texts.customerType" width="110" align="center">
         <template #default="{ row }">
           <status-tag :status="row.type" />
         </template>
       </el-table-column>
-      <el-table-column prop="contact" label="联系人" width="120" />
-      <el-table-column prop="mobile" label="联系电话" width="140" />
-      <el-table-column prop="email" label="邮箱" width="180" show-overflow-tooltip />
-      <el-table-column prop="creditLimit" label="信用额度" width="130" align="right">
+      <el-table-column prop="contact" :label="texts.contact" width="120" />
+      <el-table-column prop="mobile" :label="texts.phone" width="140" />
+      <el-table-column prop="email" :label="texts.email" width="180" show-overflow-tooltip />
+      <el-table-column prop="creditLimit" :label="texts.creditLimit" width="130" align="right">
         <template #default="{ row }">
           <span class="credit-value" v-if="row.creditLimit">
-            ¥{{ row.creditLimit?.toLocaleString() }}
+            {{ formatCurrency(row.creditLimit) }}
           </span>
-          <span v-else class="no-limit">无限制</span>
+          <span v-else class="no-limit">{{ texts.noLimit }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column prop="status" :label="texts.status" width="100" align="center">
         <template #default="{ row }">
           <status-tag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right" align="center">
+      <el-table-column :label="texts.actions" width="180" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" @click="handleView(row)">
               <el-icon><View /></el-icon>
-              查看
+              {{ texts.view }}
             </el-button>
             <el-button v-permission="'masterdata:customer:update'" link type="primary" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
-              编辑
+              {{ texts.edit }}
             </el-button>
             <el-button v-if="row.status !== 'ACTIVE'" v-permission="'masterdata:customer:enable'" link type="success" @click="handleEnable(row)">
               <el-icon><CircleCheck /></el-icon>
-              启用
+              {{ texts.enable }}
             </el-button>
             <el-button v-if="row.status === 'ACTIVE'" v-permission="'masterdata:customer:disable'" link type="danger" @click="handleDelete(row)">
               <el-icon><Delete /></el-icon>
-              删除
+              {{ texts.delete }}
             </el-button>
           </div>
         </template>
@@ -155,67 +155,67 @@
         @submit="handleSubmit"
         @cancel="dialogVisible = false"
       >
-        <el-form-item label="客户编码" prop="code">
-          <el-input v-model="formData.code" placeholder="请输入客户编码" maxlength="50" />
+        <el-form-item :label="texts.customerCode" prop="code">
+          <el-input v-model="formData.code" :placeholder="texts.enterCustomerCode" maxlength="50" />
         </el-form-item>
-        <el-form-item label="客户名称" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入客户名称" maxlength="100" />
+        <el-form-item :label="texts.customerName" prop="name">
+          <el-input v-model="formData.name" :placeholder="texts.enterCustomerName" maxlength="100" />
         </el-form-item>
-        <el-form-item label="客户类型" prop="type">
+        <el-form-item :label="texts.customerType" prop="type">
           <el-radio-group v-model="formData.type">
             <el-radio value="COMPANY">
               <el-icon><OfficeBuilding /></el-icon>
-              企业
+              {{ texts.company }}
             </el-radio>
             <el-radio value="INDIVIDUAL">
               <el-icon><User /></el-icon>
-              个人
+              {{ texts.individual }}
             </el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="联系人" prop="contact">
-          <el-input v-model="formData.contact" placeholder="请输入联系人姓名" />
+        <el-form-item :label="texts.contact" prop="contact">
+          <el-input v-model="formData.contact" :placeholder="texts.enterContact" />
         </el-form-item>
-        <el-form-item label="联系电话" prop="mobile">
-          <el-input v-model="formData.mobile" placeholder="请输入联系电话" maxlength="20" />
+        <el-form-item :label="texts.phone" prop="mobile">
+          <el-input v-model="formData.mobile" :placeholder="texts.enterPhone" maxlength="20" />
         </el-form-item>
-        <el-form-item label="电子邮箱" prop="email">
-          <el-input v-model="formData.email" placeholder="请输入电子邮箱" maxlength="100" />
+        <el-form-item :label="texts.email" prop="email">
+          <el-input v-model="formData.email" :placeholder="texts.enterEmail" maxlength="100" />
         </el-form-item>
-        <el-form-item label="联系地址" prop="address" :style="{ gridColumn: '1 / -1' }">
-          <el-input v-model="formData.address" placeholder="请输入详细地址" maxlength="200" />
+        <el-form-item :label="texts.address" prop="address" :style="{ gridColumn: '1 / -1' }">
+          <el-input v-model="formData.address" :placeholder="texts.enterAddress" maxlength="200" />
         </el-form-item>
-        <el-form-item label="结算方式" prop="settlementMethod">
-          <el-select v-model="formData.settlementMethod" placeholder="请选择结算方式" style="width: 100%">
-            <el-option label="银行转账" value="BANK_TRANSFER" />
-            <el-option label="现金" value="CASH" />
-            <el-option label="月结" value="MONTHLY" />
-            <el-option label="货到付款" value="COD" />
+        <el-form-item :label="texts.settlementMethod" prop="settlementMethod">
+          <el-select v-model="formData.settlementMethod" :placeholder="texts.selectSettlementMethod" style="width: 100%">
+            <el-option :label="texts.bankTransfer" value="BANK_TRANSFER" />
+            <el-option :label="texts.cash" value="CASH" />
+            <el-option :label="texts.monthly" value="MONTHLY" />
+            <el-option :label="texts.cod" value="COD" />
           </el-select>
         </el-form-item>
-        <el-form-item label="信用额度" prop="creditLimit">
+        <el-form-item :label="texts.creditLimit" prop="creditLimit">
           <el-input-number
             v-model="formData.creditLimit"
             :min="0"
             :precision="2"
             :controls="false"
-            placeholder="请输入信用额度（元）"
+            :placeholder="texts.enterCreditLimit"
             style="width: 100%"
           />
-          <span class="form-tip">填 0 表示不限额；大于 0 时审批将校验未结敞口</span>
+          <span class="form-tip">{{ texts.creditHint }}</span>
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="texts.status" prop="status">
           <el-radio-group v-model="formData.status">
-            <el-radio value="ACTIVE">启用</el-radio>
-            <el-radio value="INACTIVE">停用</el-radio>
+            <el-radio value="ACTIVE">{{ texts.active }}</el-radio>
+            <el-radio value="INACTIVE">{{ texts.inactive }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="备注" prop="remark" :style="{ gridColumn: '1 / -1' }">
+        <el-form-item :label="texts.remark" prop="remark" :style="{ gridColumn: '1 / -1' }">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注信息"
+            :placeholder="texts.enterRemark"
             maxlength="500"
             show-word-limit
           />
@@ -226,7 +226,7 @@
     <!-- 详情对话框 -->
     <el-dialog
       v-model="detailVisible"
-      title="客户详情"
+      :title="texts.customerDetail"
       width="750px"
       class="elegant-dialog customer-dialog"
     >
@@ -234,25 +234,25 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Notebook /></el-icon>
-            基本信息
+            {{ texts.basicInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">客户编码</div>
+              <div class="detail-label">{{ texts.customerCode }}</div>
               <div class="detail-value">{{ currentRow?.code }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">客户名称</div>
+              <div class="detail-label">{{ texts.customerName }}</div>
               <div class="detail-value">{{ currentRow?.name }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">客户类型</div>
+              <div class="detail-label">{{ texts.customerType }}</div>
               <div class="detail-value">
                 <status-tag v-if="currentRow" :status="currentRow.type" />
               </div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">状态</div>
+              <div class="detail-label">{{ texts.status }}</div>
               <div class="detail-value">
                 <status-tag v-if="currentRow" :status="currentRow.status" />
               </div>
@@ -263,23 +263,23 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Phone /></el-icon>
-            联系信息
+            {{ texts.contactInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">联系人</div>
+              <div class="detail-label">{{ texts.contact }}</div>
               <div class="detail-value">{{ currentRow?.contact || '-' }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">联系电话</div>
+              <div class="detail-label">{{ texts.phone }}</div>
               <div class="detail-value">{{ currentRow?.mobile || '-' }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">电子邮箱</div>
+              <div class="detail-label">{{ texts.email }}</div>
               <div class="detail-value">{{ currentRow?.email || '-' }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">联系地址</div>
+              <div class="detail-label">{{ texts.address }}</div>
               <div class="detail-value">{{ currentRow?.address || '-' }}</div>
             </div>
           </div>
@@ -288,36 +288,31 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Wallet /></el-icon>
-            财务信息
+            {{ texts.financialInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">信用额度</div>
+              <div class="detail-label">{{ texts.creditLimit }}</div>
               <div class="detail-value credit">
-                <template v-if="currentRow?.creditLimit">
-                  ¥{{ currentRow.creditLimit.toLocaleString() }}
-                </template>
-                <template v-else>
-                  <span class="unlimited">无限制</span>
-                </template>
+                <span :class="{ unlimited: !currentRow?.creditLimit }">{{ formatCreditLimit(currentRow?.creditLimit) }}</span>
               </div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">已用额度</div>
-              <div class="detail-value">¥{{ Number(creditExposure?.totalExposure || 0).toLocaleString() }}</div>
+              <div class="detail-label">{{ texts.usedCredit }}</div>
+              <div class="detail-value">{{ formatCurrency(creditExposure?.totalExposure) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">未结应收</div>
-              <div class="detail-value">¥{{ Number(creditExposure?.outstandingReceivable || 0).toLocaleString() }}</div>
+              <div class="detail-label">{{ texts.outstandingReceivable }}</div>
+              <div class="detail-value">{{ formatCurrency(creditExposure?.outstandingReceivable) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">在途订单</div>
-              <div class="detail-value">¥{{ Number(creditExposure?.openOrderExposure || 0).toLocaleString() }}</div>
+              <div class="detail-label">{{ texts.openOrders }}</div>
+              <div class="detail-value">{{ formatCurrency(creditExposure?.openOrderExposure) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">可用额度</div>
+              <div class="detail-label">{{ texts.availableCredit }}</div>
               <div class="detail-value" :class="{ 'credit-exceeded': creditExposure?.exceeded }">
-                {{ creditExposure?.unlimited ? '无限制' : `¥${Number(creditExposure?.availableCredit || 0).toLocaleString()}` }}
+                {{ creditExposure?.unlimited ? texts.noLimit : formatCurrency(creditExposure?.availableCredit) }}
               </div>
             </div>
           </div>
@@ -326,19 +321,19 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Clock /></el-icon>
-            其他信息
+            {{ texts.otherInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">创建时间</div>
-              <div class="detail-value">{{ currentRow?.createdTime || '-' }}</div>
+              <div class="detail-label">{{ texts.createdTime }}</div>
+              <div class="detail-value">{{ formatDateTime(currentRow?.createdTime) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">更新时间</div>
-              <div class="detail-value">{{ currentRow?.updatedTime || '-' }}</div>
+              <div class="detail-label">{{ texts.updatedTime }}</div>
+              <div class="detail-value">{{ formatDateTime(currentRow?.updatedTime) }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">备注</div>
+              <div class="detail-label">{{ texts.remark }}</div>
               <div class="detail-value">{{ currentRow?.remark || '-' }}</div>
             </div>
           </div>
@@ -380,10 +375,195 @@ import {
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
+import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
+import { formatLocalizedCurrency, formatLocalizedDateTime } from '@/utils/locale'
 
+const appStore = useAppStore()
 const userStore = useUserStore()
 const canCreate = computed(() => userStore.hasPermission('masterdata:customer:create'))
+const CUSTOMER_TEXTS = {
+  'zh-CN': {
+    pageTitle: '客户管理',
+    pageSubtitle: '维护客户关系，管理客户档案与信用信息',
+    totalCustomers: '客户总数',
+    companyCustomers: '企业客户',
+    individualCustomers: '个人客户',
+    customerCode: '客户编码',
+    customerName: '客户名称',
+    customerType: '客户类型',
+    company: '企业',
+    individual: '个人',
+    contact: '联系人',
+    phone: '联系电话',
+    email: '邮箱',
+    creditLimit: '信用额度',
+    noLimit: '无限制',
+    status: '状态',
+    actions: '操作',
+    view: '查看',
+    edit: '编辑',
+    enable: '启用',
+    delete: '删除',
+    enterCustomerCode: '请输入客户编码',
+    enterCustomerName: '请输入客户名称',
+    selectCustomerType: '请选择客户类型',
+    selectStatus: '请选择状态',
+    createCustomer: '新增客户',
+    editCustomer: '编辑客户',
+    customerDetail: '客户详情',
+    enterContact: '请输入联系人姓名',
+    enterPhone: '请输入联系电话',
+    enterEmail: '请输入电子邮箱',
+    address: '联系地址',
+    enterAddress: '请输入详细地址',
+    settlementMethod: '结算方式',
+    selectSettlementMethod: '请选择结算方式',
+    bankTransfer: '银行转账',
+    cash: '现金',
+    monthly: '月结',
+    cod: '货到付款',
+    enterCreditLimit: '请输入信用额度（元）',
+    creditHint: '填 0 表示不限额；大于 0 时审批将校验未结敞口',
+    active: '启用',
+    inactive: '停用',
+    remark: '备注',
+    enterRemark: '请输入备注信息',
+    basicInfo: '基本信息',
+    contactInfo: '联系信息',
+    financialInfo: '财务信息',
+    otherInfo: '其他信息',
+    usedCredit: '已用额度',
+    outstandingReceivable: '未结应收',
+    openOrders: '在途订单',
+    availableCredit: '可用额度',
+    createdTime: '创建时间',
+    updatedTime: '更新时间',
+    loadFailed: '加载数据失败',
+    loadDetailFailed: '加载客户详情失败',
+    confirmTitle: '提示',
+    confirmDelete: '确认删除客户“{name}”吗？',
+    confirmEnable: '确认启用客户“{name}”吗？',
+    deleteSuccess: '删除成功',
+    deleteFailed: '删除失败',
+    enableSuccess: '启用成功',
+    enableFailed: '启用失败',
+    updateSuccess: '更新成功',
+    createSuccess: '创建成功',
+    updateFailed: '更新失败',
+    createFailed: '创建失败',
+    exportSuccess: '导出成功',
+    exportFailed: '导出失败',
+    exportFilename: '客户列表',
+    validationEnterCode: '请输入客户编码',
+    validationCodeLength: '长度在 2 到 50 个字符',
+    validationEnterName: '请输入客户名称',
+    validationNameLength: '长度在 2 到 100 个字符',
+    validationSettlementMethod: '请选择结算方式',
+    validationCreditLimit: '请输入信用额度（0=不限额）',
+    validationMobile: '请输入正确的手机号码',
+    validationEmail: '请输入正确的邮箱地址'
+  },
+  'en-US': {
+    pageTitle: 'Customer Management',
+    pageSubtitle: 'Maintain customer records, relationships, and credit exposure',
+    totalCustomers: 'Total customers',
+    companyCustomers: 'Company customers',
+    individualCustomers: 'Individual customers',
+    customerCode: 'Customer code',
+    customerName: 'Customer name',
+    customerType: 'Customer type',
+    company: 'Company',
+    individual: 'Individual',
+    contact: 'Contact',
+    phone: 'Phone',
+    email: 'Email',
+    creditLimit: 'Credit limit',
+    noLimit: 'Unlimited',
+    status: 'Status',
+    actions: 'Actions',
+    view: 'View',
+    edit: 'Edit',
+    enable: 'Enable',
+    delete: 'Delete',
+    enterCustomerCode: 'Enter customer code',
+    enterCustomerName: 'Enter customer name',
+    selectCustomerType: 'Select customer type',
+    selectStatus: 'Select status',
+    createCustomer: 'Create customer',
+    editCustomer: 'Edit customer',
+    customerDetail: 'Customer details',
+    enterContact: 'Enter contact name',
+    enterPhone: 'Enter phone number',
+    enterEmail: 'Enter email address',
+    address: 'Address',
+    enterAddress: 'Enter address',
+    settlementMethod: 'Settlement method',
+    selectSettlementMethod: 'Select settlement method',
+    bankTransfer: 'Bank transfer',
+    cash: 'Cash',
+    monthly: 'Monthly',
+    cod: 'Cash on delivery',
+    enterCreditLimit: 'Enter credit limit',
+    creditHint: 'Use 0 for no limit; positive values are checked against open exposure during approval.',
+    active: 'Active',
+    inactive: 'Inactive',
+    remark: 'Remark',
+    enterRemark: 'Enter remark',
+    basicInfo: 'Basic information',
+    contactInfo: 'Contact information',
+    financialInfo: 'Financial information',
+    otherInfo: 'Other information',
+    usedCredit: 'Used credit',
+    outstandingReceivable: 'Open receivables',
+    openOrders: 'Open orders',
+    availableCredit: 'Available credit',
+    createdTime: 'Created at',
+    updatedTime: 'Updated at',
+    loadFailed: 'Failed to load customers',
+    loadDetailFailed: 'Failed to load customer details',
+    confirmTitle: 'Confirm',
+    confirmDelete: 'Delete customer "{name}"?',
+    confirmEnable: 'Enable customer "{name}"?',
+    deleteSuccess: 'Customer deleted',
+    deleteFailed: 'Failed to delete customer',
+    enableSuccess: 'Customer enabled',
+    enableFailed: 'Failed to enable customer',
+    updateSuccess: 'Customer updated',
+    createSuccess: 'Customer created',
+    updateFailed: 'Failed to update customer',
+    createFailed: 'Failed to create customer',
+    exportSuccess: 'Export completed',
+    exportFailed: 'Failed to export customers',
+    exportFilename: 'customer-list',
+    validationEnterCode: 'Enter customer code',
+    validationCodeLength: 'Length must be between 2 and 50 characters',
+    validationEnterName: 'Enter customer name',
+    validationNameLength: 'Length must be between 2 and 100 characters',
+    validationSettlementMethod: 'Select a settlement method',
+    validationCreditLimit: 'Enter a credit limit (0 = unlimited)',
+    validationMobile: 'Enter a valid mobile number',
+    validationEmail: 'Enter a valid email address'
+  }
+} as const
+const texts = computed(() => CUSTOMER_TEXTS[appStore.locale as keyof typeof CUSTOMER_TEXTS])
+const displayPreferences = computed(() => ({
+  locale: appStore.locale,
+  timeZone: appStore.timeZone
+}))
+const interpolate = (template: string, params: Record<string, string | number>) =>
+  template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
+const formatCurrency = (value?: number | string | null) => {
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return '-'
+  return formatLocalizedCurrency(amount, {}, displayPreferences.value)
+}
+const formatDateTime = (value?: string | null) => (
+  value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
+)
+const formatCreditLimit = (value?: number | null) => (
+  value ? formatCurrency(value) : texts.value.noLimit
+)
 
 // 搜索表单
 const searchForm = reactive<CustomerQuery>({
@@ -404,7 +584,7 @@ const individualCount = computed(() => tableData.value.filter(item => item.type 
 
 // 对话框
 const dialogVisible = ref(false)
-const dialogTitle = computed(() => (formData.id ? '编辑客户' : '新增客户'))
+const dialogTitle = computed(() => (formData.id ? texts.value.editCustomer : texts.value.createCustomer))
 const submitting = ref(false)
 const detailVisible = ref(false)
 const currentRow = ref<Customer>()
@@ -426,28 +606,28 @@ const formData = reactive<CustomerSaveRequest & { id?: string }>({
 })
 
 // 表单验证规则
-const formRules = {
+const formRules = computed(() => ({
   code: [
-    { required: true, message: '请输入客户编码', trigger: 'blur' },
-    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+    { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
+    { min: 2, max: 50, message: texts.value.validationCodeLength, trigger: 'blur' }
   ],
   name: [
-    { required: true, message: '请输入客户名称', trigger: 'blur' },
-    { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
+    { required: true, message: texts.value.validationEnterName, trigger: 'blur' },
+    { min: 2, max: 100, message: texts.value.validationNameLength, trigger: 'blur' }
   ],
   settlementMethod: [
-    { required: true, message: '请选择结算方式', trigger: 'change' }
+    { required: true, message: texts.value.validationSettlementMethod, trigger: 'change' }
   ],
   creditLimit: [
-    { required: true, message: '请输入信用额度（0=不限额）', trigger: 'change' }
+    { required: true, message: texts.value.validationCreditLimit, trigger: 'change' }
   ],
   mobile: [
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
+    { pattern: /^1[3-9]\d{9}$/, message: texts.value.validationMobile, trigger: 'blur' }
   ],
   email: [
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+    { type: 'email', message: texts.value.validationEmail, trigger: 'blur' }
   ]
-}
+}))
 
 // 加载数据
 const loadData = async () => {
@@ -468,7 +648,7 @@ const loadData = async () => {
     total.value = res.total
   } catch (error) {
     console.error('加载数据失败:', error)
-    ElMessage.error('加载数据失败')
+    ElMessage.error(texts.value.loadFailed)
   } finally {
     loading.value = false
   }
@@ -542,7 +722,7 @@ const handleView = async (row: Customer) => {
     creditExposure.value = await getCustomerCreditExposure(row.id)
     detailVisible.value = true
   } catch {
-    ElMessage.error('加载客户详情失败')
+    ElMessage.error(texts.value.loadDetailFailed)
   }
 }
 
@@ -550,34 +730,42 @@ const handleView = async (row: Customer) => {
 const handleDelete = async (row: Customer) => {
   try {
     await ElMessageBox.confirm(
-      `确认删除客户"${row.name}"吗？`,
-      '提示',
+      interpolate(texts.value.confirmDelete, { name: row.name }),
+      texts.value.confirmTitle,
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: texts.value.delete,
+        cancelButtonText: appStore.locale === 'en-US' ? 'Cancel' : '取消',
         type: 'warning'
       }
     )
 
     await deleteCustomer(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(texts.value.deleteSuccess)
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(texts.value.deleteFailed)
     }
   }
 }
 
 const handleEnable = async (row: Customer) => {
   try {
-    await ElMessageBox.confirm(`确认启用客户"${row.name}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      interpolate(texts.value.confirmEnable, { name: row.name }),
+      texts.value.confirmTitle,
+      {
+        confirmButtonText: texts.value.enable,
+        cancelButtonText: appStore.locale === 'en-US' ? 'Cancel' : '取消',
+        type: 'warning'
+      }
+    )
     await enableCustomer(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(texts.value.enableSuccess)
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(texts.value.enableFailed)
     }
   }
 }
@@ -590,8 +778,10 @@ const handleSubmit = async (values: any) => {
     const payload = {
       customerCode: values.code,
       customerName: values.name,
+      customerType: values.type,
       contactName: values.contact,
       contactPhone: values.mobile,
+      email: values.email,
       settlementMethod: values.settlementMethod || 'BANK_TRANSFER',
       creditLimit: values.creditLimit ?? 0,
       address: values.address,
@@ -601,16 +791,16 @@ const handleSubmit = async (values: any) => {
 
     if (formData.id) {
       await updateCustomer(formData.id, payload)
-      ElMessage.success('更新成功')
+      ElMessage.success(texts.value.updateSuccess)
     } else {
       await createCustomer(payload)
-      ElMessage.success('创建成功')
+      ElMessage.success(texts.value.createSuccess)
     }
     dialogVisible.value = false
     loadData()
   } catch (error) {
     console.error('提交失败:', error)
-    ElMessage.error(formData.id ? '更新失败' : '创建失败')
+    ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
   } finally {
     submitting.value = false
   }
@@ -620,10 +810,10 @@ const handleSubmit = async (values: any) => {
 const handleExport = async () => {
   try {
     const blob = await exportCustomers(searchForm)
-    downloadBlob(blob, `客户列表_${Date.now()}.csv`)
-    ElMessage.success('导出成功')
+    downloadBlob(blob, `${texts.value.exportFilename}_${Date.now()}.csv`)
+    ElMessage.success(texts.value.exportSuccess)
   } catch (error) {
-    ElMessage.error('导出失败')
+    ElMessage.error(texts.value.exportFailed)
   }
 }
 
@@ -640,7 +830,7 @@ onMounted(() => {
   font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-.pageNo-header {
+.page-header {
   margin-bottom: 24px;
   animation: slideDown 0.4s ease-out;
 }
@@ -747,14 +937,14 @@ onMounted(() => {
   color: #ffffff;
 }
 
-.pageNo-title {
+.page-title {
   font-size: 28px;
   font-weight: 700;
   margin: 0 0 8px 0;
   letter-spacing: 0.5px;
 }
 
-.pageNo-subtitle {
+.page-subtitle {
   font-size: 14px;
   margin: 0;
   opacity: 0.95;

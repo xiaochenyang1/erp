@@ -25,7 +25,11 @@ public class SupplierEntity {
 
     private String contactPhone;
 
+    private String email;
+
     private String settlementMethod;
+
+    private Integer creditPeriod;
 
     private String address;
 
@@ -102,12 +106,28 @@ public class SupplierEntity {
         this.contactPhone = contactPhone;
     }
 
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
     public String getSettlementMethod() {
         return settlementMethod;
     }
 
     public void setSettlementMethod(String settlementMethod) {
         this.settlementMethod = settlementMethod;
+    }
+
+    public Integer getCreditPeriod() {
+        return creditPeriod;
+    }
+
+    public void setCreditPeriod(Integer creditPeriod) {
+        this.creditPeriod = creditPeriod;
     }
 
     public String getAddress() {

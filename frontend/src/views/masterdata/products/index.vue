@@ -767,7 +767,7 @@ onMounted(() => {
   font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-.pageNo-header {
+.page-header {
   margin-bottom: 24px;
   animation: slideDown 0.4s ease-out;
 }
@@ -834,14 +834,14 @@ onMounted(() => {
   color: #ffffff;
 }
 
-.pageNo-title {
+.page-title {
   font-size: 28px;
   font-weight: 700;
   margin: 0 0 8px 0;
   letter-spacing: 0.5px;
 }
 
-.pageNo-subtitle {
+.page-subtitle {
   font-size: 14px;
   margin: 0;
   opacity: 0.9;

@@ -13,6 +13,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useAppStore } from '@/store/modules/app'
 
 interface Props {
   status: string
@@ -29,11 +30,14 @@ const props = withDefaults(defineProps<Props>(), {
   round: true
 })
 
+const appStore = useAppStore()
+
 // 状态文本映射
-const statusTextMap: Record<string, string> = {
+const statusTextMapZh: Record<string, string> = {
   // 通用状态
   'ACTIVE': '启用',
   'INACTIVE': '停用',
+  'DISABLED': '停用',
   'DRAFT': '草稿',
   'PENDING': '待审核',
   'APPROVED': '已审核',
@@ -108,7 +112,63 @@ const statusTextMap: Record<string, string> = {
   'LOCKED': '已锁定'
 }
 
-const statusText = computed(() => statusTextMap[props.status] || props.status)
+const statusTextMapEn: Record<string, string> = {
+  'ACTIVE': 'Active',
+  'INACTIVE': 'Inactive',
+  'DISABLED': 'Inactive',
+  'DRAFT': 'Draft',
+  'PENDING': 'Pending',
+  'APPROVED': 'Approved',
+  'REJECTED': 'Rejected',
+  'COMPLETED': 'Completed',
+  'CANCELLED': 'Cancelled',
+  'DELIVERING': 'Delivering',
+  'IN_PRODUCTION': 'In production',
+  'PLANNED': 'Planned',
+  'IN_TRANSIT': 'In transit',
+  'CHECKING': 'Checking',
+  'OUT_OF_STOCK': 'Out of stock',
+  'LOW_STOCK': 'Low stock',
+  'OVER_STOCK': 'Overstock',
+  'UNPAID': 'Unpaid',
+  'PARTIAL': 'Partial',
+  'PAID': 'Paid',
+  'OVERDUE': 'Overdue',
+  'POSTED': 'Posted',
+  'ASSET': 'Asset',
+  'LIABILITY': 'Liability',
+  'EQUITY': 'Equity',
+  'REVENUE': 'Revenue',
+  'EXPENSE': 'Expense',
+  'CASH': 'Cash',
+  'BANK_TRANSFER': 'Bank transfer',
+  'CHECK': 'Check',
+  'OTHER': 'Other',
+  'RECEIPT': 'Receipt',
+  'PAYMENT': 'Payment',
+  'TRANSFER': 'Transfer',
+  'ADJUST': 'Adjust',
+  'GAIN': 'Gain',
+  'LOSS': 'Loss',
+  'RAW': 'Raw material',
+  'PRODUCT': 'Finished goods',
+  'SEMI': 'Semi-finished',
+  'COMPANY': 'Company',
+  'INDIVIDUAL': 'Individual',
+  'RESOLVED': 'Resolved',
+  'IGNORED': 'Ignored',
+  'SUCCESS': 'Success',
+  'FAIL': 'Failed',
+  'MENU': 'Menu',
+  'BUTTON': 'Button',
+  'LOCKED': 'Locked'
+}
+
+const statusTextMap = computed(() => (
+  appStore.locale === 'en-US' ? statusTextMapEn : statusTextMapZh
+))
+
+const statusText = computed(() => statusTextMap.value[props.status] || props.status)
 
 // 状态颜色映射
 type TagType = 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'default'
@@ -137,6 +197,7 @@ const statusTypeMap: Record<string, TagType> = {
   'REJECTED': 'danger',
   'CANCELLED': 'danger',
   'INACTIVE': 'danger',
+  'DISABLED': 'danger',
   'FAIL': 'danger',
   'OVERDUE': 'danger',
   'OUT_OF_STOCK': 'danger',

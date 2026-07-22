@@ -41,7 +41,18 @@ const messages = {
       pendingApprovals: '待审批单据', overdueApprovals: '超时 {count}', openReceivables: '未结应收', openPayables: '未结应付',
       today: '今日', attention: '需关注', pending: '待处理', receivableAging: '应收账龄', payableAging: '应付账龄',
       details: '详情', bucket: '账龄段', count: '笔数', amount: '金额', total: '合计', overdueTop: '逾期 TOP',
-      topSkus: '畅销商品 TOP 5', last30Days: '最近30天已过账发货', rank: '排名', productCode: '商品编码', productName: '商品名称', salesQuantity: '销售数量', salesAmount: '销售金额'
+      topSkus: '畅销商品 TOP 5', last30Days: '最近30天已过账发货', rank: '排名', productCode: '商品编码', productName: '商品名称', salesQuantity: '销售数量', salesAmount: '销售金额',
+      operationsOverview: '待处理概览', operationsCount: '待处理数量', fundExposure: '资金占用概览',
+      updatedAt: '更新于 {time}', waitingData: '等待数据', refresh: '刷新',
+      myTodos: '我的待办', viewApprovals: '查看审批', noTodos: '暂无待办事项', process: '处理',
+      quickActionsTitle: '快捷操作',
+      quickPurchaseOrders: '采购订单', quickSalesOrders: '销售订单', quickInventoryStocks: '库存查询',
+      quickFinanceVouchers: '财务凭证', quickFinancePayments: '收付款', quickProductionOrders: '生产订单',
+      viewAllAlerts: '查看全部 {count} 项', noInventoryAlerts: '暂无库存预警',
+      lowStockItem: '商品 {productId} / 仓库 {warehouseId}', shortage: '缺口 {count}',
+      failedOperationsTitle: '最近失败操作', failedOperationsShort: '失败操作', viewLogs: '查看日志',
+      noFailedOperations: '暂无失败操作', loadFailed: '加载工作台数据失败',
+      priority: { high: '紧急', medium: '重要', low: '普通' }
     },
     workflow: {
       businessType: '业务类型', businessNo: '业务单号', status: '状态', selectBusinessType: '请选择业务类型', inputBusinessNo: '请输入业务单号', selectStatus: '请选择状态',
@@ -82,7 +93,18 @@ const messages = {
       pendingApprovals: 'Pending approvals', overdueApprovals: '{count} overdue', openReceivables: 'Open receivables', openPayables: 'Open payables',
       today: 'Today', attention: 'Attention', pending: 'Pending', receivableAging: 'Receivable aging', payableAging: 'Payable aging',
       details: 'Details', bucket: 'Aging bucket', count: 'Count', amount: 'Amount', total: 'Total', overdueTop: 'Overdue TOP',
-      topSkus: 'Top 5 products', last30Days: 'Posted deliveries in the last 30 days', rank: 'Rank', productCode: 'Product code', productName: 'Product name', salesQuantity: 'Quantity sold', salesAmount: 'Sales amount'
+      topSkus: 'Top 5 products', last30Days: 'Posted deliveries in the last 30 days', rank: 'Rank', productCode: 'Product code', productName: 'Product name', salesQuantity: 'Quantity sold', salesAmount: 'Sales amount',
+      operationsOverview: 'Pending work overview', operationsCount: 'Work items', fundExposure: 'Cash exposure overview',
+      updatedAt: 'Updated {time}', waitingData: 'Waiting for data', refresh: 'Refresh',
+      myTodos: 'My tasks', viewApprovals: 'View approvals', noTodos: 'No pending items', process: 'Handle',
+      quickActionsTitle: 'Quick actions',
+      quickPurchaseOrders: 'Purchase orders', quickSalesOrders: 'Sales orders', quickInventoryStocks: 'Stock lookup',
+      quickFinanceVouchers: 'Financial vouchers', quickFinancePayments: 'Receipts & payments', quickProductionOrders: 'Production orders',
+      viewAllAlerts: 'View all {count}', noInventoryAlerts: 'No stock alerts',
+      lowStockItem: 'Product {productId} / Warehouse {warehouseId}', shortage: 'Shortage {count}',
+      failedOperationsTitle: 'Recent failed operations', failedOperationsShort: 'Failed ops', viewLogs: 'View logs',
+      noFailedOperations: 'No failed operations', loadFailed: 'Failed to load dashboard data',
+      priority: { high: 'High', medium: 'Medium', low: 'Normal' }
     },
     workflow: {
       businessType: 'Business type', businessNo: 'Document no.', status: 'Status', selectBusinessType: 'Select business type', inputBusinessNo: 'Enter document no.', selectStatus: 'Select status',

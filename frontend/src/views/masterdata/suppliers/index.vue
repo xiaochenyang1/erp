@@ -11,17 +11,17 @@
             <div class="icon-glow"></div>
           </div>
           <div class="header-text">
-            <h1 class="page-title">供应商管理</h1>
-            <p class="page-subtitle">管理供应商档案，维护供应链合作关系</p>
+            <h1 class="page-title">{{ texts.pageTitle }}</h1>
+            <p class="page-subtitle">{{ texts.pageSubtitle }}</p>
           </div>
         </div>
         <div class="header-stats">
           <div class="stat-card">
-            <span class="stat-label">供应商总数</span>
+            <span class="stat-label">{{ texts.totalSuppliers }}</span>
             <span class="stat-value">{{ total }}</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">合作中</span>
+            <span class="stat-label">{{ texts.activeSuppliers }}</span>
             <span class="stat-value active">{{ activeCount }}</span>
           </div>
         </div>
@@ -30,26 +30,26 @@
 
     <!-- 搜索栏 -->
     <search-bar v-model="searchForm" @search="handleSearch" @reset="handleReset">
-      <el-form-item label="供应商编码" prop="code">
+      <el-form-item :label="texts.supplierCode" prop="code">
         <el-input
           v-model="searchForm.code"
-          placeholder="请输入供应商编码"
+          :placeholder="texts.enterSupplierCode"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="供应商名称" prop="name">
+      <el-form-item :label="texts.supplierName" prop="name">
         <el-input
           v-model="searchForm.name"
-          placeholder="请输入供应商名称"
+          :placeholder="texts.enterSupplierName"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="状态" prop="status">
-        <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
-          <el-option label="启用" value="ACTIVE" />
-          <el-option label="停用" value="INACTIVE" />
+      <el-form-item :label="texts.status" prop="status">
+        <el-select v-model="searchForm.status" :placeholder="texts.selectStatus" clearable>
+          <el-option :label="texts.active" value="ACTIVE" />
+          <el-option :label="texts.inactive" value="INACTIVE" />
         </el-select>
       </el-form-item>
     </search-bar>
@@ -61,20 +61,20 @@
       :total="total"
       :page="searchForm.pageNo"
       :page-size="searchForm.pageSize"
-      @create="handleCreate"
       :show-create="canCreate"
+      class="supplier-table"
+      @create="handleCreate"
       @export="handleExport"
       @refresh="loadData"
       @page-change="handlePageChange"
-      class="supplier-table"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column prop="code" label="供应商编码" width="140" fixed>
+      <el-table-column prop="code" :label="texts.supplierCode" width="140" fixed>
         <template #default="{ row }">
           <span class="code-badge supplier">{{ row.code }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="供应商名称" min-width="200" show-overflow-tooltip>
+      <el-table-column prop="name" :label="texts.supplierName" min-width="200" show-overflow-tooltip>
         <template #default="{ row }">
           <div class="supplier-name">
             <el-icon class="supplier-icon">
@@ -84,40 +84,51 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="contact" label="联系人" width="120" />
-      <el-table-column prop="mobile" label="联系电话" width="140" />
-      <el-table-column prop="email" label="邮箱" width="180" show-overflow-tooltip />
-      <el-table-column prop="creditPeriod" label="账期" width="100" align="center">
+      <el-table-column prop="contact" :label="texts.contact" width="120" />
+      <el-table-column prop="mobile" :label="texts.phone" width="140" />
+      <el-table-column prop="email" :label="texts.email" width="180" show-overflow-tooltip />
+      <el-table-column prop="creditPeriod" :label="texts.creditPeriod" width="120" align="center">
         <template #default="{ row }">
-          <span v-if="row.creditPeriod" class="credit-period">
-            {{ row.creditPeriod }} 天
+          <span :class="hasCreditPeriod(row.creditPeriod) ? 'credit-period' : 'no-credit'">
+            {{ formatCreditPeriod(row.creditPeriod) }}
           </span>
-          <span v-else class="no-credit">现结</span>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column prop="status" :label="texts.status" width="100" align="center">
         <template #default="{ row }">
           <status-tag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right" align="center">
+      <el-table-column :label="texts.actions" width="180" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" @click="handleView(row)">
               <el-icon><View /></el-icon>
-              查看
+              {{ texts.view }}
             </el-button>
             <el-button v-permission="'masterdata:supplier:update'" link type="primary" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
-              编辑
+              {{ texts.edit }}
             </el-button>
-            <el-button v-if="row.status !== 'ACTIVE'" v-permission="'masterdata:supplier:enable'" link type="success" @click="handleEnable(row)">
+            <el-button
+              v-if="row.status !== 'ACTIVE'"
+              v-permission="'masterdata:supplier:enable'"
+              link
+              type="success"
+              @click="handleEnable(row)"
+            >
               <el-icon><CircleCheck /></el-icon>
-              启用
+              {{ texts.enable }}
             </el-button>
-            <el-button v-if="row.status === 'ACTIVE'" v-permission="'masterdata:supplier:disable'" link type="danger" @click="handleDelete(row)">
+            <el-button
+              v-if="row.status === 'ACTIVE'"
+              v-permission="'masterdata:supplier:disable'"
+              link
+              type="danger"
+              @click="handleDelete(row)"
+            >
               <el-icon><Delete /></el-icon>
-              删除
+              {{ texts.delete }}
             </el-button>
           </div>
         </template>
@@ -140,47 +151,57 @@
         @submit="handleSubmit"
         @cancel="dialogVisible = false"
       >
-        <el-form-item label="供应商编码" prop="code">
-          <el-input v-model="formData.code" placeholder="请输入供应商编码" maxlength="50" />
+        <el-form-item :label="texts.supplierCode" prop="code">
+          <el-input v-model="formData.code" :placeholder="texts.enterSupplierCode" maxlength="50" />
         </el-form-item>
-        <el-form-item label="供应商名称" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入供应商名称" maxlength="100" />
+        <el-form-item :label="texts.supplierName" prop="name">
+          <el-input v-model="formData.name" :placeholder="texts.enterSupplierName" maxlength="100" />
         </el-form-item>
-        <el-form-item label="联系人" prop="contact">
-          <el-input v-model="formData.contact" placeholder="请输入联系人姓名" />
+        <el-form-item :label="texts.contact" prop="contact">
+          <el-input v-model="formData.contact" :placeholder="texts.enterContact" />
         </el-form-item>
-        <el-form-item label="联系电话" prop="mobile">
-          <el-input v-model="formData.mobile" placeholder="请输入联系电话" maxlength="20" />
+        <el-form-item :label="texts.phone" prop="mobile">
+          <el-input v-model="formData.mobile" :placeholder="texts.enterPhone" maxlength="20" />
         </el-form-item>
-        <el-form-item label="电子邮箱" prop="email">
-          <el-input v-model="formData.email" placeholder="请输入电子邮箱" maxlength="100" />
+        <el-form-item :label="texts.email" prop="email">
+          <el-input v-model="formData.email" :placeholder="texts.enterEmail" maxlength="100" />
         </el-form-item>
-        <el-form-item label="账期（天）" prop="creditPeriod">
+        <el-form-item :label="texts.settlementMethod" prop="settlementMethod">
+          <el-select v-model="formData.settlementMethod" :placeholder="texts.selectSettlementMethod" style="width: 100%">
+            <el-option
+              v-for="option in settlementMethodOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="texts.creditPeriodDays" prop="creditPeriod">
           <el-input-number
             v-model="formData.creditPeriod"
             :min="0"
             :max="365"
             :controls="false"
-            placeholder="请输入账期天数"
+            :placeholder="texts.enterCreditPeriod"
             style="width: 100%"
           />
-          <span class="form-tip">留空表示现结</span>
+          <span class="form-tip">{{ texts.creditHint }}</span>
         </el-form-item>
-        <el-form-item label="联系地址" prop="address" :style="{ gridColumn: '1 / -1' }">
-          <el-input v-model="formData.address" placeholder="请输入详细地址" maxlength="200" />
+        <el-form-item :label="texts.address" prop="address" :style="{ gridColumn: '1 / -1' }">
+          <el-input v-model="formData.address" :placeholder="texts.enterAddress" maxlength="200" />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="texts.status" prop="status">
           <el-radio-group v-model="formData.status">
-            <el-radio value="ACTIVE">启用</el-radio>
-            <el-radio value="INACTIVE">停用</el-radio>
+            <el-radio value="ACTIVE">{{ texts.active }}</el-radio>
+            <el-radio value="INACTIVE">{{ texts.inactive }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="备注" prop="remark" :style="{ gridColumn: '1 / -1' }">
+        <el-form-item :label="texts.remark" prop="remark" :style="{ gridColumn: '1 / -1' }">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注信息"
+            :placeholder="texts.enterRemark"
             maxlength="500"
             show-word-limit
           />
@@ -191,7 +212,7 @@
     <!-- 详情对话框 -->
     <el-dialog
       v-model="detailVisible"
-      title="供应商详情"
+      :title="texts.supplierDetail"
       width="750px"
       class="elegant-dialog supplier-dialog"
     >
@@ -199,19 +220,19 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><DocumentCopy /></el-icon>
-            基本信息
+            {{ texts.basicInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">供应商编码</div>
+              <div class="detail-label">{{ texts.supplierCode }}</div>
               <div class="detail-value">{{ currentRow?.code }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">供应商名称</div>
+              <div class="detail-label">{{ texts.supplierName }}</div>
               <div class="detail-value">{{ currentRow?.name }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">状态</div>
+              <div class="detail-label">{{ texts.status }}</div>
               <div class="detail-value">
                 <status-tag v-if="currentRow" :status="currentRow.status" />
               </div>
@@ -222,23 +243,23 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Phone /></el-icon>
-            联系信息
+            {{ texts.contactInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">联系人</div>
+              <div class="detail-label">{{ texts.contact }}</div>
               <div class="detail-value">{{ currentRow?.contact || '-' }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">联系电话</div>
+              <div class="detail-label">{{ texts.phone }}</div>
               <div class="detail-value">{{ currentRow?.mobile || '-' }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">电子邮箱</div>
+              <div class="detail-label">{{ texts.email }}</div>
               <div class="detail-value">{{ currentRow?.email || '-' }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">联系地址</div>
+              <div class="detail-label">{{ texts.address }}</div>
               <div class="detail-value">{{ currentRow?.address || '-' }}</div>
             </div>
           </div>
@@ -247,31 +268,30 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Calendar /></el-icon>
-            财务信息
+            {{ texts.financialInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">账期天数</div>
-              <div class="detail-value credit">
-                <template v-if="currentRow?.creditPeriod">
-                  {{ currentRow.creditPeriod }} 天
-                </template>
-                <template v-else>
-                  <span class="cash-only">现结</span>
-                </template>
+              <div class="detail-label">{{ texts.settlementMethod }}</div>
+              <div class="detail-value">{{ settlementMethodLabel(currentRow?.settlementMethod) }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">{{ texts.creditPeriodDays }}</div>
+              <div class="detail-value credit" :class="{ 'cash-only': !hasCreditPeriod(currentRow?.creditPeriod) }">
+                {{ formatCreditPeriod(currentRow?.creditPeriod) }}
               </div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">未结应付</div>
-              <div class="detail-value credit">¥{{ Number(payableExposure?.outstandingPayable || 0).toFixed(2) }}</div>
+              <div class="detail-label">{{ texts.outstandingPayable }}</div>
+              <div class="detail-value credit">{{ formatCurrency(payableExposure?.outstandingPayable) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">未收货采购承诺</div>
-              <div class="detail-value credit">¥{{ Number(payableExposure?.openPurchaseOrderAmount || 0).toFixed(2) }}</div>
+              <div class="detail-label">{{ texts.openPurchaseOrderAmount }}</div>
+              <div class="detail-value credit">{{ formatCurrency(payableExposure?.openPurchaseOrderAmount) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">应付敞口合计</div>
-              <div class="detail-value credit">¥{{ Number(payableExposure?.totalExposure || 0).toFixed(2) }}</div>
+              <div class="detail-label">{{ texts.totalExposure }}</div>
+              <div class="detail-value credit">{{ formatCurrency(payableExposure?.totalExposure) }}</div>
             </div>
           </div>
         </div>
@@ -279,19 +299,19 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Clock /></el-icon>
-            其他信息
+            {{ texts.otherInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">创建时间</div>
-              <div class="detail-value">{{ currentRow?.createdTime }}</div>
+              <div class="detail-label">{{ texts.createdTime }}</div>
+              <div class="detail-value">{{ formatDateTime(currentRow?.createdTime) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">更新时间</div>
-              <div class="detail-value">{{ currentRow?.updatedTime }}</div>
+              <div class="detail-label">{{ texts.updatedTime }}</div>
+              <div class="detail-value">{{ formatDateTime(currentRow?.updatedTime) }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">备注</div>
+              <div class="detail-label">{{ texts.remark }}</div>
               <div class="detail-value">{{ currentRow?.remark || '-' }}</div>
             </div>
           </div>
@@ -332,10 +352,199 @@ import {
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
+import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
+import { formatLocalizedCurrency, formatLocalizedDateTime } from '@/utils/locale'
 
+const appStore = useAppStore()
 const userStore = useUserStore()
 const canCreate = computed(() => userStore.hasPermission('masterdata:supplier:create'))
+const SUPPLIER_TEXTS = {
+  'zh-CN': {
+    pageTitle: '供应商管理',
+    pageSubtitle: '管理供应商档案，维护供应链合作关系',
+    totalSuppliers: '供应商总数',
+    activeSuppliers: '合作中',
+    supplierCode: '供应商编码',
+    supplierName: '供应商名称',
+    contact: '联系人',
+    phone: '联系电话',
+    email: '邮箱',
+    creditPeriod: '账期',
+    creditPeriodDays: '账期（天）',
+    creditPeriodValue: '{days} 天',
+    cashSettlement: '现结',
+    status: '状态',
+    actions: '操作',
+    view: '查看',
+    edit: '编辑',
+    enable: '启用',
+    delete: '删除',
+    cancel: '取消',
+    enterSupplierCode: '请输入供应商编码',
+    enterSupplierName: '请输入供应商名称',
+    selectStatus: '请选择状态',
+    createSupplier: '新增供应商',
+    editSupplier: '编辑供应商',
+    supplierDetail: '供应商详情',
+    enterContact: '请输入联系人姓名',
+    enterPhone: '请输入联系电话',
+    enterEmail: '请输入电子邮箱',
+    settlementMethod: '结算方式',
+    selectSettlementMethod: '请选择结算方式',
+    bankTransfer: '银行转账',
+    cash: '现金',
+    monthly: '月结',
+    cod: '货到付款',
+    enterCreditPeriod: '请输入账期天数',
+    creditHint: '留空表示现结',
+    address: '联系地址',
+    enterAddress: '请输入详细地址',
+    active: '启用',
+    inactive: '停用',
+    remark: '备注',
+    enterRemark: '请输入备注信息',
+    basicInfo: '基本信息',
+    contactInfo: '联系信息',
+    financialInfo: '财务信息',
+    otherInfo: '其他信息',
+    outstandingPayable: '未结应付',
+    openPurchaseOrderAmount: '未收货采购承诺',
+    totalExposure: '应付敞口合计',
+    createdTime: '创建时间',
+    updatedTime: '更新时间',
+    loadFailed: '加载数据失败',
+    loadDetailFailed: '加载供应商详情失败',
+    confirmTitle: '提示',
+    confirmDelete: '确认删除供应商“{name}”吗？',
+    confirmEnable: '确认启用供应商“{name}”吗？',
+    deleteSuccess: '删除成功',
+    deleteFailed: '删除失败',
+    enableSuccess: '启用成功',
+    enableFailed: '启用失败',
+    updateSuccess: '更新成功',
+    createSuccess: '创建成功',
+    updateFailed: '更新失败',
+    createFailed: '创建失败',
+    exportSuccess: '导出成功',
+    exportFailed: '导出失败',
+    exportFilename: '供应商列表',
+    validationEnterCode: '请输入供应商编码',
+    validationCodeLength: '长度在 2 到 50 个字符',
+    validationEnterName: '请输入供应商名称',
+    validationNameLength: '长度在 2 到 100 个字符',
+    validationSettlementMethod: '请选择结算方式',
+    validationMobile: '请输入正确的手机号码',
+    validationEmail: '请输入正确的邮箱地址'
+  },
+  'en-US': {
+    pageTitle: 'Supplier Management',
+    pageSubtitle: 'Manage supplier records and maintain procurement partnerships',
+    totalSuppliers: 'Total suppliers',
+    activeSuppliers: 'Active',
+    supplierCode: 'Supplier code',
+    supplierName: 'Supplier name',
+    contact: 'Contact',
+    phone: 'Phone',
+    email: 'Email',
+    creditPeriod: 'Credit period',
+    creditPeriodDays: 'Credit period (days)',
+    creditPeriodValue: '{days} days',
+    cashSettlement: 'Cash settlement',
+    status: 'Status',
+    actions: 'Actions',
+    view: 'View',
+    edit: 'Edit',
+    enable: 'Enable',
+    delete: 'Delete',
+    cancel: 'Cancel',
+    enterSupplierCode: 'Enter supplier code',
+    enterSupplierName: 'Enter supplier name',
+    selectStatus: 'Select status',
+    createSupplier: 'Create supplier',
+    editSupplier: 'Edit supplier',
+    supplierDetail: 'Supplier details',
+    enterContact: 'Enter contact name',
+    enterPhone: 'Enter phone number',
+    enterEmail: 'Enter email address',
+    settlementMethod: 'Settlement method',
+    selectSettlementMethod: 'Select settlement method',
+    bankTransfer: 'Bank transfer',
+    cash: 'Cash',
+    monthly: 'Monthly',
+    cod: 'Cash on delivery',
+    enterCreditPeriod: 'Enter credit period in days',
+    creditHint: 'Leave blank for cash settlement',
+    address: 'Address',
+    enterAddress: 'Enter address',
+    active: 'Active',
+    inactive: 'Inactive',
+    remark: 'Remark',
+    enterRemark: 'Enter remark',
+    basicInfo: 'Basic information',
+    contactInfo: 'Contact information',
+    financialInfo: 'Financial information',
+    otherInfo: 'Other information',
+    outstandingPayable: 'Outstanding payables',
+    openPurchaseOrderAmount: 'Open purchase commitments',
+    totalExposure: 'Total payable exposure',
+    createdTime: 'Created at',
+    updatedTime: 'Updated at',
+    loadFailed: 'Failed to load suppliers',
+    loadDetailFailed: 'Failed to load supplier details',
+    confirmTitle: 'Confirm',
+    confirmDelete: 'Delete supplier "{name}"?',
+    confirmEnable: 'Enable supplier "{name}"?',
+    deleteSuccess: 'Supplier deleted',
+    deleteFailed: 'Failed to delete supplier',
+    enableSuccess: 'Supplier enabled',
+    enableFailed: 'Failed to enable supplier',
+    updateSuccess: 'Supplier updated',
+    createSuccess: 'Supplier created',
+    updateFailed: 'Failed to update supplier',
+    createFailed: 'Failed to create supplier',
+    exportSuccess: 'Export completed',
+    exportFailed: 'Failed to export suppliers',
+    exportFilename: 'supplier-list',
+    validationEnterCode: 'Enter supplier code',
+    validationCodeLength: 'Length must be between 2 and 50 characters',
+    validationEnterName: 'Enter supplier name',
+    validationNameLength: 'Length must be between 2 and 100 characters',
+    validationSettlementMethod: 'Select a settlement method',
+    validationMobile: 'Enter a valid mobile number',
+    validationEmail: 'Enter a valid email address'
+  }
+} as const
+const texts = computed(() => SUPPLIER_TEXTS[appStore.locale as keyof typeof SUPPLIER_TEXTS])
+const displayPreferences = computed(() => ({
+  locale: appStore.locale,
+  timeZone: appStore.timeZone
+}))
+const interpolate = (template: string, params: Record<string, string | number>) =>
+  template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
+const settlementMethodOptions = computed(() => ([
+  { label: texts.value.bankTransfer, value: 'BANK_TRANSFER' },
+  { label: texts.value.cash, value: 'CASH' },
+  { label: texts.value.monthly, value: 'MONTHLY' },
+  { label: texts.value.cod, value: 'COD' }
+]))
+const formatCurrency = (value?: number | string | null) => {
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return '-'
+  return formatLocalizedCurrency(amount, {}, displayPreferences.value)
+}
+const formatDateTime = (value?: string | null) => (
+  value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
+)
+const hasCreditPeriod = (value?: number | string | null) => Number(value) > 0
+const formatCreditPeriod = (value?: number | string | null) => (
+  hasCreditPeriod(value)
+    ? interpolate(texts.value.creditPeriodValue, { days: Number(value) })
+    : texts.value.cashSettlement
+)
+const settlementMethodLabel = (value?: string | null) => (
+  settlementMethodOptions.value.find((option) => option.value === value)?.label || value || '-'
+)
 
 // 搜索表单
 const searchForm = reactive<SupplierQuery>({
@@ -354,7 +563,7 @@ const activeCount = computed(() => tableData.value.filter(item => item.status ==
 
 // 对话框
 const dialogVisible = ref(false)
-const dialogTitle = computed(() => (formData.id ? '编辑供应商' : '新增供应商'))
+const dialogTitle = computed(() => (formData.id ? texts.value.editSupplier : texts.value.createSupplier))
 const submitting = ref(false)
 const detailVisible = ref(false)
 const currentRow = ref<Supplier>()
@@ -367,6 +576,7 @@ const formData = reactive<SupplierSaveRequest & { id?: string }>({
   contact: '',
   mobile: '',
   email: '',
+  settlementMethod: 'BANK_TRANSFER',
   address: '',
   creditPeriod: undefined,
   status: 'ACTIVE',
@@ -374,22 +584,25 @@ const formData = reactive<SupplierSaveRequest & { id?: string }>({
 })
 
 // 表单验证规则
-const formRules = {
+const formRules = computed(() => ({
   code: [
-    { required: true, message: '请输入供应商编码', trigger: 'blur' },
-    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+    { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
+    { min: 2, max: 50, message: texts.value.validationCodeLength, trigger: 'blur' }
   ],
   name: [
-    { required: true, message: '请输入供应商名称', trigger: 'blur' },
-    { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
+    { required: true, message: texts.value.validationEnterName, trigger: 'blur' },
+    { min: 2, max: 100, message: texts.value.validationNameLength, trigger: 'blur' }
+  ],
+  settlementMethod: [
+    { required: true, message: texts.value.validationSettlementMethod, trigger: 'change' }
   ],
   mobile: [
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
+    { pattern: /^1[3-9]\d{9}$/, message: texts.value.validationMobile, trigger: 'blur' }
   ],
   email: [
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+    { type: 'email', message: texts.value.validationEmail, trigger: 'blur' }
   ]
-}
+}))
 
 // 加载数据
 const loadData = async () => {
@@ -410,7 +623,7 @@ const loadData = async () => {
     total.value = res.total
   } catch (error) {
     console.error('加载数据失败:', error)
-    ElMessage.error('加载数据失败')
+    ElMessage.error(texts.value.loadFailed)
   } finally {
     loading.value = false
   }
@@ -447,6 +660,7 @@ const handleCreate = () => {
     contact: '',
     mobile: '',
     email: '',
+    settlementMethod: 'BANK_TRANSFER',
     address: '',
     creditPeriod: undefined,
     status: 'ACTIVE',
@@ -464,8 +678,9 @@ const handleEdit = (row: Supplier) => {
     contact: row.contactName || row.contact,
     mobile: row.contactPhone || row.mobile,
     email: row.email,
+    settlementMethod: row.settlementMethod || 'BANK_TRANSFER',
     address: row.address,
-    creditPeriod: row.creditPeriod,
+    creditPeriod: hasCreditPeriod(row.creditPeriod) ? Number(row.creditPeriod) : undefined,
     status: row.status,
     remark: row.remark
   })
@@ -479,7 +694,7 @@ const handleView = async (row: Supplier) => {
     payableExposure.value = await getSupplierPayableExposure(row.id)
     detailVisible.value = true
   } catch {
-    ElMessage.error('加载供应商详情失败')
+    ElMessage.error(texts.value.loadDetailFailed)
   }
 }
 
@@ -487,34 +702,42 @@ const handleView = async (row: Supplier) => {
 const handleDelete = async (row: Supplier) => {
   try {
     await ElMessageBox.confirm(
-      `确认删除供应商"${row.name}"吗？`,
-      '提示',
+      interpolate(texts.value.confirmDelete, { name: row.name || row.supplierName || '' }),
+      texts.value.confirmTitle,
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: texts.value.delete,
+        cancelButtonText: texts.value.cancel,
         type: 'warning'
       }
     )
 
     await deleteSupplier(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(texts.value.deleteSuccess)
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(texts.value.deleteFailed)
     }
   }
 }
 
 const handleEnable = async (row: Supplier) => {
   try {
-    await ElMessageBox.confirm(`确认启用供应商"${row.name}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      interpolate(texts.value.confirmEnable, { name: row.name || row.supplierName || '' }),
+      texts.value.confirmTitle,
+      {
+        confirmButtonText: texts.value.enable,
+        cancelButtonText: texts.value.cancel,
+        type: 'warning'
+      }
+    )
     await enableSupplier(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(texts.value.enableSuccess)
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(texts.value.enableFailed)
     }
   }
 }
@@ -529,7 +752,9 @@ const handleSubmit = async (values: any) => {
       supplierName: values.name,
       contactName: values.contact,
       contactPhone: values.mobile,
-      settlementMethod: values.settlementMethod || '',
+      email: values.email,
+      settlementMethod: values.settlementMethod || 'BANK_TRANSFER',
+      creditPeriod: hasCreditPeriod(values.creditPeriod) ? Number(values.creditPeriod) : undefined,
       address: values.address,
       status: values.status,
       remark: values.remark
@@ -537,16 +762,16 @@ const handleSubmit = async (values: any) => {
 
     if (formData.id) {
       await updateSupplier(formData.id, payload)
-      ElMessage.success('更新成功')
+      ElMessage.success(texts.value.updateSuccess)
     } else {
       await createSupplier(payload)
-      ElMessage.success('创建成功')
+      ElMessage.success(texts.value.createSuccess)
     }
     dialogVisible.value = false
     loadData()
   } catch (error) {
     console.error('提交失败:', error)
-    ElMessage.error(formData.id ? '更新失败' : '创建失败')
+    ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
   } finally {
     submitting.value = false
   }
@@ -556,10 +781,10 @@ const handleSubmit = async (values: any) => {
 const handleExport = async () => {
   try {
     const blob = await exportSuppliers(searchForm)
-    downloadBlob(blob, `供应商列表_${Date.now()}.csv`)
-    ElMessage.success('导出成功')
+    downloadBlob(blob, `${texts.value.exportFilename}_${Date.now()}.csv`)
+    ElMessage.success(texts.value.exportSuccess)
   } catch (error) {
-    ElMessage.error('导出失败')
+    ElMessage.error(texts.value.exportFailed)
   }
 }
 
@@ -576,7 +801,7 @@ onMounted(() => {
   font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-.pageNo-header {
+.page-header {
   margin-bottom: 24px;
   animation: slideDown 0.4s ease-out;
 }
@@ -683,14 +908,14 @@ onMounted(() => {
   color: #ffffff;
 }
 
-.pageNo-title {
+.page-title {
   font-size: 28px;
   font-weight: 700;
   margin: 0 0 8px 0;
   letter-spacing: 0.5px;
 }
 
-.pageNo-subtitle {
+.page-subtitle {
   font-size: 14px;
   margin: 0;
   opacity: 0.95;

@@ -13,6 +13,7 @@ import com.tuowei.erp.inventory.stock.model.InventoryLotBalanceEntity;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.customer.service.CustomerService;
+import com.tuowei.erp.masterdata.customer.web.CustomerCreateRequest;
 import com.tuowei.erp.masterdata.customer.web.CustomerPageQuery;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
@@ -21,6 +22,7 @@ import com.tuowei.erp.masterdata.product.web.ProductPageQuery;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
 import com.tuowei.erp.masterdata.supplier.service.SupplierService;
+import com.tuowei.erp.masterdata.supplier.web.SupplierCreateRequest;
 import com.tuowei.erp.masterdata.supplier.web.SupplierPageQuery;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -37,6 +39,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -117,6 +120,22 @@ class MasterdataServiceTenantBoundaryTest {
     }
 
     @Test
+    void customerListSupportsTypeFilter() {
+        stubAudit();
+        CustomerMapper mapper = mock(CustomerMapper.class);
+        when(mapper.selectPage(any(Page.class), any())).thenReturn(page());
+        CustomerPageQuery query = new CustomerPageQuery();
+        query.setType("COMPANY");
+
+        customerService(mapper).list(query);
+
+        ArgumentCaptor<LambdaQueryWrapper<CustomerEntity>> wrapper =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(mapper).selectPage(any(Page.class), wrapper.capture());
+        assertThat(wrapper.getValue().getSqlSegment().toLowerCase(Locale.ROOT)).contains("customer_type");
+    }
+
+    @Test
     void customerDetailRejectsDifferentAccountBookWithinSameCompany() {
         stubAudit();
         CustomerMapper mapper = mock(CustomerMapper.class);
@@ -125,6 +144,34 @@ class MasterdataServiceTenantBoundaryTest {
         assertThatThrownBy(() -> customerService(mapper).getById(ENTITY_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("客户不存在");
+    }
+
+    @Test
+    void customerCreatePersistsTypeAndEmail() {
+        stubAudit();
+        CustomerMapper mapper = mock(CustomerMapper.class);
+        when(mapper.insert(any(CustomerEntity.class))).thenReturn(1);
+
+        var response = customerService(mapper).create(new CustomerCreateRequest(
+                "C001",
+                "tenant customer",
+                "COMPANY",
+                "Alice",
+                "13800138000",
+                "alice@example.com",
+                "BANK_TRANSFER",
+                new BigDecimal("1000.00"),
+                "Shanghai",
+                "ACTIVE",
+                "remark"
+        ));
+
+        ArgumentCaptor<CustomerEntity> entityCaptor = ArgumentCaptor.forClass(CustomerEntity.class);
+        verify(mapper).insert(entityCaptor.capture());
+        assertThat(entityCaptor.getValue().getCustomerType()).isEqualTo("COMPANY");
+        assertThat(entityCaptor.getValue().getEmail()).isEqualTo("alice@example.com");
+        assertThat(response.customerType()).isEqualTo("COMPANY");
+        assertThat(response.email()).isEqualTo("alice@example.com");
     }
 
     @Test
@@ -150,6 +197,35 @@ class MasterdataServiceTenantBoundaryTest {
         assertThatThrownBy(() -> supplierService(mapper).getById(ENTITY_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("供应商不存在");
+    }
+
+    @Test
+    void supplierCreatePersistsEmailCreditPeriodAndSettlementMethod() {
+        stubAudit();
+        SupplierMapper mapper = mock(SupplierMapper.class);
+        when(mapper.insert(any(SupplierEntity.class))).thenReturn(1);
+
+        var response = supplierService(mapper).create(new SupplierCreateRequest(
+                "S001",
+                "tenant supplier",
+                "Bob",
+                "13900139000",
+                "bob@example.com",
+                "BANK_TRANSFER",
+                30,
+                "Suzhou",
+                "ACTIVE",
+                "remark"
+        ));
+
+        ArgumentCaptor<SupplierEntity> entityCaptor = ArgumentCaptor.forClass(SupplierEntity.class);
+        verify(mapper).insert(entityCaptor.capture());
+        assertThat(entityCaptor.getValue().getEmail()).isEqualTo("bob@example.com");
+        assertThat(entityCaptor.getValue().getCreditPeriod()).isEqualTo(30);
+        assertThat(entityCaptor.getValue().getSettlementMethod()).isEqualTo("BANK_TRANSFER");
+        assertThat(response.email()).isEqualTo("bob@example.com");
+        assertThat(response.creditPeriod()).isEqualTo(30);
+        assertThat(response.settlementMethod()).isEqualTo("BANK_TRANSFER");
     }
 
     @Test

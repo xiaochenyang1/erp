@@ -16,9 +16,9 @@
 
       <div v-if="showFooter" class="form-footer">
         <slot name="footer">
-          <el-button @click="handleCancel">{{ cancelText }}</el-button>
+          <el-button @click="handleCancel">{{ resolvedCancelText }}</el-button>
           <el-button type="primary" :loading="loading" @click="handleSubmit">
-            {{ submitText }}
+            {{ resolvedSubmitText }}
           </el-button>
         </slot>
       </div>
@@ -27,8 +27,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
+import { useAppStore } from '@/store/modules/app'
 
 interface Props {
   modelValue: Record<string, any>
@@ -52,9 +53,22 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   columns: 2,
   showFooter: true,
-  submitText: '提交',
-  cancelText: '取消'
+  submitText: '',
+  cancelText: ''
 })
+
+const appStore = useAppStore()
+const texts = computed(() => appStore.locale === 'en-US'
+  ? {
+      submit: 'Submit',
+      cancel: 'Cancel'
+    }
+  : {
+      submit: '提交',
+      cancel: '取消'
+    })
+const resolvedSubmitText = computed(() => props.submitText || texts.value.submit)
+const resolvedCancelText = computed(() => props.cancelText || texts.value.cancel)
 
 const emit = defineEmits<{
   'update:modelValue': [value: Record<string, any>]

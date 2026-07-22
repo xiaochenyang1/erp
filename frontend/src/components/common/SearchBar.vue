@@ -10,10 +10,10 @@
 
       <el-form-item class="search-actions">
         <el-button type="primary" :icon="Search" @click="handleSearch">
-          搜索
+          {{ texts.search }}
         </el-button>
         <el-button :icon="RefreshLeft" @click="handleReset">
-          重置
+          {{ texts.reset }}
         </el-button>
         <el-button
           v-if="collapsible && hasExtraFields"
@@ -21,7 +21,7 @@
           @click="collapsed = !collapsed"
           class="collapse-btn"
         >
-          {{ collapsed ? '展开' : '收起' }}
+          {{ collapsed ? texts.expand : texts.collapse }}
           <el-icon :class="{ 'is-reversed': !collapsed }">
             <ArrowDown />
           </el-icon>
@@ -32,9 +32,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Search, RefreshLeft, ArrowDown } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
+import { useAppStore } from '@/store/modules/app'
 
 interface Props {
   modelValue: Record<string, any>
@@ -46,6 +47,21 @@ const props = withDefaults(defineProps<Props>(), {
   collapsible: false,
   hasExtraFields: false
 })
+
+const appStore = useAppStore()
+const texts = computed(() => appStore.locale === 'en-US'
+  ? {
+      search: 'Search',
+      reset: 'Reset',
+      expand: 'Expand',
+      collapse: 'Collapse'
+    }
+  : {
+      search: '搜索',
+      reset: '重置',
+      expand: '展开',
+      collapse: '收起'
+    })
 
 const emit = defineEmits<{
   'update:modelValue': [value: Record<string, any>]

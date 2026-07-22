@@ -42,7 +42,7 @@
           </div>
           <div class="stat-card-content">
             <div class="stat-card-title">{{ t('dashboard.todaySalesAmount') }}</div>
-            <div class="stat-card-value">¥{{ formatNumber(summary.todaySalesAmount) }}</div>
+            <div class="stat-card-value">{{ formatCurrency(summary.todaySalesAmount) }}</div>
             <div class="stat-card-trend">
               <el-tag size="small" type="success">{{ t('dashboard.today') }}</el-tag>
             </div>
@@ -92,7 +92,7 @@
             <div class="stat-card-title">{{ t('dashboard.openReceivables') }}</div>
             <div class="stat-card-value">{{ formatNumber(summary.openReceivables) }}</div>
             <div class="stat-card-trend">
-              <span class="metric-sub">¥{{ formatNumber(summary.openReceivableAmount) }}</span>
+              <span class="metric-sub">{{ formatCurrency(summary.openReceivableAmount) }}</span>
             </div>
           </div>
         </div>
@@ -107,7 +107,7 @@
             <div class="stat-card-title">{{ t('dashboard.openPayables') }}</div>
             <div class="stat-card-value">{{ formatNumber(summary.openPayables) }}</div>
             <div class="stat-card-trend">
-              <span class="metric-sub">¥{{ formatNumber(summary.openPayableAmount) }}</span>
+              <span class="metric-sub">{{ formatCurrency(summary.openPayableAmount) }}</span>
             </div>
           </div>
         </div>
@@ -128,11 +128,11 @@
             <el-table-column prop="label" :label="t('dashboard.bucket')" min-width="100" />
             <el-table-column prop="count" :label="t('dashboard.count')" width="80" align="right" />
             <el-table-column prop="amount" :label="t('dashboard.amount')" min-width="120" align="right">
-              <template #default="{ row }">¥{{ formatNumber(row.amount) }}</template>
+              <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
             </el-table-column>
           </el-table>
           <div class="aging-total">
-            {{ t('dashboard.total') }} ¥{{ formatNumber(aging?.receivableTotal) }} · {{ t('dashboard.overdueTop') }} {{ aging?.overdueReceivables?.length || 0 }}
+            {{ t('dashboard.total') }} {{ formatCurrency(aging?.receivableTotal) }} · {{ t('dashboard.overdueTop') }} {{ aging?.overdueReceivables?.length || 0 }}
           </div>
         </el-card>
       </el-col>
@@ -148,11 +148,11 @@
             <el-table-column prop="label" :label="t('dashboard.bucket')" min-width="100" />
             <el-table-column prop="count" :label="t('dashboard.count')" width="80" align="right" />
             <el-table-column prop="amount" :label="t('dashboard.amount')" min-width="120" align="right">
-              <template #default="{ row }">¥{{ formatNumber(row.amount) }}</template>
+              <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
             </el-table-column>
           </el-table>
           <div class="aging-total">
-            {{ t('dashboard.total') }} ¥{{ formatNumber(aging?.payableTotal) }} · {{ t('dashboard.overdueTop') }} {{ aging?.overduePayables?.length || 0 }}
+            {{ t('dashboard.total') }} {{ formatCurrency(aging?.payableTotal) }} · {{ t('dashboard.overdueTop') }} {{ aging?.overduePayables?.length || 0 }}
           </div>
         </el-card>
       </el-col>
@@ -175,7 +175,7 @@
               <template #default="{ row }">{{ formatNumber(row.quantity) }} {{ row.unitName || '' }}</template>
             </el-table-column>
             <el-table-column prop="amount" :label="t('dashboard.salesAmount')" min-width="140" align="right">
-              <template #default="{ row }">¥{{ formatNumber(row.amount) }}</template>
+              <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
             </el-table-column>
           </el-table>
         </el-card>
@@ -187,8 +187,8 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>待处理概览</span>
-              <el-button text @click="loadDashboard">刷新</el-button>
+              <span>{{ t('dashboard.operationsOverview') }}</span>
+              <el-button text @click="loadDashboard">{{ t('dashboard.refresh') }}</el-button>
             </div>
           </template>
           <div ref="operationsChartRef" style="height: 320px"></div>
@@ -199,7 +199,7 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>资金占用概览</span>
+              <span>{{ t('dashboard.fundExposure') }}</span>
               <span class="generated-time">{{ generatedTimeText }}</span>
             </div>
           </template>
@@ -213,13 +213,13 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>我的待办</span>
+              <span>{{ t('dashboard.myTodos') }}</span>
               <el-badge :value="todos.length" class="item">
-                <el-button text @click="handleViewAllTodos">查看审批</el-button>
+                <el-button text @click="handleViewAllTodos">{{ t('dashboard.viewApprovals') }}</el-button>
               </el-badge>
             </div>
           </template>
-          <el-empty v-if="todos.length === 0" description="暂无待办事项" :image-size="120" />
+          <el-empty v-if="todos.length === 0" :description="t('dashboard.noTodos')" :image-size="120" />
           <div v-else class="todo-list">
             <div
               v-for="todo in todos"
@@ -243,7 +243,7 @@
                 </div>
               </div>
               <div class="todo-action">
-                <el-button type="primary" link>处理</el-button>
+                <el-button type="primary" link>{{ t('dashboard.process') }}</el-button>
               </div>
             </div>
           </div>
@@ -254,7 +254,7 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>快捷操作</span>
+              <span>{{ t('dashboard.quickActionsTitle') }}</span>
             </div>
           </template>
           <div class="quick-actions">
@@ -277,18 +277,18 @@
         <el-card style="margin-top: 20px">
           <template #header>
             <div class="card-header">
-              <span>库存预警</span>
+              <span>{{ t('dashboard.stockAlerts') }}</span>
               <el-button text type="warning" @click="handleViewAlerts">
-                查看全部 {{ summary.lowStockAlerts }} 项
+                {{ t('dashboard.viewAllAlerts', { count: formatNumber(summary.lowStockAlerts) }) }}
               </el-button>
             </div>
           </template>
-          <el-empty v-if="lowStock.length === 0" description="暂无库存预警" :image-size="80" />
+          <el-empty v-if="lowStock.length === 0" :description="t('dashboard.noInventoryAlerts')" :image-size="80" />
           <div v-else class="alert-list">
             <div v-for="alert in lowStock" :key="alert.ruleId" class="alert-item">
               <el-icon color="#e6a23c" :size="18"><Warning /></el-icon>
-              <span class="alert-text">商品 {{ alert.productId }} / 仓库 {{ alert.warehouseId }}</span>
-              <el-tag size="small" type="warning">缺口 {{ alert.shortageQty }}</el-tag>
+              <span class="alert-text">{{ t('dashboard.lowStockItem', { productId: alert.productId, warehouseId: alert.warehouseId }) }}</span>
+              <el-tag size="small" type="warning">{{ t('dashboard.shortage', { count: formatNumber(alert.shortageQty) }) }}</el-tag>
             </div>
           </div>
         </el-card>
@@ -296,11 +296,11 @@
         <el-card style="margin-top: 20px">
           <template #header>
             <div class="card-header">
-              <span>最近失败操作</span>
-              <el-button text type="danger" @click="handleQuickAction('/system/logs')">查看日志</el-button>
+              <span>{{ t('dashboard.failedOperationsTitle') }}</span>
+              <el-button text type="danger" @click="handleQuickAction('/system/logs')">{{ t('dashboard.viewLogs') }}</el-button>
             </div>
           </template>
-          <el-empty v-if="failedOperations.length === 0" description="暂无失败操作" :image-size="80" />
+          <el-empty v-if="failedOperations.length === 0" :description="t('dashboard.noFailedOperations')" :image-size="80" />
           <div v-else class="alert-list">
             <div v-for="log in failedOperations" :key="log.id" class="alert-item">
               <el-icon color="#f56c6c" :size="18"><CircleClose /></el-icon>
@@ -318,6 +318,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
 import { ElMessage } from 'element-plus'
 import {
@@ -351,7 +352,7 @@ import {
   type OperationsDashboardTodo
 } from '@/api/dashboard'
 import { getFinanceAgingSummary, type FinanceAgingSummary } from '@/api/finance'
-import { formatLocalizedDateTime, formatLocalizedNumber, readDisplayPreferences } from '@/utils/locale'
+import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 
 use([BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
@@ -364,8 +365,9 @@ type DashboardChartOption = ComposeOption<
 >
 
 const router = useRouter()
+const appStore = useAppStore()
 const userStore = useUserStore()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
 const emptyDashboard: OperationsDashboard = {
   summary: {
@@ -397,17 +399,23 @@ const summary = computed(() => dashboard.value.summary)
 const todos = computed<OperationsDashboardTodo[]>(() => dashboard.value.todos || [])
 const lowStock = computed<OperationsDashboardLowStock[]>(() => dashboard.value.lowStock || [])
 const failedOperations = computed<OperationsDashboardFailedOperation[]>(() => dashboard.value.failedOperations || [])
+const displayPreferences = computed(() => ({
+  locale: appStore.locale,
+  timeZone: appStore.timeZone
+}))
 const generatedTimeText = computed(() => {
-  return dashboard.value.generatedAt ? `更新于 ${formatDateTime(dashboard.value.generatedAt)}` : '等待数据'
+  return dashboard.value.generatedAt
+    ? t('dashboard.updatedAt', { time: formatDateTime(dashboard.value.generatedAt) })
+    : t('dashboard.waitingData')
 })
 
-const quickActions = ref([
-  { name: '采购订单', icon: 'ShoppingCart', color: '#409eff', route: '/purchase/orders' },
-  { name: '销售订单', icon: 'Sell', color: '#67c23a', route: '/sales/orders' },
-  { name: '库存查询', icon: 'Box', color: '#e6a23c', route: '/inventory/stocks' },
-  { name: '财务凭证', icon: 'Tickets', color: '#f56c6c', route: '/finance/vouchers' },
-  { name: '收付款', icon: 'Money', color: '#909399', route: '/finance/payments' },
-  { name: '生产订单', icon: 'List', color: '#606266', route: '/production/orders' }
+const quickActions = computed(() => [
+  { name: t('dashboard.quickPurchaseOrders'), icon: 'ShoppingCart', color: '#409eff', route: '/purchase/orders' },
+  { name: t('dashboard.quickSalesOrders'), icon: 'Sell', color: '#67c23a', route: '/sales/orders' },
+  { name: t('dashboard.quickInventoryStocks'), icon: 'Box', color: '#e6a23c', route: '/inventory/stocks' },
+  { name: t('dashboard.quickFinanceVouchers'), icon: 'Tickets', color: '#f56c6c', route: '/finance/vouchers' },
+  { name: t('dashboard.quickFinancePayments'), icon: 'Money', color: '#909399', route: '/finance/payments' },
+  { name: t('dashboard.quickProductionOrders'), icon: 'List', color: '#606266', route: '/production/orders' }
 ])
 
 const operationsChartRef = ref<HTMLDivElement>()
@@ -417,8 +425,8 @@ let settlementChart: EChartsType | null = null
 
 const updateTime = () => {
   const now = new Date()
-  const { timeZone } = readDisplayPreferences()
-  currentTime.value = new Intl.DateTimeFormat(locale.value, {
+  const { locale, timeZone } = displayPreferences.value
+  currentTime.value = new Intl.DateTimeFormat(locale, {
     timeZone,
     year: 'numeric',
     month: 'long',
@@ -427,7 +435,10 @@ const updateTime = () => {
   }).format(now)
 }
 
-watch(locale, updateTime)
+watch([() => appStore.locale, () => appStore.timeZone], () => {
+  updateTime()
+  updateCharts()
+})
 
 const loadDashboard = async () => {
   loading.value = true
@@ -442,7 +453,7 @@ const loadDashboard = async () => {
     updateCharts()
   } catch (error) {
     dashboard.value = emptyDashboard
-    ElMessage.error('加载工作台数据失败')
+    ElMessage.error(t('dashboard.loadFailed'))
     updateCharts()
   } finally {
     loading.value = false
@@ -472,12 +483,18 @@ const updateOperationsChart = () => {
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: {
       type: 'category',
-      data: ['待审批', '库存预警', '未结应收', '未结应付', '失败操作']
+      data: [
+        t('dashboard.pendingApprovals'),
+        t('dashboard.stockAlerts'),
+        t('dashboard.openReceivables'),
+        t('dashboard.openPayables'),
+        t('dashboard.failedOperationsShort')
+      ]
     },
     yAxis: { type: 'value', minInterval: 1 },
     series: [
       {
-        name: '待处理数量',
+        name: t('dashboard.operationsCount'),
         type: 'bar',
         barWidth: 32,
         data: [
@@ -502,7 +519,7 @@ const updateSettlementChart = () => {
   const option: DashboardChartOption = {
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: ¥{c}'
+      formatter: (params: any) => `${params.name}: ${formatCurrency(Number(params.value || 0))}`
     },
     legend: {
       orient: 'vertical',
@@ -511,7 +528,7 @@ const updateSettlementChart = () => {
     },
     series: [
       {
-        name: '金额',
+        name: t('dashboard.amount'),
         type: 'pie',
         radius: ['42%', '70%'],
         center: ['40%', '50%'],
@@ -521,9 +538,9 @@ const updateSettlementChart = () => {
           borderWidth: 2
         },
         data: [
-          { value: summary.value.openReceivableAmount, name: '未结应收', itemStyle: { color: '#626aef' } },
-          { value: summary.value.openPayableAmount, name: '未结应付', itemStyle: { color: '#909399' } },
-          { value: summary.value.todaySalesAmount, name: '今日销售', itemStyle: { color: '#67c23a' } }
+          { value: summary.value.openReceivableAmount, name: t('dashboard.openReceivables'), itemStyle: { color: '#626aef' } },
+          { value: summary.value.openPayableAmount, name: t('dashboard.openPayables'), itemStyle: { color: '#909399' } },
+          { value: summary.value.todaySalesAmount, name: t('dashboard.todaySalesAmount'), itemStyle: { color: '#67c23a' } }
         ]
       }
     ]
@@ -532,20 +549,24 @@ const updateSettlementChart = () => {
 }
 
 const formatNumber = (num?: number) => {
-  return formatLocalizedNumber(Number(num || 0))
+  return formatLocalizedNumber(Number(num || 0), {}, displayPreferences.value)
+}
+
+const formatCurrency = (num?: number) => {
+  return formatLocalizedCurrency(Number(num || 0), {}, displayPreferences.value)
 }
 
 const formatDateTime = (value?: string) => {
-  return formatLocalizedDateTime(value) || '-'
+  return formatLocalizedDateTime(value, {}, displayPreferences.value) || '-'
 }
 
 const formatPriority = (priority: string) => {
   const labels: Record<string, string> = {
-    HIGH: '紧急',
-    MEDIUM: '重要',
-    LOW: '普通'
+    HIGH: t('dashboard.priority.high'),
+    MEDIUM: t('dashboard.priority.medium'),
+    LOW: t('dashboard.priority.low')
   }
-  return labels[priority] || priority || '普通'
+  return labels[priority] || priority || t('dashboard.priority.low')
 }
 
 const getTodoIcon = (type: string) => {

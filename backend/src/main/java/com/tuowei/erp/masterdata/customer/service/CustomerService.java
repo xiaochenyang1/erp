@@ -33,8 +33,10 @@ public class CustomerService {
     private static final List<String> CUSTOMER_EXPORT_HEADERS = List.of(
             "customerCode",
             "customerName",
+            "customerType",
             "contactName",
             "contactPhone",
+            "email",
             "settlementMethod",
             "creditLimit",
             "address",
@@ -60,12 +62,14 @@ public class CustomerService {
         entity.setAccountBookId(audit.accountBookId());
         entity.setCustomerCode(request.customerCode());
         entity.setCustomerName(request.customerName());
+        entity.setCustomerType(request.customerType());
         entity.setContactName(request.contactName());
         entity.setContactPhone(request.contactPhone());
+        entity.setEmail(request.email());
         entity.setSettlementMethod(request.settlementMethod());
         entity.setCreditLimit(request.creditLimit());
         entity.setAddress(request.address());
-        entity.setStatus("ACTIVE");
+        entity.setStatus(StringUtils.hasText(request.status()) ? request.status() : "ACTIVE");
         entity.setDeletedFlag(0);
         entity.setRemark(request.remark());
         entity.setCreatedBy(audit.userId());
@@ -89,6 +93,7 @@ public class CustomerService {
         long pageNo = normalizePageNo(safeQuery.getPageNo());
         long pageSize = normalizePageSize(safeQuery.getPageSize());
         String keyword = normalizeNullableText(safeQuery.getKeyword());
+        String type = normalizeNullableText(safeQuery.getType());
         String status = normalizeStatus(safeQuery.getStatus());
         String settlementMethod = normalizeNullableText(safeQuery.getSettlementMethod());
         AuditMetadata audit = auditMetadataFactory.current();
@@ -96,7 +101,7 @@ public class CustomerService {
         Page<CustomerEntity> page = new Page<>(pageNo, pageSize);
         Page<CustomerEntity> result = customerMapper.selectPage(
                 page,
-                buildListQuery(audit.companyId(), audit.accountBookId(), keyword, status, settlementMethod)
+                buildListQuery(audit.companyId(), audit.accountBookId(), keyword, type, status, settlementMethod)
         );
 
         return new PageResponse<>(
@@ -112,11 +117,12 @@ public class CustomerService {
         CustomerPageQuery safeQuery = query == null ? new CustomerPageQuery() : query;
         return outputStream -> withAuthentication(authentication, () -> CsvExport.write(outputStream, CUSTOMER_EXPORT_HEADERS, rowWriter -> {
             String keyword = normalizeNullableText(safeQuery.getKeyword());
+            String type = normalizeNullableText(safeQuery.getType());
             String status = normalizeStatus(safeQuery.getStatus());
             String settlementMethod = normalizeNullableText(safeQuery.getSettlementMethod());
             AuditMetadata audit = auditMetadataFactory.current();
             List<CustomerEntity> customers = customerMapper.selectList(
-                    buildListQuery(audit.companyId(), audit.accountBookId(), keyword, status, settlementMethod)
+                    buildListQuery(audit.companyId(), audit.accountBookId(), keyword, type, status, settlementMethod)
             );
             for (CustomerEntity entity : customers) {
                 rowWriter.write(customerExportRow(toResponse(entity)));
@@ -129,11 +135,16 @@ public class CustomerService {
         CustomerEntity entity = requireCustomer(id);
         AuditMetadata audit = auditMetadataFactory.current();
         entity.setCustomerName(request.customerName());
+        entity.setCustomerType(request.customerType());
         entity.setContactName(request.contactName());
         entity.setContactPhone(request.contactPhone());
+        entity.setEmail(request.email());
         entity.setSettlementMethod(request.settlementMethod());
         entity.setCreditLimit(request.creditLimit());
         entity.setAddress(request.address());
+        if (StringUtils.hasText(request.status())) {
+            entity.setStatus(request.status());
+        }
         entity.setRemark(request.remark());
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(audit.now());
@@ -148,7 +159,7 @@ public class CustomerService {
 
     @Transactional
     public CustomerResponse disable(Long id) {
-        return updateStatus(id, "DISABLED");
+        return updateStatus(id, "INACTIVE");
     }
 
     private CustomerEntity requireCustomer(Long id) {
@@ -172,7 +183,14 @@ public class CustomerService {
         return toResponse(entity);
     }
 
-    private LambdaQueryWrapper<CustomerEntity> buildListQuery(Long companyId, Long accountBookId, String keyword, String status, String settlementMethod) {
+    private LambdaQueryWrapper<CustomerEntity> buildListQuery(
+            Long companyId,
+            Long accountBookId,
+            String keyword,
+            String type,
+            String status,
+            String settlementMethod
+    ) {
         LambdaQueryWrapper<CustomerEntity> wrapper = new LambdaQueryWrapper<CustomerEntity>()
                 .eq(CustomerEntity::getCompanyId, companyId)
                 .eq(CustomerEntity::getAccountBookId, accountBookId)
@@ -183,6 +201,9 @@ public class CustomerService {
                     .like(CustomerEntity::getCustomerName, keyword)
                     .or()
                     .like(CustomerEntity::getContactName, keyword));
+        }
+        if (StringUtils.hasText(type)) {
+            wrapper.eq(CustomerEntity::getCustomerType, type);
         }
         if (StringUtils.hasText(status)) {
             wrapper.eq(CustomerEntity::getStatus, status);
@@ -197,8 +218,10 @@ public class CustomerService {
         return Arrays.asList(
                 record.customerCode(),
                 record.customerName(),
+                record.customerType(),
                 record.contactName(),
                 record.contactPhone(),
+                record.email(),
                 record.settlementMethod(),
                 record.creditLimit(),
                 record.address(),
@@ -241,8 +264,10 @@ public class CustomerService {
                 entity.getId(),
                 entity.getCustomerCode(),
                 entity.getCustomerName(),
+                entity.getCustomerType(),
                 entity.getContactName(),
                 entity.getContactPhone(),
+                entity.getEmail(),
                 entity.getSettlementMethod(),
                 entity.getCreditLimit(),
                 entity.getAddress(),

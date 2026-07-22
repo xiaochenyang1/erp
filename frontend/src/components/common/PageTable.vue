@@ -10,14 +10,14 @@
       <div class="toolbar-left">
         <slot name="toolbar-left">
           <el-button v-if="showCreate" type="primary" :icon="Plus" @click="handleCreate">
-            {{ createText }}
+            {{ resolvedCreateText }}
           </el-button>
         </slot>
       </div>
       <div class="toolbar-right">
         <slot name="toolbar-right">
-          <el-button v-if="showExport" :icon="Download" @click="handleExport">导出</el-button>
-          <el-button :icon="Refresh" circle @click="handleRefresh" title="刷新"></el-button>
+          <el-button v-if="showExport" :icon="Download" @click="handleExport">{{ resolvedExportText }}</el-button>
+          <el-button :icon="Refresh" circle @click="handleRefresh" :title="resolvedRefreshTitle"></el-button>
         </slot>
         <slot name="column-setting"></slot>
       </div>
@@ -63,9 +63,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Plus, Download, Refresh } from '@element-plus/icons-vue'
 import type { TableInstance } from 'element-plus'
+import { useAppStore } from '@/store/modules/app'
 
 interface Props {
   data: any[]
@@ -83,6 +84,8 @@ interface Props {
   showExport?: boolean
   showPagination?: boolean
   createText?: string
+  exportText?: string
+  refreshTitle?: string
   page?: number
   pageSize?: number
   pageSizes?: number[]
@@ -102,12 +105,30 @@ const props = withDefaults(defineProps<Props>(), {
   showCreate: true,
   showExport: true,
   showPagination: true,
-  createText: '新增',
+  createText: '',
+  exportText: '',
+  refreshTitle: '',
   page: 1,
   pageSize: 20,
   pageSizes: () => [10, 20, 50, 100],
   paginationLayout: 'total, sizes, prev, pager, next, jumper'
 })
+
+const appStore = useAppStore()
+const texts = computed(() => appStore.locale === 'en-US'
+  ? {
+      create: 'Create',
+      export: 'Export',
+      refresh: 'Refresh'
+    }
+  : {
+      create: '新增',
+      export: '导出',
+      refresh: '刷新'
+    })
+const resolvedCreateText = computed(() => props.createText || texts.value.create)
+const resolvedExportText = computed(() => props.exportText || texts.value.export)
+const resolvedRefreshTitle = computed(() => props.refreshTitle || texts.value.refresh)
 
 const emit = defineEmits<{
   create: []

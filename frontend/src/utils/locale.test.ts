@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  formatLocalizedCurrency,
   formatLocalizedDateTime,
   formatLocalizedNumber,
   parseApiDateTime,
@@ -25,6 +26,8 @@ describe('localized display preferences', () => {
     localStorage.setItem('timeZone', 'UTC')
     expect(formatLocalizedDateTime('2026-07-22T16:00:00')).toContain('08:00:00')
     expect(formatLocalizedNumber(1234.5, { minimumFractionDigits: 2 })).toBe('1,234.50')
+    expect(formatLocalizedCurrency(1234.5)).toContain('1,234.50')
+    expect(formatLocalizedCurrency(1234.5)).toMatch(/¥/)
   })
 
   it('returns invalid source text instead of an Invalid Date label', () => {

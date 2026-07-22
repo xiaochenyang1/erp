@@ -22,6 +22,7 @@ import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
 import com.tuowei.erp.workflow.model.WorkflowTaskEntity;
+import org.junit.jupiter.api.AfterEach;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -47,6 +50,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OperationsDashboardServiceTest {
+
+    private static final ResourceBundleMessageSource MESSAGE_SOURCE = messageSource();
 
     private static final AuditMetadata AUDIT = new AuditMetadata(
             9001L,
@@ -90,6 +95,11 @@ class OperationsDashboardServiceTest {
         initTableInfo(PurchaseOrderEntity.class);
         initTableInfo(SalesOrderEntity.class);
         initTableInfo(OperationLogEntity.class);
+    }
+
+    @AfterEach
+    void resetLocale() {
+        LocaleContextHolder.resetLocaleContext();
     }
 
     @Test
@@ -194,6 +204,73 @@ class OperationsDashboardServiceTest {
         assertThat(response.todos()).hasSize(12);
     }
 
+    @Test
+    void localizesTodoTextForEnglishLocale() {
+        LocaleContextHolder.setLocale(Locale.US);
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(workflowTaskMapper.selectCount(any())).thenReturn(1L, 0L);
+        when(workflowTaskMapper.selectList(any())).thenReturn(List.of(
+                workflowTask(9101L, "PURCHASE_ORDER", "PO-001", LocalDateTime.of(2026, 6, 30, 9, 0))
+        ));
+        when(inventoryAlertService.listLowStock(null, null)).thenReturn(List.of(
+                new InventoryLowStockResponse(1L, 601L, 701L, new BigDecimal("2.0000"), new BigDecimal("10.0000"), new BigDecimal("8.0000"), "main shortage")
+        ));
+        when(receivableMapper.selectCount(any())).thenReturn(1L);
+        when(receivableMapper.selectList(any())).thenReturn(List.of(
+                receivable(9201L, "AR-001", LocalDate.of(2026, 6, 20), new BigDecimal("1000.00"), new BigDecimal("200.00"))
+        ));
+        when(payableMapper.selectCount(any())).thenReturn(1L);
+        when(payableMapper.selectList(any())).thenReturn(List.of(
+                payable(9301L, "AP-001", LocalDate.of(2026, 6, 18), new BigDecimal("900.00"), new BigDecimal("100.00"))
+        ));
+        when(purchaseOrderMapper.selectCount(any())).thenReturn(0L);
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of());
+        when(operationLogMapper.selectList(any())).thenReturn(List.of(
+                failedOperation(9501L, "purchase", "post", "GR-001", LocalDateTime.of(2026, 6, 30, 9, 30))
+        ));
+        when(salesDeliveryLineMapper.selectTopSkus(101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5))
+                .thenReturn(List.of());
+
+        var response = service().getOperationsDashboard();
+
+        assertThat(response.todos())
+                .anySatisfy(todo -> {
+                    if (!"WORKFLOW".equals(todo.type())) {
+                        return;
+                    }
+                    assertThat(todo.title()).isEqualTo("Pending approval: PO-001");
+                    assertThat(todo.description()).isEqualTo("Purchase order");
+                })
+                .anySatisfy(todo -> {
+                    if (!"LOW_STOCK".equals(todo.type())) {
+                        return;
+                    }
+                    assertThat(todo.title()).isEqualTo("Low stock alert: product 701");
+                    assertThat(todo.description()).isEqualTo("Warehouse 601, shortage 8.0000");
+                })
+                .anySatisfy(todo -> {
+                    if (!"RECEIVABLE_OVERDUE".equals(todo.type())) {
+                        return;
+                    }
+                    assertThat(todo.title()).isEqualTo("Overdue receivable: AR-001");
+                    assertThat(todo.description()).isEqualTo("Business date 2026-06-20, open amount 800.00");
+                })
+                .anySatisfy(todo -> {
+                    if (!"PAYABLE_OVERDUE".equals(todo.type())) {
+                        return;
+                    }
+                    assertThat(todo.title()).isEqualTo("Overdue payable: AP-001");
+                    assertThat(todo.description()).isEqualTo("Business date 2026-06-18, open amount 800.00");
+                })
+                .anySatisfy(todo -> {
+                    if (!"FAILED_OPERATION".equals(todo.type())) {
+                        return;
+                    }
+                    assertThat(todo.title()).isEqualTo("Operation failed: GR-001");
+                    assertThat(todo.description()).isEqualTo("/api/purchase/receipts/1/post");
+                });
+    }
+
     private OperationsDashboardService service() {
         return new OperationsDashboardService(
                 auditMetadataFactory,
@@ -205,7 +282,8 @@ class OperationsDashboardServiceTest {
                 salesOrderMapper,
                 operationLogMapper,
                 salesDeliveryLineMapper,
-                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"))
+                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai")),
+                MESSAGE_SOURCE
         );
     }
 
@@ -288,5 +366,12 @@ class OperationsDashboardServiceTest {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), entityClass.getName());
         assistant.setCurrentNamespace(entityClass.getName());
         TableInfoHelper.initTableInfo(assistant, entityClass);
+    }
+
+    private static ResourceBundleMessageSource messageSource() {
+        ResourceBundleMessageSource source = new ResourceBundleMessageSource();
+        source.setBasename("messages");
+        source.setDefaultEncoding("UTF-8");
+        return source;
     }
 }

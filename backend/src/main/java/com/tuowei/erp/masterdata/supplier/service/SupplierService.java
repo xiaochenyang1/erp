@@ -35,7 +35,9 @@ public class SupplierService {
             "supplierName",
             "contactName",
             "contactPhone",
+            "email",
             "settlementMethod",
+            "creditPeriod",
             "address",
             "status",
             "remark"
@@ -61,9 +63,11 @@ public class SupplierService {
         entity.setSupplierName(request.supplierName());
         entity.setContactName(request.contactName());
         entity.setContactPhone(request.contactPhone());
+        entity.setEmail(request.email());
         entity.setSettlementMethod(request.settlementMethod());
+        entity.setCreditPeriod(request.creditPeriod());
         entity.setAddress(request.address());
-        entity.setStatus("ACTIVE");
+        entity.setStatus(StringUtils.hasText(request.status()) ? request.status() : "ACTIVE");
         entity.setDeletedFlag(0);
         entity.setRemark(request.remark());
         entity.setCreatedBy(audit.userId());
@@ -129,8 +133,13 @@ public class SupplierService {
         entity.setSupplierName(request.supplierName());
         entity.setContactName(request.contactName());
         entity.setContactPhone(request.contactPhone());
+        entity.setEmail(request.email());
         entity.setSettlementMethod(request.settlementMethod());
+        entity.setCreditPeriod(request.creditPeriod());
         entity.setAddress(request.address());
+        if (StringUtils.hasText(request.status())) {
+            entity.setStatus(request.status());
+        }
         entity.setRemark(request.remark());
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(audit.now());
@@ -145,7 +154,7 @@ public class SupplierService {
 
     @Transactional
     public SupplierResponse disable(Long id) {
-        return updateStatus(id, "DISABLED");
+        return updateStatus(id, "INACTIVE");
     }
 
     private SupplierEntity requireSupplier(Long id) {
@@ -196,7 +205,9 @@ public class SupplierService {
                 record.supplierName(),
                 record.contactName(),
                 record.contactPhone(),
+                record.email(),
                 record.settlementMethod(),
+                record.creditPeriod(),
                 record.address(),
                 record.status(),
                 record.remark()
@@ -239,7 +250,9 @@ public class SupplierService {
                 entity.getSupplierName(),
                 entity.getContactName(),
                 entity.getContactPhone(),
+                entity.getEmail(),
                 entity.getSettlementMethod(),
+                entity.getCreditPeriod(),
                 entity.getAddress(),
                 entity.getStatus(),
                 entity.getRemark()
