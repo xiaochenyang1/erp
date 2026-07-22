@@ -5,6 +5,8 @@ import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.common.security.PermissionCodes;
 import com.tuowei.erp.common.web.SafeFilename;
 import com.tuowei.erp.masterdata.supplier.service.SupplierService;
+import com.tuowei.erp.masterdata.supplier.service.SupplierPayableExposureService;
+import com.tuowei.erp.masterdata.supplier.web.SupplierPayableExposureResponse;
 import com.tuowei.erp.masterdata.supplier.web.SupplierCreateRequest;
 import com.tuowei.erp.masterdata.supplier.web.SupplierPageQuery;
 import com.tuowei.erp.masterdata.supplier.web.SupplierResponse;
@@ -31,9 +33,11 @@ import java.nio.charset.StandardCharsets;
 public class SupplierController {
 
     private final SupplierService supplierService;
+    private final SupplierPayableExposureService supplierPayableExposureService;
 
-    public SupplierController(SupplierService supplierService) {
+    public SupplierController(SupplierService supplierService, SupplierPayableExposureService supplierPayableExposureService) {
         this.supplierService = supplierService;
+        this.supplierPayableExposureService = supplierPayableExposureService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_MASTERDATA_SUPPLIER_CREATE)
@@ -58,6 +62,12 @@ public class SupplierController {
     @GetMapping("/{id}")
     public ApiResponse<SupplierResponse> detail(@PathVariable Long id) {
         return ApiResponse.success(supplierService.getById(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_MASTERDATA_SUPPLIER_VIEW)
+    @GetMapping("/{id}/payable-exposure")
+    public ApiResponse<SupplierPayableExposureResponse> payableExposure(@PathVariable Long id) {
+        return ApiResponse.success(supplierPayableExposureService.exposure(id));
     }
 
     @PreAuthorize(PermissionCodes.HAS_MASTERDATA_SUPPLIER_UPDATE)

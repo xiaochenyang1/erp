@@ -261,6 +261,18 @@
                 </template>
               </div>
             </div>
+            <div class="detail-item">
+              <div class="detail-label">未结应付</div>
+              <div class="detail-value credit">¥{{ Number(payableExposure?.outstandingPayable || 0).toFixed(2) }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">未收货采购承诺</div>
+              <div class="detail-value credit">¥{{ Number(payableExposure?.openPurchaseOrderAmount || 0).toFixed(2) }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">应付敞口合计</div>
+              <div class="detail-value credit">¥{{ Number(payableExposure?.totalExposure || 0).toFixed(2) }}</div>
+            </div>
           </div>
         </div>
 
@@ -307,12 +319,14 @@ import {
 import {
   getSuppliers,
   getSupplier,
+  getSupplierPayableExposure,
   createSupplier,
   updateSupplier,
   deleteSupplier,
   enableSupplier,
   exportSuppliers,
   type Supplier,
+  type SupplierPayableExposure,
   type SupplierQuery,
   type SupplierSaveRequest
 } from '@/api/masterdata'
@@ -344,6 +358,7 @@ const dialogTitle = computed(() => (formData.id ? '编辑供应商' : '新增供
 const submitting = ref(false)
 const detailVisible = ref(false)
 const currentRow = ref<Supplier>()
+const payableExposure = ref<SupplierPayableExposure>()
 
 // 表单数据
 const formData = reactive<SupplierSaveRequest & { id?: string }>({
@@ -461,6 +476,7 @@ const handleEdit = (row: Supplier) => {
 const handleView = async (row: Supplier) => {
   try {
     currentRow.value = await getSupplier(row.id)
+    payableExposure.value = await getSupplierPayableExposure(row.id)
     detailVisible.value = true
   } catch {
     ElMessage.error('加载供应商详情失败')

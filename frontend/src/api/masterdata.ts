@@ -349,6 +349,13 @@ export interface SupplierSaveRequest {
   remark?: string
 }
 
+export interface SupplierPayableExposure {
+  supplierId: string
+  outstandingPayable: number
+  openPurchaseOrderAmount: number
+  totalExposure: number
+}
+
 // 供应商API
 export const getSuppliers = (params: SupplierQuery) => {
   return request.get<PageResponse<Supplier>>('/masterdata/suppliers', {
@@ -361,6 +368,13 @@ export const getSuppliers = (params: SupplierQuery) => {
 
 export const getSupplier = (id: string | number) => {
   return request.get<Supplier>(`/masterdata/suppliers/${id}`).then(normalizeSupplier)
+}
+
+export const getSupplierPayableExposure = (id: string | number) => {
+  return request.get<SupplierPayableExposure>(`/masterdata/suppliers/${id}/payable-exposure`).then((exposure) => ({
+    ...exposure,
+    supplierId: String(exposure.supplierId)
+  }))
 }
 
 export const createSupplier = (data: SupplierSaveRequest) => {
