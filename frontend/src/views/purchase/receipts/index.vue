@@ -373,7 +373,7 @@
             <div class="detail-item">
               <div class="detail-label">订单金额</div>
               <div class="detail-value amount">
-                ¥{{ linkedOrder.totalAmount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}
+                ¥{{ formatMoney(linkedOrder.totalAmount) }}
               </div>
             </div>
           </div>
@@ -391,12 +391,12 @@
             <el-table-column prop="receivedQty" label="已收数量" width="100" align="center" />
             <el-table-column prop="price" label="单价" width="120" align="right">
               <template #default="{ row }">
-                ¥{{ row.price?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}
+                ¥{{ formatMoney(row.price) }}
               </template>
             </el-table-column>
             <el-table-column prop="amount" label="金额" width="140" align="right">
               <template #default="{ row }">
-                ¥{{ row.amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}
+                ¥{{ formatMoney(row.amount) }}
               </template>
             </el-table-column>
             <el-table-column prop="remark" label="备注" min-width="120" />
@@ -469,9 +469,14 @@ import { incrementScannedLine } from '@/utils/barcode'
 import { hydrateProductLineLabels } from '@/utils/productLines'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
+import { formatLocalizedNumber } from '@/utils/locale'
 
 const userStore = useUserStore()
 const canCreate = computed(() => userStore.hasPermission('purchase:receipt:create'))
+const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
 
 const route = useRoute()
 const readQueryString = (key: string) => {

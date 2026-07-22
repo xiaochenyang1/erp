@@ -102,7 +102,7 @@
       <el-table-column prop="expectedDate" label="预计到货" width="120" align="center" />
       <el-table-column prop="totalAmount" label="订单金额" width="140" align="right">
         <template #default="{ row }">
-          <span class="amount-value">¥{{ row.totalAmount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</span>
+          <span class="amount-value">¥{{ formatMoney(row.totalAmount) }}</span>
         </template>
       </el-table-column>
       <el-table-column prop="status" label="订单状态" width="110" align="center">
@@ -244,7 +244,7 @@
             </el-table-column>
             <el-table-column label="金额（元）" width="140" align="right">
               <template #default="{ row }">
-                <span class="item-amount">{{ row.amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</span>
+                <span class="item-amount">{{ formatMoney(row.amount) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="备注">
@@ -262,7 +262,7 @@
           </el-table>
           <div class="total-row">
             <span class="total-label">订单总金额：</span>
-            <span class="total-amount">¥{{ orderTotal.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</span>
+            <span class="total-amount">¥{{ formatMoney(orderTotal) }}</span>
           </div>
         </div>
 
@@ -317,7 +317,7 @@
             </div>
             <div class="detail-item">
               <div class="detail-label">订单金额</div>
-              <div class="detail-value amount">¥{{ currentRow.totalAmount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</div>
+              <div class="detail-value amount">¥{{ formatMoney(currentRow.totalAmount) }}</div>
             </div>
           </div>
         </div>
@@ -333,12 +333,12 @@
             <el-table-column prop="quantity" label="数量" width="100" align="center" />
             <el-table-column prop="price" label="单价" width="120" align="right">
               <template #default="{ row }">
-                ¥{{ row.price?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}
+                ¥{{ formatMoney(row.price) }}
               </template>
             </el-table-column>
             <el-table-column prop="amount" label="金额" width="140" align="right">
               <template #default="{ row }">
-                <span class="item-amount">¥{{ row.amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</span>
+                <span class="item-amount">¥{{ formatMoney(row.amount) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="remark" label="备注" min-width="120" />
@@ -384,7 +384,7 @@
           <el-descriptions-item label="已收数量">{{ purchaseTrace.executionInfo.receivedQty }}</el-descriptions-item>
           <el-descriptions-item label="待收数量">{{ purchaseTrace.executionInfo.remainingReceiptQty }}</el-descriptions-item>
           <el-descriptions-item label="收货状态">{{ purchaseTrace.executionInfo.receiptStatus || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="订单金额">¥{{ purchaseTrace.order.totalAmount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</el-descriptions-item>
+          <el-descriptions-item label="订单金额">¥{{ formatMoney(purchaseTrace.order.totalAmount) }}</el-descriptions-item>
           <el-descriptions-item label="供应商">{{ purchaseTrace.order.supplierName }}</el-descriptions-item>
         </el-descriptions>
 
@@ -399,7 +399,7 @@
             <el-table-column prop="status" label="状态" width="110" />
             <el-table-column prop="amount" label="金额" width="140" align="right">
               <template #default="{ row }">
-                ¥{{ row.amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}
+                ¥{{ formatMoney(row.amount) }}
               </template>
             </el-table-column>
           </el-table>
@@ -452,9 +452,14 @@ import { getProducts, getSuppliers, type Product, type Supplier } from '@/api/ma
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
+import { formatLocalizedNumber } from '@/utils/locale'
 
 const userStore = useUserStore()
 const canCreate = computed(() => userStore.hasPermission('purchase:order:create'))
+const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
 
 const route = useRoute()
 const readQueryString = (key: string) => {
