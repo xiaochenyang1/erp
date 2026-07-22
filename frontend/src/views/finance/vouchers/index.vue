@@ -107,6 +107,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
+import { formatLocalizedNumber } from '@/utils/locale'
 import {
   getVoucher,
   getVoucherEntries,
@@ -173,7 +174,7 @@ const handleView = async (row: Voucher) => {
 const toVoucherRow = (row: unknown) => row as Voucher
 
 const formatMoney = (amount?: number) => {
-  return `¥${Number(amount || 0).toLocaleString('zh-CN', {
+  return `¥${formatLocalizedNumber(Number(amount || 0), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })}`

@@ -348,6 +348,7 @@ import {
 import { getWarehouses, type Warehouse } from '@/api/masterdata'
 import { getProducts, type Product } from '@/api/masterdata'
 import { getSuppliers, type Supplier } from '@/api/masterdata'
+import { formatLocalizedNumber } from '@/utils/locale'
 
 const router = useRouter()
 
@@ -661,7 +662,7 @@ const handleReactivate = async (row: InventoryAlert) => {
   }
 }
 
-const formatNumber = (value?: number) => Number(value ?? 0).toLocaleString('zh-CN', {
+const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
   maximumFractionDigits: 4
 })
 

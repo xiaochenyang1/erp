@@ -314,6 +314,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { formatLocalizedNumber } from '@/utils/locale'
 import {
   approveManualVoucher,
   cancelManualVoucher,
@@ -655,7 +656,7 @@ const statusTagType = (status: string) => {
 const formatAmount = (amount?: number | string) => {
   const value = Number(amount ?? 0)
   return Number.isFinite(value)
-    ? value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ? formatLocalizedNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : '0.00'
 }
 

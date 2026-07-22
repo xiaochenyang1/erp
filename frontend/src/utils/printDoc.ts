@@ -1,6 +1,8 @@
 /**
  * 浏览器打印：打开新窗口写入 HTML 后调用 print。
  */
+import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+
 export function printHtml(title: string, bodyHtml: string) {
   const win = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
   if (!win) {
@@ -53,14 +55,14 @@ export function escapeHtml(value: unknown): string {
 }
 
 export function money(value: unknown): string {
-  return Number(value ?? 0).toLocaleString('zh-CN', {
+  return formatLocalizedNumber(Number(value ?? 0), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })
 }
 
 export function qty(value: unknown): string {
-  return Number(value ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 4 })
+  return formatLocalizedNumber(Number(value ?? 0), { maximumFractionDigits: 4 })
 }
 
 export function buildDocPrintHtml(opts: {
@@ -83,7 +85,7 @@ export function buildDocPrintHtml(opts: {
     .join('')
   return `
     <h1>${escapeHtml(opts.title)}</h1>
-    <div class="meta">单号：${escapeHtml(opts.docNo)} · 打印时间：${escapeHtml(new Date().toLocaleString('zh-CN'))}</div>
+    <div class="meta">单号：${escapeHtml(opts.docNo)} · 打印时间：${escapeHtml(formatLocalizedDateTime(new Date()))}</div>
     <table class="info">${fieldRows}</table>
     <table>
       <thead><tr>${head}</tr></thead>

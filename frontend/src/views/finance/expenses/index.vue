@@ -340,6 +340,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { formatLocalizedNumber } from '@/utils/locale'
 import {
   CircleCheck,
   CircleClose,
@@ -660,7 +661,7 @@ const subjectName = (id?: string | number) => {
 }
 
 const formatAmount = (amount?: number) =>
-  Number(amount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  formatLocalizedNumber(Number(amount || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const checkLabel = (passed: boolean) => (passed ? '正常' : '异常')
 

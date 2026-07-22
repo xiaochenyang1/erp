@@ -229,6 +229,7 @@ import {
 } from '@/api/sales'
 import { getCustomers, getProducts, getWarehouses, type Customer, type Product, type Warehouse } from '@/api/masterdata'
 import { printSalesOrder } from '@/utils/bizPrint'
+import { formatLocalizedNumber } from '@/utils/locale'
 
 type PricedSalesOrderItem = SalesOrderItem & {
   minPrice?: number | null
@@ -546,8 +547,8 @@ const canApprove = (row: SalesOrder) => row.approvalStatus === 'IN_APPROVAL' || 
 const canUnapprove = (row: SalesOrder) => row.status === 'APPROVED' && row.approvalStatus === 'APPROVED' && row.deliveryStatus === 'NOT_DELIVERED'
 const canCancel = (row: SalesOrder) => row.status !== 'CANCELLED' && row.status !== 'CLOSED'
 const lineAmount = (row: SalesOrderItem) => Number(row.quantity ?? 0) * Number(row.price ?? 0)
-const formatNumber = (value?: number) => Number(value ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 4 })
-const formatMoney = (value?: number) => Number(value ?? 0).toLocaleString('zh-CN', {
+const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0), { maximumFractionDigits: 4 })
+const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 })

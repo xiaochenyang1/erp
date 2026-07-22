@@ -674,6 +674,7 @@ import {
 } from '@/api/inventory'
 import { getProducts, getWarehouses, type Product, type Warehouse } from '@/api/masterdata'
 import { downloadBlob } from '@/utils/download'
+import { formatLocalizedNumber } from '@/utils/locale'
 
 const route = useRoute()
 
@@ -1157,9 +1158,9 @@ const handleReservationCheck = async () => {
 
 const warehouseName = (id: string) => warehouseMap.value.get(String(id)) || `仓库 ${id}`
 const productName = (id: string) => productMap.value.get(String(id)) || `产品 ${id}`
-const formatNumber = (value?: number) => Number(value ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 4 })
+const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0), { maximumFractionDigits: 4 })
 const formatOptionalNumber = (value?: number) => value == null ? '-' : formatNumber(value)
-const formatMoney = (value?: number) => Number(value ?? 0).toLocaleString('zh-CN', {
+const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 })
