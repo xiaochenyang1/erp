@@ -5,6 +5,8 @@ import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.common.security.PermissionCodes;
 import com.tuowei.erp.common.web.SafeFilename;
 import com.tuowei.erp.masterdata.product.service.ProductService;
+import com.tuowei.erp.masterdata.product.service.ProductStockSummaryService;
+import com.tuowei.erp.masterdata.product.web.ProductStockSummaryResponse;
 import com.tuowei.erp.masterdata.product.web.ProductCreateRequest;
 import com.tuowei.erp.masterdata.product.web.ProductPageQuery;
 import com.tuowei.erp.masterdata.product.web.ProductResponse;
@@ -32,9 +34,11 @@ import java.nio.charset.StandardCharsets;
 public class ProductController {
 
     private final ProductService productService;
+    private final ProductStockSummaryService productStockSummaryService;
 
-    public ProductController(ProductService productService) {
+    public ProductController(ProductService productService, ProductStockSummaryService productStockSummaryService) {
         this.productService = productService;
+        this.productStockSummaryService = productStockSummaryService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_MASTERDATA_PRODUCT_CREATE)
@@ -65,6 +69,12 @@ public class ProductController {
     @GetMapping("/{id}")
     public ApiResponse<ProductResponse> detail(@PathVariable Long id) {
         return ApiResponse.success(productService.getById(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_MASTERDATA_PRODUCT_VIEW)
+    @GetMapping("/{id}/stock-summary")
+    public ApiResponse<ProductStockSummaryResponse> stockSummary(@PathVariable Long id) {
+        return ApiResponse.success(productStockSummaryService.summary(id));
     }
 
     @PreAuthorize(PermissionCodes.HAS_MASTERDATA_PRODUCT_UPDATE)

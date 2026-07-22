@@ -56,6 +56,15 @@ export interface ProductSaveRequest {
   remark?: string
 }
 
+export interface ProductStockSummary {
+  productId: string
+  warehouseCount: number
+  qtyOnHand: number
+  qtyReserved: number
+  qtyAvailable: number
+  amountOnHand: number
+}
+
 // 产品API
 export const getProducts = (params: ProductQuery) => {
   return request.get<PageResponse<ProductContract>>('/masterdata/products', {
@@ -68,6 +77,13 @@ export const getProducts = (params: ProductQuery) => {
 
 export const getProduct = (id: string | number) => {
   return request.get<ProductContract>(`/masterdata/products/${id}`).then(normalizeProduct)
+}
+
+export const getProductStockSummary = (id: string | number) => {
+  return request.get<ProductStockSummary>(`/masterdata/products/${id}/stock-summary`).then((summary) => ({
+    ...summary,
+    productId: String(summary.productId)
+  }))
 }
 
 export const getProductByBarcode = (barcode: string) => {

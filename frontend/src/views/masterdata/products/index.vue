@@ -328,6 +328,17 @@
         </div>
 
         <div class="detail-section">
+          <div class="section-title">库存概览</div>
+          <div class="detail-row">
+            <div class="detail-item"><div class="detail-label">现存数量</div><div class="detail-value">{{ stockSummary?.qtyOnHand ?? 0 }}</div></div>
+            <div class="detail-item"><div class="detail-label">预占数量</div><div class="detail-value">{{ stockSummary?.qtyReserved ?? 0 }}</div></div>
+            <div class="detail-item"><div class="detail-label">可用数量</div><div class="detail-value">{{ stockSummary?.qtyAvailable ?? 0 }}</div></div>
+            <div class="detail-item"><div class="detail-label">有库存仓库</div><div class="detail-value">{{ stockSummary?.warehouseCount ?? 0 }}</div></div>
+            <div class="detail-item"><div class="detail-label">库存金额</div><div class="detail-value price">¥{{ Number(stockSummary?.amountOnHand || 0).toFixed(2) }}</div></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
           <div class="section-title">其他信息</div>
           <div class="detail-row">
             <div class="detail-item">
@@ -362,12 +373,14 @@ import { Box, View, Edit, Delete, CircleCheck, Download, Refresh, Plus } from '@
 import {
   getProducts,
   getProduct,
+  getProductStockSummary,
   createProduct,
   updateProduct,
   deleteProduct,
   enableProduct,
   exportProducts,
   type Product,
+  type ProductStockSummary,
   type ProductQuery,
   type ProductSaveRequest
 } from '@/api/masterdata'
@@ -524,6 +537,7 @@ const dialogTitle = computed(() => (formData.id ? '编辑产品' : '新增产品
 const submitting = ref(false)
 const detailVisible = ref(false)
 const currentRow = ref<Product>()
+const stockSummary = ref<ProductStockSummary>()
 
 // 表单数据
 const formData = reactive<ProductSaveRequest & { id?: string }>({
@@ -660,6 +674,7 @@ const handleEdit = (row: Product) => {
 const handleView = async (row: Product) => {
   try {
     currentRow.value = await getProduct(row.id)
+    stockSummary.value = await getProductStockSummary(row.id)
     detailVisible.value = true
   } catch {
     ElMessage.error('加载产品详情失败')
