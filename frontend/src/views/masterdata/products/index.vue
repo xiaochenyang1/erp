@@ -8,17 +8,17 @@
             <Box />
           </el-icon>
           <div class="header-text">
-            <h1 class="page-title">产品管理</h1>
-            <p class="page-subtitle">管理系统中的所有产品信息</p>
+            <h1 class="page-title">{{ texts.pageTitle }}</h1>
+            <p class="page-subtitle">{{ texts.pageSubtitle }}</p>
           </div>
         </div>
         <div class="header-stats">
           <div class="stat-card">
-            <span class="stat-label">总产品数</span>
+            <span class="stat-label">{{ texts.totalProducts }}</span>
             <span class="stat-value">{{ total }}</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">启用中</span>
+            <span class="stat-label">{{ texts.activeProducts }}</span>
             <span class="stat-value active">{{ activeCount }}</span>
           </div>
         </div>
@@ -27,26 +27,26 @@
 
     <!-- 搜索栏 -->
     <search-bar v-model="searchForm" @search="handleSearch" @reset="handleReset">
-      <el-form-item label="产品编码" prop="code">
+      <el-form-item :label="texts.productCode" prop="code">
         <el-input
           v-model="searchForm.code"
-          placeholder="请输入产品编码"
+          :placeholder="texts.enterProductCode"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="产品名称" prop="name">
+      <el-form-item :label="texts.productName" prop="name">
         <el-input
           v-model="searchForm.name"
-          placeholder="请输入产品名称"
+          :placeholder="texts.enterProductName"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="状态" prop="status">
-        <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
-          <el-option label="启用" value="ACTIVE" />
-          <el-option label="停用" value="INACTIVE" />
+      <el-form-item :label="texts.status" prop="status">
+        <el-select v-model="searchForm.status" :placeholder="texts.selectStatus" clearable>
+          <el-option :label="texts.active" value="ACTIVE" />
+          <el-option :label="texts.inactive" value="INACTIVE" />
         </el-select>
       </el-form-item>
     </search-bar>
@@ -59,16 +59,16 @@
       :total="total"
       :page="searchForm.pageNo"
       :page-size="searchForm.pageSize"
+      class="product-table"
       @create="handleCreate"
       @export="handleExport"
       @refresh="loadData"
       @page-change="handlePageChange"
       @selection-change="handleSelectionChange"
-      class="product-table"
     >
       <template #toolbar-left>
         <el-button v-permission="'masterdata:product:create'" type="primary" :icon="Plus" @click="handleCreate">
-          新增产品
+          {{ texts.createProduct }}
         </el-button>
         <el-button
           v-permission="'masterdata:product:enable'"
@@ -77,7 +77,7 @@
           :icon="CircleCheck"
           @click="handleBatchEnable"
         >
-          批量启用{{ selectedRows.length ? `(${selectedRows.length})` : '' }}
+          {{ labelWithCount(texts.batchEnable, selectedRows.length) }}
         </el-button>
         <el-button
           v-permission="'masterdata:product:disable'"
@@ -86,61 +86,65 @@
           :icon="Delete"
           @click="handleBatchDisable"
         >
-          批量停用{{ selectedRows.length ? `(${selectedRows.length})` : '' }}
+          {{ labelWithCount(texts.batchDisable, selectedRows.length) }}
         </el-button>
         <el-button
           :disabled="selectedRows.length === 0"
           :icon="Download"
           @click="handleExportSelected"
         >
-          导出选中{{ selectedRows.length ? `(${selectedRows.length})` : '' }}
+          {{ labelWithCount(texts.exportSelected, selectedRows.length) }}
         </el-button>
       </template>
       <template #toolbar-right>
-        <el-button :icon="Download" @click="handleExport">导出</el-button>
+        <el-button :icon="Download" @click="handleExport">{{ texts.export }}</el-button>
         <table-column-setting
-          :columns="productColumns"
+          :columns="productColumnOptions"
           :model-value="columnVisible"
           @update:model-value="handleColumnVisibleUpdate"
           @reset="resetColumns"
         />
-        <el-button :icon="Refresh" circle title="刷新" @click="loadData" />
+        <el-button :icon="Refresh" circle :title="texts.refresh" @click="loadData" />
       </template>
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column prop="code" label="产品编码" width="140" fixed>
+      <el-table-column prop="code" :label="texts.productCode" width="140" fixed>
         <template #default="{ row }">
           <span class="code-badge">{{ row.code }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="产品名称" min-width="180" show-overflow-tooltip />
-      <el-table-column v-if="isColumnVisible('categoryName')" prop="categoryName" label="产品分类" width="140" />
-      <el-table-column v-if="isColumnVisible('specifications')" prop="specifications" label="规格型号" width="140" show-overflow-tooltip />
-      <el-table-column v-if="isColumnVisible('unit')" prop="unit" label="单位" width="80" align="center" />
-      <el-table-column v-if="isColumnVisible('unitPrice')" prop="unitPrice" label="销售单价" width="120" align="right">
+      <el-table-column prop="name" :label="texts.productName" min-width="180" show-overflow-tooltip />
+      <el-table-column v-if="isColumnVisible('categoryName')" prop="categoryName" :label="texts.productCategory" width="140" />
+      <el-table-column v-if="isColumnVisible('specifications')" prop="specifications" :label="texts.specification" width="140" show-overflow-tooltip />
+      <el-table-column v-if="isColumnVisible('unit')" prop="unit" :label="texts.unit" width="100" align="center">
         <template #default="{ row }">
-          <span class="price-value">¥{{ row.unitPrice?.toFixed(2) || '-' }}</span>
+          <span>{{ formatUnit(row.unit) }}</span>
         </template>
       </el-table-column>
-      <el-table-column v-if="isColumnVisible('costPrice')" prop="costPrice" label="成本单价" width="120" align="right">
+      <el-table-column v-if="isColumnVisible('unitPrice')" prop="unitPrice" :label="texts.salePrice" width="140" align="right">
         <template #default="{ row }">
-          <span class="price-value">¥{{ row.costPrice?.toFixed(2) || '-' }}</span>
+          <span class="price-value">{{ formatCurrency(row.unitPrice) }}</span>
         </template>
       </el-table-column>
-      <el-table-column v-if="isColumnVisible('status')" prop="status" label="状态" width="100" align="center">
+      <el-table-column v-if="isColumnVisible('costPrice')" prop="costPrice" :label="texts.costPrice" width="140" align="right">
+        <template #default="{ row }">
+          <span class="price-value">{{ formatCurrency(row.costPrice) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="isColumnVisible('status')" prop="status" :label="texts.status" width="100" align="center">
         <template #default="{ row }">
           <status-tag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right" align="center">
+      <el-table-column :label="texts.actions" width="180" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" @click="handleView(row)">
               <el-icon><View /></el-icon>
-              查看
+              {{ texts.view }}
             </el-button>
             <el-button v-permission="'masterdata:product:update'" link type="primary" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
-              编辑
+              {{ texts.edit }}
             </el-button>
             <el-button
               v-if="row.status !== 'ACTIVE'"
@@ -150,7 +154,7 @@
               @click="handleEnable(row)"
             >
               <el-icon><CircleCheck /></el-icon>
-              启用
+              {{ texts.enable }}
             </el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
@@ -160,7 +164,7 @@
               @click="handleDelete(row)"
             >
               <el-icon><Delete /></el-icon>
-              删除
+              {{ texts.delete }}
             </el-button>
           </div>
         </template>
@@ -183,56 +187,49 @@
         @submit="handleSubmit"
         @cancel="dialogVisible = false"
       >
-        <el-form-item label="产品编码" prop="code">
-          <el-input v-model="formData.code" placeholder="请输入产品编码" maxlength="50" />
+        <el-form-item :label="texts.productCode" prop="code">
+          <el-input v-model="formData.code" :placeholder="texts.enterProductCode" maxlength="50" />
         </el-form-item>
-        <el-form-item label="产品名称" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入产品名称" maxlength="100" />
+        <el-form-item :label="texts.productName" prop="name">
+          <el-input v-model="formData.name" :placeholder="texts.enterProductName" maxlength="100" />
         </el-form-item>
-        <el-form-item v-if="!formData.id" label="商品类型" prop="productType">
-          <el-select v-model="formData.productType" placeholder="请选择商品类型">
-            <el-option label="实物商品" value="PHYSICAL" />
-            <el-option label="库存商品" value="GOODS" />
-            <el-option label="服务" value="SERVICE" />
+        <el-form-item v-if="!formData.id" :label="texts.productType" prop="productType">
+          <el-select v-model="formData.productType" :placeholder="texts.selectProductType">
+            <el-option v-for="option in productTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="产品分类" prop="categoryName">
-          <el-input v-model="formData.categoryName" placeholder="请输入产品分类" maxlength="100" />
+        <el-form-item :label="texts.productCategory" prop="categoryName">
+          <el-input v-model="formData.categoryName" :placeholder="texts.enterProductCategory" maxlength="100" />
         </el-form-item>
-        <el-form-item label="规格型号" prop="specifications">
-          <el-input v-model="formData.specifications" placeholder="请输入规格型号" />
+        <el-form-item :label="texts.specification" prop="specifications">
+          <el-input v-model="formData.specifications" :placeholder="texts.enterSpecification" />
         </el-form-item>
-        <el-form-item label="单位" prop="unit">
-          <el-select v-model="formData.unit" placeholder="请选择单位" clearable>
-            <el-option label="个" value="个" />
-            <el-option label="台" value="台" />
-            <el-option label="件" value="件" />
-            <el-option label="箱" value="箱" />
-            <el-option label="kg" value="kg" />
-            <el-option label="m" value="m" />
+        <el-form-item :label="texts.unit" prop="unit">
+          <el-select v-model="formData.unit" :placeholder="texts.selectUnit" clearable>
+            <el-option v-for="option in unitOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="销售单价" prop="unitPrice">
+        <el-form-item :label="texts.salePrice" prop="unitPrice">
           <el-input-number
             v-model="formData.unitPrice"
             :min="0"
             :precision="2"
             :controls="false"
-            placeholder="请输入销售单价"
+            :placeholder="texts.enterSalePrice"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="成本单价" prop="costPrice">
+        <el-form-item :label="texts.costPrice" prop="costPrice">
           <el-input-number
             v-model="formData.costPrice"
             :min="0"
             :precision="2"
             :controls="false"
-            placeholder="请输入成本单价"
+            :placeholder="texts.enterCostPrice"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="税率（%）" prop="taxRate">
+        <el-form-item :label="texts.taxRate" prop="taxRate">
           <el-input-number
             v-model="formData.taxRate"
             :min="0"
@@ -242,32 +239,32 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="条形码" prop="barcode">
-          <el-input v-model="formData.barcode" placeholder="请输入条形码" />
+        <el-form-item :label="texts.barcode" prop="barcode">
+          <el-input v-model="formData.barcode" :placeholder="texts.enterBarcode" />
         </el-form-item>
-        <el-form-item label="状态" prop="status" :style="{ gridColumn: '1 / -1' }">
+        <el-form-item :label="texts.status" prop="status" :style="{ gridColumn: '1 / -1' }">
           <el-radio-group v-model="formData.status">
-            <el-radio value="ACTIVE">启用</el-radio>
-            <el-radio value="INACTIVE">停用</el-radio>
+            <el-radio value="ACTIVE">{{ texts.active }}</el-radio>
+            <el-radio value="INACTIVE">{{ texts.inactive }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="来料需检验" prop="inspectionRequired" :style="{ gridColumn: '1 / -1' }">
+        <el-form-item :label="texts.inspectionRequired" prop="inspectionRequired" :style="{ gridColumn: '1 / -1' }">
           <el-switch v-model="formData.inspectionRequired" />
-          <span class="form-tip">开启后，该商品的采购入库单在过账前必须先完成来料检验</span>
+          <span class="form-tip">{{ texts.inspectionHint }}</span>
         </el-form-item>
-        <el-form-item label="批次管理" prop="lotControlled">
+        <el-form-item :label="texts.lotControlled" prop="lotControlled">
           <el-switch v-model="formData.lotControlled" />
         </el-form-item>
-        <el-form-item label="保质期管理" prop="shelfLifeControlled">
+        <el-form-item :label="texts.shelfLifeControlled" prop="shelfLifeControlled">
           <el-switch v-model="formData.shelfLifeControlled" :disabled="!formData.lotControlled" />
-          <span class="form-tip">保质期管理必须同时开启批次管理</span>
+          <span class="form-tip">{{ texts.shelfLifeHint }}</span>
         </el-form-item>
-        <el-form-item label="备注" prop="remark" :style="{ gridColumn: '1 / -1' }">
+        <el-form-item :label="texts.remark" prop="remark" :style="{ gridColumn: '1 / -1' }">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注信息"
+            :placeholder="texts.enterRemark"
             maxlength="500"
             show-word-limit
           />
@@ -278,85 +275,85 @@
     <!-- 详情对话框 -->
     <el-dialog
       v-model="detailVisible"
-      title="产品详情"
+      :title="texts.productDetail"
       width="700px"
       class="elegant-dialog"
     >
       <detail-card>
         <div class="detail-section">
-          <div class="section-title">基本信息</div>
+          <div class="section-title">{{ texts.basicInfo }}</div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">产品编码</div>
+              <div class="detail-label">{{ texts.productCode }}</div>
               <div class="detail-value">{{ currentRow?.code }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">产品名称</div>
+              <div class="detail-label">{{ texts.productName }}</div>
               <div class="detail-value">{{ currentRow?.name }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">产品分类</div>
+              <div class="detail-label">{{ texts.productCategory }}</div>
               <div class="detail-value">{{ currentRow?.categoryName || '-' }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">规格型号</div>
+              <div class="detail-label">{{ texts.specification }}</div>
               <div class="detail-value">{{ currentRow?.specifications || '-' }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">单位</div>
-              <div class="detail-value">{{ currentRow?.unit || '-' }}</div>
+              <div class="detail-label">{{ texts.unit }}</div>
+              <div class="detail-value">{{ formatUnit(currentRow?.unit) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">条形码</div>
+              <div class="detail-label">{{ texts.barcode }}</div>
               <div class="detail-value">{{ currentRow?.barcode || '-' }}</div>
             </div>
           </div>
         </div>
 
         <div class="detail-section">
-          <div class="section-title">价格信息</div>
+          <div class="section-title">{{ texts.pricingInfo }}</div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">销售单价</div>
-              <div class="detail-value price">¥{{ currentRow?.unitPrice?.toFixed(2) || '-' }}</div>
+              <div class="detail-label">{{ texts.salePrice }}</div>
+              <div class="detail-value price">{{ formatCurrency(currentRow?.unitPrice) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">成本单价</div>
-              <div class="detail-value price">¥{{ currentRow?.costPrice?.toFixed(2) || '-' }}</div>
+              <div class="detail-label">{{ texts.costPrice }}</div>
+              <div class="detail-value price">{{ formatCurrency(currentRow?.costPrice) }}</div>
             </div>
           </div>
         </div>
 
         <div class="detail-section">
-          <div class="section-title">库存概览</div>
+          <div class="section-title">{{ texts.stockOverview }}</div>
           <div class="detail-row">
-            <div class="detail-item"><div class="detail-label">现存数量</div><div class="detail-value">{{ stockSummary?.qtyOnHand ?? 0 }}</div></div>
-            <div class="detail-item"><div class="detail-label">预占数量</div><div class="detail-value">{{ stockSummary?.qtyReserved ?? 0 }}</div></div>
-            <div class="detail-item"><div class="detail-label">可用数量</div><div class="detail-value">{{ stockSummary?.qtyAvailable ?? 0 }}</div></div>
-            <div class="detail-item"><div class="detail-label">有库存仓库</div><div class="detail-value">{{ stockSummary?.warehouseCount ?? 0 }}</div></div>
-            <div class="detail-item"><div class="detail-label">库存金额</div><div class="detail-value price">¥{{ Number(stockSummary?.amountOnHand || 0).toFixed(2) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.qtyOnHand }}</div><div class="detail-value">{{ formatNumber(stockSummary?.qtyOnHand) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.qtyReserved }}</div><div class="detail-value">{{ formatNumber(stockSummary?.qtyReserved) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.qtyAvailable }}</div><div class="detail-value">{{ formatNumber(stockSummary?.qtyAvailable) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.warehouseCount }}</div><div class="detail-value">{{ formatNumber(stockSummary?.warehouseCount) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.amountOnHand }}</div><div class="detail-value price">{{ formatCurrency(stockSummary?.amountOnHand) }}</div></div>
           </div>
         </div>
 
         <div class="detail-section">
-          <div class="section-title">其他信息</div>
+          <div class="section-title">{{ texts.otherInfo }}</div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">状态</div>
+              <div class="detail-label">{{ texts.status }}</div>
               <div class="detail-value">
                 <status-tag v-if="currentRow" :status="currentRow.status" />
               </div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">来料需检验</div>
-              <div class="detail-value">{{ currentRow?.inspectionRequired ? '是' : '否' }}</div>
+              <div class="detail-label">{{ texts.inspectionRequired }}</div>
+              <div class="detail-value">{{ currentRow?.inspectionRequired ? texts.yes : texts.no }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">创建时间</div>
-              <div class="detail-value">{{ currentRow?.createdTime || '-' }}</div>
+              <div class="detail-label">{{ texts.createdTime }}</div>
+              <div class="detail-value">{{ formatDateTime(currentRow?.createdTime) }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">备注</div>
+              <div class="detail-label">{{ texts.remark }}</div>
               <div class="detail-value">{{ currentRow?.remark || '-' }}</div>
             </div>
           </div>
@@ -387,16 +384,278 @@ import {
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard, TableColumnSetting } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
 import { useTablePreference } from '@/composables/useTablePreference'
+import { useAppStore } from '@/store/modules/app'
+import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+
+const appStore = useAppStore()
+const PRODUCT_TEXTS = {
+  'zh-CN': {
+    pageTitle: '产品管理',
+    pageSubtitle: '管理系统中的所有产品信息',
+    totalProducts: '总产品数',
+    activeProducts: '启用中',
+    productCode: '产品编码',
+    productName: '产品名称',
+    productCategory: '产品分类',
+    specification: '规格型号',
+    unit: '单位',
+    salePrice: '销售单价',
+    costPrice: '成本单价',
+    taxRate: '税率（%）',
+    barcode: '条形码',
+    status: '状态',
+    actions: '操作',
+    view: '查看',
+    edit: '编辑',
+    enable: '启用',
+    disable: '停用',
+    delete: '删除',
+    export: '导出',
+    refresh: '刷新',
+    cancel: '取消',
+    confirm: '确定',
+    active: '启用',
+    inactive: '停用',
+    enterProductCode: '请输入产品编码',
+    enterProductName: '请输入产品名称',
+    selectStatus: '请选择状态',
+    createProduct: '新增产品',
+    editProduct: '编辑产品',
+    batchEnable: '批量启用',
+    batchDisable: '批量停用',
+    exportSelected: '导出选中',
+    productType: '商品类型',
+    selectProductType: '请选择商品类型',
+    physicalProduct: '实物商品',
+    goodsProduct: '库存商品',
+    serviceProduct: '服务',
+    enterProductCategory: '请输入产品分类',
+    enterSpecification: '请输入规格型号',
+    selectUnit: '请选择单位',
+    enterSalePrice: '请输入销售单价',
+    enterCostPrice: '请输入成本单价',
+    enterBarcode: '请输入条形码',
+    inspectionRequired: '来料需检验',
+    inspectionHint: '开启后，该商品的采购入库单在过账前必须先完成来料检验',
+    lotControlled: '批次管理',
+    shelfLifeControlled: '保质期管理',
+    shelfLifeHint: '保质期管理必须同时开启批次管理',
+    remark: '备注',
+    enterRemark: '请输入备注信息',
+    productDetail: '产品详情',
+    basicInfo: '基本信息',
+    pricingInfo: '价格信息',
+    stockOverview: '库存概览',
+    otherInfo: '其他信息',
+    qtyOnHand: '现存数量',
+    qtyReserved: '预占数量',
+    qtyAvailable: '可用数量',
+    warehouseCount: '有库存仓库',
+    amountOnHand: '库存金额',
+    yes: '是',
+    no: '否',
+    createdTime: '创建时间',
+    loadFailed: '加载数据失败',
+    loadDetailFailed: '加载产品详情失败',
+    confirmTitle: '提示',
+    confirmDelete: '确认删除产品“{name}”吗？',
+    confirmEnable: '确认启用产品“{name}”吗？',
+    deleteSuccess: '删除成功',
+    deleteFailed: '删除失败',
+    enableSuccess: '启用成功',
+    enableFailed: '启用失败',
+    updateSuccess: '更新成功',
+    createSuccess: '创建成功',
+    updateFailed: '更新失败',
+    createFailed: '创建失败',
+    exportSuccess: '导出成功',
+    exportFailed: '导出失败',
+    exportFilename: '产品列表',
+    selectedExportFilename: '产品_选中{count}条',
+    batchEnableTitle: '批量启用',
+    batchDisableTitle: '批量停用',
+    batchEnableConfirm: '确认启用选中的 {count} 条数据吗？',
+    batchDisableConfirm: '确认停用选中的 {count} 个产品吗？',
+    batchEnableSuccess: '已启用 {count} 条',
+    batchDisableSuccess: '已停用 {count} 条',
+    batchEnablePartial: '已启用 {success} 条，失败 {failedCount} 条：{failed}',
+    batchDisablePartial: '已停用 {success} 条，失败 {failedCount} 条：{failed}',
+    validationEnterCode: '请输入产品编码',
+    validationCodeLength: '长度在 2 到 50 个字符',
+    validationEnterName: '请输入产品名称',
+    validationNameLength: '长度在 2 到 100 个字符',
+    validationProductType: '请选择商品类型',
+    validationCategory: '请输入产品分类',
+    validationUnit: '请选择单位',
+    validationSalePrice: '请输入销售单价',
+    validationCostPrice: '请输入成本单价',
+    validationTaxRate: '请输入税率',
+    unitPiece: '个',
+    unitMachine: '台',
+    unitItem: '件',
+    unitBox: '箱'
+  },
+  'en-US': {
+    pageTitle: 'Product Management',
+    pageSubtitle: 'Manage product records in the system',
+    totalProducts: 'Total products',
+    activeProducts: 'Active',
+    productCode: 'Product code',
+    productName: 'Product name',
+    productCategory: 'Category',
+    specification: 'Specification',
+    unit: 'Unit',
+    salePrice: 'Sale price',
+    costPrice: 'Cost price',
+    taxRate: 'Tax rate (%)',
+    barcode: 'Barcode',
+    status: 'Status',
+    actions: 'Actions',
+    view: 'View',
+    edit: 'Edit',
+    enable: 'Enable',
+    disable: 'Disable',
+    delete: 'Delete',
+    export: 'Export',
+    refresh: 'Refresh',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    active: 'Active',
+    inactive: 'Inactive',
+    enterProductCode: 'Enter product code',
+    enterProductName: 'Enter product name',
+    selectStatus: 'Select status',
+    createProduct: 'Create product',
+    editProduct: 'Edit product',
+    batchEnable: 'Enable selected',
+    batchDisable: 'Disable selected',
+    exportSelected: 'Export selected',
+    productType: 'Product type',
+    selectProductType: 'Select product type',
+    physicalProduct: 'Physical product',
+    goodsProduct: 'Inventory goods',
+    serviceProduct: 'Service',
+    enterProductCategory: 'Enter category',
+    enterSpecification: 'Enter specification',
+    selectUnit: 'Select unit',
+    enterSalePrice: 'Enter sale price',
+    enterCostPrice: 'Enter cost price',
+    enterBarcode: 'Enter barcode',
+    inspectionRequired: 'Incoming inspection required',
+    inspectionHint: 'When enabled, purchase receipts for this product must complete incoming inspection before posting.',
+    lotControlled: 'Lot controlled',
+    shelfLifeControlled: 'Shelf-life controlled',
+    shelfLifeHint: 'Shelf-life control requires lot control to be enabled.',
+    remark: 'Remark',
+    enterRemark: 'Enter remark',
+    productDetail: 'Product details',
+    basicInfo: 'Basic information',
+    pricingInfo: 'Pricing information',
+    stockOverview: 'Stock overview',
+    otherInfo: 'Other information',
+    qtyOnHand: 'On-hand quantity',
+    qtyReserved: 'Reserved quantity',
+    qtyAvailable: 'Available quantity',
+    warehouseCount: 'Warehouses with stock',
+    amountOnHand: 'Inventory amount',
+    yes: 'Yes',
+    no: 'No',
+    createdTime: 'Created at',
+    loadFailed: 'Failed to load products',
+    loadDetailFailed: 'Failed to load product details',
+    confirmTitle: 'Confirm',
+    confirmDelete: 'Delete product "{name}"?',
+    confirmEnable: 'Enable product "{name}"?',
+    deleteSuccess: 'Product deleted',
+    deleteFailed: 'Failed to delete product',
+    enableSuccess: 'Product enabled',
+    enableFailed: 'Failed to enable product',
+    updateSuccess: 'Product updated',
+    createSuccess: 'Product created',
+    updateFailed: 'Failed to update product',
+    createFailed: 'Failed to create product',
+    exportSuccess: 'Export completed',
+    exportFailed: 'Failed to export products',
+    exportFilename: 'product-list',
+    selectedExportFilename: 'products-selected-{count}',
+    batchEnableTitle: 'Enable Selected',
+    batchDisableTitle: 'Disable Selected',
+    batchEnableConfirm: 'Enable {count} selected items?',
+    batchDisableConfirm: 'Disable {count} selected products?',
+    batchEnableSuccess: 'Enabled {count} items',
+    batchDisableSuccess: 'Disabled {count} items',
+    batchEnablePartial: 'Enabled {success} items, failed {failedCount}: {failed}',
+    batchDisablePartial: 'Disabled {success} items, failed {failedCount}: {failed}',
+    validationEnterCode: 'Enter product code',
+    validationCodeLength: 'Length must be between 2 and 50 characters',
+    validationEnterName: 'Enter product name',
+    validationNameLength: 'Length must be between 2 and 100 characters',
+    validationProductType: 'Select a product type',
+    validationCategory: 'Enter a category',
+    validationUnit: 'Select a unit',
+    validationSalePrice: 'Enter a sale price',
+    validationCostPrice: 'Enter a cost price',
+    validationTaxRate: 'Enter a tax rate',
+    unitPiece: 'Piece',
+    unitMachine: 'Unit',
+    unitItem: 'Item',
+    unitBox: 'Box'
+  }
+} as const
+const texts = computed(() => PRODUCT_TEXTS[appStore.locale as keyof typeof PRODUCT_TEXTS])
+const displayPreferences = computed(() => ({
+  locale: appStore.locale,
+  timeZone: appStore.timeZone
+}))
+const interpolate = (template: string, params: Record<string, string | number>) =>
+  template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
+const joinNames = (items: string[]) => (appStore.locale === 'en-US' ? items.join(', ') : items.join('、'))
+const labelWithCount = (label: string, count: number) => (count > 0 ? `${label} (${count})` : label)
+const formatCurrency = (value?: number | string | null) => {
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return '-'
+  return formatLocalizedCurrency(amount, {}, displayPreferences.value)
+}
+const formatDateTime = (value?: string | null) => (
+  value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
+)
+const formatNumber = (value?: number | string | null) => (
+  formatLocalizedNumber(Number(value || 0), { maximumFractionDigits: 2 }, displayPreferences.value)
+)
+const productTypeOptions = computed(() => ([
+  { label: texts.value.physicalProduct, value: 'PHYSICAL' },
+  { label: texts.value.goodsProduct, value: 'GOODS' },
+  { label: texts.value.serviceProduct, value: 'SERVICE' }
+]))
+const unitOptions = computed(() => ([
+  { label: texts.value.unitPiece, value: '个' },
+  { label: texts.value.unitMachine, value: '台' },
+  { label: texts.value.unitItem, value: '件' },
+  { label: texts.value.unitBox, value: '箱' },
+  { label: 'kg', value: 'kg' },
+  { label: 'm', value: 'm' }
+]))
+const formatUnit = (value?: string | null) => (
+  unitOptions.value.find((option) => option.value === value)?.label || value || '-'
+)
 
 // 列自定义 + 查询条件记忆（localStorage 持久化）。code/name/操作 为固定列，其余可显隐。
 const productColumns = [
-  { prop: 'categoryName', label: '产品分类' },
-  { prop: 'specifications', label: '规格型号' },
-  { prop: 'unit', label: '单位' },
-  { prop: 'unitPrice', label: '销售单价' },
-  { prop: 'costPrice', label: '成本单价' },
-  { prop: 'status', label: '状态' }
+  { prop: 'categoryName', label: 'categoryName' },
+  { prop: 'specifications', label: 'specifications' },
+  { prop: 'unit', label: 'unit' },
+  { prop: 'unitPrice', label: 'unitPrice' },
+  { prop: 'costPrice', label: 'costPrice' },
+  { prop: 'status', label: 'status' }
 ]
+const productColumnOptions = computed(() => ([
+  { prop: 'categoryName', label: texts.value.productCategory },
+  { prop: 'specifications', label: texts.value.specification },
+  { prop: 'unit', label: texts.value.unit },
+  { prop: 'unitPrice', label: texts.value.salePrice },
+  { prop: 'costPrice', label: texts.value.costPrice },
+  { prop: 'status', label: texts.value.status }
+]))
 
 const {
   searchForm,
@@ -432,9 +691,11 @@ const handleSelectionChange = (rows: Product[]) => {
 }
 
 type BatchActionOptions<T> = {
-  actionLabel: string
   itemLabel: (item: T) => string
-  confirmText?: (count: number) => string
+  confirmTitle: string
+  confirmText: string
+  successText: (success: number) => string
+  partialText: (success: number, failed: string[]) => string
   onDone?: () => void | Promise<void>
 }
 
@@ -447,10 +708,9 @@ const useBatchAction = <T,>() => {
     options: BatchActionOptions<T>
   ) => {
     if (rows.length === 0 || running.value) return
-    const message = options.confirmText?.(rows.length) ?? `确认${options.actionLabel}选中的 ${rows.length} 条数据吗？`
-    await ElMessageBox.confirm(message, `批量${options.actionLabel}`, {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(options.confirmText, options.confirmTitle, {
+      confirmButtonText: texts.value.confirm,
+      cancelButtonText: texts.value.cancel,
       type: 'warning'
     })
 
@@ -467,9 +727,9 @@ const useBatchAction = <T,>() => {
         }
       }
       if (failed.length === 0) {
-        ElMessage.success(`已${options.actionLabel} ${success} 条`)
+        ElMessage.success(options.successText(success))
       } else {
-        ElMessage.warning(`已${options.actionLabel} ${success} 条，失败 ${failed.length} 条：${failed.join('、')}`)
+        ElMessage.warning(options.partialText(success, failed))
       }
       await options.onDone?.()
     } finally {
@@ -492,20 +752,36 @@ const exportSelectedRowsToCsv = (
 
 // 批量启用/停用：复用单条 enable/disable 端点循环执行，汇总成功/失败（后端暂无批量端点）
 const { running: batchRunning, run: runBatch } = useBatchAction<Product>()
+const batchItemLabel = (row: Product) => row.name || row.productName || row.code || row.productCode || row.id
 
 const handleBatchEnable = () => {
-  runBatch(selectedRows.value, (row) => enableProduct(row.id), {
-    actionLabel: '启用',
-    itemLabel: (row) => row.name,
+  const rows = selectedRows.value
+  runBatch(rows, (row) => enableProduct(row.id), {
+    itemLabel: batchItemLabel,
+    confirmTitle: texts.value.batchEnableTitle,
+    confirmText: interpolate(texts.value.batchEnableConfirm, { count: rows.length }),
+    successText: (success) => interpolate(texts.value.batchEnableSuccess, { count: success }),
+    partialText: (success, failed) => interpolate(texts.value.batchEnablePartial, {
+      success,
+      failedCount: failed.length,
+      failed: joinNames(failed)
+    }),
     onDone: loadData
   })
 }
 
 const handleBatchDisable = () => {
-  runBatch(selectedRows.value, (row) => deleteProduct(row.id), {
-    actionLabel: '停用',
-    itemLabel: (row) => row.name,
-    confirmText: (count) => `确认停用选中的 ${count} 个产品吗？`,
+  const rows = selectedRows.value
+  runBatch(rows, (row) => deleteProduct(row.id), {
+    itemLabel: batchItemLabel,
+    confirmTitle: texts.value.batchDisableTitle,
+    confirmText: interpolate(texts.value.batchDisableConfirm, { count: rows.length }),
+    successText: (success) => interpolate(texts.value.batchDisableSuccess, { count: success }),
+    partialText: (success, failed) => interpolate(texts.value.batchDisablePartial, {
+      success,
+      failedCount: failed.length,
+      failed: joinNames(failed)
+    }),
     onDone: loadData
   })
 }
@@ -513,18 +789,27 @@ const handleBatchDisable = () => {
 const handleExportSelected = () => {
   const rows = selectedRows.value
   if (rows.length === 0) return
-  const headers = ['产品编码', '产品名称', '产品分类', '规格型号', '单位', '销售单价', '成本单价', '状态']
+  const headers = [
+    texts.value.productCode,
+    texts.value.productName,
+    texts.value.productCategory,
+    texts.value.specification,
+    texts.value.unit,
+    texts.value.salePrice,
+    texts.value.costPrice,
+    texts.value.status
+  ]
   const lines = rows.map((row) => [
-    row.code,
-    row.name,
+    row.code || '',
+    row.name || '',
     row.categoryName ?? '',
     row.specifications ?? '',
-    row.unit ?? '',
-    row.unitPrice ?? '',
-    row.costPrice ?? '',
-    row.status === 'ACTIVE' ? '启用' : '停用'
+    formatUnit(row.unit),
+    row.unitPrice != null ? formatCurrency(row.unitPrice) : '',
+    row.costPrice != null ? formatCurrency(row.costPrice) : '',
+    row.status === 'ACTIVE' ? texts.value.active : texts.value.inactive
   ])
-  exportSelectedRowsToCsv(`产品_选中${rows.length}条`, headers, lines)
+  exportSelectedRowsToCsv(interpolate(texts.value.selectedExportFilename, { count: rows.length }), headers, lines)
 }
 const activeCount = computed(() => {
   if (!tableData.value || !Array.isArray(tableData.value)) return 0
@@ -533,7 +818,7 @@ const activeCount = computed(() => {
 
 // 对话框
 const dialogVisible = ref(false)
-const dialogTitle = computed(() => (formData.id ? '编辑产品' : '新增产品'))
+const dialogTitle = computed(() => (formData.id ? texts.value.editProduct : texts.value.createProduct))
 const submitting = ref(false)
 const detailVisible = ref(false)
 const currentRow = ref<Product>()
@@ -559,22 +844,22 @@ const formData = reactive<ProductSaveRequest & { id?: string }>({
 })
 
 // 表单验证规则
-const formRules = {
+const formRules = computed(() => ({
   code: [
-    { required: true, message: '请输入产品编码', trigger: 'blur' },
-    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+    { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
+    { min: 2, max: 50, message: texts.value.validationCodeLength, trigger: 'blur' }
   ],
   name: [
-    { required: true, message: '请输入产品名称', trigger: 'blur' },
-    { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
+    { required: true, message: texts.value.validationEnterName, trigger: 'blur' },
+    { min: 2, max: 100, message: texts.value.validationNameLength, trigger: 'blur' }
   ],
-  productType: [{ required: true, message: '请选择商品类型', trigger: 'change' }],
-  categoryName: [{ required: true, message: '请输入产品分类', trigger: 'blur' }],
-  unit: [{ required: true, message: '请选择单位', trigger: 'change' }],
-  unitPrice: [{ required: true, message: '请输入销售单价', trigger: 'blur' }],
-  costPrice: [{ required: true, message: '请输入成本单价', trigger: 'blur' }],
-  taxRate: [{ required: true, message: '请输入税率', trigger: 'blur' }]
-}
+  productType: [{ required: true, message: texts.value.validationProductType, trigger: 'change' }],
+  categoryName: [{ required: true, message: texts.value.validationCategory, trigger: 'blur' }],
+  unit: [{ required: true, message: texts.value.validationUnit, trigger: 'change' }],
+  unitPrice: [{ required: true, message: texts.value.validationSalePrice, trigger: 'blur' }],
+  costPrice: [{ required: true, message: texts.value.validationCostPrice, trigger: 'blur' }],
+  taxRate: [{ required: true, message: texts.value.validationTaxRate, trigger: 'blur' }]
+}))
 
 // 加载数据
 const loadData = async () => {
@@ -584,19 +869,19 @@ const loadData = async () => {
     // 适配后端返回的数据结构
     const products = res.records.map(item => ({
       ...item,
-      code: item.productCode,           // 产品编码
-      name: item.productName,           // 产品名称
-      specifications: item.specification, // 规格型号（注意单复数）
-      unit: item.unitName,              // 单位
-      unitPrice: item.salePrice,        // 销售单价
-      costPrice: item.purchasePrice     // 成本单价（采购价）
+      code: item.productCode,
+      name: item.productName,
+      specifications: item.specification,
+      unit: item.unitName,
+      unitPrice: item.salePrice,
+      costPrice: item.purchasePrice
     }))
 
     tableData.value = products
     total.value = res.total
   } catch (error) {
     console.error('加载数据失败:', error)
-    ElMessage.error('加载数据失败')
+    ElMessage.error(texts.value.loadFailed)
   } finally {
     loading.value = false
   }
@@ -651,14 +936,14 @@ const handleCreate = () => {
 const handleEdit = (row: Product) => {
   Object.assign(formData, {
     id: row.id,
-    code: row.productCode || row.code,
-    name: row.productName || row.name,
-    productType: row.productType,
+    code: row.productCode ?? row.code,
+    name: row.productName ?? row.name,
+    productType: row.productType ?? 'PHYSICAL',
     categoryName: row.categoryName,
-    specifications: row.specification || row.specifications,  // 注意字段名
-    unit: row.unitName || row.unit,
-    unitPrice: row.salePrice || row.unitPrice,
-    costPrice: row.purchasePrice || row.costPrice,
+    specifications: row.specification ?? row.specifications,
+    unit: row.unitName ?? row.unit,
+    unitPrice: row.salePrice ?? row.unitPrice,
+    costPrice: row.purchasePrice ?? row.costPrice,
     taxRate: row.taxRate ?? 13,
     barcode: row.barcode || '',
     status: row.status,
@@ -677,7 +962,7 @@ const handleView = async (row: Product) => {
     stockSummary.value = await getProductStockSummary(row.id)
     detailVisible.value = true
   } catch {
-    ElMessage.error('加载产品详情失败')
+    ElMessage.error(texts.value.loadDetailFailed)
   }
 }
 
@@ -685,34 +970,42 @@ const handleView = async (row: Product) => {
 const handleDelete = async (row: Product) => {
   try {
     await ElMessageBox.confirm(
-      `确认删除产品"${row.name}"吗？`,
-      '提示',
+      interpolate(texts.value.confirmDelete, { name: row.name || row.productName || '' }),
+      texts.value.confirmTitle,
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: texts.value.delete,
+        cancelButtonText: texts.value.cancel,
         type: 'warning'
       }
     )
 
     await deleteProduct(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(texts.value.deleteSuccess)
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(texts.value.deleteFailed)
     }
   }
 }
 
 const handleEnable = async (row: Product) => {
   try {
-    await ElMessageBox.confirm(`确认启用产品"${row.name}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      interpolate(texts.value.confirmEnable, { name: row.name || row.productName || '' }),
+      texts.value.confirmTitle,
+      {
+        confirmButtonText: texts.value.enable,
+        cancelButtonText: texts.value.cancel,
+        type: 'warning'
+      }
+    )
     await enableProduct(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(texts.value.enableSuccess)
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(texts.value.enableFailed)
     }
   }
 }
@@ -723,16 +1016,16 @@ const handleSubmit = async (values: any) => {
   try {
     if (formData.id) {
       await updateProduct(formData.id, values)
-      ElMessage.success('更新成功')
+      ElMessage.success(texts.value.updateSuccess)
     } else {
       await createProduct(values)
-      ElMessage.success('创建成功')
+      ElMessage.success(texts.value.createSuccess)
     }
     dialogVisible.value = false
     loadData()
   } catch (error) {
     console.error('提交失败:', error)
-    ElMessage.error(formData.id ? '更新失败' : '创建失败')
+    ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
   } finally {
     submitting.value = false
   }
@@ -742,10 +1035,10 @@ const handleSubmit = async (values: any) => {
 const handleExport = async () => {
   try {
     const blob = await exportProducts(searchForm)
-    downloadBlob(blob, `产品列表_${Date.now()}.csv`)
-    ElMessage.success('导出成功')
+    downloadBlob(blob, `${texts.value.exportFilename}_${Date.now()}.csv`)
+    ElMessage.success(texts.value.exportSuccess)
   } catch (error) {
-    ElMessage.error('导出失败')
+    ElMessage.error(texts.value.exportFailed)
   }
 }
 

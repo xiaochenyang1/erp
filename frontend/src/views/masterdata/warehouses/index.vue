@@ -11,17 +11,17 @@
             <div class="icon-shadow"></div>
           </div>
           <div class="header-text">
-            <h1 class="page-title">仓库管理</h1>
-            <p class="page-subtitle">统一管理仓储资源，优化库存布局</p>
+            <h1 class="page-title">{{ texts.pageTitle }}</h1>
+            <p class="page-subtitle">{{ texts.pageSubtitle }}</p>
           </div>
         </div>
         <div class="header-stats">
           <div class="stat-card">
-            <span class="stat-label">仓库总数</span>
+            <span class="stat-label">{{ texts.totalWarehouses }}</span>
             <span class="stat-value">{{ total }}</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">运营中</span>
+            <span class="stat-label">{{ texts.activeWarehouses }}</span>
             <span class="stat-value active">{{ activeCount }}</span>
           </div>
         </div>
@@ -30,34 +30,34 @@
 
     <!-- 搜索栏 -->
     <search-bar v-model="searchForm" @search="handleSearch" @reset="handleReset">
-      <el-form-item label="仓库编码" prop="code">
+      <el-form-item :label="texts.warehouseCode" prop="code">
         <el-input
           v-model="searchForm.code"
-          placeholder="请输入仓库编码"
+          :placeholder="texts.enterWarehouseCode"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="仓库名称" prop="name">
+      <el-form-item :label="texts.warehouseName" prop="name">
         <el-input
           v-model="searchForm.name"
-          placeholder="请输入仓库名称"
+          :placeholder="texts.enterWarehouseName"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="所属部门" prop="deptId">
+      <el-form-item :label="texts.department" prop="deptId">
         <el-tree-select
           v-model="searchForm.deptId"
           :data="deptOptions"
           :props="{ label: 'name', value: 'id', children: 'children' }"
-          placeholder="请选择所属部门"
+          :placeholder="texts.selectDepartment"
           clearable
           check-strictly
         />
       </el-form-item>
-      <el-form-item label="管理员" prop="managerUserId">
-        <el-select v-model="searchForm.managerUserId" placeholder="请选择管理员" clearable filterable>
+      <el-form-item :label="texts.manager" prop="managerUserId">
+        <el-select v-model="searchForm.managerUserId" :placeholder="texts.selectManager" clearable filterable>
           <el-option
             v-for="user in userOptions"
             :key="user.id"
@@ -66,10 +66,10 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态" prop="status">
-        <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
-          <el-option label="启用" value="ACTIVE" />
-          <el-option label="停用" value="INACTIVE" />
+      <el-form-item :label="texts.status" prop="status">
+        <el-select v-model="searchForm.status" :placeholder="texts.selectStatus" clearable>
+          <el-option :label="texts.active" value="ACTIVE" />
+          <el-option :label="texts.inactive" value="INACTIVE" />
         </el-select>
       </el-form-item>
     </search-bar>
@@ -81,20 +81,20 @@
       :total="total"
       :page="searchForm.pageNo"
       :page-size="searchForm.pageSize"
-      @create="handleCreate"
       :show-create="canCreate"
+      class="warehouse-table"
+      @create="handleCreate"
       @export="handleExport"
       @refresh="loadData"
       @page-change="handlePageChange"
-      class="warehouse-table"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column prop="code" label="仓库编码" width="140" fixed>
+      <el-table-column prop="code" :label="texts.warehouseCode" width="140" fixed>
         <template #default="{ row }">
           <span class="code-badge warehouse">{{ row.code }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="仓库名称" min-width="180" show-overflow-tooltip>
+      <el-table-column prop="name" :label="texts.warehouseName" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">
           <div class="warehouse-name">
             <el-icon class="warehouse-icon">
@@ -104,40 +104,52 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="deptId" label="所属部门" width="140">
+      <el-table-column prop="deptId" :label="texts.department" width="140">
         <template #default="{ row }">
           <span>{{ deptLabel(row.deptId) }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="address" label="仓库地址" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="managerUserId" label="管理员" width="140">
+      <el-table-column prop="address" :label="texts.address" min-width="200" show-overflow-tooltip />
+      <el-table-column prop="managerUserId" :label="texts.manager" width="140">
         <template #default="{ row }">
           <span>{{ managerLabel(row.managerUserId) }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column prop="status" :label="texts.status" width="100" align="center">
         <template #default="{ row }">
           <status-tag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right" align="center">
+      <el-table-column :label="texts.actions" width="180" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" @click="handleView(row)">
               <el-icon><View /></el-icon>
-              查看
+              {{ texts.view }}
             </el-button>
             <el-button v-permission="'masterdata:warehouse:update'" link type="primary" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
-              编辑
+              {{ texts.edit }}
             </el-button>
-            <el-button v-if="row.status !== 'ACTIVE'" v-permission="'masterdata:warehouse:enable'" link type="success" @click="handleEnable(row)">
+            <el-button
+              v-if="row.status !== 'ACTIVE'"
+              v-permission="'masterdata:warehouse:enable'"
+              link
+              type="success"
+              @click="handleEnable(row)"
+            >
               <el-icon><CircleCheck /></el-icon>
-              启用
+              {{ texts.enable }}
             </el-button>
-            <el-button v-if="row.status === 'ACTIVE'" v-permission="'masterdata:warehouse:disable'" link type="danger" @click="handleDelete(row)">
+            <el-button
+              v-if="row.status === 'ACTIVE'"
+              v-permission="'masterdata:warehouse:disable'"
+              link
+              type="danger"
+              @click="handleDelete(row)"
+            >
               <el-icon><Delete /></el-icon>
-              删除
+              {{ texts.delete }}
             </el-button>
           </div>
         </template>
@@ -160,24 +172,24 @@
         @submit="handleSubmit"
         @cancel="dialogVisible = false"
       >
-        <el-form-item label="仓库编码" prop="code">
-          <el-input v-model="formData.code" placeholder="请输入仓库编码" maxlength="50" />
+        <el-form-item :label="texts.warehouseCode" prop="code">
+          <el-input v-model="formData.code" :placeholder="texts.enterWarehouseCode" maxlength="50" />
         </el-form-item>
-        <el-form-item label="仓库名称" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入仓库名称" maxlength="100" />
+        <el-form-item :label="texts.warehouseName" prop="name">
+          <el-input v-model="formData.name" :placeholder="texts.enterWarehouseName" maxlength="100" />
         </el-form-item>
-        <el-form-item label="所属部门" prop="deptId">
+        <el-form-item :label="texts.department" prop="deptId">
           <el-tree-select
             v-model="formData.deptId"
             :data="deptOptions"
             :props="{ label: 'name', value: 'id', children: 'children' }"
-            placeholder="请选择所属部门"
+            :placeholder="texts.selectDepartment"
             clearable
             check-strictly
           />
         </el-form-item>
-        <el-form-item label="管理员" prop="managerUserId">
-          <el-select v-model="formData.managerUserId" placeholder="请选择管理员" filterable clearable>
+        <el-form-item :label="texts.manager" prop="managerUserId">
+          <el-select v-model="formData.managerUserId" :placeholder="texts.selectManager" filterable clearable>
             <el-option
               v-for="user in userOptions"
               :key="user.id"
@@ -186,21 +198,21 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="texts.status" prop="status">
           <el-radio-group v-model="formData.status">
-            <el-radio value="ACTIVE">启用</el-radio>
-            <el-radio value="INACTIVE">停用</el-radio>
+            <el-radio value="ACTIVE">{{ texts.active }}</el-radio>
+            <el-radio value="INACTIVE">{{ texts.inactive }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="仓库地址" prop="address" :style="{ gridColumn: '1 / -1' }">
-          <el-input v-model="formData.address" placeholder="请输入仓库详细地址" maxlength="200" />
+        <el-form-item :label="texts.address" prop="address" :style="{ gridColumn: '1 / -1' }">
+          <el-input v-model="formData.address" :placeholder="texts.enterAddress" maxlength="200" />
         </el-form-item>
-        <el-form-item label="备注" prop="remark" :style="{ gridColumn: '1 / -1' }">
+        <el-form-item :label="texts.remark" prop="remark" :style="{ gridColumn: '1 / -1' }">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注信息"
+            :placeholder="texts.enterRemark"
             maxlength="500"
             show-word-limit
           />
@@ -211,7 +223,7 @@
     <!-- 详情对话框 -->
     <el-dialog
       v-model="detailVisible"
-      title="仓库详情"
+      :title="texts.warehouseDetail"
       width="750px"
       class="elegant-dialog warehouse-dialog"
     >
@@ -219,43 +231,43 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Box /></el-icon>
-            库存概览
+            {{ texts.stockOverview }}
           </div>
           <div class="detail-row">
-            <div class="detail-item"><div class="detail-label">库存 SKU</div><div class="detail-value">{{ stockSummary?.skuCount ?? 0 }}</div></div>
-            <div class="detail-item"><div class="detail-label">现存数量</div><div class="detail-value">{{ stockSummary?.qtyOnHand ?? 0 }}</div></div>
-            <div class="detail-item"><div class="detail-label">预占数量</div><div class="detail-value">{{ stockSummary?.qtyReserved ?? 0 }}</div></div>
-            <div class="detail-item"><div class="detail-label">可用数量</div><div class="detail-value">{{ stockSummary?.qtyAvailable ?? 0 }}</div></div>
-            <div class="detail-item"><div class="detail-label">库存金额</div><div class="detail-value">¥{{ Number(stockSummary?.amountOnHand || 0).toFixed(2) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.skuCount }}</div><div class="detail-value">{{ formatNumber(stockSummary?.skuCount) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.qtyOnHand }}</div><div class="detail-value">{{ formatNumber(stockSummary?.qtyOnHand) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.qtyReserved }}</div><div class="detail-value">{{ formatNumber(stockSummary?.qtyReserved) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.qtyAvailable }}</div><div class="detail-value">{{ formatNumber(stockSummary?.qtyAvailable) }}</div></div>
+            <div class="detail-item"><div class="detail-label">{{ texts.amountOnHand }}</div><div class="detail-value">{{ formatCurrency(stockSummary?.amountOnHand) }}</div></div>
           </div>
         </div>
 
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Memo /></el-icon>
-            基本信息
+            {{ texts.basicInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">仓库编码</div>
+              <div class="detail-label">{{ texts.warehouseCode }}</div>
               <div class="detail-value">{{ currentRow?.code }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">仓库名称</div>
+              <div class="detail-label">{{ texts.warehouseName }}</div>
               <div class="detail-value">{{ currentRow?.name }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">所属部门</div>
+              <div class="detail-label">{{ texts.department }}</div>
               <div class="detail-value">{{ deptLabel(currentRow?.deptId) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">状态</div>
+              <div class="detail-label">{{ texts.status }}</div>
               <div class="detail-value">
                 <status-tag v-if="currentRow" :status="currentRow.status" />
               </div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">仓库地址</div>
+              <div class="detail-label">{{ texts.address }}</div>
               <div class="detail-value">{{ currentRow?.address || '-' }}</div>
             </div>
           </div>
@@ -264,11 +276,11 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><UserFilled /></el-icon>
-            管理信息
+            {{ texts.managementInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">管理员</div>
+              <div class="detail-label">{{ texts.manager }}</div>
               <div class="detail-value">{{ managerLabel(currentRow?.managerUserId) }}</div>
             </div>
           </div>
@@ -277,19 +289,19 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Clock /></el-icon>
-            其他信息
+            {{ texts.otherInfo }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">创建时间</div>
-              <div class="detail-value">{{ currentRow?.createdTime || '-' }}</div>
+              <div class="detail-label">{{ texts.createdTime }}</div>
+              <div class="detail-value">{{ formatDateTime(currentRow?.createdTime) }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">更新时间</div>
-              <div class="detail-value">{{ currentRow?.updatedTime || '-' }}</div>
+              <div class="detail-label">{{ texts.updatedTime }}</div>
+              <div class="detail-value">{{ formatDateTime(currentRow?.updatedTime) }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">备注</div>
+              <div class="detail-label">{{ texts.remark }}</div>
               <div class="detail-value">{{ currentRow?.remark || '-' }}</div>
             </div>
           </div>
@@ -336,10 +348,163 @@ import {
 } from '@/api/system'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
+import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
+import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 
+const appStore = useAppStore()
 const userStore = useUserStore()
 const canCreate = computed(() => userStore.hasPermission('masterdata:warehouse:create'))
+const WAREHOUSE_TEXTS = {
+  'zh-CN': {
+    pageTitle: '仓库管理',
+    pageSubtitle: '统一管理仓储资源，优化库存布局',
+    totalWarehouses: '仓库总数',
+    activeWarehouses: '运营中',
+    warehouseCode: '仓库编码',
+    warehouseName: '仓库名称',
+    department: '所属部门',
+    manager: '管理员',
+    status: '状态',
+    address: '仓库地址',
+    actions: '操作',
+    view: '查看',
+    edit: '编辑',
+    enable: '启用',
+    delete: '删除',
+    cancel: '取消',
+    active: '启用',
+    inactive: '停用',
+    enterWarehouseCode: '请输入仓库编码',
+    enterWarehouseName: '请输入仓库名称',
+    selectDepartment: '请选择所属部门',
+    selectManager: '请选择管理员',
+    selectStatus: '请选择状态',
+    enterAddress: '请输入仓库详细地址',
+    remark: '备注',
+    enterRemark: '请输入备注信息',
+    createWarehouse: '新增仓库',
+    editWarehouse: '编辑仓库',
+    warehouseDetail: '仓库详情',
+    stockOverview: '库存概览',
+    skuCount: '库存 SKU',
+    qtyOnHand: '现存数量',
+    qtyReserved: '预占数量',
+    qtyAvailable: '可用数量',
+    amountOnHand: '库存金额',
+    basicInfo: '基本信息',
+    managementInfo: '管理信息',
+    otherInfo: '其他信息',
+    createdTime: '创建时间',
+    updatedTime: '更新时间',
+    loadFailed: '加载数据失败',
+    loadOptionsFailed: '加载仓库选项失败',
+    loadDetailFailed: '加载仓库详情失败',
+    confirmTitle: '提示',
+    confirmDelete: '确认删除仓库“{name}”吗？',
+    confirmEnable: '确认启用仓库“{name}”吗？',
+    deleteSuccess: '删除成功',
+    deleteFailed: '删除失败',
+    enableSuccess: '启用成功',
+    enableFailed: '启用失败',
+    updateSuccess: '更新成功',
+    createSuccess: '创建成功',
+    updateFailed: '更新失败',
+    createFailed: '创建失败',
+    exportSuccess: '导出成功',
+    exportFailed: '导出失败',
+    exportFilename: '仓库列表',
+    validationEnterCode: '请输入仓库编码',
+    validationCodeLength: '长度在 2 到 50 个字符',
+    validationEnterName: '请输入仓库名称',
+    validationNameLength: '长度在 2 到 100 个字符',
+    validationDepartment: '请选择所属部门',
+    validationManager: '请选择管理员'
+  },
+  'en-US': {
+    pageTitle: 'Warehouse Management',
+    pageSubtitle: 'Manage warehouse resources and optimize inventory layout',
+    totalWarehouses: 'Total warehouses',
+    activeWarehouses: 'Operating',
+    warehouseCode: 'Warehouse code',
+    warehouseName: 'Warehouse name',
+    department: 'Department',
+    manager: 'Manager',
+    status: 'Status',
+    address: 'Warehouse address',
+    actions: 'Actions',
+    view: 'View',
+    edit: 'Edit',
+    enable: 'Enable',
+    delete: 'Delete',
+    cancel: 'Cancel',
+    active: 'Active',
+    inactive: 'Inactive',
+    enterWarehouseCode: 'Enter warehouse code',
+    enterWarehouseName: 'Enter warehouse name',
+    selectDepartment: 'Select department',
+    selectManager: 'Select manager',
+    selectStatus: 'Select status',
+    enterAddress: 'Enter warehouse address',
+    remark: 'Remark',
+    enterRemark: 'Enter remark',
+    createWarehouse: 'Create warehouse',
+    editWarehouse: 'Edit warehouse',
+    warehouseDetail: 'Warehouse details',
+    stockOverview: 'Stock overview',
+    skuCount: 'Stocked SKUs',
+    qtyOnHand: 'On-hand quantity',
+    qtyReserved: 'Reserved quantity',
+    qtyAvailable: 'Available quantity',
+    amountOnHand: 'Inventory amount',
+    basicInfo: 'Basic information',
+    managementInfo: 'Management information',
+    otherInfo: 'Other information',
+    createdTime: 'Created at',
+    updatedTime: 'Updated at',
+    loadFailed: 'Failed to load warehouses',
+    loadOptionsFailed: 'Failed to load warehouse options',
+    loadDetailFailed: 'Failed to load warehouse details',
+    confirmTitle: 'Confirm',
+    confirmDelete: 'Delete warehouse "{name}"?',
+    confirmEnable: 'Enable warehouse "{name}"?',
+    deleteSuccess: 'Warehouse deleted',
+    deleteFailed: 'Failed to delete warehouse',
+    enableSuccess: 'Warehouse enabled',
+    enableFailed: 'Failed to enable warehouse',
+    updateSuccess: 'Warehouse updated',
+    createSuccess: 'Warehouse created',
+    updateFailed: 'Failed to update warehouse',
+    createFailed: 'Failed to create warehouse',
+    exportSuccess: 'Export completed',
+    exportFailed: 'Failed to export warehouses',
+    exportFilename: 'warehouse-list',
+    validationEnterCode: 'Enter warehouse code',
+    validationCodeLength: 'Length must be between 2 and 50 characters',
+    validationEnterName: 'Enter warehouse name',
+    validationNameLength: 'Length must be between 2 and 100 characters',
+    validationDepartment: 'Select a department',
+    validationManager: 'Select a manager'
+  }
+} as const
+const texts = computed(() => WAREHOUSE_TEXTS[appStore.locale as keyof typeof WAREHOUSE_TEXTS])
+const displayPreferences = computed(() => ({
+  locale: appStore.locale,
+  timeZone: appStore.timeZone
+}))
+const interpolate = (template: string, params: Record<string, string | number>) =>
+  template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
+const formatCurrency = (value?: number | string | null) => {
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return '-'
+  return formatLocalizedCurrency(amount, {}, displayPreferences.value)
+}
+const formatDateTime = (value?: string | null) => (
+  value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
+)
+const formatNumber = (value?: number | string | null) => (
+  formatLocalizedNumber(Number(value || 0), { maximumFractionDigits: 2 }, displayPreferences.value)
+)
 
 // 搜索表单
 const searchForm = reactive<WarehouseQuery>({
@@ -362,7 +527,7 @@ const userOptions = ref<User[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
-const dialogTitle = computed(() => (formData.id ? '编辑仓库' : '新增仓库'))
+const dialogTitle = computed(() => (formData.id ? texts.value.editWarehouse : texts.value.createWarehouse))
 const submitting = ref(false)
 const detailVisible = ref(false)
 const currentRow = ref<Warehouse>()
@@ -380,22 +545,22 @@ const formData = reactive<WarehouseSaveRequest & { id?: string }>({
 })
 
 // 表单验证规则
-const formRules = {
+const formRules = computed(() => ({
   code: [
-    { required: true, message: '请输入仓库编码', trigger: 'blur' },
-    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+    { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
+    { min: 2, max: 50, message: texts.value.validationCodeLength, trigger: 'blur' }
   ],
   name: [
-    { required: true, message: '请输入仓库名称', trigger: 'blur' },
-    { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
+    { required: true, message: texts.value.validationEnterName, trigger: 'blur' },
+    { min: 2, max: 100, message: texts.value.validationNameLength, trigger: 'blur' }
   ],
   deptId: [
-    { required: true, message: '请选择所属部门', trigger: 'change' }
+    { required: true, message: texts.value.validationDepartment, trigger: 'change' }
   ],
   managerUserId: [
-    { required: true, message: '请选择管理员', trigger: 'change' }
+    { required: true, message: texts.value.validationManager, trigger: 'change' }
   ]
-}
+}))
 
 // 加载数据
 const loadData = async () => {
@@ -414,7 +579,7 @@ const loadData = async () => {
     total.value = res.total
   } catch (error) {
     console.error('加载数据失败:', error)
-    ElMessage.error('加载数据失败')
+    ElMessage.error(texts.value.loadFailed)
   } finally {
     loading.value = false
   }
@@ -449,7 +614,7 @@ const loadOptions = async () => {
     deptOptions.value = depts
     userOptions.value = users.records
   } catch {
-    ElMessage.error('加载仓库选项失败')
+    ElMessage.error(texts.value.loadOptionsFailed)
   }
 }
 
@@ -514,7 +679,7 @@ const handleView = async (row: Warehouse) => {
     stockSummary.value = await getWarehouseStockSummary(row.id)
     detailVisible.value = true
   } catch {
-    ElMessage.error('加载仓库详情失败')
+    ElMessage.error(texts.value.loadDetailFailed)
   }
 }
 
@@ -522,34 +687,42 @@ const handleView = async (row: Warehouse) => {
 const handleDelete = async (row: Warehouse) => {
   try {
     await ElMessageBox.confirm(
-      `确认删除仓库"${row.warehouseName || row.name}"吗？`,
-      '提示',
+      interpolate(texts.value.confirmDelete, { name: row.warehouseName || row.name || '' }),
+      texts.value.confirmTitle,
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: texts.value.delete,
+        cancelButtonText: texts.value.cancel,
         type: 'warning'
       }
     )
 
     await deleteWarehouse(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(texts.value.deleteSuccess)
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(texts.value.deleteFailed)
     }
   }
 }
 
 const handleEnable = async (row: Warehouse) => {
   try {
-    await ElMessageBox.confirm(`确认启用仓库"${row.warehouseName || row.name}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      interpolate(texts.value.confirmEnable, { name: row.warehouseName || row.name || '' }),
+      texts.value.confirmTitle,
+      {
+        confirmButtonText: texts.value.enable,
+        cancelButtonText: texts.value.cancel,
+        type: 'warning'
+      }
+    )
     await enableWarehouse(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(texts.value.enableSuccess)
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(texts.value.enableFailed)
     }
   }
 }
@@ -570,16 +743,16 @@ const handleSubmit = async (values: any) => {
 
     if (formData.id) {
       await updateWarehouse(formData.id, payload)
-      ElMessage.success('更新成功')
+      ElMessage.success(texts.value.updateSuccess)
     } else {
       await createWarehouse(payload)
-      ElMessage.success('创建成功')
+      ElMessage.success(texts.value.createSuccess)
     }
     dialogVisible.value = false
     loadData()
   } catch (error) {
     console.error('提交失败:', error)
-    ElMessage.error(formData.id ? '更新失败' : '创建失败')
+    ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
   } finally {
     submitting.value = false
   }
@@ -589,10 +762,10 @@ const handleSubmit = async (values: any) => {
 const handleExport = async () => {
   try {
     const blob = await exportWarehouses(searchForm)
-    downloadBlob(blob, `仓库列表_${Date.now()}.csv`)
-    ElMessage.success('导出成功')
+    downloadBlob(blob, `${texts.value.exportFilename}_${Date.now()}.csv`)
+    ElMessage.success(texts.value.exportSuccess)
   } catch (error) {
-    ElMessage.error('导出失败')
+    ElMessage.error(texts.value.exportFailed)
   }
 }
 

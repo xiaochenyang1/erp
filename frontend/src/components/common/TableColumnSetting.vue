@@ -1,12 +1,12 @@
 <template>
   <el-popover placement="bottom-end" :width="240" trigger="click">
     <template #reference>
-      <el-button :icon="Setting" circle title="列设置" />
+      <el-button :icon="Setting" circle :title="texts.columnSettings" />
     </template>
     <div class="column-setting">
       <div class="column-setting__header">
-        <span>列设置</span>
-        <el-button link type="primary" size="small" @click="handleReset">重置</el-button>
+        <span>{{ texts.columnSettings }}</span>
+        <el-button link type="primary" size="small" @click="handleReset">{{ texts.reset }}</el-button>
       </div>
       <el-scrollbar max-height="320px">
         <el-checkbox-group v-model="visibleProps" class="column-setting__list">
@@ -28,6 +28,7 @@
 import { computed } from 'vue'
 import { Setting } from '@element-plus/icons-vue'
 import type { TableColumnOption } from '@/composables/useTablePreference'
+import { useAppStore } from '@/store/modules/app'
 
 const props = defineProps<{
   columns: TableColumnOption[]
@@ -39,6 +40,13 @@ const emit = defineEmits<{
   (e: 'reset'): void
   (e: 'update:modelValue', value: Record<string, boolean>): void
 }>()
+
+const appStore = useAppStore()
+const texts = computed(() => (
+  appStore.locale === 'en-US'
+    ? { columnSettings: 'Column settings', reset: 'Reset' }
+    : { columnSettings: '列设置', reset: '重置' }
+))
 
 const hideableColumns = computed(() =>
   props.columns.filter((col) => col.hideable !== false)
