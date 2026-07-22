@@ -9,6 +9,8 @@ public record UserInfoResponse(
         String email,
         String mobile,
         String avatar,
+        String locale,
+        String timeZone,
         List<String> roles,
         List<String> permissions
 ) {

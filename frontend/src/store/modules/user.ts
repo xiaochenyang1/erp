@@ -4,6 +4,9 @@ import { login, logout, getUserInfo, type LoginRequest, type UserInfo } from '@/
 import { useMenuStore } from '@/store/modules/menu'
 import router from '@/router'
 import { ElMessage } from 'element-plus'
+import { useAppStore } from '@/store/modules/app'
+import { isSupportedLocale } from '@/i18n'
+import { isSupportedTimeZone } from '@/utils/locale'
 
 export const useUserStore = defineStore('user', () => {
   // 状态
@@ -41,6 +44,9 @@ export const useUserStore = defineStore('user', () => {
       const info = await getUserInfo()
       userInfo.value = info
       permissions.value = info.permissions || []
+      const appStore = useAppStore()
+      if (isSupportedLocale(info.locale)) appStore.setLocale(info.locale)
+      if (isSupportedTimeZone(info.timeZone)) appStore.setTimeZone(info.timeZone)
       return info
     } catch (error) {
       console.error('获取用户信息失败:', error)

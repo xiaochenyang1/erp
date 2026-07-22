@@ -33,6 +33,8 @@ export interface UserInfo {
   email?: string
   mobile?: string
   avatar?: string
+  locale?: string
+  timeZone?: string
   roles?: string[]
   permissions?: string[]
   dataScope?: LoginUserDataScope
@@ -50,6 +52,8 @@ export interface UpdateProfileRequest {
   email?: string
   mobile?: string
   avatar?: string
+  locale?: string
+  timeZone?: string
 }
 
 // 运行时菜单树节点（后端按当前用户角色过滤后返回）

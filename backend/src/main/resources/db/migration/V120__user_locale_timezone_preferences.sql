@@ -1,0 +1,3 @@
+ALTER TABLE sys_user ADD COLUMN locale VARCHAR(16);
+ALTER TABLE sys_user ADD COLUMN time_zone VARCHAR(64);
+

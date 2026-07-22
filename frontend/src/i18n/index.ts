@@ -23,7 +23,7 @@ const messages = {
     },
     user: {
       profile: '个人中心', password: '修改密码', logout: '退出登录', logoutConfirm: '确定要退出登录吗？',
-      saved: '个人资料已保存', saveFailed: '保存个人资料失败', passwordChanged: '密码修改成功，请重新登录'
+      saved: '个人资料已保存', saveFailed: '保存个人资料失败', preferencesSaveFailed: '保存语言与时区偏好失败', passwordChanged: '密码修改成功，请重新登录'
     },
     login: {
       welcome: '欢迎登录', subtitle: '请输入您的账号密码', username: '请输入用户名', password: '请输入密码',
@@ -53,7 +53,7 @@ const messages = {
     },
     user: {
       profile: 'Profile', password: 'Change password', logout: 'Sign out', logoutConfirm: 'Are you sure you want to sign out?',
-      saved: 'Profile saved', saveFailed: 'Failed to save profile', passwordChanged: 'Password changed. Please sign in again.'
+      saved: 'Profile saved', saveFailed: 'Failed to save profile', preferencesSaveFailed: 'Failed to save language and time-zone preferences', passwordChanged: 'Password changed. Please sign in again.'
     },
     login: {
       welcome: 'Welcome back', subtitle: 'Enter your username and password', username: 'Username', password: 'Password',

@@ -244,12 +244,38 @@ const userStore = useUserStore()
 const menuStore = useMenuStore()
 const { t } = useI18n()
 
-const handleLocaleChange = (value: string) => {
-  if (isSupportedLocale(value)) appStore.setLocale(value)
+const persistDisplayPreferences = async () => {
+  const info = userStore.userInfo
+  if (!info?.realName) return
+  const updated = await updateProfile({
+    realName: info.realName,
+    email: info.email,
+    mobile: info.mobile,
+    avatar: info.avatar,
+    locale: appStore.locale,
+    timeZone: appStore.timeZone
+  })
+  userStore.userInfo = { ...info, ...updated, dataScope: info.dataScope }
 }
 
-const handleTimeZoneChange = (value: string) => {
-  if (isSupportedTimeZone(value)) appStore.setTimeZone(value)
+const handleLocaleChange = async (value: string) => {
+  if (!isSupportedLocale(value)) return
+  appStore.setLocale(value)
+  try {
+    await persistDisplayPreferences()
+  } catch {
+    ElMessage.error(t('user.preferencesSaveFailed'))
+  }
+}
+
+const handleTimeZoneChange = async (value: string) => {
+  if (!isSupportedTimeZone(value)) return
+  appStore.setTimeZone(value)
+  try {
+    await persistDisplayPreferences()
+  } catch {
+    ElMessage.error(t('user.preferencesSaveFailed'))
+  }
 }
 const profileDialogVisible = ref(false)
 const profileSubmitting = ref(false)
@@ -415,7 +441,9 @@ const submitProfileChange = async () => {
         realName: profileForm.realName.trim(),
         email: profileForm.email?.trim() || undefined,
         mobile: profileForm.mobile?.trim() || undefined,
-        avatar: profileForm.avatar?.trim() || undefined
+        avatar: profileForm.avatar?.trim() || undefined,
+        locale: appStore.locale,
+        timeZone: appStore.timeZone
       })
       userStore.userInfo = {
         ...(userStore.userInfo || { id: updated.id, username: updated.username }),

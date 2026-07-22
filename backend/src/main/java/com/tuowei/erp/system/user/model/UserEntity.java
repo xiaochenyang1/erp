@@ -29,6 +29,10 @@ public class UserEntity {
 
     private String mobile;
 
+    private String locale;
+
+    private String timeZone;
+
     private String employeeNo;
 
     private Long deptId;
@@ -122,6 +126,22 @@ public class UserEntity {
 
     public void setMobile(String mobile) {
         this.mobile = mobile;
+    }
+
+    public String getLocale() {
+        return locale;
+    }
+
+    public void setLocale(String locale) {
+        this.locale = locale;
+    }
+
+    public String getTimeZone() {
+        return timeZone;
+    }
+
+    public void setTimeZone(String timeZone) {
+        this.timeZone = timeZone;
     }
 
     public String getEmployeeNo() {

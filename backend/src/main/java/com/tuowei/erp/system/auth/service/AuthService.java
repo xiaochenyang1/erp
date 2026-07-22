@@ -43,9 +43,15 @@ import org.springframework.util.StringUtils;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class AuthService {
+
+    private static final Set<String> SUPPORTED_LOCALES = Set.of("zh-CN", "en-US");
+    private static final Set<String> SUPPORTED_TIME_ZONES = Set.of(
+            "Asia/Shanghai", "UTC", "America/New_York", "Europe/London"
+    );
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
@@ -188,6 +194,8 @@ public class AuthService {
         String mobile = normalizeNullableText(request.mobile());
         String email = normalizeNullableText(request.email());
         String avatar = normalizeNullableText(request.avatar());
+        String locale = normalizePreference(request.locale(), SUPPORTED_LOCALES, "locale");
+        String timeZone = normalizePreference(request.timeZone(), SUPPORTED_TIME_ZONES, "timeZone");
         String realName = request.realName() == null ? "" : request.realName().trim();
         if (!StringUtils.hasText(realName)) {
             throw new IllegalArgumentException("realName不能为空");
@@ -198,6 +206,12 @@ public class AuthService {
         user.setEmail(email);
         user.setMobile(mobile);
         user.setAvatar(avatar);
+        if (locale != null) {
+            user.setLocale(locale);
+        }
+        if (timeZone != null) {
+            user.setTimeZone(timeZone);
+        }
         user.setUpdatedBy(principal.userId());
         user.setUpdatedTime(LocalDateTime.now(clock));
         OptimisticLockGuard.requireUpdated(userMapper.updateById(user), "用户已被其他操作修改，请刷新后重试");
@@ -245,9 +259,19 @@ public class AuthService {
                 user.getEmail(),
                 user.getMobile(),
                 user.getAvatar(),
+                user.getLocale(),
+                user.getTimeZone(),
                 roleNames,
                 permissions
         );
+    }
+
+    private String normalizePreference(String value, Set<String> supported, String field) {
+        String normalized = normalizeNullableText(value);
+        if (normalized != null && !supported.contains(normalized)) {
+            throw new IllegalArgumentException(field + "不支持");
+        }
+        return normalized;
     }
 
     private void validateMobileUnique(String mobile, Long excludeId) {

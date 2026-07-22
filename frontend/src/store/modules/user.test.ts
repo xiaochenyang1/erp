@@ -6,10 +6,11 @@ import { setActivePinia, createPinia } from 'pinia'
 vi.mock('@/router', () => ({ default: { push: vi.fn() } }))
 vi.mock('element-plus', () => ({ ElMessage: { success: vi.fn(), error: vi.fn() } }))
 const loginMock = vi.fn()
+const getUserInfoMock = vi.fn()
 vi.mock('@/api/auth', () => ({
   login: (...args: unknown[]) => loginMock(...args),
   logout: vi.fn(),
-  getUserInfo: vi.fn()
+  getUserInfo: (...args: unknown[]) => getUserInfoMock(...args)
 }))
 
 import { useUserStore } from '@/store/modules/user'
@@ -18,6 +19,7 @@ beforeEach(() => {
   setActivePinia(createPinia())
   localStorage.clear()
   loginMock.mockReset()
+  getUserInfoMock.mockReset()
 })
 
 describe('user store', () => {
@@ -46,5 +48,16 @@ describe('user store', () => {
     expect(store.permissions).toEqual(['dashboard:view'])
     expect(localStorage.getItem('token')).toBe('access-x')
     expect(localStorage.getItem('refreshToken')).toBe('refresh-y')
+  })
+
+  it('getUserInfo 应用后端返回的语言与时区偏好', async () => {
+    getUserInfoMock.mockResolvedValue({
+      id: '1', username: 'admin', locale: 'en-US', timeZone: 'UTC', permissions: []
+    })
+    const store = useUserStore()
+    await store.getUserInfo()
+    expect(localStorage.getItem('locale')).toBe('en-US')
+    expect(localStorage.getItem('timeZone')).toBe('UTC')
+    expect(document.documentElement.lang).toBe('en-US')
   })
 })

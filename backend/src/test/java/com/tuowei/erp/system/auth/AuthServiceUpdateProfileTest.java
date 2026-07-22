@@ -101,7 +101,9 @@ class AuthServiceUpdateProfileTest {
                 "本地管理员",
                 "admin@example.com",
                 "13900001111",
-                "https://cdn.example.com/admin.png"
+                "https://cdn.example.com/admin.png",
+                "en-US",
+                "UTC"
         ));
 
         ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
@@ -111,11 +113,15 @@ class AuthServiceUpdateProfileTest {
         assertThat(saved.getEmail()).isEqualTo("admin@example.com");
         assertThat(saved.getMobile()).isEqualTo("13900001111");
         assertThat(saved.getAvatar()).isEqualTo("https://cdn.example.com/admin.png");
+        assertThat(saved.getLocale()).isEqualTo("en-US");
+        assertThat(saved.getTimeZone()).isEqualTo("UTC");
 
         assertThat(response.realName()).isEqualTo("本地管理员");
         assertThat(response.email()).isEqualTo("admin@example.com");
         assertThat(response.mobile()).isEqualTo("13900001111");
         assertThat(response.avatar()).isEqualTo("https://cdn.example.com/admin.png");
+        assertThat(response.locale()).isEqualTo("en-US");
+        assertThat(response.timeZone()).isEqualTo("UTC");
         assertThat(response.roles()).containsExactly("超级管理员");
         verify(principalCache).evictUser(4001L);
     }
@@ -131,6 +137,8 @@ class AuthServiceUpdateProfileTest {
                 "管理员",
                 "admin@example.com",
                 "13900001111",
+                null,
+                null,
                 null
         )))
                 .isInstanceOf(IllegalArgumentException.class)

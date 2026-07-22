@@ -223,6 +223,8 @@ class AuthControllerContractTest {
                         "demo@example.com",
                         "13800000000",
                         "https://cdn.example.com/a.png",
+                        "en-US",
+                        "UTC",
                         List.of("管理员"),
                         List.of("report:view")
                 )
@@ -235,13 +237,17 @@ class AuthControllerContractTest {
                                   "realName":"演示用户",
                                   "email":"demo@example.com",
                                   "mobile":"13800000000",
-                                  "avatar":"https://cdn.example.com/a.png"
+                                  "avatar":"https://cdn.example.com/a.png",
+                                  "locale":"en-US",
+                                  "timeZone":"UTC"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("0"))
                 .andExpect(jsonPath("$.data.email").value("demo@example.com"))
-                .andExpect(jsonPath("$.data.avatar").value("https://cdn.example.com/a.png"));
+                .andExpect(jsonPath("$.data.avatar").value("https://cdn.example.com/a.png"))
+                .andExpect(jsonPath("$.data.locale").value("en-US"))
+                .andExpect(jsonPath("$.data.timeZone").value("UTC"));
 
         ArgumentCaptor<UpdateProfileRequest> requestCaptor = ArgumentCaptor.forClass(UpdateProfileRequest.class);
         verify(authService).updateProfile(requestCaptor.capture());
@@ -249,6 +255,8 @@ class AuthControllerContractTest {
         assertThat(requestCaptor.getValue().email()).isEqualTo("demo@example.com");
         assertThat(requestCaptor.getValue().mobile()).isEqualTo("13800000000");
         assertThat(requestCaptor.getValue().avatar()).isEqualTo("https://cdn.example.com/a.png");
+        assertThat(requestCaptor.getValue().locale()).isEqualTo("en-US");
+        assertThat(requestCaptor.getValue().timeZone()).isEqualTo("UTC");
     }
 
     @Test
