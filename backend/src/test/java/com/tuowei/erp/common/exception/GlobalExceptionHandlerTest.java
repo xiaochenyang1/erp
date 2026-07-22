@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.lang.reflect.Method;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -99,6 +102,21 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.code()).isEqualTo("400");
         assertThat(response.message()).isEqualTo("请求参数错误");
+    }
+
+    @Test
+    void workflowEscalationErrorsUseRequestLocale() {
+        ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
+        messageSource.setBasename("messages");
+        messageSource.setDefaultEncoding("UTF-8");
+        ReflectionTestUtils.setField(handler, "messageSource", messageSource);
+        LocaleContextHolder.setLocale(Locale.ENGLISH);
+        try {
+            ApiResponse<String> response = handler.handleIllegalArgument(new IllegalArgumentException("审批任务尚未超时"));
+            assertThat(response.message()).isEqualTo("The approval task is not overdue");
+        } finally {
+            LocaleContextHolder.resetLocaleContext();
+        }
     }
 
     @Test

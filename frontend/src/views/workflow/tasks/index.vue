@@ -2,27 +2,27 @@
   <div class="workflow-container">
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="业务类型">
-          <el-select v-model="queryParams.businessType" placeholder="请选择业务类型" clearable style="width: 170px">
-            <el-option label="采购订单" value="PURCHASE_ORDER" />
-            <el-option label="销售订单" value="SALES_ORDER" />
-            <el-option label="费用单" value="EXPENSE" />
+        <el-form-item :label="t('workflow.businessType')">
+          <el-select v-model="queryParams.businessType" :placeholder="t('workflow.selectBusinessType')" clearable style="width: 170px">
+            <el-option :label="t('workflow.purchaseOrder')" value="PURCHASE_ORDER" />
+            <el-option :label="t('workflow.salesOrder')" value="SALES_ORDER" />
+            <el-option :label="t('workflow.expense')" value="EXPENSE" />
           </el-select>
         </el-form-item>
-        <el-form-item label="业务单号">
-          <el-input v-model="queryParams.businessNo" placeholder="请输入业务单号" clearable style="width: 180px" />
+        <el-form-item :label="t('workflow.businessNo')">
+          <el-input v-model="queryParams.businessNo" :placeholder="t('workflow.inputBusinessNo')" clearable style="width: 180px" />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 140px">
-            <el-option label="待审批" value="PENDING" />
-            <el-option label="已通过" value="APPROVED" />
-            <el-option label="已驳回" value="REJECTED" />
-            <el-option label="已取消" value="CANCELLED" />
+        <el-form-item :label="t('workflow.status')">
+          <el-select v-model="queryParams.status" :placeholder="t('workflow.selectStatus')" clearable style="width: 140px">
+            <el-option :label="t('workflow.pending')" value="PENDING" />
+            <el-option :label="t('workflow.approved')" value="APPROVED" />
+            <el-option :label="t('workflow.rejected')" value="REJECTED" />
+            <el-option :label="t('workflow.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ t('workflow.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ t('workflow.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -30,37 +30,37 @@
     <el-card class="table-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>审批待办</span>
-          <el-button :icon="Refresh" @click="loadData">刷新</el-button>
+          <span>{{ t('workflow.tasks') }}</span>
+          <el-button :icon="Refresh" @click="loadData">{{ t('workflow.refresh') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="title" label="任务标题" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="businessType" label="业务类型" width="130">
+        <el-table-column prop="title" :label="t('workflow.title')" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="businessType" :label="t('workflow.businessType')" width="130">
           <template #default="{ row }">{{ businessTypeLabel(row.businessType) }}</template>
         </el-table-column>
-        <el-table-column prop="businessNo" label="业务单号" min-width="170" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="110">
+        <el-table-column prop="businessNo" :label="t('workflow.businessNo')" min-width="170" show-overflow-tooltip />
+        <el-table-column prop="status" :label="t('workflow.status')" width="110">
           <template #default="{ row }">
             <el-tag :type="taskStatusType(row.status)">{{ taskStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="创建时间" width="180">
+        <el-table-column prop="createdTime" :label="t('workflow.createdTime')" width="180">
           <template #default="{ row }">{{ formatTime(row.createdTime) }}</template>
         </el-table-column>
-        <el-table-column prop="updatedTime" label="更新时间" width="180">
+        <el-table-column prop="updatedTime" :label="t('workflow.updatedTime')" width="180">
           <template #default="{ row }">{{ formatTime(row.updatedTime) }}</template>
         </el-table-column>
-        <el-table-column prop="dueTime" label="审批时限" width="190">
+        <el-table-column prop="dueTime" :label="t('workflow.dueTime')" width="190">
           <template #default="{ row }">
-            <el-tag v-if="row.overdue" type="danger" size="small">已超时</el-tag>
+            <el-tag v-if="row.overdue" type="danger" size="small">{{ t('workflow.overdue') }}</el-tag>
             <span class="due-time">{{ formatTime(row.dueTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column :label="t('workflow.actions')" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleView(toTaskRow(row))">查看</el-button>
+            <el-button link type="primary" @click="handleView(toTaskRow(row))">{{ t('workflow.view') }}</el-button>
             <el-button
               v-if="row.status === 'PENDING'"
               v-permission="'workflow:approve'"
@@ -68,7 +68,7 @@
               type="success"
               @click="openApprove(toTaskRow(row))"
             >
-              通过
+              {{ t('workflow.approve') }}
             </el-button>
             <el-button
               v-if="row.status === 'PENDING'"
@@ -77,7 +77,7 @@
               type="danger"
               @click="openReject(toTaskRow(row))"
             >
-              驳回
+              {{ t('workflow.reject') }}
             </el-button>
             <el-button
               v-if="row.status === 'PENDING'"
@@ -86,7 +86,7 @@
               type="warning"
               @click="openTransfer(toTaskRow(row))"
             >
-              转签
+              {{ t('workflow.transfer') }}
             </el-button>
             <el-button
               v-if="row.status === 'PENDING' && row.overdue"
@@ -95,7 +95,7 @@
               type="danger"
               @click="openEscalate(toTaskRow(row))"
             >
-              升级
+              {{ t('workflow.escalate') }}
             </el-button>
           </template>
         </el-table-column>
@@ -112,21 +112,21 @@
       />
     </el-card>
 
-    <el-dialog v-model="detailVisible" title="审批任务详情" width="760px">
+    <el-dialog v-model="detailVisible" :title="t('workflow.detail')" width="760px">
       <el-descriptions v-if="currentTask" :column="2" border>
-        <el-descriptions-item label="任务标题" :span="2">{{ currentTask.title }}</el-descriptions-item>
-        <el-descriptions-item label="业务类型">{{ businessTypeLabel(currentTask.businessType) }}</el-descriptions-item>
-        <el-descriptions-item label="业务单号">{{ currentTask.businessNo }}</el-descriptions-item>
-        <el-descriptions-item label="业务ID">{{ currentTask.businessId }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ taskStatusLabel(currentTask.status) }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ formatTime(currentTask.createdTime) }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ formatTime(currentTask.updatedTime) }}</el-descriptions-item>
-        <el-descriptions-item label="审批截止">{{ formatTime(currentTask.dueTime) }}</el-descriptions-item>
-        <el-descriptions-item label="升级次数">{{ currentTask.escalationCount || 0 }}</el-descriptions-item>
+        <el-descriptions-item :label="t('workflow.title')" :span="2">{{ currentTask.title }}</el-descriptions-item>
+        <el-descriptions-item :label="t('workflow.businessType')">{{ businessTypeLabel(currentTask.businessType) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('workflow.businessNo')">{{ currentTask.businessNo }}</el-descriptions-item>
+        <el-descriptions-item :label="t('workflow.businessId')">{{ currentTask.businessId }}</el-descriptions-item>
+        <el-descriptions-item :label="t('workflow.status')">{{ taskStatusLabel(currentTask.status) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('workflow.createdTime')">{{ formatTime(currentTask.createdTime) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('workflow.updatedTime')">{{ formatTime(currentTask.updatedTime) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('workflow.deadline')">{{ formatTime(currentTask.dueTime) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('workflow.escalationCount')">{{ currentTask.escalationCount || 0 }}</el-descriptions-item>
       </el-descriptions>
 
       <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button @click="detailVisible = false">{{ t('workflow.close') }}</el-button>
         <el-button
           v-if="currentTask?.status === 'PENDING'"
           v-permission="'workflow:approve'"
@@ -134,7 +134,7 @@
           :loading="submitLoading"
           @click="openApprove(currentTask)"
         >
-          审批通过
+          {{ t('workflow.approveAction') }}
         </el-button>
         <el-button
           v-if="currentTask?.status === 'PENDING'"
@@ -143,63 +143,63 @@
           :loading="submitLoading"
           @click="openReject(currentTask)"
         >
-          驳回
+          {{ t('workflow.reject') }}
         </el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="escalateVisible" title="超时审批升级" width="480px">
+    <el-dialog v-model="escalateVisible" :title="t('workflow.escalationTitle')" width="480px">
       <el-form label-width="100px">
-        <el-form-item label="升级给" required>
-          <el-select v-model="escalateUserId" filterable style="width: 100%" placeholder="选择新处理人">
+        <el-form-item :label="t('workflow.escalateTo')" required>
+          <el-select v-model="escalateUserId" filterable style="width: 100%" :placeholder="t('workflow.selectAssignee')">
             <el-option v-for="u in escalateUsers" :key="u.id" :label="u.username || u.realName || u.id" :value="String(u.id)" />
           </el-select>
         </el-form-item>
-        <el-form-item label="升级说明">
+        <el-form-item :label="t('workflow.escalationComment')">
           <el-input v-model="escalateComment" type="textarea" :rows="3" maxlength="255" show-word-limit />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="escalateVisible = false">取消</el-button>
-        <el-button type="danger" :loading="submitLoading" @click="submitEscalate">确认升级</el-button>
+        <el-button @click="escalateVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="danger" :loading="submitLoading" @click="submitEscalate">{{ t('workflow.confirmEscalation') }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog v-model="actionVisible" :title="actionTitle" width="520px" @close="resetAction">
       <el-form :model="actionForm" label-width="90px">
-        <el-form-item :label="actionMode === 'approve' ? '审批意见' : '驳回原因'" :required="actionMode === 'reject'">
+        <el-form-item :label="actionMode === 'approve' ? t('workflow.approvalComment') : t('workflow.rejectionReason')" :required="actionMode === 'reject'">
           <el-input
             v-model="actionForm.comment"
             type="textarea"
             :rows="4"
             maxlength="255"
             show-word-limit
-            :placeholder="actionMode === 'approve' ? '请输入审批意见' : '请输入驳回原因'"
+            :placeholder="actionMode === 'approve' ? t('workflow.inputApprovalComment') : t('workflow.inputRejectionReason')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="actionVisible = false">取消</el-button>
+        <el-button @click="actionVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button :type="actionMode === 'approve' ? 'success' : 'danger'" :loading="submitLoading" @click="handleConfirmAction">
-          确定
+          {{ t('common.confirm') }}
         </el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="transferVisible" title="转签任务" width="480px">
+    <el-dialog v-model="transferVisible" :title="t('workflow.transferTitle')" width="480px">
       <el-form label-width="100px">
-        <el-form-item label="转签给" required>
-          <el-select v-model="transferUserId" filterable style="width: 100%" placeholder="选择用户">
+        <el-form-item :label="t('workflow.transferTo')" required>
+          <el-select v-model="transferUserId" filterable style="width: 100%" :placeholder="t('workflow.selectUser')">
             <el-option v-for="u in transferUsers" :key="u.id" :label="u.username || u.realName || u.id" :value="String(u.id)" />
           </el-select>
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="t('workflow.comment')">
           <el-input v-model="actionForm.comment" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="transferVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitTransfer">确定转签</el-button>
+        <el-button @click="transferVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="submitTransfer">{{ t('workflow.confirmTransfer') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -207,6 +207,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
@@ -224,6 +225,7 @@ import { getUsers } from '@/api/system'
 import { formatLocalizedDateTime } from '@/utils/locale'
 
 const route = useRoute()
+const { t } = useI18n()
 const loading = ref(false)
 const submitLoading = ref(false)
 const tableData = ref<WorkflowTask[]>([])
@@ -255,7 +257,7 @@ const actionForm = reactive({
   comment: ''
 })
 
-const actionTitle = computed(() => (actionMode.value === 'approve' ? '审批通过' : '审批驳回'))
+const actionTitle = computed(() => (actionMode.value === 'approve' ? t('workflow.approveAction') : t('workflow.reject')))
 
 const loadData = async () => {
   loading.value = true
@@ -308,16 +310,16 @@ const openTransfer = async (row: WorkflowTask) => {
 }
 const submitTransfer = async () => {
   if (!currentTask.value || !transferUserId.value) {
-    ElMessage.warning('请选择转签用户')
+    ElMessage.warning(t('workflow.selectTransferUser'))
     return
   }
   try {
     await transferWorkflowTask({ taskId: currentTask.value.id, targetUserId: transferUserId.value, comment: actionForm.comment })
-    ElMessage.success('转签成功')
+    ElMessage.success(t('workflow.transferSuccess'))
     transferVisible.value = false
     loadData()
   } catch {
-    ElMessage.error('转签失败')
+    ElMessage.error(t('workflow.transferFailed'))
   }
 }
 const openEscalate = async (row: WorkflowTask) => {
@@ -334,7 +336,7 @@ const openEscalate = async (row: WorkflowTask) => {
 }
 const submitEscalate = async () => {
   if (!currentTask.value || !escalateUserId.value) {
-    ElMessage.warning('请选择升级目标用户')
+    ElMessage.warning(t('workflow.selectEscalationUser'))
     return
   }
   submitLoading.value = true
@@ -344,7 +346,7 @@ const submitEscalate = async () => {
       targetUserId: escalateUserId.value,
       comment: escalateComment.value.trim() || undefined
     })
-    ElMessage.success('超时审批已升级')
+    ElMessage.success(t('workflow.escalationSuccess'))
     escalateVisible.value = false
     await loadData()
   } finally {
@@ -360,7 +362,7 @@ const openReject = (row: WorkflowTask) => {
 const handleConfirmAction = async () => {
   if (!currentTask.value) return
   if (actionMode.value === 'reject' && !actionForm.comment.trim()) {
-    ElMessage.warning('请输入驳回原因')
+    ElMessage.warning(t('workflow.inputRejectionReason'))
     return
   }
 
@@ -368,10 +370,10 @@ const handleConfirmAction = async () => {
   try {
     if (actionMode.value === 'approve') {
       await approveWorkflowTask({ taskId: currentTask.value.id, comment: actionForm.comment.trim() || undefined })
-      ElMessage.success('审批通过')
+      ElMessage.success(t('workflow.approvalSuccess'))
     } else {
       await rejectWorkflowTask({ taskId: currentTask.value.id, reason: actionForm.comment.trim() })
-      ElMessage.success('已驳回')
+      ElMessage.success(t('workflow.rejectedSuccess'))
     }
     actionVisible.value = false
     detailVisible.value = false
@@ -398,19 +400,19 @@ const cleanQuery = (query: WorkflowTaskQuery): WorkflowTaskQuery => ({
 
 const businessTypeLabel = (type?: string) => {
   const map: Record<string, string> = {
-    PURCHASE_ORDER: '采购订单',
-    SALES_ORDER: '销售订单',
-    EXPENSE: '费用单'
+    PURCHASE_ORDER: t('workflow.purchaseOrder'),
+    SALES_ORDER: t('workflow.salesOrder'),
+    EXPENSE: t('workflow.expense')
   }
   return type ? map[type] || type : '-'
 }
 
 const taskStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: '待审批',
-    APPROVED: '已通过',
-    REJECTED: '已驳回',
-    CANCELLED: '已取消'
+    PENDING: t('workflow.pending'),
+    APPROVED: t('workflow.approved'),
+    REJECTED: t('workflow.rejected'),
+    CANCELLED: t('workflow.cancelled')
   }
   return map[status] || status
 }

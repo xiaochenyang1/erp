@@ -151,6 +151,14 @@ public class GlobalExceptionHandler {
             exceptionMessage = message("preference.locale.unsupported", exceptionMessage);
         } else if ("timeZone不支持".equals(exceptionMessage)) {
             exceptionMessage = message("preference.timezone.unsupported", exceptionMessage);
+        } else if ("targetUserId不能为空".equals(exceptionMessage)) {
+            exceptionMessage = message("workflow.task.target.required", exceptionMessage);
+        } else if ("审批任务尚未超时".equals(exceptionMessage)) {
+            exceptionMessage = message("workflow.task.not.overdue", exceptionMessage);
+        } else if ("升级目标不能是当前处理人".equals(exceptionMessage)) {
+            exceptionMessage = message("workflow.task.escalation.same.user", exceptionMessage);
+        } else if ("升级目标用户不存在或已停用".equals(exceptionMessage)) {
+            exceptionMessage = message("workflow.task.escalation.target.invalid", exceptionMessage);
         }
         return new ApiResponse<>("400", messageOrDefault(exceptionMessage, message("error.request.invalid", "请求参数错误")), null);
     }
