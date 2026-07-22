@@ -66,7 +66,7 @@
       </el-col>
 
       <el-col :xs="24" :sm="12" :lg="4">
-        <div class="stat-card" style="border-left: 4px solid #f56c6c" @click="handleQuickAction('/workflow/tasks')">
+        <div class="stat-card" style="border-left: 4px solid #f56c6c" @click="handleQuickAction(summary.overdueApprovals > 0 ? '/workflow/tasks?status=PENDING&overdueOnly=true' : '/workflow/tasks')">
           <div class="stat-card-icon" style="background-color: #fef0f0; color: #f56c6c">
             <el-icon :size="30"><DocumentChecked /></el-icon>
           </div>
@@ -74,7 +74,10 @@
             <div class="stat-card-title">{{ t('dashboard.pendingApprovals') }}</div>
             <div class="stat-card-value">{{ formatNumber(summary.pendingApprovals) }}</div>
             <div class="stat-card-trend">
-              <el-tag size="small" type="danger">{{ t('dashboard.pending') }}</el-tag>
+              <el-tag v-if="summary.overdueApprovals > 0" size="small" type="danger">
+                {{ t('dashboard.overdueApprovals', { count: formatNumber(summary.overdueApprovals) }) }}
+              </el-tag>
+              <el-tag v-else size="small" type="warning">{{ t('dashboard.pending') }}</el-tag>
             </div>
           </div>
         </div>
@@ -343,6 +346,7 @@ const { t, locale } = useI18n()
 const emptyDashboard: OperationsDashboard = {
   summary: {
     pendingApprovals: 0,
+    overdueApprovals: 0,
     lowStockAlerts: 0,
     openReceivables: 0,
     openReceivableAmount: 0,

@@ -39,6 +39,7 @@ class OperationsDashboardControllerTest {
         when(operationsDashboardService.getOperationsDashboard()).thenReturn(new OperationsDashboardResponse(
                 new OperationsDashboardSummaryResponse(
                         2,
+                        1,
                         3,
                         4,
                         new BigDecimal("1250.00"),
@@ -65,6 +66,7 @@ class OperationsDashboardControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("0"))
                 .andExpect(jsonPath("$.data.summary.pendingApprovals").value(2))
+                .andExpect(jsonPath("$.data.summary.overdueApprovals").value(1))
                 .andExpect(jsonPath("$.data.todos[0].route").value("/workflow/tasks?businessType=PURCHASE_ORDER&businessId=9001&status=PENDING"))
                 .andExpect(jsonPath("$.data.generatedAt").value("2026-06-30T10:00:00"));
     }

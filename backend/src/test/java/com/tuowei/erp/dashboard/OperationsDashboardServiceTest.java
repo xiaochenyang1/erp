@@ -90,7 +90,7 @@ class OperationsDashboardServiceTest {
     @Test
     void aggregatesMetricsTodosAndTenantScopedQueries() {
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
-        when(workflowTaskMapper.selectCount(any())).thenReturn(2L);
+        when(workflowTaskMapper.selectCount(any())).thenReturn(2L, 1L);
         when(workflowTaskMapper.selectList(any())).thenReturn(List.of(
                 workflowTask(9101L, "PURCHASE_ORDER", "PO-001", LocalDateTime.of(2026, 6, 30, 9, 0)),
                 workflowTask(9102L, "EXPENSE", "EX-001", LocalDateTime.of(2026, 6, 30, 8, 0))
@@ -119,6 +119,7 @@ class OperationsDashboardServiceTest {
         var response = service().getOperationsDashboard();
 
         assertThat(response.summary().pendingApprovals()).isEqualTo(2);
+        assertThat(response.summary().overdueApprovals()).isEqualTo(1);
         assertThat(response.summary().lowStockAlerts()).isEqualTo(2);
         assertThat(response.summary().openReceivables()).isEqualTo(3);
         assertThat(response.summary().openPayables()).isEqualTo(4);
@@ -147,12 +148,15 @@ class OperationsDashboardServiceTest {
         @SuppressWarnings({"unchecked", "rawtypes"})
         ArgumentCaptor<LambdaQueryWrapper<WorkflowTaskEntity>> workflowCaptor =
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(workflowTaskMapper).selectCount(workflowCaptor.capture());
-        assertThat(workflowCaptor.getValue().getSqlSegment().toLowerCase(Locale.ROOT))
+        verify(workflowTaskMapper, org.mockito.Mockito.times(2)).selectCount(workflowCaptor.capture());
+        assertThat(workflowCaptor.getAllValues().get(0).getSqlSegment().toLowerCase(Locale.ROOT))
                 .contains("company_id")
                 .contains("account_book_id")
                 .contains("approver_user_id")
                 .contains("status");
+        assertThat(workflowCaptor.getAllValues().get(1).getSqlSegment().toLowerCase(Locale.ROOT))
+                .contains("due_time")
+                .contains("<");
     }
 
     @Test

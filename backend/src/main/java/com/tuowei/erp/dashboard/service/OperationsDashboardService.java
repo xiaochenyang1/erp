@@ -81,6 +81,7 @@ public class OperationsDashboardService {
         LocalDateTime generatedAt = LocalDateTime.now(clock);
 
         long pendingApprovalCount = workflowTaskMapper.selectCount(pendingWorkflowQuery(audit));
+        long overdueApprovalCount = workflowTaskMapper.selectCount(overdueWorkflowQuery(audit, generatedAt));
         List<WorkflowTaskEntity> workflowTasks = workflowTaskMapper.selectList(pendingWorkflowQuery(audit)
                 .orderByAsc(WorkflowTaskEntity::getCreatedTime)
                 .last("limit " + TODO_LIMIT));
@@ -142,6 +143,7 @@ public class OperationsDashboardService {
         return new OperationsDashboardResponse(
                 new OperationsDashboardSummaryResponse(
                         pendingApprovalCount,
+                        overdueApprovalCount,
                         lowStock.size(),
                         openReceivableCount,
                         ScalePrecision.amount(openReceivableAmount),
@@ -163,6 +165,12 @@ public class OperationsDashboardService {
                 .eq(WorkflowTaskEntity::getAccountBookId, audit.accountBookId())
                 .eq(WorkflowTaskEntity::getApproverUserId, audit.userId())
                 .eq(WorkflowTaskEntity::getStatus, TASK_PENDING);
+    }
+
+    private LambdaQueryWrapper<WorkflowTaskEntity> overdueWorkflowQuery(AuditMetadata audit, LocalDateTime now) {
+        return pendingWorkflowQuery(audit)
+                .isNotNull(WorkflowTaskEntity::getDueTime)
+                .lt(WorkflowTaskEntity::getDueTime, now);
     }
 
     private LambdaQueryWrapper<ReceivableEntity> openReceivableQuery(AuditMetadata audit) {

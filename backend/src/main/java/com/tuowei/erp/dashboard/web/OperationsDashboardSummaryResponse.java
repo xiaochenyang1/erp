@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public record OperationsDashboardSummaryResponse(
         long pendingApprovals,
+        long overdueApprovals,
         long lowStockAlerts,
         long openReceivables,
         BigDecimal openReceivableAmount,

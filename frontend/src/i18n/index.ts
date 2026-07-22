@@ -38,7 +38,7 @@ const messages = {
       onboarding: '新手路径：主数据 → 销售/采购订单 → 出入库 → 财务收付；扩展能力见 账龄/MRP/报价/询价',
       newPurchase: '新增采购', newSales: '新增销售', stockQuery: '库存查询',
       todayPurchaseOrders: '今日采购订单', todaySalesAmount: '今日销售金额', stockAlerts: '库存预警',
-      pendingApprovals: '待审批单据', openReceivables: '未结应收', openPayables: '未结应付',
+      pendingApprovals: '待审批单据', overdueApprovals: '超时 {count}', openReceivables: '未结应收', openPayables: '未结应付',
       today: '今日', attention: '需关注', pending: '待处理', receivableAging: '应收账龄', payableAging: '应付账龄',
       details: '详情', bucket: '账龄段', count: '笔数', amount: '金额', total: '合计', overdueTop: '逾期 TOP'
     },
@@ -78,7 +78,7 @@ const messages = {
       onboarding: 'Getting started: master data → sales/purchase orders → inventory → payments; explore aging, MRP, quotes, and inquiries',
       newPurchase: 'New purchase', newSales: 'New sale', stockQuery: 'Stock lookup',
       todayPurchaseOrders: "Today's purchase orders", todaySalesAmount: "Today's sales", stockAlerts: 'Stock alerts',
-      pendingApprovals: 'Pending approvals', openReceivables: 'Open receivables', openPayables: 'Open payables',
+      pendingApprovals: 'Pending approvals', overdueApprovals: '{count} overdue', openReceivables: 'Open receivables', openPayables: 'Open payables',
       today: 'Today', attention: 'Attention', pending: 'Pending', receivableAging: 'Receivable aging', payableAging: 'Payable aging',
       details: 'Details', bucket: 'Aging bucket', count: 'Count', amount: 'Amount', total: 'Total', overdueTop: 'Overdue TOP'
     },

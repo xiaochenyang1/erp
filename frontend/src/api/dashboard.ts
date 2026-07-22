@@ -2,6 +2,7 @@ import { request } from '@/utils/request'
 
 export interface OperationsDashboardSummary {
   pendingApprovals: number
+  overdueApprovals: number
   lowStockAlerts: number
   openReceivables: number
   openReceivableAmount: number
