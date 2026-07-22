@@ -1,15 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const post = vi.fn()
+const get = vi.fn()
+const put = vi.fn()
 vi.mock('@/utils/request', () => ({
   request: {
-    post: (...args: unknown[]) => post(...args)
+    post: (...args: unknown[]) => post(...args),
+    get: (...args: unknown[]) => get(...args),
+    put: (...args: unknown[]) => put(...args)
   }
 }))
 
-import { escalateWorkflowTask } from '@/api/workflow'
+import { escalateWorkflowTask, getWorkflowApprovalConfig, saveWorkflowApprovalConfig } from '@/api/workflow'
 
-beforeEach(() => post.mockReset())
+beforeEach(() => {
+  post.mockReset()
+  get.mockReset()
+  put.mockReset()
+})
 
 describe('审批超时升级 API', () => {
   it('提交升级目标并归一化雪花 ID', async () => {
@@ -35,5 +43,16 @@ describe('审批超时升级 API', () => {
     expect(task.id).toBe('9007199254740993')
     expect(task.approverUserId).toBe('9007199254740997')
     expect(task.escalationCount).toBe(1)
+  })
+
+  it('round-trips the configurable task timeout', async () => {
+    get.mockResolvedValue({ businessType: 'SALES_ORDER', status: 'ACTIVE', taskTimeoutHours: 6, nodes: [] })
+    put.mockResolvedValue({ businessType: 'SALES_ORDER', status: 'ACTIVE', taskTimeoutHours: 12, nodes: [] })
+
+    await expect(getWorkflowApprovalConfig('SALES_ORDER')).resolves.toMatchObject({ taskTimeoutHours: 6 })
+    await expect(saveWorkflowApprovalConfig('SALES_ORDER', {
+      configName: 'Sales approval', status: 'ACTIVE', taskTimeoutHours: 12, nodes: []
+    })).resolves.toMatchObject({ taskTimeoutHours: 12 })
+    expect(put).toHaveBeenCalledWith('/workflow/configs/SALES_ORDER', expect.objectContaining({ taskTimeoutHours: 12 }))
   })
 })

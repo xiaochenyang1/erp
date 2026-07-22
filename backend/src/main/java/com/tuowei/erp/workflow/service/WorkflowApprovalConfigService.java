@@ -90,7 +90,7 @@ public class WorkflowApprovalConfigService {
         String normalizedBusinessType = normalizeCode(businessType);
         WorkflowApprovalConfigEntity config = findConfig(audit, normalizedBusinessType);
         if (config == null) {
-            return new WorkflowApprovalConfigResponse(null, normalizedBusinessType, null, STATUS_DISABLED, null, List.of());
+            return new WorkflowApprovalConfigResponse(null, normalizedBusinessType, null, STATUS_DISABLED, 24, null, List.of());
         }
         return toResponse(config);
     }
@@ -113,6 +113,7 @@ public class WorkflowApprovalConfigService {
         }
         config.setConfigName(request.configName().trim());
         config.setStatus(normalizeStatus(request.status()));
+        config.setTaskTimeoutHours(normalizeTaskTimeoutHours(request.taskTimeoutHours()));
         config.setRemark(normalizeNullableText(request.remark()));
         config.setUpdatedBy(audit.userId());
         config.setUpdatedTime(now);
@@ -176,6 +177,14 @@ public class WorkflowApprovalConfigService {
     public boolean isAllApprovalMode(WorkflowInstanceEntity instance, Long approvalNodeId, AuditMetadata audit) {
         WorkflowApprovalNodeEntity node = resolveActiveNode(instance, approvalNodeId, audit);
         return node != null && "ALL".equals(node.getApprovalMode());
+    }
+
+    public long resolveTaskTimeoutHours(WorkflowInstanceEntity instance, AuditMetadata audit, long fallbackHours) {
+        WorkflowApprovalConfigEntity config = findConfig(audit, normalizeCode(instance.getBusinessType()));
+        if (config == null || config.getTaskTimeoutHours() == null || config.getTaskTimeoutHours() < 1) {
+            return Math.max(fallbackHours, 1);
+        }
+        return config.getTaskTimeoutHours();
     }
 
     public void assertCurrentUserCanApprove(WorkflowInstanceEntity instance, AuditMetadata audit) {
@@ -442,6 +451,7 @@ public class WorkflowApprovalConfigService {
                 config.getBusinessType(),
                 config.getConfigName(),
                 config.getStatus(),
+                normalizeTaskTimeoutHours(config.getTaskTimeoutHours()),
                 config.getRemark(),
                 nodeResponses
         );
@@ -481,6 +491,14 @@ public class WorkflowApprovalConfigService {
         String normalized = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : STATUS_ACTIVE;
         if (!STATUS_ACTIVE.equals(normalized) && !STATUS_DISABLED.equals(normalized)) {
             throw new IllegalArgumentException("审批配置状态无效");
+        }
+        return normalized;
+    }
+
+    private int normalizeTaskTimeoutHours(Integer taskTimeoutHours) {
+        int normalized = taskTimeoutHours == null ? 24 : taskTimeoutHours;
+        if (normalized < 1 || normalized > 720) {
+            throw new IllegalArgumentException("审批超时时限必须在1到720小时之间");
         }
         return normalized;
     }

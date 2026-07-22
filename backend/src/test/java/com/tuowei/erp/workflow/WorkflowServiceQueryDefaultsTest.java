@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.CurrentUser;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.system.log.service.SystemLogService;
 import com.tuowei.erp.system.notification.service.NotificationService;
@@ -15,6 +16,7 @@ import com.tuowei.erp.workflow.mapper.WorkflowRecordMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
 import com.tuowei.erp.workflow.model.WorkflowRecordEntity;
 import com.tuowei.erp.workflow.model.WorkflowTaskEntity;
+import com.tuowei.erp.workflow.model.WorkflowInstanceEntity;
 import com.tuowei.erp.workflow.service.WorkflowApprovalConfigService;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import com.tuowei.erp.workflow.web.WorkflowRecordResponse;
@@ -29,6 +31,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -97,6 +100,27 @@ class WorkflowServiceQueryDefaultsTest {
         verify(recordMapper).selectPage(pageCaptor.capture(), wrapperCaptor.capture());
         assertDefaultPage(pageCaptor.getValue());
         assertScopedInstanceSql(wrapperCaptor.getValue());
+    }
+
+    @Test
+    void submitUsesBusinessWorkflowTimeoutForNewTaskDeadline() {
+        WorkflowInstanceMapper instanceMapper = mock(WorkflowInstanceMapper.class);
+        WorkflowTaskMapper taskMapper = mock(WorkflowTaskMapper.class);
+        WorkflowApprovalConfigService configService = mock(WorkflowApprovalConfigService.class);
+        CurrentUserContext currentUserContext = mock(CurrentUserContext.class);
+        when(currentUserContext.requireCurrentUser()).thenReturn(new CurrentUser(9L, 101L, 202L, null, null, "tester", "Tester"));
+        when(configService.resolveTaskTimeoutHours(any(), any(), anyLong())).thenReturn(6L);
+        WorkflowService service = new WorkflowService(
+                instanceMapper, taskMapper, mock(WorkflowRecordMapper.class), auditFactory(),
+                mock(SystemLogService.class), currentUserContext, mock(NotificationService.class),
+                configService, mock(com.tuowei.erp.system.user.mapper.UserMapper.class));
+
+        service.submit("SALES_ORDER", 7001L, "SO-7001", "销售订单 SO-7001", null);
+
+        ArgumentCaptor<WorkflowTaskEntity> taskCaptor = ArgumentCaptor.forClass(WorkflowTaskEntity.class);
+        verify(taskMapper).insert(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getDueTime()).isEqualTo(AUDIT.now().plusHours(6));
+        verify(configService).resolveTaskTimeoutHours(any(WorkflowInstanceEntity.class), any(AuditMetadata.class), anyLong());
     }
 
     private static WorkflowService service(WorkflowTaskMapper taskMapper, WorkflowRecordMapper recordMapper) {

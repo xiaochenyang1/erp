@@ -70,6 +70,7 @@ class WorkflowApprovalConfigControllerTest {
                                 {
                                   "configName": "销售订单审批配置",
                                   "status": "ACTIVE",
+                                  "taskTimeoutHours": 6,
                                   "remark": "controller test",
                                   "nodes": [
                                     {
@@ -86,6 +87,7 @@ class WorkflowApprovalConfigControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.businessType").value("SALES_ORDER"))
                 .andExpect(jsonPath("$.data.configName").value("销售订单审批配置"))
+                .andExpect(jsonPath("$.data.taskTimeoutHours").value(6))
                 .andExpect(jsonPath("$.data.nodes[0].approvers[0].approverType").value("ROLE"))
                 .andExpect(jsonPath("$.data.nodes[0].approvers[0].approverId").value(3002));
 
@@ -93,6 +95,7 @@ class WorkflowApprovalConfigControllerTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.businessType").value("SALES_ORDER"))
+                .andExpect(jsonPath("$.data.taskTimeoutHours").value(6))
                 .andExpect(jsonPath("$.data.nodes[0].nodeName").value("一级审批"))
                 .andExpect(jsonPath("$.data.nodes[0].approvalMode").value("ANY"));
     }

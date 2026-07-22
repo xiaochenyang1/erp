@@ -7,6 +7,7 @@ public record WorkflowApprovalConfigResponse(
         String businessType,
         String configName,
         String status,
+        Integer taskTimeoutHours,
         String remark,
         List<WorkflowApprovalNodeResponse> nodes
 ) {

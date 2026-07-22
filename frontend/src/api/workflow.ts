@@ -103,6 +103,7 @@ export interface WorkflowApprovalConfig {
   businessType: string
   configName?: string
   status: 'ACTIVE' | 'DISABLED' | string
+  taskTimeoutHours: number
   remark?: string
   nodes: WorkflowApprovalNode[]
 }
@@ -110,6 +111,7 @@ export interface WorkflowApprovalConfig {
 export interface WorkflowApprovalConfigRequest {
   configName: string
   status?: string
+  taskTimeoutHours: number
   remark?: string
   nodes: Array<{
     nodeName: string
@@ -191,6 +193,7 @@ const normalizeWorkflowApprovalNode = (node: WorkflowApprovalNode): WorkflowAppr
 const normalizeWorkflowApprovalConfig = (config: WorkflowApprovalConfig): WorkflowApprovalConfig => ({
   ...config,
   id: config.id != null ? String(config.id) : undefined,
+  taskTimeoutHours: Number(config.taskTimeoutHours || 24),
   nodes: (config.nodes || []).map(normalizeWorkflowApprovalNode)
 })
 

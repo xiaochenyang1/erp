@@ -27,6 +27,10 @@
               <el-option label="停用" value="DISABLED" />
             </el-select>
           </el-form-item>
+          <el-form-item label="审批时限">
+            <el-input v-model.number="configForm.taskTimeoutHours" type="number" min="1" max="720" step="1" style="width: 110px" />
+            <span class="timeout-unit">小时</span>
+          </el-form-item>
         </el-form>
         <div class="toolbar-actions">
           <el-button :icon="Refresh" @click="loadConfig">刷新</el-button>
@@ -198,6 +202,7 @@ const configForm = reactive({
   id: undefined as string | undefined,
   configName: '',
   status: 'ACTIVE',
+  taskTimeoutHours: 24,
   remark: '',
   nodes: [] as NodeForm[]
 })
@@ -225,6 +230,7 @@ const applyConfig = (config: WorkflowApprovalConfig) => {
   configForm.id = config.id
   configForm.configName = config.configName || `${currentBusinessTypeLabel()}审批配置`
   configForm.status = config.status || 'ACTIVE'
+  configForm.taskTimeoutHours = config.taskTimeoutHours || 24
   configForm.remark = config.remark || ''
   configForm.nodes = config.nodes.length
     ? config.nodes.map((node, index) => ({
@@ -292,6 +298,10 @@ const validateConfig = () => {
     ElMessage.warning('至少保留一个审批节点')
     return false
   }
+  if (configForm.taskTimeoutHours < 1 || configForm.taskTimeoutHours > 720) {
+    ElMessage.warning('审批时限必须在1到720小时之间')
+    return false
+  }
   for (const [nodeIndex, node] of configForm.nodes.entries()) {
     if (!node.nodeName.trim()) {
       ElMessage.warning(`请输入第 ${nodeIndex + 1} 个节点名称`)
@@ -314,6 +324,7 @@ const validateConfig = () => {
 const toPayload = (): WorkflowApprovalConfigRequest => ({
   configName: configForm.configName.trim(),
   status: configForm.status,
+  taskTimeoutHours: configForm.taskTimeoutHours,
   remark: configForm.remark.trim() || undefined,
   nodes: configForm.nodes.map((node, index) => ({
     nodeName: node.nodeName.trim(),
@@ -379,6 +390,11 @@ onMounted(async () => {
     display: flex;
     gap: 8px;
     flex-shrink: 0;
+  }
+
+  .timeout-unit {
+    margin-left: 6px;
+    color: var(--el-text-color-secondary);
   }
 
   .card-header,

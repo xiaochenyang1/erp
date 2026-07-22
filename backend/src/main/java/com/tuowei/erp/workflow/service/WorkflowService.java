@@ -248,13 +248,16 @@ public class WorkflowService {
         task.setApproverUserId(targetUserId);
         task.setEscalatedTime(now);
         task.setEscalationCount((task.getEscalationCount() == null ? 0 : task.getEscalationCount()) + 1);
-        task.setDueTime(now.plusHours(Math.max(taskTimeoutHours, 1)));
+        WorkflowInstanceEntity instance = instanceMapper.selectById(task.getInstanceId());
+        long timeoutHours = instance == null
+                ? Math.max(taskTimeoutHours, 1)
+                : approvalConfigService.resolveTaskTimeoutHours(instance, audit, taskTimeoutHours);
+        task.setDueTime(now.plusHours(timeoutHours));
         task.setUpdatedBy(audit.userId());
         task.setUpdatedTime(now);
         if (taskMapper.updateById(task) != 1) {
             throw new BusinessConflictException("审批任务已被其他操作修改，请刷新后重试");
         }
-        WorkflowInstanceEntity instance = instanceMapper.selectById(task.getInstanceId());
         if (instance != null) {
             String message = "超时升级: " + fromUserId + " -> " + targetUserId
                     + (StringUtils.hasText(comment) ? "；" + comment.trim() : "");
@@ -462,7 +465,7 @@ public class WorkflowService {
         task.setTitle(instance.getTitle());
         task.setApprovalNodeId(approvalNodeId);
         task.setStatus(TASK_PENDING);
-        task.setDueTime(now.plusHours(Math.max(taskTimeoutHours, 1)));
+        task.setDueTime(now.plusHours(approvalConfigService.resolveTaskTimeoutHours(instance, audit, taskTimeoutHours)));
         task.setEscalationCount(0);
         fillAudit(task, audit, now);
         taskMapper.insert(task);

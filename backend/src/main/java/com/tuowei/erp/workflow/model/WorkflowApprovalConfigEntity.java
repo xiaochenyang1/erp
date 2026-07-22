@@ -17,6 +17,7 @@ public class WorkflowApprovalConfigEntity {
     private String businessType;
     private String configName;
     private String status;
+    private Integer taskTimeoutHours;
     private Integer deletedFlag;
     private String remark;
     private Long createdBy;
@@ -38,6 +39,8 @@ public class WorkflowApprovalConfigEntity {
     public void setConfigName(String configName) { this.configName = configName; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public Integer getTaskTimeoutHours() { return taskTimeoutHours; }
+    public void setTaskTimeoutHours(Integer taskTimeoutHours) { this.taskTimeoutHours = taskTimeoutHours; }
     public Integer getDeletedFlag() { return deletedFlag; }
     public void setDeletedFlag(Integer deletedFlag) { this.deletedFlag = deletedFlag; }
     public String getRemark() { return remark; }
