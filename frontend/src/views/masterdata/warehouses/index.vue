@@ -218,6 +218,20 @@
       <detail-card>
         <div class="detail-section">
           <div class="section-title">
+            <el-icon><Box /></el-icon>
+            库存概览
+          </div>
+          <div class="detail-row">
+            <div class="detail-item"><div class="detail-label">库存 SKU</div><div class="detail-value">{{ stockSummary?.skuCount ?? 0 }}</div></div>
+            <div class="detail-item"><div class="detail-label">现存数量</div><div class="detail-value">{{ stockSummary?.qtyOnHand ?? 0 }}</div></div>
+            <div class="detail-item"><div class="detail-label">预占数量</div><div class="detail-value">{{ stockSummary?.qtyReserved ?? 0 }}</div></div>
+            <div class="detail-item"><div class="detail-label">可用数量</div><div class="detail-value">{{ stockSummary?.qtyAvailable ?? 0 }}</div></div>
+            <div class="detail-item"><div class="detail-label">库存金额</div><div class="detail-value">¥{{ Number(stockSummary?.amountOnHand || 0).toFixed(2) }}</div></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="section-title">
             <el-icon><Memo /></el-icon>
             基本信息
           </div>
@@ -297,17 +311,20 @@ import {
   CircleCheck,
   Clock,
   UserFilled,
-  Memo
+  Memo,
+  Box
 } from '@element-plus/icons-vue'
 import {
   getWarehouses,
   getWarehouse,
+  getWarehouseStockSummary,
   createWarehouse,
   updateWarehouse,
   deleteWarehouse,
   enableWarehouse,
   exportWarehouses,
   type Warehouse,
+  type WarehouseStockSummary,
   type WarehouseQuery,
   type WarehouseSaveRequest
 } from '@/api/masterdata'
@@ -349,6 +366,7 @@ const dialogTitle = computed(() => (formData.id ? '编辑仓库' : '新增仓库
 const submitting = ref(false)
 const detailVisible = ref(false)
 const currentRow = ref<Warehouse>()
+const stockSummary = ref<WarehouseStockSummary>()
 
 // 表单数据
 const formData = reactive<WarehouseSaveRequest & { id?: string }>({
@@ -493,6 +511,7 @@ const handleEdit = (row: Warehouse) => {
 const handleView = async (row: Warehouse) => {
   try {
     currentRow.value = await getWarehouse(row.id)
+    stockSummary.value = await getWarehouseStockSummary(row.id)
     detailVisible.value = true
   } catch {
     ElMessage.error('加载仓库详情失败')

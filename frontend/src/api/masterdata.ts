@@ -455,6 +455,15 @@ export interface WarehouseSaveRequest {
   remark?: string
 }
 
+export interface WarehouseStockSummary {
+  warehouseId: string
+  skuCount: number
+  qtyOnHand: number
+  qtyReserved: number
+  qtyAvailable: number
+  amountOnHand: number
+}
+
 // 仓库API
 export const getWarehouses = (params: WarehouseQuery) => {
   return request.get<PageResponse<Warehouse>>('/masterdata/warehouses', {
@@ -467,6 +476,13 @@ export const getWarehouses = (params: WarehouseQuery) => {
 
 export const getWarehouse = (id: string | number) => {
   return request.get<Warehouse>(`/masterdata/warehouses/${id}`).then(normalizeWarehouse)
+}
+
+export const getWarehouseStockSummary = (id: string | number) => {
+  return request.get<WarehouseStockSummary>(`/masterdata/warehouses/${id}/stock-summary`).then((summary) => ({
+    ...summary,
+    warehouseId: String(summary.warehouseId)
+  }))
 }
 
 export const createWarehouse = (data: WarehouseSaveRequest) => {

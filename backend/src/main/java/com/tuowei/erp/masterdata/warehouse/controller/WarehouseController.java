@@ -5,6 +5,8 @@ import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.common.security.PermissionCodes;
 import com.tuowei.erp.common.web.SafeFilename;
 import com.tuowei.erp.masterdata.warehouse.service.WarehouseService;
+import com.tuowei.erp.masterdata.warehouse.service.WarehouseStockSummaryService;
+import com.tuowei.erp.masterdata.warehouse.web.WarehouseStockSummaryResponse;
 import com.tuowei.erp.masterdata.warehouse.web.WarehouseCreateRequest;
 import com.tuowei.erp.masterdata.warehouse.web.WarehousePageQuery;
 import com.tuowei.erp.masterdata.warehouse.web.WarehouseResponse;
@@ -31,9 +33,11 @@ import java.nio.charset.StandardCharsets;
 public class WarehouseController {
 
     private final WarehouseService warehouseService;
+    private final WarehouseStockSummaryService warehouseStockSummaryService;
 
-    public WarehouseController(WarehouseService warehouseService) {
+    public WarehouseController(WarehouseService warehouseService, WarehouseStockSummaryService warehouseStockSummaryService) {
         this.warehouseService = warehouseService;
+        this.warehouseStockSummaryService = warehouseStockSummaryService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_MASTERDATA_WAREHOUSE_CREATE)
@@ -58,6 +62,12 @@ public class WarehouseController {
     @GetMapping("/{id}")
     public ApiResponse<WarehouseResponse> detail(@PathVariable Long id) {
         return ApiResponse.success(warehouseService.getById(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_MASTERDATA_WAREHOUSE_VIEW)
+    @GetMapping("/{id}/stock-summary")
+    public ApiResponse<WarehouseStockSummaryResponse> stockSummary(@PathVariable Long id) {
+        return ApiResponse.success(warehouseStockSummaryService.summary(id));
     }
 
     @PreAuthorize(PermissionCodes.HAS_MASTERDATA_WAREHOUSE_UPDATE)
