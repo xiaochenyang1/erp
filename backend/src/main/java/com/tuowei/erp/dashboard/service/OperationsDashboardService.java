@@ -9,6 +9,7 @@ import com.tuowei.erp.dashboard.web.OperationsDashboardLowStockResponse;
 import com.tuowei.erp.dashboard.web.OperationsDashboardResponse;
 import com.tuowei.erp.dashboard.web.OperationsDashboardSummaryResponse;
 import com.tuowei.erp.dashboard.web.OperationsDashboardTodoResponse;
+import com.tuowei.erp.dashboard.web.OperationsDashboardTopSkuResponse;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -19,6 +20,7 @@ import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
+import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
 import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
@@ -50,6 +52,7 @@ public class OperationsDashboardService {
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final SalesOrderMapper salesOrderMapper;
     private final OperationLogMapper operationLogMapper;
+    private final SalesDeliveryLineMapper salesDeliveryLineMapper;
     private final Clock clock;
 
     public OperationsDashboardService(
@@ -61,6 +64,7 @@ public class OperationsDashboardService {
             PurchaseOrderMapper purchaseOrderMapper,
             SalesOrderMapper salesOrderMapper,
             OperationLogMapper operationLogMapper,
+            SalesDeliveryLineMapper salesDeliveryLineMapper,
             Clock clock
     ) {
         this.auditMetadataFactory = auditMetadataFactory;
@@ -71,6 +75,7 @@ public class OperationsDashboardService {
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.salesOrderMapper = salesOrderMapper;
         this.operationLogMapper = operationLogMapper;
+        this.salesDeliveryLineMapper = salesDeliveryLineMapper;
         this.clock = clock;
     }
 
@@ -125,6 +130,8 @@ public class OperationsDashboardService {
         List<OperationsDashboardFailedOperationResponse> failedOperationPreview = failedOperations.stream()
                 .map(this::toFailedOperationResponse)
                 .toList();
+        List<OperationsDashboardTopSkuResponse> topSkus = salesDeliveryLineMapper.selectTopSkus(
+                audit.companyId(), audit.accountBookId(), today.minusDays(29), today, PREVIEW_LIMIT);
 
         List<OperationsDashboardTodoResponse> todos = Stream.of(
                         workflowTasks.stream().map(this::workflowTodo),
@@ -155,6 +162,7 @@ public class OperationsDashboardService {
                 todos,
                 lowStockPreview,
                 failedOperationPreview,
+                topSkus,
                 generatedAt
         );
     }

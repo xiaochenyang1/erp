@@ -42,11 +42,21 @@ export interface OperationsDashboardFailedOperation {
   operationTime?: string
 }
 
+export interface OperationsDashboardTopSku {
+  productId: string
+  productCode: string
+  productName: string
+  unitName?: string
+  quantity: number
+  amount: number
+}
+
 export interface OperationsDashboard {
   summary: OperationsDashboardSummary
   todos: OperationsDashboardTodo[]
   lowStock: OperationsDashboardLowStock[]
   failedOperations: OperationsDashboardFailedOperation[]
+  topSkus: OperationsDashboardTopSku[]
   generatedAt: string
 }
 
@@ -58,7 +68,8 @@ const normalizeOperationsDashboard = (dashboard: OperationsDashboard): Operation
   ...dashboard,
   todos: dashboard.todos || [],
   lowStock: (dashboard.lowStock || []).map(normalizeOperationsDashboardLowStock),
-  failedOperations: (dashboard.failedOperations || []).map(normalizeOperationsDashboardFailedOperation)
+  failedOperations: (dashboard.failedOperations || []).map(normalizeOperationsDashboardFailedOperation),
+  topSkus: (dashboard.topSkus || []).map((item) => ({ ...item, productId: String(item.productId) }))
 })
 
 const normalizeOperationsDashboardLowStock = (

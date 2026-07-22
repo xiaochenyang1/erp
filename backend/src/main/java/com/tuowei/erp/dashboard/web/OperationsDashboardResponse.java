@@ -8,6 +8,7 @@ public record OperationsDashboardResponse(
         List<OperationsDashboardTodoResponse> todos,
         List<OperationsDashboardLowStockResponse> lowStock,
         List<OperationsDashboardFailedOperationResponse> failedOperations,
+        List<OperationsDashboardTopSkuResponse> topSkus,
         LocalDateTime generatedAt
 ) {
 }

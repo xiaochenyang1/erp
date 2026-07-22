@@ -4,6 +4,7 @@ import com.tuowei.erp.dashboard.service.OperationsDashboardService;
 import com.tuowei.erp.dashboard.web.OperationsDashboardResponse;
 import com.tuowei.erp.dashboard.web.OperationsDashboardSummaryResponse;
 import com.tuowei.erp.dashboard.web.OperationsDashboardTodoResponse;
+import com.tuowei.erp.dashboard.web.OperationsDashboardTopSkuResponse;
 import com.tuowei.erp.testsupport.WithErpUser;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +60,8 @@ class OperationsDashboardControllerTest {
                 )),
                 List.of(),
                 List.of(),
+                List.of(new OperationsDashboardTopSkuResponse(
+                        701L, "SKU-001", "畅销商品", "件", new BigDecimal("12.0000"), new BigDecimal("3600.00"))),
                 LocalDateTime.of(2026, 6, 30, 10, 0)
         ));
 
@@ -67,6 +70,7 @@ class OperationsDashboardControllerTest {
                 .andExpect(jsonPath("$.code").value("0"))
                 .andExpect(jsonPath("$.data.summary.pendingApprovals").value(2))
                 .andExpect(jsonPath("$.data.summary.overdueApprovals").value(1))
+                .andExpect(jsonPath("$.data.topSkus[0].productCode").value("SKU-001"))
                 .andExpect(jsonPath("$.data.todos[0].route").value("/workflow/tasks?businessType=PURCHASE_ORDER&businessId=9001&status=PENDING"))
                 .andExpect(jsonPath("$.data.generatedAt").value("2026-06-30T10:00:00"));
     }

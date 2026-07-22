@@ -40,7 +40,8 @@ const messages = {
       todayPurchaseOrders: '今日采购订单', todaySalesAmount: '今日销售金额', stockAlerts: '库存预警',
       pendingApprovals: '待审批单据', overdueApprovals: '超时 {count}', openReceivables: '未结应收', openPayables: '未结应付',
       today: '今日', attention: '需关注', pending: '待处理', receivableAging: '应收账龄', payableAging: '应付账龄',
-      details: '详情', bucket: '账龄段', count: '笔数', amount: '金额', total: '合计', overdueTop: '逾期 TOP'
+      details: '详情', bucket: '账龄段', count: '笔数', amount: '金额', total: '合计', overdueTop: '逾期 TOP',
+      topSkus: '畅销商品 TOP 5', last30Days: '最近30天已过账发货', rank: '排名', productCode: '商品编码', productName: '商品名称', salesQuantity: '销售数量', salesAmount: '销售金额'
     },
     workflow: {
       businessType: '业务类型', businessNo: '业务单号', status: '状态', selectBusinessType: '请选择业务类型', inputBusinessNo: '请输入业务单号', selectStatus: '请选择状态',
@@ -80,7 +81,8 @@ const messages = {
       todayPurchaseOrders: "Today's purchase orders", todaySalesAmount: "Today's sales", stockAlerts: 'Stock alerts',
       pendingApprovals: 'Pending approvals', overdueApprovals: '{count} overdue', openReceivables: 'Open receivables', openPayables: 'Open payables',
       today: 'Today', attention: 'Attention', pending: 'Pending', receivableAging: 'Receivable aging', payableAging: 'Payable aging',
-      details: 'Details', bucket: 'Aging bucket', count: 'Count', amount: 'Amount', total: 'Total', overdueTop: 'Overdue TOP'
+      details: 'Details', bucket: 'Aging bucket', count: 'Count', amount: 'Amount', total: 'Total', overdueTop: 'Overdue TOP',
+      topSkus: 'Top 5 products', last30Days: 'Posted deliveries in the last 30 days', rank: 'Rank', productCode: 'Product code', productName: 'Product name', salesQuantity: 'Quantity sold', salesAmount: 'Sales amount'
     },
     workflow: {
       businessType: 'Business type', businessNo: 'Document no.', status: 'Status', selectBusinessType: 'Select business type', inputBusinessNo: 'Enter document no.', selectStatus: 'Select status',

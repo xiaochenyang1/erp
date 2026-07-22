@@ -18,7 +18,8 @@
 | 今日采购订单、今日销售金额 | `OperationsDashboardService` |
 | 未结应收/应付笔数与金额 | 同上 |
 | 待审批、低库存、逾期应收待办 | todos + lowStock preview |
+| 最近 30 天畅销商品 TOP 5 | 已过账销售发货明细按商品汇总销量与销售额 |
 | API | `GET /api/dashboard/operations` |
 | 前端 | `views/dashboard/index.vue` |
 
-增强空间（非阻塞）：账龄分段、TOP SKU——可后续只读聚合，不改主链路。
+增强空间（非阻塞）：更多经营维度可继续采用只读聚合，不改主链路。

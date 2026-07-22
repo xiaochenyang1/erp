@@ -16,6 +16,8 @@ import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
+import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
+import com.tuowei.erp.dashboard.web.OperationsDashboardTopSkuResponse;
 import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
@@ -77,6 +79,9 @@ class OperationsDashboardServiceTest {
     @Mock
     private OperationLogMapper operationLogMapper;
 
+    @Mock
+    private SalesDeliveryLineMapper salesDeliveryLineMapper;
+
     @BeforeAll
     static void initTableInfo() {
         initTableInfo(WorkflowTaskEntity.class);
@@ -115,6 +120,9 @@ class OperationsDashboardServiceTest {
         when(operationLogMapper.selectList(any())).thenReturn(List.of(
                 failedOperation(9501L, "purchase", "post", "GR-001", LocalDateTime.of(2026, 6, 30, 9, 30))
         ));
+        when(salesDeliveryLineMapper.selectTopSkus(101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5))
+                .thenReturn(List.of(new OperationsDashboardTopSkuResponse(
+                        701L, "SKU-001", "畅销商品", "件", new BigDecimal("12.0000"), new BigDecimal("3600.00"))));
 
         var response = service().getOperationsDashboard();
 
@@ -143,6 +151,10 @@ class OperationsDashboardServiceTest {
                 });
         assertThat(response.lowStock()).hasSize(2);
         assertThat(response.failedOperations()).hasSize(1);
+        assertThat(response.topSkus()).singleElement().satisfies(sku -> {
+            assertThat(sku.productCode()).isEqualTo("SKU-001");
+            assertThat(sku.quantity()).isEqualByComparingTo("12.0000");
+        });
         assertThat(response.generatedAt()).isEqualTo(LocalDateTime.of(2026, 6, 30, 10, 0));
 
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -192,6 +204,7 @@ class OperationsDashboardServiceTest {
                 purchaseOrderMapper,
                 salesOrderMapper,
                 operationLogMapper,
+                salesDeliveryLineMapper,
                 Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"))
         );
     }

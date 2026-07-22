@@ -159,6 +159,30 @@
     </el-row>
 
     <el-row :gutter="20" style="margin-top: 20px">
+      <el-col :span="24">
+        <el-card>
+          <template #header>
+            <div class="card-header">
+              <span>{{ t('dashboard.topSkus') }}</span>
+              <span class="generated-time">{{ t('dashboard.last30Days') }}</span>
+            </div>
+          </template>
+          <el-table :data="dashboard.topSkus" size="small" border>
+            <el-table-column type="index" :label="t('dashboard.rank')" width="70" align="center" />
+            <el-table-column prop="productCode" :label="t('dashboard.productCode')" min-width="130" />
+            <el-table-column prop="productName" :label="t('dashboard.productName')" min-width="180" />
+            <el-table-column prop="quantity" :label="t('dashboard.salesQuantity')" min-width="120" align="right">
+              <template #default="{ row }">{{ formatNumber(row.quantity) }} {{ row.unitName || '' }}</template>
+            </el-table-column>
+            <el-table-column prop="amount" :label="t('dashboard.salesAmount')" min-width="140" align="right">
+              <template #default="{ row }">¥{{ formatNumber(row.amount) }}</template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="20" style="margin-top: 20px">
       <el-col :xs="24" :lg="12">
         <el-card>
           <template #header>
@@ -358,6 +382,7 @@ const emptyDashboard: OperationsDashboard = {
   todos: [],
   lowStock: [],
   failedOperations: [],
+  topSkus: [],
   generatedAt: ''
 }
 
