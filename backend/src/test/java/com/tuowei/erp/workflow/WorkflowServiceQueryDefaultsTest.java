@@ -108,7 +108,8 @@ class WorkflowServiceQueryDefaultsTest {
                 mock(SystemLogService.class),
                 mock(CurrentUserContext.class),
                 mock(NotificationService.class),
-                mock(WorkflowApprovalConfigService.class)
+                mock(WorkflowApprovalConfigService.class),
+                mock(com.tuowei.erp.system.user.mapper.UserMapper.class)
         );
     }
 

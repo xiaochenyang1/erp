@@ -9,6 +9,8 @@ import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.system.log.service.SystemLogService;
 import com.tuowei.erp.system.notification.service.NotificationService;
+import com.tuowei.erp.system.user.mapper.UserMapper;
+import com.tuowei.erp.system.user.model.UserEntity;
 import com.tuowei.erp.workflow.mapper.WorkflowInstanceMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowRecordMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
@@ -23,6 +25,7 @@ import com.tuowei.erp.workflow.web.WorkflowRecordResponse;
 import com.tuowei.erp.workflow.web.WorkflowTaskPageQuery;
 import com.tuowei.erp.workflow.web.WorkflowTaskResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -47,6 +50,10 @@ public class WorkflowService {
     private final CurrentUserContext currentUserContext;
     private final NotificationService notificationService;
     private final WorkflowApprovalConfigService approvalConfigService;
+    private final UserMapper userMapper;
+
+    @Value("${erp.workflow.task-timeout-hours:24}")
+    private long taskTimeoutHours;
 
     public WorkflowService(
             WorkflowInstanceMapper instanceMapper,
@@ -56,7 +63,8 @@ public class WorkflowService {
             SystemLogService systemLogService,
             CurrentUserContext currentUserContext,
             NotificationService notificationService,
-            WorkflowApprovalConfigService approvalConfigService
+            WorkflowApprovalConfigService approvalConfigService,
+            UserMapper userMapper
     ) {
         this.instanceMapper = instanceMapper;
         this.taskMapper = taskMapper;
@@ -66,6 +74,7 @@ public class WorkflowService {
         this.currentUserContext = currentUserContext;
         this.notificationService = notificationService;
         this.approvalConfigService = approvalConfigService;
+        this.userMapper = userMapper;
     }
 
     @Transactional
@@ -160,13 +169,14 @@ public class WorkflowService {
                 result.getCurrent(),
                 result.getSize(),
                 result.getTotal(),
-                result.getRecords().stream().map(this::toTaskResponse).toList()
+                result.getRecords().stream().map(task -> toTaskResponse(task, audit.now())).toList()
         );
     }
 
     @Transactional(readOnly = true)
     public WorkflowTaskResponse taskDetail(Long id) {
-        return toTaskResponse(requireScopedTask(id));
+        AuditMetadata audit = auditMetadataFactory.current();
+        return toTaskResponse(requireScopedTask(id), audit.now());
     }
 
     /**
@@ -204,7 +214,54 @@ public class WorkflowService {
                 // 通知失败不阻断转签
             }
         }
-        return toTaskResponse(requireScopedTask(taskId));
+        return toTaskResponse(requireScopedTask(taskId), audit.now());
+    }
+
+    /**
+     * 超时升级：将已过截止时间的待办升级给另一位有效用户。
+     */
+    @Transactional
+    public WorkflowTaskResponse escalate(Long taskId, Long targetUserId, String comment) {
+        if (targetUserId == null) {
+            throw new IllegalArgumentException("targetUserId不能为空");
+        }
+        AuditMetadata audit = auditMetadataFactory.current();
+        WorkflowTaskEntity task = requireCurrentPendingTask(taskId);
+        LocalDateTime now = audit.now();
+        if (task.getDueTime() == null || !task.getDueTime().isBefore(now)) {
+            throw new IllegalArgumentException("审批任务尚未超时");
+        }
+        if (Objects.equals(task.getApproverUserId(), targetUserId)) {
+            throw new IllegalArgumentException("升级目标不能是当前处理人");
+        }
+        UserEntity target = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                .eq(UserEntity::getId, targetUserId)
+                .eq(UserEntity::getCompanyId, audit.companyId())
+                .eq(UserEntity::getAccountBookId, audit.accountBookId())
+                .eq(UserEntity::getStatus, "ACTIVE")
+                .eq(UserEntity::getDeletedFlag, 0)
+                .last("limit 1"));
+        if (target == null) {
+            throw new IllegalArgumentException("升级目标用户不存在或已停用");
+        }
+        Long fromUserId = task.getApproverUserId();
+        task.setApproverUserId(targetUserId);
+        task.setEscalatedTime(now);
+        task.setEscalationCount((task.getEscalationCount() == null ? 0 : task.getEscalationCount()) + 1);
+        task.setDueTime(now.plusHours(Math.max(taskTimeoutHours, 1)));
+        task.setUpdatedBy(audit.userId());
+        task.setUpdatedTime(now);
+        if (taskMapper.updateById(task) != 1) {
+            throw new BusinessConflictException("审批任务已被其他操作修改，请刷新后重试");
+        }
+        WorkflowInstanceEntity instance = instanceMapper.selectById(task.getInstanceId());
+        if (instance != null) {
+            String message = "超时升级: " + fromUserId + " -> " + targetUserId
+                    + (StringUtils.hasText(comment) ? "；" + comment.trim() : "");
+            insertRecord(instance, "ESCALATE", task.getApprovalNodeId(), message, audit, now);
+            notificationService.createWorkflowPending(instance, List.of(targetUserId), audit, now);
+        }
+        return toTaskResponse(requireScopedTask(taskId), audit.now());
     }
 
     @Transactional(readOnly = true)
@@ -405,6 +462,8 @@ public class WorkflowService {
         task.setTitle(instance.getTitle());
         task.setApprovalNodeId(approvalNodeId);
         task.setStatus(TASK_PENDING);
+        task.setDueTime(now.plusHours(Math.max(taskTimeoutHours, 1)));
+        task.setEscalationCount(0);
         fillAudit(task, audit, now);
         taskMapper.insert(task);
     }
@@ -616,7 +675,7 @@ public class WorkflowService {
         return pageSize == null || pageSize < 1 ? 20L : Math.min(pageSize, 200);
     }
 
-    private WorkflowTaskResponse toTaskResponse(WorkflowTaskEntity entity) {
+    private WorkflowTaskResponse toTaskResponse(WorkflowTaskEntity entity, LocalDateTime now) {
         return new WorkflowTaskResponse(
                 entity.getId(),
                 entity.getInstanceId(),
@@ -626,6 +685,10 @@ public class WorkflowService {
                 entity.getTitle(),
                 entity.getApproverUserId(),
                 entity.getStatus(),
+                entity.getDueTime(),
+                TASK_PENDING.equals(entity.getStatus()) && entity.getDueTime() != null && entity.getDueTime().isBefore(now),
+                entity.getEscalatedTime(),
+                entity.getEscalationCount(),
                 entity.getCreatedTime(),
                 entity.getUpdatedTime()
         );

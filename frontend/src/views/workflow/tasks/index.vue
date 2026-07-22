@@ -52,7 +52,13 @@
         <el-table-column prop="updatedTime" label="更新时间" width="180">
           <template #default="{ row }">{{ formatTime(row.updatedTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column prop="dueTime" label="审批时限" width="190">
+          <template #default="{ row }">
+            <el-tag v-if="row.overdue" type="danger" size="small">已超时</el-tag>
+            <span class="due-time">{{ formatTime(row.dueTime) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(toTaskRow(row))">查看</el-button>
             <el-button
@@ -82,6 +88,15 @@
             >
               转签
             </el-button>
+            <el-button
+              v-if="row.status === 'PENDING' && row.overdue"
+              v-permission="'workflow:escalate'"
+              link
+              type="danger"
+              @click="openEscalate(toTaskRow(row))"
+            >
+              升级
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -106,6 +121,8 @@
         <el-descriptions-item label="状态">{{ taskStatusLabel(currentTask.status) }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatTime(currentTask.createdTime) }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ formatTime(currentTask.updatedTime) }}</el-descriptions-item>
+        <el-descriptions-item label="审批截止">{{ formatTime(currentTask.dueTime) }}</el-descriptions-item>
+        <el-descriptions-item label="升级次数">{{ currentTask.escalationCount || 0 }}</el-descriptions-item>
       </el-descriptions>
 
       <template #footer>
@@ -128,6 +145,23 @@
         >
           驳回
         </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="escalateVisible" title="超时审批升级" width="480px">
+      <el-form label-width="100px">
+        <el-form-item label="升级给" required>
+          <el-select v-model="escalateUserId" filterable style="width: 100%" placeholder="选择新处理人">
+            <el-option v-for="u in escalateUsers" :key="u.id" :label="u.username || u.realName || u.id" :value="String(u.id)" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="升级说明">
+          <el-input v-model="escalateComment" type="textarea" :rows="3" maxlength="255" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="escalateVisible = false">取消</el-button>
+        <el-button type="danger" :loading="submitLoading" @click="submitEscalate">确认升级</el-button>
       </template>
     </el-dialog>
 
@@ -178,6 +212,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import {
   approveWorkflowTask,
+  escalateWorkflowTask,
   getWorkflowTask,
   getWorkflowTasks,
   rejectWorkflowTask,
@@ -197,6 +232,10 @@ const detailVisible = ref(false)
 const actionVisible = ref(false)
 const currentTask = ref<WorkflowTask | null>(null)
 const actionMode = ref<'approve' | 'reject'>('approve')
+const escalateVisible = ref(false)
+const escalateUserId = ref('')
+const escalateComment = ref('')
+const escalateUsers = ref<any[]>([])
 
 const readQueryString = (key: string) => {
   const value = route.query[key]
@@ -279,6 +318,37 @@ const submitTransfer = async () => {
     loadData()
   } catch {
     ElMessage.error('转签失败')
+  }
+}
+const openEscalate = async (row: WorkflowTask) => {
+  currentTask.value = row
+  escalateUserId.value = ''
+  escalateComment.value = ''
+  try {
+    const page = await getUsers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
+    escalateUsers.value = (page.records || []).filter((user: any) => String(user.id) !== row.approverUserId)
+  } catch {
+    escalateUsers.value = []
+  }
+  escalateVisible.value = true
+}
+const submitEscalate = async () => {
+  if (!currentTask.value || !escalateUserId.value) {
+    ElMessage.warning('请选择升级目标用户')
+    return
+  }
+  submitLoading.value = true
+  try {
+    await escalateWorkflowTask({
+      taskId: currentTask.value.id,
+      targetUserId: escalateUserId.value,
+      comment: escalateComment.value.trim() || undefined
+    })
+    ElMessage.success('超时审批已升级')
+    escalateVisible.value = false
+    await loadData()
+  } finally {
+    submitLoading.value = false
   }
 }
 const openReject = (row: WorkflowTask) => {
@@ -382,6 +452,10 @@ onMounted(() => {
   .el-pagination {
     margin-top: 20px;
     justify-content: flex-end;
+  }
+
+  .due-time {
+    margin-left: 6px;
   }
 }
 </style>

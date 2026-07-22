@@ -11,6 +11,7 @@ import com.tuowei.erp.workflow.web.WorkflowTaskActionRequest;
 import com.tuowei.erp.workflow.web.WorkflowTaskPageQuery;
 import com.tuowei.erp.workflow.web.WorkflowTaskResponse;
 import com.tuowei.erp.workflow.web.WorkflowTaskTransferRequest;
+import com.tuowei.erp.workflow.web.WorkflowTaskEscalateRequest;
 import com.tuowei.erp.workflow.web.WorkflowWithdrawRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -63,6 +64,15 @@ public class WorkflowController {
             @Valid @RequestBody WorkflowTaskTransferRequest request
     ) {
         return ApiResponse.success(workflowService.transfer(id, request.targetUserId(), request.comment()));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_WORKFLOW_ESCALATE)
+    @PostMapping("/api/workflow/tasks/{id}/escalate")
+    public ApiResponse<WorkflowTaskResponse> escalateTask(
+            @PathVariable Long id,
+            @Valid @RequestBody WorkflowTaskEscalateRequest request
+    ) {
+        return ApiResponse.success(workflowService.escalate(id, request.targetUserId(), request.comment()));
     }
 
     @PreAuthorize(PermissionCodes.HAS_WORKFLOW_REJECT)

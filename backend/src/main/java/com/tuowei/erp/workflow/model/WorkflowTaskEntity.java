@@ -22,6 +22,9 @@ public class WorkflowTaskEntity {
     private Long approvalNodeId;
     private Long approverUserId;
     private String status;
+    private LocalDateTime dueTime;
+    private LocalDateTime escalatedTime;
+    private Integer escalationCount;
     private Long createdBy;
     private LocalDateTime createdTime;
     private Long updatedBy;
@@ -51,6 +54,12 @@ public class WorkflowTaskEntity {
     public void setApproverUserId(Long approverUserId) { this.approverUserId = approverUserId; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public LocalDateTime getDueTime() { return dueTime; }
+    public void setDueTime(LocalDateTime dueTime) { this.dueTime = dueTime; }
+    public LocalDateTime getEscalatedTime() { return escalatedTime; }
+    public void setEscalatedTime(LocalDateTime escalatedTime) { this.escalatedTime = escalatedTime; }
+    public Integer getEscalationCount() { return escalationCount; }
+    public void setEscalationCount(Integer escalationCount) { this.escalationCount = escalationCount; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public LocalDateTime getCreatedTime() { return createdTime; }

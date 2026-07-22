@@ -238,6 +238,37 @@ class WorkflowControllerTest {
                 .andExpect(jsonPath("$.code").value("400"));
     }
 
+    @Test
+    void authorizedUserCanEscalateOverdueTaskThroughApi() throws Exception {
+        jdbcTemplate.update("update wf_approval_task set approver_user_id = ?, due_time = '2020-01-01 00:00:00' where id = ?",
+                APPROVER_ID, TASK_ID);
+        String token = login(APPROVER_USERNAME);
+
+        mockMvc.perform(post("/api/workflow/tasks/{id}/escalate", TASK_ID)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetUserId":"888003","comment":"manager escalation"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("0"))
+                .andExpect(jsonPath("$.data.approverUserId").value(String.valueOf(VIEW_ONLY_SUBMITTER_ID)))
+                .andExpect(jsonPath("$.data.escalationCount").value(1))
+                .andExpect(jsonPath("$.data.overdue").value(false));
+
+        Integer recordCount = jdbcTemplate.queryForObject("""
+                select count(*) from wf_approval_record
+                where instance_id = ? and action = 'ESCALATE' and operator_user_id = ?
+                """, Integer.class, INSTANCE_ID, APPROVER_ID);
+        Integer recipientCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_notification_recipient r
+                join sys_notification n on n.id = r.notification_id
+                where n.business_type = 'SALES_ORDER' and n.business_id = ? and r.recipient_user_id = ?
+                """, Integer.class, BUSINESS_ID, VIEW_ONLY_SUBMITTER_ID);
+        org.assertj.core.api.Assertions.assertThat(recordCount).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(recipientCount).isEqualTo(1);
+    }
+
     private String login() throws Exception {
         return login(USERNAME);
     }
@@ -316,6 +347,8 @@ class WorkflowControllerTest {
                 WORKFLOW_VIEW_ONLY_ROLE_ID);
         jdbcTemplate.update("insert into sys_role_menu (id, role_id, menu_id, created_by) values (888915, ?, 5323, 0)",
                 WORKFLOW_VIEW_ONLY_ROLE_ID);
+        jdbcTemplate.update("insert into sys_role_menu (id, role_id, menu_id, created_by) values (888916, ?, 5412, 0)",
+                WORKFLOW_VIEW_ONLY_ROLE_ID);
         jdbcTemplate.update("insert into sys_role_data_scope (id, role_id, scope_type, warehouse_id, created_by) values (888921, ?, 'ALL', null, 0)",
                 WORKFLOW_VIEW_ONLY_ROLE_ID);
     }
@@ -342,6 +375,8 @@ class WorkflowControllerTest {
     }
 
     private void cleanup() {
+        jdbcTemplate.update("delete from sys_notification_recipient where notification_id in (select id from sys_notification where business_type = 'SALES_ORDER' and business_id = ?)", BUSINESS_ID);
+        jdbcTemplate.update("delete from sys_notification where business_type = 'SALES_ORDER' and business_id = ?", BUSINESS_ID);
         jdbcTemplate.update("delete from sys_notification_recipient where id = ?", RECIPIENT_ID);
         jdbcTemplate.update("delete from sys_notification where id = ?", NOTIFICATION_ID);
         jdbcTemplate.update("delete from wf_approval_record where instance_id = ?", INSTANCE_ID);

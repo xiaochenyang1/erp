@@ -11,6 +11,10 @@ public record WorkflowTaskResponse(
         String title,
         Long approverUserId,
         String status,
+        LocalDateTime dueTime,
+        boolean overdue,
+        LocalDateTime escalatedTime,
+        Integer escalationCount,
         LocalDateTime createdTime,
         LocalDateTime updatedTime
 ) {

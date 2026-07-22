@@ -12,6 +12,10 @@ export interface WorkflowTask {
   title: string
   approverUserId?: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+  dueTime?: string
+  overdue?: boolean
+  escalatedTime?: string
+  escalationCount?: number
   createdTime: string
   updatedTime?: string
 }
@@ -64,6 +68,13 @@ export const transferWorkflowTask = (data: { taskId: string | number; targetUser
     targetUserId: data.targetUserId,
     comment: data.comment
   })
+}
+
+export const escalateWorkflowTask = (data: { taskId: string | number; targetUserId: string | number; comment?: string }) => {
+  return request.post<WorkflowTask>(`/workflow/tasks/${data.taskId}/escalate`, {
+    targetUserId: data.targetUserId,
+    comment: data.comment
+  }).then(normalizeWorkflowTask)
 }
 
 export const withdrawWorkflow = (data: WorkflowWithdrawRequest) => {
