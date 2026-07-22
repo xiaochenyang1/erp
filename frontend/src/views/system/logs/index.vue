@@ -97,7 +97,9 @@
             </el-text>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="操作时间" width="160" />
+        <el-table-column prop="createdAt" label="操作时间" width="190">
+          <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) || '-' }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="100" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleView(row)">
@@ -284,7 +286,7 @@
             {{ detailData.executionTime }} ms
           </el-text>
         </el-descriptions-item>
-        <el-descriptions-item label="操作时间">{{ detailData.createdAt }}</el-descriptions-item>
+        <el-descriptions-item label="操作时间">{{ formatLocalizedDateTime(detailData.createdAt) || '-' }}</el-descriptions-item>
         <el-descriptions-item label="请求URL" :span="2">{{ detailData.requestUrl }}</el-descriptions-item>
         <el-descriptions-item label="请求方法" :span="2">{{ detailData.method }}</el-descriptions-item>
         <el-descriptions-item label="业务编号" :span="2">{{ detailData.bizNo || '-' }}</el-descriptions-item>
@@ -352,6 +354,7 @@ import {
   type OperationLogQuery
 } from '@/api/system'
 import { downloadBlob } from '@/utils/download'
+import { formatLocalizedDateTime } from '@/utils/locale'
 
 const route = useRoute()
 const readQueryString = (key: string) => {

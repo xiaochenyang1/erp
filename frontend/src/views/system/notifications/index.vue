@@ -68,7 +68,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="创建时间" width="170" />
+        <el-table-column prop="createdTime" label="创建时间" width="190">
+          <template #default="{ row }">{{ formatLocalizedDateTime(row.createdTime) || '-' }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="150" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleView(row)">查看</el-button>
@@ -97,7 +99,7 @@
         <el-descriptions-item label="业务类型">{{ detailData.bizType || '-' }}</el-descriptions-item>
         <el-descriptions-item label="业务编号">{{ detailData.bizNo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ detailData.readFlag ? '已读' : '未读' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ detailData.createdTime }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatLocalizedDateTime(detailData.createdTime) || '-' }}</el-descriptions-item>
         <el-descriptions-item label="内容" :span="2">{{ detailData.content }}</el-descriptions-item>
         <el-descriptions-item v-if="detailData.targetUrl" label="目标地址" :span="2">
           {{ detailData.targetUrl }}
@@ -111,6 +113,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, Refresh, Search, View } from '@element-plus/icons-vue'
+import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   getNotifications,
   getUnreadCount,

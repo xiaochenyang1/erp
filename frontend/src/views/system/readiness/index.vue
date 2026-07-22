@@ -4,7 +4,7 @@
       <div class="header-row">
         <div>
           <div class="page-title">预生产验收</div>
-          <div class="page-subtitle">预检时间：{{ preflight.checkedAt || '-' }}</div>
+          <div class="page-subtitle">预检时间：{{ formatLocalizedDateTime(preflight.checkedAt) || '-' }}</div>
         </div>
         <div class="header-actions">
           <el-tag :type="preflightTagType(preflight.overallStatus)" size="large">
@@ -96,7 +96,9 @@
         <el-table-column prop="databaseInstance" label="数据库" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ row.databaseInstance || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="创建时间" width="170" />
+        <el-table-column prop="createdTime" label="创建时间" width="190">
+          <template #default="{ row }">{{ formatLocalizedDateTime(row.createdTime) || '-' }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="260" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="openDetail(row)">详情</el-button>
@@ -180,7 +182,9 @@
                   <el-table-column prop="businessNo" label="业务编号" width="160" show-overflow-tooltip>
                     <template #default="{ row: evidence }">{{ evidence.businessNo || '-' }}</template>
                   </el-table-column>
-                  <el-table-column prop="recordedTime" label="记录时间" width="170" />
+                  <el-table-column prop="recordedTime" label="记录时间" width="190">
+                    <template #default="{ row }">{{ formatLocalizedDateTime(row.recordedTime) || '-' }}</template>
+                  </el-table-column>
                 </el-table>
               </div>
             </template>
@@ -426,6 +430,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { CircleCheck, DocumentChecked, Plus, Refresh, Search, View } from '@element-plus/icons-vue'
+import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   addReadinessEvidence,
   addReadinessItem,
