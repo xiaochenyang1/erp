@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -154,6 +155,21 @@ class SalesCreditEvaluatorTest {
         assertThatThrownBy(() -> evaluator().assertWithinCreditLimit(customer, currentOrder(new BigDecimal("550"), BigDecimal.ZERO)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("信用额度不足");
+    }
+
+    @Test
+    void exposesReceivableAndOpenOrderComponentsForCustomerOverview() {
+        CustomerEntity customer = customer(new BigDecimal("2000"));
+        when(receivableMapper.selectList(any())).thenReturn(List.of(
+                receivable("INCREASE", new BigDecimal("800"), new BigDecimal("200"))));
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of(
+                approvedOrder(5004L, "NOT_DELIVERED", new BigDecimal("700"), BigDecimal.ZERO)));
+
+        var exposure = evaluator().evaluate(customer);
+
+        assertThat(exposure.outstandingReceivable()).isEqualByComparingTo("600.00");
+        assertThat(exposure.openOrderExposure()).isEqualByComparingTo("700.00");
+        assertThat(exposure.totalExposure()).isEqualByComparingTo("1300.00");
     }
 
     private SalesCreditEvaluator evaluator() {

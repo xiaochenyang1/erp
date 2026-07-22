@@ -55,12 +55,11 @@ public class SalesCreditEvaluator {
             return;
         }
 
-        BigDecimal outstandingReceivable = outstandingReceivable(customer);
-        BigDecimal openOrderExposure = openOrderExposure(customer, currentOrder.getId());
+        SalesCreditExposure currentExposure = evaluate(customer, currentOrder.getId());
         BigDecimal currentOrderAmount = documentAmount(currentOrder.getTotalAmount(), currentOrder.getTotalTaxAmount());
 
         BigDecimal exposure = ScalePrecision.amount(
-                outstandingReceivable.add(openOrderExposure).add(currentOrderAmount)
+                currentExposure.totalExposure().add(currentOrderAmount)
         );
 
         if (exposure.compareTo(creditLimit) > 0) {
@@ -70,6 +69,16 @@ public class SalesCreditEvaluator {
                     ScalePrecision.amount(creditLimit).toPlainString()
             ));
         }
+    }
+
+    public SalesCreditExposure evaluate(CustomerEntity customer) {
+        return evaluate(customer, null);
+    }
+
+    private SalesCreditExposure evaluate(CustomerEntity customer, Long excludeOrderId) {
+        BigDecimal receivable = outstandingReceivable(customer);
+        BigDecimal orders = openOrderExposure(customer, excludeOrderId);
+        return new SalesCreditExposure(receivable, orders, ScalePrecision.amount(receivable.add(orders)));
     }
 
     /**

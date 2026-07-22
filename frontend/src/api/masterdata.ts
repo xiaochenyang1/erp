@@ -212,6 +212,17 @@ export interface CustomerSaveRequest {
   remark?: string
 }
 
+export interface CustomerCreditExposure {
+  customerId: string
+  creditLimit: number
+  outstandingReceivable: number
+  openOrderExposure: number
+  totalExposure: number
+  availableCredit?: number
+  unlimited: boolean
+  exceeded: boolean
+}
+
 // 客户API
 export const getCustomers = (params: CustomerQuery) => {
   return request.get<PageResponse<Customer>>('/masterdata/customers', {
@@ -224,6 +235,13 @@ export const getCustomers = (params: CustomerQuery) => {
 
 export const getCustomer = (id: string | number) => {
   return request.get<Customer>(`/masterdata/customers/${id}`).then(normalizeCustomer)
+}
+
+export const getCustomerCreditExposure = (id: string | number) => {
+  return request.get<CustomerCreditExposure>(`/masterdata/customers/${id}/credit-exposure`).then((exposure) => ({
+    ...exposure,
+    customerId: String(exposure.customerId)
+  }))
 }
 
 export const createCustomer = (data: CustomerSaveRequest) => {

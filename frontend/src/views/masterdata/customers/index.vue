@@ -302,6 +302,24 @@
                 </template>
               </div>
             </div>
+            <div class="detail-item">
+              <div class="detail-label">已用额度</div>
+              <div class="detail-value">¥{{ Number(creditExposure?.totalExposure || 0).toLocaleString() }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">未结应收</div>
+              <div class="detail-value">¥{{ Number(creditExposure?.outstandingReceivable || 0).toLocaleString() }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">在途订单</div>
+              <div class="detail-value">¥{{ Number(creditExposure?.openOrderExposure || 0).toLocaleString() }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">可用额度</div>
+              <div class="detail-value" :class="{ 'credit-exceeded': creditExposure?.exceeded }">
+                {{ creditExposure?.unlimited ? '无限制' : `¥${Number(creditExposure?.availableCredit || 0).toLocaleString()}` }}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -349,12 +367,14 @@ import {
 import {
   getCustomers,
   getCustomer,
+  getCustomerCreditExposure,
   createCustomer,
   updateCustomer,
   deleteCustomer,
   enableCustomer,
   exportCustomers,
   type Customer,
+  type CustomerCreditExposure,
   type CustomerQuery,
   type CustomerSaveRequest
 } from '@/api/masterdata'
@@ -388,6 +408,7 @@ const dialogTitle = computed(() => (formData.id ? '编辑客户' : '新增客户
 const submitting = ref(false)
 const detailVisible = ref(false)
 const currentRow = ref<Customer>()
+const creditExposure = ref<CustomerCreditExposure>()
 
 // 表单数据
 const formData = reactive<CustomerSaveRequest & { id?: string }>({
@@ -518,6 +539,7 @@ const handleEdit = (row: Customer) => {
 const handleView = async (row: Customer) => {
   try {
     currentRow.value = await getCustomer(row.id)
+    creditExposure.value = await getCustomerCreditExposure(row.id)
     detailVisible.value = true
   } catch {
     ElMessage.error('加载客户详情失败')
@@ -906,5 +928,10 @@ onMounted(() => {
   font-size: 18px;
   font-weight: 700;
   color: #ff6b35;
+}
+
+.credit-exceeded {
+  color: var(--el-color-danger);
+  font-weight: 600;
 }
 </style>

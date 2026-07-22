@@ -5,6 +5,8 @@ import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.common.security.PermissionCodes;
 import com.tuowei.erp.common.web.SafeFilename;
 import com.tuowei.erp.masterdata.customer.service.CustomerService;
+import com.tuowei.erp.masterdata.customer.service.CustomerCreditService;
+import com.tuowei.erp.masterdata.customer.web.CustomerCreditExposureResponse;
 import com.tuowei.erp.masterdata.customer.web.CustomerCreateRequest;
 import com.tuowei.erp.masterdata.customer.web.CustomerPageQuery;
 import com.tuowei.erp.masterdata.customer.web.CustomerResponse;
@@ -31,9 +33,11 @@ import java.nio.charset.StandardCharsets;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final CustomerCreditService customerCreditService;
 
-    public CustomerController(CustomerService customerService) {
+    public CustomerController(CustomerService customerService, CustomerCreditService customerCreditService) {
         this.customerService = customerService;
+        this.customerCreditService = customerCreditService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_MASTERDATA_CUSTOMER_CREATE)
@@ -58,6 +62,12 @@ public class CustomerController {
     @GetMapping("/{id}")
     public ApiResponse<CustomerResponse> detail(@PathVariable Long id) {
         return ApiResponse.success(customerService.getById(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_MASTERDATA_CUSTOMER_VIEW)
+    @GetMapping("/{id}/credit-exposure")
+    public ApiResponse<CustomerCreditExposureResponse> creditExposure(@PathVariable Long id) {
+        return ApiResponse.success(customerCreditService.exposure(id));
     }
 
     @PreAuthorize(PermissionCodes.HAS_MASTERDATA_CUSTOMER_UPDATE)
