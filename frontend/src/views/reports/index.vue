@@ -158,6 +158,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
+import { formatLocalizedNumber } from '@/utils/locale'
 import {
   exportFinanceSettlementReport,
   exportInventoryBalanceReport,
@@ -312,14 +313,14 @@ const handleExport = async () => {
 }
 
 const formatMoney = (amount?: number) => {
-  return `¥${Number(amount || 0).toLocaleString('zh-CN', {
+  return `¥${formatLocalizedNumber(Number(amount || 0), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })}`
 }
 
 const formatNumber = (value?: number) => {
-  return Number(value || 0).toLocaleString('zh-CN', {
+  return formatLocalizedNumber(Number(value || 0), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })

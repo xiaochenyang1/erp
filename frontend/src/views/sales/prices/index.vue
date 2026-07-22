@@ -193,6 +193,7 @@ import {
   type SalesPriceQuery
 } from '@/api/sales'
 import { getCustomers, getProducts, type Customer, type Product } from '@/api/masterdata'
+import { formatLocalizedNumber } from '@/utils/locale'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -240,7 +241,7 @@ watch(scopeType, (value) => {
 const today = () => new Date().toISOString().slice(0, 10)
 
 const formatMoney = (value: number) =>
-  Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  formatLocalizedNumber(Number(value || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const loadOptions = async () => {
   const [customerPage, productPage] = await Promise.all([

@@ -64,6 +64,7 @@ import { onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getPartnerStatement, type PartnerStatement } from '@/api/finance'
 import { getCustomers, getSuppliers } from '@/api/masterdata'
+import { formatLocalizedNumber } from '@/utils/locale'
 
 const partnerType = ref('CUSTOMER')
 const partnerId = ref('')
@@ -72,7 +73,7 @@ const partners = ref<any[]>([])
 const loading = ref(false)
 const statement = ref<PartnerStatement>()
 
-const money = (v: number) => Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const money = (v: number) => formatLocalizedNumber(Number(v || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const loadPartners = async () => {
   if (partnerType.value === 'CUSTOMER') {

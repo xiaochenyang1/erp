@@ -161,6 +161,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { CircleCheck, CircleClose, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { formatLocalizedNumber } from '@/utils/locale'
 import {
   cancelFinanceInvoice,
   createFinanceInvoice,
@@ -354,7 +355,7 @@ const resetForm = () => {
 }
 
 const formatAmount = (amount?: number) =>
-  Number(amount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  formatLocalizedNumber(Number(amount || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const typeLabel = (type: string) => (type === 'OUTPUT' ? '销项' : type === 'INPUT' ? '进项' : type)
 

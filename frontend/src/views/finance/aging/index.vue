@@ -115,6 +115,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { getFinanceAgingSummary, type FinanceAgingSummary } from '@/api/finance'
+import { formatLocalizedNumber } from '@/utils/locale'
 
 const router = useRouter()
 const loading = ref(false)
@@ -123,7 +124,7 @@ const today = new Date().toISOString().slice(0, 10)
 const asOfDate = ref(today)
 
 const formatMoney = (value?: number) =>
-  Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  formatLocalizedNumber(Number(value || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const loadData = async () => {
   loading.value = true

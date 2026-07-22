@@ -55,11 +55,12 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getGrossMarginSummary, type GrossMarginSummary } from '@/api/finance'
+import { formatLocalizedNumber } from '@/utils/locale'
 
 const range = ref<string[]>([])
 const loading = ref(false)
 const summary = ref<GrossMarginSummary>()
-const money = (v: number) => Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const money = (v: number) => formatLocalizedNumber(Number(v || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const loadData = async () => {
   if (!range.value || range.value.length !== 2) {

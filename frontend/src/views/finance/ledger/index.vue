@@ -117,6 +117,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
+import { formatLocalizedNumber } from '@/utils/locale'
 import {
   getAccountSubjectTree,
   getLedgerEntries,
@@ -304,10 +305,10 @@ const handleExport = async () => {
 
 // 格式化金额
 const formatAmount = (amount: number) => {
-  return amount?.toLocaleString('zh-CN', {
+  return amount == null ? '0.00' : formatLocalizedNumber(amount, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  }) || '0.00'
+  })
 }
 
 // 总账合计行
