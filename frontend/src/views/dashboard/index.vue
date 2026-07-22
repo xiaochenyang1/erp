@@ -2,19 +2,19 @@
   <div v-loading="loading" class="dashboard-container">
     <div class="welcome-section">
       <div class="welcome-text">
-        <h2>欢迎回来，{{ userName }}</h2>
-        <p class="welcome-subtitle">{{ currentTime }} | 工作台数据来自当前账套</p>
-        <p class="onboarding-tip">新手路径：主数据 → 销售/采购订单 → 出入库 → 财务收付；扩展能力见 账龄/MRP/报价/询价</p>
+        <h2>{{ t('dashboard.welcome', { name: userName }) }}</h2>
+        <p class="welcome-subtitle">{{ currentTime }} | {{ t('dashboard.source') }}</p>
+        <p class="onboarding-tip">{{ t('dashboard.onboarding') }}</p>
       </div>
       <div class="welcome-actions">
         <el-button type="primary" :icon="Plus" @click="handleQuickAction('/purchase/orders')">
-          新增采购
+          {{ t('dashboard.newPurchase') }}
         </el-button>
         <el-button type="success" :icon="Plus" @click="handleQuickAction('/sales/orders')">
-          新增销售
+          {{ t('dashboard.newSales') }}
         </el-button>
         <el-button type="warning" :icon="Search" @click="handleQuickAction('/inventory/stocks')">
-          库存查询
+          {{ t('dashboard.stockQuery') }}
         </el-button>
       </div>
     </div>
@@ -26,10 +26,10 @@
             <el-icon :size="30"><ShoppingCart /></el-icon>
           </div>
           <div class="stat-card-content">
-            <div class="stat-card-title">今日采购订单</div>
+            <div class="stat-card-title">{{ t('dashboard.todayPurchaseOrders') }}</div>
             <div class="stat-card-value">{{ formatNumber(summary.todayPurchaseOrders) }}</div>
             <div class="stat-card-trend">
-              <el-tag size="small">今日</el-tag>
+              <el-tag size="small">{{ t('dashboard.today') }}</el-tag>
             </div>
           </div>
         </div>
@@ -41,10 +41,10 @@
             <el-icon :size="30"><Sell /></el-icon>
           </div>
           <div class="stat-card-content">
-            <div class="stat-card-title">今日销售金额</div>
+            <div class="stat-card-title">{{ t('dashboard.todaySalesAmount') }}</div>
             <div class="stat-card-value">¥{{ formatNumber(summary.todaySalesAmount) }}</div>
             <div class="stat-card-trend">
-              <el-tag size="small" type="success">今日</el-tag>
+              <el-tag size="small" type="success">{{ t('dashboard.today') }}</el-tag>
             </div>
           </div>
         </div>
@@ -56,10 +56,10 @@
             <el-icon :size="30"><Box /></el-icon>
           </div>
           <div class="stat-card-content">
-            <div class="stat-card-title">库存预警</div>
+            <div class="stat-card-title">{{ t('dashboard.stockAlerts') }}</div>
             <div class="stat-card-value">{{ formatNumber(summary.lowStockAlerts) }}</div>
             <div class="stat-card-trend">
-              <el-tag size="small" type="warning">需关注</el-tag>
+              <el-tag size="small" type="warning">{{ t('dashboard.attention') }}</el-tag>
             </div>
           </div>
         </div>
@@ -71,10 +71,10 @@
             <el-icon :size="30"><DocumentChecked /></el-icon>
           </div>
           <div class="stat-card-content">
-            <div class="stat-card-title">待审批单据</div>
+            <div class="stat-card-title">{{ t('dashboard.pendingApprovals') }}</div>
             <div class="stat-card-value">{{ formatNumber(summary.pendingApprovals) }}</div>
             <div class="stat-card-trend">
-              <el-tag size="small" type="danger">待处理</el-tag>
+              <el-tag size="small" type="danger">{{ t('dashboard.pending') }}</el-tag>
             </div>
           </div>
         </div>
@@ -86,7 +86,7 @@
             <el-icon :size="30"><Money /></el-icon>
           </div>
           <div class="stat-card-content">
-            <div class="stat-card-title">未结应收</div>
+            <div class="stat-card-title">{{ t('dashboard.openReceivables') }}</div>
             <div class="stat-card-value">{{ formatNumber(summary.openReceivables) }}</div>
             <div class="stat-card-trend">
               <span class="metric-sub">¥{{ formatNumber(summary.openReceivableAmount) }}</span>
@@ -101,7 +101,7 @@
             <el-icon :size="30"><Tickets /></el-icon>
           </div>
           <div class="stat-card-content">
-            <div class="stat-card-title">未结应付</div>
+            <div class="stat-card-title">{{ t('dashboard.openPayables') }}</div>
             <div class="stat-card-value">{{ formatNumber(summary.openPayables) }}</div>
             <div class="stat-card-trend">
               <span class="metric-sub">¥{{ formatNumber(summary.openPayableAmount) }}</span>
@@ -117,19 +117,19 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>应收账龄</span>
-              <el-button text type="primary" @click="handleQuickAction('/finance/aging')">详情</el-button>
+              <span>{{ t('dashboard.receivableAging') }}</span>
+              <el-button text type="primary" @click="handleQuickAction('/finance/aging')">{{ t('dashboard.details') }}</el-button>
             </div>
           </template>
           <el-table v-loading="agingLoading" :data="aging?.receivableBuckets || []" size="small" border>
-            <el-table-column prop="label" label="账龄段" min-width="100" />
-            <el-table-column prop="count" label="笔数" width="80" align="right" />
-            <el-table-column prop="amount" label="金额" min-width="120" align="right">
+            <el-table-column prop="label" :label="t('dashboard.bucket')" min-width="100" />
+            <el-table-column prop="count" :label="t('dashboard.count')" width="80" align="right" />
+            <el-table-column prop="amount" :label="t('dashboard.amount')" min-width="120" align="right">
               <template #default="{ row }">¥{{ formatNumber(row.amount) }}</template>
             </el-table-column>
           </el-table>
           <div class="aging-total">
-            合计 ¥{{ formatNumber(aging?.receivableTotal) }} · 逾期 TOP {{ aging?.overdueReceivables?.length || 0 }}
+            {{ t('dashboard.total') }} ¥{{ formatNumber(aging?.receivableTotal) }} · {{ t('dashboard.overdueTop') }} {{ aging?.overdueReceivables?.length || 0 }}
           </div>
         </el-card>
       </el-col>
@@ -137,19 +137,19 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>应付账龄</span>
-              <el-button text type="primary" @click="handleQuickAction('/finance/aging')">详情</el-button>
+              <span>{{ t('dashboard.payableAging') }}</span>
+              <el-button text type="primary" @click="handleQuickAction('/finance/aging')">{{ t('dashboard.details') }}</el-button>
             </div>
           </template>
           <el-table v-loading="agingLoading" :data="aging?.payableBuckets || []" size="small" border>
-            <el-table-column prop="label" label="账龄段" min-width="100" />
-            <el-table-column prop="count" label="笔数" width="80" align="right" />
-            <el-table-column prop="amount" label="金额" min-width="120" align="right">
+            <el-table-column prop="label" :label="t('dashboard.bucket')" min-width="100" />
+            <el-table-column prop="count" :label="t('dashboard.count')" width="80" align="right" />
+            <el-table-column prop="amount" :label="t('dashboard.amount')" min-width="120" align="right">
               <template #default="{ row }">¥{{ formatNumber(row.amount) }}</template>
             </el-table-column>
           </el-table>
           <div class="aging-total">
-            合计 ¥{{ formatNumber(aging?.payableTotal) }} · 逾期 TOP {{ aging?.overduePayables?.length || 0 }}
+            {{ t('dashboard.total') }} ¥{{ formatNumber(aging?.payableTotal) }} · {{ t('dashboard.overdueTop') }} {{ aging?.overduePayables?.length || 0 }}
           </div>
         </el-card>
       </el-col>
@@ -288,8 +288,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/store/modules/user'
 import { ElMessage } from 'element-plus'
 import {
@@ -323,7 +324,7 @@ import {
   type OperationsDashboardTodo
 } from '@/api/dashboard'
 import { getFinanceAgingSummary, type FinanceAgingSummary } from '@/api/finance'
-import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import { formatLocalizedDateTime, formatLocalizedNumber, readDisplayPreferences } from '@/utils/locale'
 
 use([BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
@@ -337,6 +338,7 @@ type DashboardChartOption = ComposeOption<
 
 const router = useRouter()
 const userStore = useUserStore()
+const { t, locale } = useI18n()
 
 const emptyDashboard: OperationsDashboard = {
   summary: {
@@ -355,7 +357,7 @@ const emptyDashboard: OperationsDashboard = {
   generatedAt: ''
 }
 
-const userName = computed(() => userStore.userInfo?.realName || '用户')
+const userName = computed(() => userStore.userInfo?.realName || t('dashboard.user'))
 const currentTime = ref('')
 const loading = ref(false)
 const agingLoading = ref(false)
@@ -386,9 +388,17 @@ let settlementChart: EChartsType | null = null
 
 const updateTime = () => {
   const now = new Date()
-  const weekDay = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][now.getDay()]
-  currentTime.value = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDay}`
+  const { timeZone } = readDisplayPreferences()
+  currentTime.value = new Intl.DateTimeFormat(locale.value, {
+    timeZone,
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  }).format(now)
 }
+
+watch(locale, updateTime)
 
 const loadDashboard = async () => {
   loading.value = true

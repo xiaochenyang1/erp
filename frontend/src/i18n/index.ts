@@ -32,6 +32,15 @@ const messages = {
       feature2Title: '数据分析', feature2Desc: '实时报表，智能决策支持',
       feature3Title: '流程审批', feature3Desc: '多级审批，权限精细控制',
       usernameRequired: '请输入用户名', passwordRequired: '请输入密码', passwordMin: '密码至少6位'
+    },
+    dashboard: {
+      welcome: '欢迎回来，{name}', user: '用户', source: '工作台数据来自当前账套',
+      onboarding: '新手路径：主数据 → 销售/采购订单 → 出入库 → 财务收付；扩展能力见 账龄/MRP/报价/询价',
+      newPurchase: '新增采购', newSales: '新增销售', stockQuery: '库存查询',
+      todayPurchaseOrders: '今日采购订单', todaySalesAmount: '今日销售金额', stockAlerts: '库存预警',
+      pendingApprovals: '待审批单据', openReceivables: '未结应收', openPayables: '未结应付',
+      today: '今日', attention: '需关注', pending: '待处理', receivableAging: '应收账龄', payableAging: '应付账龄',
+      details: '详情', bucket: '账龄段', count: '笔数', amount: '金额', total: '合计', overdueTop: '逾期 TOP'
     }
   },
   'en-US': {
@@ -53,6 +62,15 @@ const messages = {
       feature2Title: 'Data analytics', feature2Desc: 'Real-time reports for better decisions',
       feature3Title: 'Approval workflows', feature3Desc: 'Multi-level approvals with fine-grained access control',
       usernameRequired: 'Username is required', passwordRequired: 'Password is required', passwordMin: 'Password must contain at least 6 characters'
+    },
+    dashboard: {
+      welcome: 'Welcome back, {name}', user: 'User', source: 'Dashboard data is from the current account set',
+      onboarding: 'Getting started: master data → sales/purchase orders → inventory → payments; explore aging, MRP, quotes, and inquiries',
+      newPurchase: 'New purchase', newSales: 'New sale', stockQuery: 'Stock lookup',
+      todayPurchaseOrders: "Today's purchase orders", todaySalesAmount: "Today's sales", stockAlerts: 'Stock alerts',
+      pendingApprovals: 'Pending approvals', openReceivables: 'Open receivables', openPayables: 'Open payables',
+      today: 'Today', attention: 'Attention', pending: 'Pending', receivableAging: 'Receivable aging', payableAging: 'Payable aging',
+      details: 'Details', bucket: 'Aging bucket', count: 'Count', amount: 'Amount', total: 'Total', overdueTop: 'Overdue TOP'
     }
   }
 } as const
