@@ -5,6 +5,9 @@ import com.tuowei.erp.common.web.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
@@ -126,6 +129,9 @@ public class GlobalExceptionHandler {
     @Value("${erp.error.expose-unexpected-message:false}")
     private boolean exposeUnexpectedMessage;
 
+    @Autowired(required = false)
+    private MessageSource messageSource;
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<String> handleValidation(MethodArgumentNotValidException ex) {
@@ -133,20 +139,26 @@ public class GlobalExceptionHandler {
                 .map(error -> error.getDefaultMessage())
                 .filter(StringUtils::hasText)
                 .findFirst()
-                .orElse("请求参数错误");
+                .orElse(message("error.request.invalid", "请求参数错误"));
         return new ApiResponse<>("400", message, null);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<String> handleIllegalArgument(IllegalArgumentException ex) {
-        return new ApiResponse<>("400", messageOrDefault(ex.getMessage(), "请求参数错误"), null);
+        String exceptionMessage = ex.getMessage();
+        if ("locale不支持".equals(exceptionMessage)) {
+            exceptionMessage = message("preference.locale.unsupported", exceptionMessage);
+        } else if ("timeZone不支持".equals(exceptionMessage)) {
+            exceptionMessage = message("preference.timezone.unsupported", exceptionMessage);
+        }
+        return new ApiResponse<>("400", messageOrDefault(exceptionMessage, message("error.request.invalid", "请求参数错误")), null);
     }
 
     @ExceptionHandler(BusinessConflictException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ApiResponse<String> handleBusinessConflict(BusinessConflictException ex) {
-        return new ApiResponse<>("409", messageOrDefault(ex.getMessage(), "业务冲突"), null);
+        return new ApiResponse<>("409", messageOrDefault(ex.getMessage(), message("error.business.conflict", "业务冲突")), null);
     }
 
     @ExceptionHandler(DuplicateKeyException.class)
@@ -158,38 +170,45 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(LockedException.class)
     @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
     public ApiResponse<String> handleLockedAuthentication(LockedException ex) {
-        return new ApiResponse<>("429", messageOrDefault(ex.getMessage(), "登录失败次数过多，请稍后重试"), null);
+        return new ApiResponse<>("429", messageOrDefault(ex.getMessage(), message("error.auth.locked", "登录失败次数过多，请稍后重试")), null);
     }
 
     @ExceptionHandler(AuthenticationException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ApiResponse<String> handleAuthentication(AuthenticationException ex) {
-        return new ApiResponse<>("401", "用户名或密码错误", null);
+        return new ApiResponse<>("401", message("error.auth.invalid", "用户名或密码错误"), null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ApiResponse<String> handleAccessDenied(AccessDeniedException ex) {
-        return new ApiResponse<>("403", "权限不足", null);
+        return new ApiResponse<>("403", message("error.access.denied", "权限不足"), null);
     }
 
     @ExceptionHandler(RateLimitExceededException.class)
     @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
     public ApiResponse<String> handleRateLimitExceeded(RateLimitExceededException ex) {
         log.warn("Rate limit exceeded: {}", ex.getMessage());
-        return new ApiResponse<>("429", messageOrDefault(ex.getMessage(), "请求过于频繁，请稍后再试"), null);
+        return new ApiResponse<>("429", messageOrDefault(ex.getMessage(), message("error.rate.limit", "请求过于频繁，请稍后再试")), null);
     }
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<String> handleUnexpected(Exception ex) {
         log.error("Unhandled server exception", ex);
-        String message = exposeUnexpectedMessage ? messageOrDefault(ex.getMessage(), "服务器内部错误") : "服务器内部错误";
+        String fallback = message("error.internal", "服务器内部错误");
+        String message = exposeUnexpectedMessage ? messageOrDefault(ex.getMessage(), fallback) : fallback;
         return new ApiResponse<>("500", message, null);
     }
 
     private String messageOrDefault(String message, String defaultMessage) {
         return StringUtils.hasText(message) ? message : defaultMessage;
+    }
+
+    private String message(String code, String fallback) {
+        return messageSource == null
+                ? fallback
+                : messageSource.getMessage(code, null, fallback, LocaleContextHolder.getLocale());
     }
 
     private String resolveDuplicateMessage(Throwable throwable) {

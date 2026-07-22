@@ -261,6 +261,22 @@ class AuthControllerContractTest {
 
     @Test
     @WithErpUser
+    void updatePreferencesReturnsEnglishValidationMessage() throws Exception {
+        when(authService.updatePreferences(any())).thenThrow(new IllegalArgumentException("timeZone不支持"));
+
+        mockMvc.perform(put("/api/auth/preferences")
+                        .header("Accept-Language", "en-US")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"locale":"en-US","timeZone":"Mars/Olympus"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("400"))
+                .andExpect(jsonPath("$.message").value("Unsupported time zone"));
+    }
+
+    @Test
+    @WithErpUser
     void runtimeMenuTreeDelegatesToServiceForAuthenticatedUser() throws Exception {
         when(authService.getRuntimeMenuTree()).thenReturn(List.of(
                 new MenuResponse(

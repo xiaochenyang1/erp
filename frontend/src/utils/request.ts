@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
+import { readDisplayPreferences } from '@/utils/locale'
 
 // API响应数据结构
 export interface ApiResponse<T = any> {
@@ -25,6 +26,8 @@ const normalizeParams = (params: unknown) => {
   delete normalized.size
   return normalized
 }
+
+export const resolveAcceptLanguage = () => readDisplayPreferences().locale
 
 const toNumber = (value: unknown, fallback = 0) => {
   if (typeof value === 'number') {
@@ -70,6 +73,7 @@ service.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    config.headers['Accept-Language'] = resolveAcceptLanguage()
     return config
   },
   (error) => {
