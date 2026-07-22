@@ -21,6 +21,9 @@
           </el-select>
         </el-form-item>
         <el-form-item>
+          <el-checkbox v-model="queryParams.overdueOnly">{{ t('workflow.overdueOnly') }}</el-checkbox>
+        </el-form-item>
+        <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleQuery">{{ t('workflow.search') }}</el-button>
           <el-button :icon="Refresh" @click="handleReset">{{ t('workflow.reset') }}</el-button>
         </el-form-item>
@@ -250,7 +253,8 @@ const queryParams = reactive<WorkflowTaskQuery>({
   businessType: readQueryString('businessType'),
   businessId: readQueryString('businessId'),
   businessNo: readQueryString('businessNo'),
-  status: readQueryString('status') || 'PENDING'
+  status: readQueryString('status') || 'PENDING',
+  overdueOnly: false
 })
 
 const actionForm = reactive({
@@ -280,6 +284,7 @@ const handleReset = () => {
   queryParams.businessId = undefined
   queryParams.businessNo = ''
   queryParams.status = 'PENDING'
+  queryParams.overdueOnly = false
   handleQuery()
 }
 
@@ -395,7 +400,8 @@ const cleanQuery = (query: WorkflowTaskQuery): WorkflowTaskQuery => ({
   businessType: query.businessType || undefined,
   businessId: query.businessId || undefined,
   businessNo: query.businessNo || undefined,
-  status: query.status || undefined
+  status: query.status || undefined,
+  overdueOnly: query.overdueOnly || undefined
 })
 
 const businessTypeLabel = (type?: string) => {

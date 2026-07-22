@@ -617,6 +617,11 @@ public class WorkflowService {
         if (StringUtils.hasText(status)) {
             wrapper.eq(WorkflowTaskEntity::getStatus, status.toUpperCase(Locale.ROOT));
         }
+        if (Boolean.TRUE.equals(query.getOverdueOnly())) {
+            wrapper.eq(WorkflowTaskEntity::getStatus, TASK_PENDING)
+                    .isNotNull(WorkflowTaskEntity::getDueTime)
+                    .lt(WorkflowTaskEntity::getDueTime, audit.now());
+        }
         return wrapper.orderByDesc(WorkflowTaskEntity::getCreatedTime).orderByDesc(WorkflowTaskEntity::getId);
     }
 

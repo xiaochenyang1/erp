@@ -25,6 +25,7 @@ export interface WorkflowTaskQuery extends PageQuery {
   businessId?: string | number
   businessNo?: string
   status?: string
+  overdueOnly?: boolean
 }
 
 export interface WorkflowApproveRequest {

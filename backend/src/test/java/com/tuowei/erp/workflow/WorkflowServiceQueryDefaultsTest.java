@@ -21,6 +21,7 @@ import com.tuowei.erp.workflow.service.WorkflowApprovalConfigService;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import com.tuowei.erp.workflow.web.WorkflowRecordResponse;
 import com.tuowei.erp.workflow.web.WorkflowTaskResponse;
+import com.tuowei.erp.workflow.web.WorkflowTaskPageQuery;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -100,6 +101,23 @@ class WorkflowServiceQueryDefaultsTest {
         verify(recordMapper).selectPage(pageCaptor.capture(), wrapperCaptor.capture());
         assertDefaultPage(pageCaptor.getValue());
         assertScopedInstanceSql(wrapperCaptor.getValue());
+    }
+
+    @Test
+    void listTasksCanFilterOnlyOverduePendingTasks() {
+        WorkflowTaskMapper taskMapper = mock(WorkflowTaskMapper.class);
+        when(taskMapper.selectPage(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+        WorkflowTaskPageQuery query = new WorkflowTaskPageQuery();
+        query.setOverdueOnly(true);
+
+        service(taskMapper, mock(WorkflowRecordMapper.class)).listTasks(query);
+
+        ArgumentCaptor<LambdaQueryWrapper<WorkflowTaskEntity>> wrapperCaptor = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(taskMapper).selectPage(any(), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment().toLowerCase();
+        assertThat(sql).contains("status", "due_time", "<");
+        assertThat(wrapperCaptor.getValue().getParamNameValuePairs().values())
+                .contains("PENDING", AUDIT.now());
     }
 
     @Test

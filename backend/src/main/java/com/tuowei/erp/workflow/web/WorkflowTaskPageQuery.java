@@ -8,6 +8,7 @@ public class WorkflowTaskPageQuery {
     private Long businessId;
     private String businessNo;
     private String status;
+    private Boolean overdueOnly;
 
     public Integer getPageNo() { return pageNo; }
     public void setPageNo(Integer pageNo) { this.pageNo = pageNo; }
@@ -21,4 +22,6 @@ public class WorkflowTaskPageQuery {
     public void setBusinessNo(String businessNo) { this.businessNo = businessNo; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public Boolean getOverdueOnly() { return overdueOnly; }
+    public void setOverdueOnly(Boolean overdueOnly) { this.overdueOnly = overdueOnly; }
 }

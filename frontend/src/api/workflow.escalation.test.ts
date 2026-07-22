@@ -11,7 +11,7 @@ vi.mock('@/utils/request', () => ({
   }
 }))
 
-import { escalateWorkflowTask, getWorkflowApprovalConfig, saveWorkflowApprovalConfig } from '@/api/workflow'
+import { escalateWorkflowTask, getWorkflowApprovalConfig, getWorkflowTasks, saveWorkflowApprovalConfig } from '@/api/workflow'
 
 beforeEach(() => {
   post.mockReset()
@@ -54,5 +54,15 @@ describe('审批超时升级 API', () => {
       configName: 'Sales approval', status: 'ACTIVE', taskTimeoutHours: 12, nodes: []
     })).resolves.toMatchObject({ taskTimeoutHours: 12 })
     expect(put).toHaveBeenCalledWith('/workflow/configs/SALES_ORDER', expect.objectContaining({ taskTimeoutHours: 12 }))
+  })
+
+  it('passes the overdue-only filter to the task endpoint', async () => {
+    get.mockResolvedValue({ pageNo: 1, pageSize: 20, total: 0, records: [] })
+
+    await getWorkflowTasks({ pageNo: 1, pageSize: 20, status: 'PENDING', overdueOnly: true })
+
+    expect(get).toHaveBeenCalledWith('/workflow/tasks', {
+      params: { pageNo: 1, pageSize: 20, status: 'PENDING', overdueOnly: true }
+    })
   })
 })
