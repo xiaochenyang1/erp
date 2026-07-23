@@ -11,7 +11,7 @@ vi.mock('@/utils/request', () => ({
   }
 }))
 
-import { getSalesOrder, getSalesOrders, getSalesDelivery } from '@/api/sales'
+import { getSalesOrder, getSalesOrders, getSalesDelivery, previewSalesOrderCredit } from '@/api/sales'
 
 beforeEach(() => {
   get.mockReset()
@@ -72,5 +72,39 @@ describe('sales API 归一化', () => {
     expect(d.orderId).toBe('9007199254740995')
     expect(d.warehouseId).toBe('9007199254740997')
     expect(d.items[0].productId).toBe('9007199254741001')
+  })
+
+  it('previewSalesOrderCredit 发送行项目并归一化 customerId', async () => {
+    post.mockResolvedValue({
+      customerId: '9007199254740993',
+      creditLimit: 1000,
+      outstandingReceivable: 200,
+      openOrderExposure: 100,
+      currentExposure: 300,
+      orderAmount: 260,
+      projectedExposure: 560,
+      availableCredit: 700,
+      projectedAvailableCredit: 440,
+      unlimited: false,
+      exceeded: false
+    })
+
+    const preview = await previewSalesOrderCredit('9007199254740993', [
+      { productId: '9007199254740997', quantity: 2, price: 100, taxRate: 0.3, amount: 200 }
+    ])
+
+    expect(post).toHaveBeenCalledWith('/sales/orders/credit-preview', {
+      customerId: '9007199254740993',
+      lines: [{
+        productId: '9007199254740997',
+        lineNo: 1,
+        qty: 2,
+        price: 100,
+        taxRate: 0.3,
+        remark: undefined
+      }]
+    })
+    expect(preview.customerId).toBe('9007199254740993')
+    expect(preview.projectedExposure).toBe(560)
   })
 })

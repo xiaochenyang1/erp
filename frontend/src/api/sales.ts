@@ -61,6 +61,20 @@ export interface SalesOrderSaveRequest {
   remark?: string
 }
 
+export interface SalesOrderCreditPreview {
+  customerId: string
+  creditLimit: number
+  outstandingReceivable: number
+  openOrderExposure: number
+  currentExposure: number
+  orderAmount: number
+  projectedExposure: number
+  availableCredit?: number
+  projectedAvailableCredit?: number
+  unlimited: boolean
+  exceeded: boolean
+}
+
 // 销售订单API
 export const getSalesOrders = (params: SalesOrderQuery) => {
   return request.get<PageResponse<SalesOrder>>('/sales/orders', {
@@ -84,6 +98,13 @@ export const createSalesOrder = (data: SalesOrderSaveRequest) => {
 
 export const updateSalesOrder = (id: string | number, data: SalesOrderSaveRequest) => {
   return request.put<SalesOrder>(`/sales/orders/${id}`, toSalesOrderPayload(data)).then(normalizeSalesOrder)
+}
+
+export const previewSalesOrderCredit = (customerId: string | number, items: SalesOrderItem[]) => {
+  return request.post<SalesOrderCreditPreview>('/sales/orders/credit-preview', {
+    customerId,
+    lines: toSalesOrderLinePayload(items)
+  }).then(normalizeSalesOrderCreditPreview)
 }
 
 export const submitSalesOrder = (id: string | number, remark?: string) => {
@@ -126,21 +147,28 @@ const normalizeSalesOrder = (order: SalesOrder): SalesOrder => {
   }
 }
 
+const normalizeSalesOrderCreditPreview = (preview: SalesOrderCreditPreview): SalesOrderCreditPreview => ({
+  ...preview,
+  customerId: String(preview.customerId)
+})
+
 const toSalesOrderPayload = (data: SalesOrderSaveRequest) => ({
   customerId: data.customerId,
   warehouseId: data.warehouseId,
   orderDate: data.orderDate,
   deliveryDate: data.deliveryDate,
   remark: data.remark,
-  lines: data.items.map((item, index) => ({
-    productId: item.productId,
-    lineNo: item.lineNo ?? index + 1,
-    qty: item.quantity,
-    price: item.price,
-    taxRate: item.taxRate ?? 0,
-    remark: item.remark
-  }))
+  lines: toSalesOrderLinePayload(data.items)
 })
+
+const toSalesOrderLinePayload = (items: SalesOrderItem[]) => items.map((item, index) => ({
+  productId: item.productId,
+  lineNo: item.lineNo ?? index + 1,
+  qty: item.quantity,
+  price: item.price,
+  taxRate: item.taxRate ?? 0,
+  remark: item.remark
+}))
 
 // ==================== 销售发货 ====================
 

@@ -26,6 +26,8 @@ import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
 import com.tuowei.erp.sales.order.web.SalesOrderApproveRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderCreateRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderCreditPreviewRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderCreditPreviewResponse;
 import com.tuowei.erp.sales.order.web.SalesOrderLineRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderLineResponse;
 import com.tuowei.erp.sales.order.web.SalesOrderPageQuery;
@@ -149,6 +151,31 @@ public class SalesOrderService {
     }
 
     @Transactional(readOnly = true)
+    public SalesOrderCreditPreviewResponse previewCredit(SalesOrderCreditPreviewRequest request) {
+        AuditMetadata audit = auditMetadataFactory.current();
+        CustomerEntity customer = requireActiveCustomer(request.customerId(), audit.companyId(), audit.accountBookId());
+        List<SalesOrderLineRequest> lines = request.lines() == null ? List.of() : request.lines();
+        OrderTotals totals = calculateTotals(lines);
+        SalesCreditPreview preview = salesCreditEvaluator.preview(
+                customer,
+                totals.totalAmount().add(totals.totalTaxAmount())
+        );
+        return new SalesOrderCreditPreviewResponse(
+                customer.getId(),
+                preview.creditLimit(),
+                preview.outstandingReceivable(),
+                preview.openOrderExposure(),
+                preview.currentExposure(),
+                preview.orderAmount(),
+                preview.projectedExposure(),
+                preview.availableCredit(),
+                preview.projectedAvailableCredit(),
+                preview.unlimited(),
+                preview.exceeded()
+        );
+    }
+
+    @Transactional(readOnly = true)
     public SalesOrderResponse getById(Long id) {
         SalesOrderEntity entity = requireOrder(id);
         assertCanView(entity);
@@ -263,6 +290,10 @@ public class SalesOrderService {
                 entity.getOrderDate(),
                 lineRequests
         );
+        CustomerEntity customer = customerMapper.selectById(entity.getCustomerId());
+        if (customer != null) {
+            salesCreditEvaluator.assertWithinCreditLimit(customer, entity, "提交");
+        }
         SalesOrderResponse response = transitionWorkflowStatus(entity, "SUBMITTED", "IN_APPROVAL");
         workflowService.submit("SALES_ORDER", entity.getId(), entity.getOrderNo(), "销售订单 " + entity.getOrderNo(), request.remark());
         return response;
@@ -286,7 +317,7 @@ public class SalesOrderService {
         }
         CustomerEntity customer = customerMapper.selectById(entity.getCustomerId());
         if (customer != null) {
-            salesCreditEvaluator.assertWithinCreditLimit(customer, entity);
+            salesCreditEvaluator.assertWithinCreditLimit(customer, entity, "审批");
         }
         reserveOrder(entity);
         SalesOrderResponse response = transitionWorkflowStatus(entity, "APPROVED", "APPROVED");

@@ -29,6 +29,7 @@ import com.tuowei.erp.sales.order.service.SalesOrderNumberService;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
 import com.tuowei.erp.sales.order.web.SalesOrderCreateRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderLineRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderSubmitRequest;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -46,6 +47,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -197,6 +199,24 @@ class SalesOrderServiceTenantBoundaryTest {
         assertThatThrownBy(() -> service().unapprove(3401L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("已出库销售订单不允许反审核");
+    }
+
+    @Test
+    void submitValidatesCreditLimitBeforeWorkflowSubmission() {
+        stubCurrentUser();
+        stubAudit();
+        SalesOrderEntity draft = order();
+        draft.setApprovalStatus("NOT_SUBMITTED");
+        when(salesOrderMapper.selectById(3401L)).thenReturn(draft);
+        when(customerMapper.selectById(CUSTOMER_ID))
+                .thenReturn(activeCustomer(CUSTOMER_ID, AUDIT.companyId(), AUDIT.accountBookId()));
+        when(salesOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
+        when(salesOrderMapper.updateById(any(SalesOrderEntity.class))).thenReturn(1);
+
+        service().submit(3401L, new SalesOrderSubmitRequest("credit submit"));
+
+        verify(salesCreditEvaluator).assertWithinCreditLimit(any(CustomerEntity.class), any(SalesOrderEntity.class), eq("提交"));
+        verify(workflowService).submit("SALES_ORDER", 3401L, "SO-3401", "销售订单 SO-3401", "credit submit");
     }
 
     private void stubAudit() {

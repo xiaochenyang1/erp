@@ -146,6 +146,76 @@
           <el-input v-model="formData.remark" type="textarea" :rows="2" placeholder="请输入备注" :disabled="isView" />
         </el-form-item>
 
+        <div v-if="formData.customerId && !isView" v-loading="creditPreviewLoading" class="credit-preview-card">
+          <div class="credit-preview-header">
+            <div>
+              <div class="credit-preview-title">客户授信预览</div>
+              <div class="credit-preview-subtitle">未结应收 + 已审批未发货订单 + 本单含税金额</div>
+            </div>
+            <el-tag v-if="creditPreview" :type="creditPreview.exceeded ? 'danger' : 'success'">
+              {{ creditPreview.unlimited ? '不限额客户' : creditPreview.exceeded ? '提交后超限' : '额度充足' }}
+            </el-tag>
+          </div>
+
+          <template v-if="creditPreview">
+            <div class="credit-preview-grid">
+              <div class="credit-preview-item">
+                <div class="preview-label">信用额度</div>
+                <div class="preview-value" :class="{ quiet: creditPreview.unlimited }">
+                  {{ creditPreview.unlimited ? '不限额' : formatMoney(creditPreview.creditLimit) }}
+                </div>
+              </div>
+              <div class="credit-preview-item">
+                <div class="preview-label">未结应收</div>
+                <div class="preview-value">{{ formatMoney(creditPreview.outstandingReceivable) }}</div>
+              </div>
+              <div class="credit-preview-item">
+                <div class="preview-label">在途订单敞口</div>
+                <div class="preview-value">{{ formatMoney(creditPreview.openOrderExposure) }}</div>
+              </div>
+              <div class="credit-preview-item">
+                <div class="preview-label">当前敞口</div>
+                <div class="preview-value">{{ formatMoney(creditPreview.currentExposure) }}</div>
+              </div>
+              <div class="credit-preview-item">
+                <div class="preview-label">本单含税金额</div>
+                <div class="preview-value">{{ formatMoney(creditPreview.orderAmount) }}</div>
+              </div>
+              <div class="credit-preview-item">
+                <div class="preview-label">提交后可用额度</div>
+                <div class="preview-value" :class="{ danger: !creditPreview.unlimited && Number(creditPreview.projectedAvailableCredit ?? 0) < 0 }">
+                  {{ creditPreview.unlimited ? '不限额' : formatMoney(creditPreview.projectedAvailableCredit) }}
+                </div>
+              </div>
+            </div>
+
+            <el-alert
+              v-if="creditPreview.exceeded"
+              type="error"
+              :closable="false"
+              show-icon
+              :title="`预计超限 ${formatMoney(creditExceededAmount)}`"
+              :description="`当前敞口 ${formatMoney(creditPreview.currentExposure)} + 本单 ${formatMoney(creditPreview.orderAmount)} = ${formatMoney(creditPreview.projectedExposure)}，已超过信用额度 ${formatMoney(creditPreview.creditLimit)}`"
+            />
+            <el-alert
+              v-else-if="creditPreview.unlimited"
+              type="info"
+              :closable="false"
+              show-icon
+              title="该客户未设置授信额度"
+              :description="`当前敞口 ${formatMoney(creditPreview.currentExposure)}，本单可继续提交审批`"
+            />
+            <el-alert
+              v-else
+              type="success"
+              :closable="false"
+              show-icon
+              :title="`提交后敞口 ${formatMoney(creditPreview.projectedExposure)}`"
+              :description="`提交后仍有可用额度 ${formatMoney(creditPreview.projectedAvailableCredit)}`"
+            />
+          </template>
+        </div>
+
         <div class="line-toolbar">
           <span>订单明细</span>
           <el-button v-if="!isView" type="primary" :icon="Plus" @click="addLine">添加明细</el-button>
@@ -207,7 +277,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Delete, Edit, Plus, Refresh, Search, View } from '@element-plus/icons-vue'
@@ -218,10 +288,12 @@ import {
   createSalesOrder,
   getSalesOrder,
   getSalesOrders,
+  previewSalesOrderCredit,
   rejectSalesOrder,
   resolveSalesPrice,
   submitSalesOrder,
   updateSalesOrder,
+  type SalesOrderCreditPreview,
   type SalesOrder,
   type SalesOrderItem,
   type SalesOrderQuery,
@@ -268,6 +340,10 @@ const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const isView = ref(false)
 const formRef = ref<FormInstance>()
+const creditPreviewLoading = ref(false)
+const creditPreview = ref<SalesOrderCreditPreview>()
+let creditPreviewTimer: ReturnType<typeof setTimeout> | undefined
+let creditPreviewRequestId = 0
 
 const formData = reactive<SalesOrderForm>({
   customerId: '',
@@ -383,6 +459,59 @@ const fillForm = async (id: string) => {
   })
 }
 
+const buildCreditPreviewItems = (): SalesOrderItem[] => (
+  formData.items
+    .filter((item) => item.productId && Number(item.quantity) > 0)
+    .map((item) => ({
+      productId: item.productId,
+      quantity: Number(item.quantity ?? 0),
+      price: Number(item.price ?? 0),
+      taxRate: Number(item.taxRate ?? 0),
+      amount: lineAmount(item),
+      remark: item.remark
+    }))
+)
+
+const clearCreditPreviewTimer = () => {
+  if (!creditPreviewTimer) return
+  clearTimeout(creditPreviewTimer)
+  creditPreviewTimer = undefined
+}
+
+const loadCreditPreview = async () => {
+  if (!dialogVisible.value || isView.value || !formData.customerId) {
+    creditPreviewLoading.value = false
+    creditPreview.value = undefined
+    return
+  }
+
+  const requestId = ++creditPreviewRequestId
+  creditPreviewLoading.value = true
+  try {
+    creditPreview.value = await previewSalesOrderCredit(formData.customerId, buildCreditPreviewItems())
+  } catch {
+    if (requestId === creditPreviewRequestId) {
+      creditPreview.value = undefined
+    }
+  } finally {
+    if (requestId === creditPreviewRequestId) {
+      creditPreviewLoading.value = false
+    }
+  }
+}
+
+const scheduleCreditPreviewReload = () => {
+  clearCreditPreviewTimer()
+  if (!dialogVisible.value || isView.value || !formData.customerId) {
+    creditPreviewLoading.value = false
+    creditPreview.value = undefined
+    return
+  }
+  creditPreviewTimer = setTimeout(() => {
+    void loadCreditPreview()
+  }, 250)
+}
+
 const handleSave = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
@@ -412,7 +541,9 @@ const handleSave = async () => {
       dialogVisible.value = false
       loadData()
     } catch (error) {
-      ElMessage.error('保存销售订单失败')
+      if (!(error instanceof Error)) {
+        ElMessage.error('保存销售订单失败')
+      }
     } finally {
       submitLoading.value = false
     }
@@ -442,7 +573,7 @@ const handleReject = async (row: SalesOrder) => {
     ElMessage.success('驳回成功')
     loadData()
   } catch (error) {
-    if (error !== 'cancel') {
+    if (error !== 'cancel' && !(error instanceof Error)) {
       ElMessage.error('驳回失败')
     }
   }
@@ -464,7 +595,7 @@ const runOrderAction = async (
     ElMessage.success(successMessage)
     loadData()
   } catch (error) {
-    if (error !== 'cancel') {
+    if (error !== 'cancel' && !(error instanceof Error)) {
       ElMessage.error('操作失败')
     }
   }
@@ -529,6 +660,10 @@ const onCustomerOrDateChange = async () => {
 }
 
 const resetForm = () => {
+  clearCreditPreviewTimer()
+  creditPreviewRequestId += 1
+  creditPreviewLoading.value = false
+  creditPreview.value = undefined
   formRef.value?.clearValidate()
   Object.assign(formData, {
     id: undefined,
@@ -581,6 +716,33 @@ const approvalTagType = (status?: string) => {
   return 'info'
 }
 
+const creditExceededAmount = computed(() => (
+  creditPreview.value?.projectedAvailableCredit != null && creditPreview.value.projectedAvailableCredit < 0
+    ? Math.abs(creditPreview.value.projectedAvailableCredit)
+    : 0
+))
+
+const creditPreviewSignature = computed(() => JSON.stringify({
+  dialogVisible: dialogVisible.value,
+  isView: isView.value,
+  customerId: formData.customerId || '',
+  items: formData.items.map((item) => ({
+    productId: item.productId || '',
+    quantity: Number(item.quantity ?? 0),
+    price: Number(item.price ?? 0),
+    taxRate: Number(item.taxRate ?? 0),
+    remark: item.remark || ''
+  }))
+}))
+
+watch(creditPreviewSignature, () => {
+  scheduleCreditPreviewReload()
+})
+
+onBeforeUnmount(() => {
+  clearCreditPreviewTimer()
+})
+
 onMounted(async () => {
   try {
     await loadOptions()
@@ -612,6 +774,68 @@ onMounted(async () => {
     font-weight: 600;
   }
 
+  .credit-preview-card {
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid #ebeef5;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f8fbff 0%, #fdfefe 100%);
+  }
+
+  .credit-preview-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+
+  .credit-preview-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #303133;
+  }
+
+  .credit-preview-subtitle {
+    margin-top: 4px;
+    color: #909399;
+    font-size: 12px;
+  }
+
+  .credit-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .credit-preview-item {
+    padding: 12px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #edf2f7;
+  }
+
+  .preview-label {
+    color: #909399;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .preview-value {
+    color: #303133;
+    font-size: 18px;
+    font-weight: 600;
+
+    &.danger {
+      color: #f56c6c;
+    }
+
+    &.quiet {
+      color: #67c23a;
+    }
+  }
+
   .price-hint {
     margin-top: 2px;
     color: #909399;
@@ -622,6 +846,23 @@ onMounted(async () => {
   .el-pagination {
     margin-top: 20px;
     justify-content: flex-end;
+  }
+
+  @media (max-width: 900px) {
+    .credit-preview-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .credit-preview-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .credit-preview-grid {
+      grid-template-columns: 1fr;
+    }
   }
 }
 </style>

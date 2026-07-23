@@ -6,6 +6,8 @@ import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
 import com.tuowei.erp.sales.order.web.SalesOrderApproveRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderCreateRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderCreditPreviewRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderCreditPreviewResponse;
 import com.tuowei.erp.sales.order.web.SalesOrderPageQuery;
 import com.tuowei.erp.sales.order.web.SalesOrderRejectRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderResponse;
@@ -49,6 +51,12 @@ public class SalesOrderController {
     @GetMapping("/{id}")
     public ApiResponse<SalesOrderResponse> detail(@PathVariable Long id) {
         return ApiResponse.success(salesOrderService.getById(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_SALES_ORDER_VIEW)
+    @PostMapping("/credit-preview")
+    public ApiResponse<SalesOrderCreditPreviewResponse> creditPreview(@Valid @RequestBody SalesOrderCreditPreviewRequest request) {
+        return ApiResponse.success(salesOrderService.previewCredit(request));
     }
 
     @PreAuthorize(PermissionCodes.HAS_SALES_ORDER_UPDATE)

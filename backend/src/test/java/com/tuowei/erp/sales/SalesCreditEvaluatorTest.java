@@ -172,6 +172,41 @@ class SalesCreditEvaluatorTest {
         assertThat(exposure.totalExposure()).isEqualByComparingTo("1300.00");
     }
 
+    @Test
+    void previewReportsProjectedExposureAndRemainingCredit() {
+        CustomerEntity customer = customer(new BigDecimal("2000"));
+        when(receivableMapper.selectList(any())).thenReturn(List.of(
+                receivable("INCREASE", new BigDecimal("800"), new BigDecimal("200"))));
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of(
+                approvedOrder(5004L, "NOT_DELIVERED", new BigDecimal("700"), BigDecimal.ZERO)));
+
+        var preview = evaluator().preview(customer, new BigDecimal("260"));
+
+        assertThat(preview.creditLimit()).isEqualByComparingTo("2000.00");
+        assertThat(preview.currentExposure()).isEqualByComparingTo("1300.00");
+        assertThat(preview.orderAmount()).isEqualByComparingTo("260.00");
+        assertThat(preview.projectedExposure()).isEqualByComparingTo("1560.00");
+        assertThat(preview.availableCredit()).isEqualByComparingTo("700.00");
+        assertThat(preview.projectedAvailableCredit()).isEqualByComparingTo("440.00");
+        assertThat(preview.exceeded()).isFalse();
+    }
+
+    @Test
+    void customActionLabelAppearsInCreditLimitError() {
+        CustomerEntity customer = customer(new BigDecimal("1000"));
+        stubEmptyReceivables();
+        stubNoOtherApprovedOrders();
+
+        assertThatThrownBy(() -> evaluator().assertWithinCreditLimit(
+                customer,
+                currentOrder(new BigDecimal("1000"), new BigDecimal("130")),
+                "提交"
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("提交后敞口")
+                .hasMessageContaining("信用额度不足");
+    }
+
     private SalesCreditEvaluator evaluator() {
         return new SalesCreditEvaluator(receivableMapper, salesOrderMapper, salesOrderLineMapper);
     }

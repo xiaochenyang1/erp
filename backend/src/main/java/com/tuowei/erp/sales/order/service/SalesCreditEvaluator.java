@@ -49,30 +49,61 @@ public class SalesCreditEvaluator {
      * 校验审批当前订单后客户信用敞口是否超限，超限则抛出 {@link IllegalArgumentException}。
      */
     public void assertWithinCreditLimit(CustomerEntity customer, SalesOrderEntity currentOrder) {
-        BigDecimal creditLimit = customer.getCreditLimit();
-        if (creditLimit == null || creditLimit.compareTo(BigDecimal.ZERO) <= 0) {
-            // 未设额度视为不限额
-            return;
-        }
+        assertWithinCreditLimit(customer, currentOrder, "审批");
+    }
 
-        SalesCreditExposure currentExposure = evaluate(customer, currentOrder.getId());
-        BigDecimal currentOrderAmount = documentAmount(currentOrder.getTotalAmount(), currentOrder.getTotalTaxAmount());
-
-        BigDecimal exposure = ScalePrecision.amount(
-                currentExposure.totalExposure().add(currentOrderAmount)
-        );
-
-        if (exposure.compareTo(creditLimit) > 0) {
+    /**
+     * 校验提交/审批当前订单后客户信用敞口是否超限，超限则抛出 {@link IllegalArgumentException}。
+     */
+    public void assertWithinCreditLimit(CustomerEntity customer, SalesOrderEntity currentOrder, String actionLabel) {
+        SalesCreditPreview preview = preview(customer, currentOrder);
+        if (preview.exceeded()) {
+            String action = actionLabel == null || actionLabel.isBlank() ? "审批" : actionLabel;
             throw new IllegalArgumentException(String.format(
-                    "客户信用额度不足，审批后敞口 %s 将超过信用额度 %s",
-                    exposure.toPlainString(),
-                    ScalePrecision.amount(creditLimit).toPlainString()
+                    "客户信用额度不足，%s后敞口 %s 将超过信用额度 %s",
+                    action,
+                    preview.projectedExposure().toPlainString(),
+                    preview.creditLimit().toPlainString()
             ));
         }
     }
 
+    public SalesCreditPreview preview(CustomerEntity customer, SalesOrderEntity currentOrder) {
+        return preview(
+                customer,
+                documentAmount(currentOrder.getTotalAmount(), currentOrder.getTotalTaxAmount()),
+                currentOrder.getId()
+        );
+    }
+
+    public SalesCreditPreview preview(CustomerEntity customer, BigDecimal orderAmount) {
+        return preview(customer, orderAmount, null);
+    }
+
     public SalesCreditExposure evaluate(CustomerEntity customer) {
         return evaluate(customer, null);
+    }
+
+    private SalesCreditPreview preview(CustomerEntity customer, BigDecimal orderAmount, Long excludeOrderId) {
+        BigDecimal creditLimit = ScalePrecision.amount(ScalePrecision.zeroDefault(customer.getCreditLimit()));
+        boolean unlimited = creditLimit.compareTo(BigDecimal.ZERO) <= 0;
+        SalesCreditExposure currentExposure = evaluate(customer, excludeOrderId);
+        BigDecimal normalizedOrderAmount = ScalePrecision.amount(ScalePrecision.zeroDefault(orderAmount));
+        BigDecimal projectedExposure = ScalePrecision.amount(currentExposure.totalExposure().add(normalizedOrderAmount));
+        BigDecimal availableCredit = unlimited ? null : ScalePrecision.amount(creditLimit.subtract(currentExposure.totalExposure()));
+        BigDecimal projectedAvailableCredit = unlimited ? null : ScalePrecision.amount(creditLimit.subtract(projectedExposure));
+        return new SalesCreditPreview(
+                creditLimit,
+                currentExposure.outstandingReceivable(),
+                currentExposure.openOrderExposure(),
+                currentExposure.totalExposure(),
+                normalizedOrderAmount,
+                projectedExposure,
+                availableCredit,
+                projectedAvailableCredit,
+                unlimited,
+                !unlimited && projectedExposure.compareTo(creditLimit) > 0
+        );
     }
 
     private SalesCreditExposure evaluate(CustomerEntity customer, Long excludeOrderId) {
