@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 毛利简报：按已过账销售发货汇总销售额；成本取商品采购价×数量（近似，非标准成本核算）。
+ * 毛利简报：按已过账销售发货汇总销售额；成本取销售发货出库库存流水金额（真实出库成本）。
  */
 @Service
 @NativeSqlTenantScoped("margin report scopes by current company/account book")
@@ -44,7 +44,7 @@ public class GrossMarginService {
                        max(p.product_name) as productName,
                        coalesce(sum(l.qty), 0) as salesQty,
                        coalesce(sum(l.amount), 0) as salesAmount,
-                       coalesce(sum(l.qty * coalesce(p.purchase_price, 0)), 0) as costAmount
+                       coalesce(sum(coalesce(c.cost_amount, 0)), 0) as costAmount
                 from sal_delivery d
                 join sal_delivery_line l
                   on l.company_id = d.company_id
@@ -52,6 +52,21 @@ public class GrossMarginService {
                  and l.delivery_id = d.id
                 left join md_product p
                   on p.id = l.product_id
+                left join (
+                    select t.company_id,
+                           t.account_book_id,
+                           t.biz_line_id,
+                           t.product_id,
+                           sum(t.amount) as cost_amount
+                    from inv_txn t
+                    where t.biz_type = 'SALES_DELIVERY'
+                      and t.direction = 'OUT'
+                    group by t.company_id, t.account_book_id, t.biz_line_id, t.product_id
+                ) c
+                  on c.company_id = d.company_id
+                 and c.account_book_id = d.account_book_id
+                 and c.biz_line_id = l.id
+                 and c.product_id = l.product_id
                 where d.company_id = ?
                   and d.account_book_id = ?
                   and d.deleted_flag = 0

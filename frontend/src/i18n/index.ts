@@ -89,8 +89,8 @@ const coreMessages = {
       message: { loadFailed: '加载账龄分析失败' }
     },
     financeGrossMargin: {
-      period: '期间', startDate: '开始日期', endDate: '结束日期', search: '查询', salesAmount: '销售额', costApprox: '成本（进价近似）', grossMargin: '毛利', marginRate: '毛利率',
-      costNotice: '成本按商品采购价 × 发货数量近似估算，非标准成本核算。', productCode: '商品编码', productName: '商品名称', salesQuantity: '销售数量', costAmount: '成本',
+      period: '期间', startDate: '开始日期', endDate: '结束日期', search: '查询', salesAmount: '销售额', costApprox: '出库成本', grossMargin: '毛利', marginRate: '毛利率',
+      costNotice: '成本取已过账销售发货对应的库存出库流水金额（真实出库成本）。', productCode: '商品编码', productName: '商品名称', salesQuantity: '销售数量', costAmount: '成本',
       message: { selectRange: '请选择日期区间', loadFailed: '加载毛利分析失败' }
     },
     financeStatement: {
@@ -271,8 +271,8 @@ const coreMessages = {
       message: { loadFailed: 'Failed to load aging analysis' }
     },
     financeGrossMargin: {
-      period: 'Period', startDate: 'Start date', endDate: 'End date', search: 'Search', salesAmount: 'Sales amount', costApprox: 'Cost (purchase-price estimate)', grossMargin: 'Gross margin', marginRate: 'Gross margin rate',
-      costNotice: 'Cost is estimated as product purchase price × delivered quantity; this is not standard cost accounting.', productCode: 'Product code', productName: 'Product name', salesQuantity: 'Sales quantity', costAmount: 'Cost',
+      period: 'Period', startDate: 'Start date', endDate: 'End date', search: 'Search', salesAmount: 'Sales amount', costApprox: 'Outbound cost', grossMargin: 'Gross margin', marginRate: 'Gross margin rate',
+      costNotice: 'Cost uses inventory outbound transaction amounts from posted sales deliveries.', productCode: 'Product code', productName: 'Product name', salesQuantity: 'Sales quantity', costAmount: 'Cost',
       message: { selectRange: 'Select a date range', loadFailed: 'Failed to load gross margin analysis' }
     },
     financeStatement: {
