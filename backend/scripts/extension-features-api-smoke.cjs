@@ -113,26 +113,73 @@ async function smokePurchaseInquiry(adminToken, submitterToken) {
       inspectionRequired: false,
       remark: id,
     }, 'create product')
+    const secondProduct = await must(adminToken, 'POST', '/api/masterdata/products', {
+      productCode: `EXQ${SUFFIX}`,
+      productName: `扩展询价商品二${SUFFIX}`,
+      productType: 'GOODS',
+      categoryName: '扩展联调',
+      specification: 'smoke-2',
+      unitName: '件',
+      purchasePrice: 21,
+      salePrice: 30,
+      taxRate: 6,
+      lotControlled: false,
+      shelfLifeControlled: false,
+      inspectionRequired: false,
+      remark: id,
+    }, 'create second product')
 
     const inquiry = await must(adminToken, 'POST', '/api/purchase/inquiries', {
       inquiryDate: today,
       title: `扩展询价 ${SUFFIX}`,
       remark: id,
-      lines: [{ productId: product.id, qty: 5, remark: 'line1' }],
+      lines: [
+        { productId: product.id, qty: 5, remark: 'line1' },
+        { productId: secondProduct.id, qty: 3, remark: 'line2' },
+      ],
     }, 'create inquiry')
     row('B3-1', '创建询价单', inquiry.status === 'DRAFT', inquiry.inquiryNo)
+
+    const inquiryLineByProduct = new Map(
+      (inquiry.lines || []).map((line) => [String(line.productId), line]),
+    )
+    const firstInquiryLine = inquiryLineByProduct.get(String(product.id))
+    const secondInquiryLine = inquiryLineByProduct.get(String(secondProduct.id))
+    if (!firstInquiryLine?.id || !secondInquiryLine?.id) {
+      throw new Error('created inquiry did not return both line ids')
+    }
 
     const submitted = await must(adminToken, 'POST', `/api/purchase/inquiries/${inquiry.id}/submit`, undefined, 'submit inquiry')
     row('B3-2', '提交询价单', submitted.status === 'SUBMITTED', submitted.status)
 
     const quoted = await must(adminToken, 'POST', `/api/purchase/inquiries/${inquiry.id}/quotes`, {
       supplierId: supplier.id,
-      unitPrice: 12.5,
-      taxRate: 13,
+      lines: [
+        {
+          inquiryLineId: firstInquiryLine.id,
+          unitPrice: 12.5,
+          taxRate: 13,
+        },
+        {
+          inquiryLineId: secondInquiryLine.id,
+          unitPrice: 21.75,
+          taxRate: 6,
+        },
+      ],
       remark: 'quote',
     }, 'add quote')
     const quote = (quoted.quotes || []).find((q) => String(q.supplierId) === String(supplier.id))
-    row('B3-3', '录入报价', !!quote, quote?.id || 'missing quote')
+    const quotePriceByInquiryLine = new Map(
+      (quote?.lines || []).map((line) => [String(line.inquiryLineId), Number(line.unitPrice)]),
+    )
+    row(
+      'B3-3',
+      '录入逐行报价',
+      !!quote
+        && quotePriceByInquiryLine.get(String(firstInquiryLine.id)) === 12.5
+        && quotePriceByInquiryLine.get(String(secondInquiryLine.id)) === 21.75,
+      quote?.id || 'missing quote',
+    )
 
     const closed = await must(adminToken, 'POST', `/api/purchase/inquiries/${inquiry.id}/select-quote`, {
       quoteId: quote.id,
@@ -140,21 +187,65 @@ async function smokePurchaseInquiry(adminToken, submitterToken) {
     row('B3-4', '选定中标关闭', closed.status === 'CLOSED' && String(closed.selectedSupplierId) === String(supplier.id), closed.status)
 
     const prefill = await must(adminToken, 'GET', `/api/purchase/inquiries/${inquiry.id}/po-prefill`, undefined, 'po-prefill')
-    row('B3-5', 'PO 预填', String(prefill.supplierId) === String(supplier.id) && (prefill.lines || []).length === 1, prefill.inquiryNo)
+    const prefillPriceByProduct = new Map(
+      (prefill.lines || []).map((line) => [String(line.productId), Number(line.price)]),
+    )
+    row(
+      'B3-5',
+      'PO 逐行价格预填',
+      String(prefill.supplierId) === String(supplier.id)
+        && prefillPriceByProduct.get(String(product.id)) === 12.5
+        && prefillPriceByProduct.get(String(secondProduct.id)) === 21.75,
+      prefill.inquiryNo,
+    )
 
-    const order = await must(adminToken, 'POST', '/api/purchase/orders', {
-      supplierId: prefill.supplierId,
-      orderDate: prefill.orderDate || today,
-      remark: prefill.remark,
-      lines: (prefill.lines || []).map((line) => ({
-        productId: line.productId,
-        qty: line.qty,
-        price: line.price,
-        taxRate: line.taxRate,
-        remark: line.remark,
-      })),
-    }, 'create po from prefill')
-    row('B3-6', '预填生成 PO 草稿', order.status === 'DRAFT' || order.status === 'SUBMITTED' || !!order.orderNo, order.orderNo)
+    const order = await must(
+      adminToken,
+      'POST',
+      `/api/purchase/inquiries/${inquiry.id}/convert-to-purchase-order`,
+      undefined,
+      'atomically convert inquiry to po',
+    )
+    row(
+      'B3-6',
+      '原子转换 PO 草稿',
+      order.status === 'DRAFT'
+        && String(order.sourceInquiryId) === String(inquiry.id)
+        && String(order.sourceQuoteId) === String(quote.id)
+        && (order.lines || []).some((line) => (
+          String(line.sourceInquiryLineId) === String(firstInquiryLine.id)
+          && Number(line.price) === 12.5
+        ))
+        && (order.lines || []).some((line) => (
+          String(line.sourceInquiryLineId) === String(secondInquiryLine.id)
+          && Number(line.price) === 21.75
+        )),
+      order.orderNo,
+    )
+
+    const retryOrder = await must(
+      adminToken,
+      'POST',
+      `/api/purchase/inquiries/${inquiry.id}/convert-to-purchase-order`,
+      undefined,
+      'retry atomic inquiry conversion',
+    )
+    const convertedInquiry = await must(
+      adminToken,
+      'GET',
+      `/api/purchase/inquiries/${inquiry.id}`,
+      undefined,
+      'load converted inquiry',
+    )
+    row(
+      'B3-7',
+      '转换幂等与反向追溯',
+      String(retryOrder.id) === String(order.id)
+        && convertedInquiry.status === 'CONVERTED'
+        && String(convertedInquiry.convertedOrderId) === String(order.id)
+        && convertedInquiry.convertedOrderNo === order.orderNo,
+      retryOrder.orderNo,
+    )
   } catch (e) {
     row('B3', '采购询价闭环', false, e.message)
   }

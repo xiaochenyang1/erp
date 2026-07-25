@@ -18,7 +18,7 @@
 |----|------|------|
 | B1 | **DONE** | data-scope 12/12；矩阵文档 |
 | B2 | **DONE** | SalesCreditEvaluator + 单测；**extension smoke B2-1 PASS** |
-| B3 | **DONE** | V108 询价 + 一键生成 PO + **smoke B3 全 PASS** |
+| B3 | **DONE** | V108 询价 + V125 原子/幂等转换 PO + V127 逐行报价；定向测试通过，smoke 已升级待目标环境复验 |
 | B4 | **DONE** | V109 OQC 闸门 + **smoke B4 全 PASS** |
 | B5 | **PARTIAL** | 补货+制造底座；完整 MRP 不在范围 |
 | B6 | **DONE** | V107 发票登记 + **smoke B6 全 PASS** |
@@ -44,8 +44,8 @@
 - 客户：结算方式 + 信用额度 0=不限额 契约修复
 - OQC：编辑弹窗支持出库单；ui-smoke IQC 对话框文案对齐
 - V110：询价号段 company/book + `notification.webhook.url` 种子
-- 新脚本：`scripts/extension-features-api-smoke.cjs` → **15/15 PASS**
-- 回归入口：`scripts/local-extension-regression.ps1`（extension + data-scope，**15+12 PASS**）
+- 新脚本：`scripts/extension-features-api-smoke.cjs` → 原 **15/15 PASS**；V125 后为 16 项，待目标环境复验
+- 回归入口：`scripts/local-extension-regression.ps1`（extension + data-scope，原 **15+12 PASS**）
 - ui-smoke 新增浏览器 workflow：`finance-invoice-create-post-cancel`、`purchase-inquiry-create-and-convert-to-po`（**均 PASS**）
 - **全量 `UI_SMOKE_ROUTES=0 node scripts/ui-smoke.mjs` → 36/36 PASS**（2026-07-17 深夜，`target/ui-smoke-report.json`）
 - 路由 smoke 补：`/finance/invoices`、`/purchase/inquiries`、`/qc/inspections`
@@ -57,6 +57,8 @@
 - V108 采购询价
 - V109 OQC 列
 - V110 Track B 收口（号段 + webhook 配置）
+- V125 询价单原子转换采购订单（双向来源字段 + 租户/账套一对一约束）
+- V127 询价单逐行报价（历史 header 报价回填 + 租户/账套/询价复合约束）
 
 ## 人类唯一硬阻塞
 

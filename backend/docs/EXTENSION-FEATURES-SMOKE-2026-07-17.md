@@ -34,13 +34,13 @@ UI_SMOKE_ROUTES=0 node scripts/ui-smoke.mjs
 
 ## API smoke 结果
 
-- **15/15 PASS**（extension-features）
+- 原 **15/15 PASS**（extension-features）；V125 原子转换加入幂等校验后为 16 项，待目标环境复验
 - **12/12 PASS**（data-scope）
 - 报告：`target/extension-features-api-smoke/`、`target/data-scope-api-smoke/`
 
 | 段 | 覆盖 |
 |----|------|
-| B3 | 询价创建→提交→报价→中标→po-prefill→生成 PO 草稿 |
+| B3 | 两商品询价创建→提交→按 `inquiryLineId` 录入两组不同价格→中标→逐行价格 po-prefill→原子转换 PO 草稿→逐行来源/价格、重复请求幂等与双向来源校验 |
 | B6 | 发票草稿→确认 POSTED→作废 CANCELLED |
 | B2 | 客户 creditLimit=1，大额 SO 审批被拦截 |
 | B4 | 未 OQC 禁止出库；创建/判定 OQC 后允许过账 |
