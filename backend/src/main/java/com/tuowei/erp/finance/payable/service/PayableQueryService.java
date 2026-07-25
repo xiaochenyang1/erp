@@ -4,12 +4,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.export.CsvExport;
 import com.tuowei.erp.common.math.ScalePrecision;
+import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.payable.web.PayablePageQuery;
 import com.tuowei.erp.finance.payable.web.PayableResponse;
 import com.tuowei.erp.finance.settlement.service.FinanceSettlementScopeSupport;
+import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
+import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -20,8 +24,13 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class PayableQueryService {
@@ -41,14 +50,20 @@ public class PayableQueryService {
     );
 
     private final PayableMapper payableMapper;
+    private final SupplierMapper supplierMapper;
     private final FinanceSettlementScopeSupport financeSettlementScopeSupport;
+    private final AuditMetadataFactory auditMetadataFactory;
 
     public PayableQueryService(
             PayableMapper payableMapper,
-            FinanceSettlementScopeSupport financeSettlementScopeSupport
+            SupplierMapper supplierMapper,
+            FinanceSettlementScopeSupport financeSettlementScopeSupport,
+            AuditMetadataFactory auditMetadataFactory
     ) {
         this.payableMapper = payableMapper;
+        this.supplierMapper = supplierMapper;
         this.financeSettlementScopeSupport = financeSettlementScopeSupport;
+        this.auditMetadataFactory = auditMetadataFactory;
     }
 
     @Transactional(readOnly = true)
@@ -57,11 +72,14 @@ public class PayableQueryService {
         Page<PayableEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
         LambdaQueryWrapper<PayableEntity> wrapper = buildQuery(safeQuery);
         Page<PayableEntity> result = payableMapper.selectPage(page, wrapper);
+        Map<Long, String> supplierNames = loadSupplierNames(result.getRecords());
         return new PageResponse<>(
                 result.getCurrent(),
                 result.getSize(),
                 result.getTotal(),
-                result.getRecords().stream().map(this::toResponse).toList()
+                result.getRecords().stream()
+                        .map(entity -> toResponse(entity, supplierNames.get(entity.getSupplierId())))
+                        .toList()
         );
     }
 
@@ -69,7 +87,8 @@ public class PayableQueryService {
     public PayableResponse detail(Long id) {
         PayableEntity entity = requirePayable(id);
         financeSettlementScopeSupport.assertCanViewPayable(entity);
-        return toResponse(entity);
+        Map<Long, String> supplierNames = loadSupplierNames(List.of(entity));
+        return toResponse(entity, supplierNames.get(entity.getSupplierId()));
     }
 
     public StreamingResponseBody exportPayables(PayablePageQuery query) {
@@ -78,7 +97,7 @@ public class PayableQueryService {
         return outputStream -> withAuthentication(authentication, () -> CsvExport.write(outputStream, PAYABLE_EXPORT_HEADERS, rowWriter -> {
             List<PayableEntity> payables = payableMapper.selectList(buildQuery(safeQuery));
             for (PayableEntity entity : payables) {
-                rowWriter.write(payableExportRow(toResponse(entity)));
+                rowWriter.write(payableExportRow(toResponse(entity, null)));
             }
         }));
     }
@@ -93,6 +112,10 @@ public class PayableQueryService {
 
     private LambdaQueryWrapper<PayableEntity> buildQuery(PayablePageQuery safeQuery) {
         LambdaQueryWrapper<PayableEntity> wrapper = new LambdaQueryWrapper<>();
+        String payableNo = normalizeText(safeQuery.getPayableNo());
+        if (StringUtils.hasText(payableNo)) {
+            wrapper.like(PayableEntity::getPayableNo, payableNo);
+        }
         if (safeQuery.getSupplierId() != null) {
             wrapper.eq(PayableEntity::getSupplierId, safeQuery.getSupplierId());
         }
@@ -114,11 +137,12 @@ public class PayableQueryService {
         return wrapper.orderByDesc(PayableEntity::getBizDate).orderByDesc(PayableEntity::getId);
     }
 
-    private PayableResponse toResponse(PayableEntity entity) {
+    private PayableResponse toResponse(PayableEntity entity, String supplierName) {
         return new PayableResponse(
                 entity.getId(),
                 entity.getPayableNo(),
                 entity.getSupplierId(),
+                supplierName,
                 entity.getBizDate(),
                 entity.getSourceType(),
                 entity.getSourceId(),
@@ -128,8 +152,44 @@ public class PayableQueryService {
                 entity.getSettledAmount(),
                 remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
                 entity.getStatus(),
+                entity.getCreatedTime(),
+                entity.getUpdatedTime(),
                 entity.getRemark()
         );
+    }
+
+    private Map<Long, String> loadSupplierNames(List<PayableEntity> payables) {
+        Set<Long> supplierIds = payables.stream()
+                .map(PayableEntity::getSupplierId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (supplierIds.isEmpty()) {
+            return Map.of();
+        }
+
+        AuditMetadata audit = auditMetadataFactory.current();
+        return supplierMapper.selectList(new LambdaQueryWrapper<SupplierEntity>()
+                        .select(
+                                SupplierEntity::getId,
+                                SupplierEntity::getCompanyId,
+                                SupplierEntity::getAccountBookId,
+                                SupplierEntity::getSupplierName,
+                                SupplierEntity::getDeletedFlag
+                        )
+                        .eq(SupplierEntity::getCompanyId, audit.companyId())
+                        .eq(SupplierEntity::getAccountBookId, audit.accountBookId())
+                        .eq(SupplierEntity::getDeletedFlag, 0)
+                        .in(SupplierEntity::getId, supplierIds))
+                .stream()
+                .filter(supplier -> Objects.equals(supplier.getCompanyId(), audit.companyId()))
+                .filter(supplier -> Objects.equals(supplier.getAccountBookId(), audit.accountBookId()))
+                .filter(supplier -> Objects.equals(supplier.getDeletedFlag(), 0))
+                .collect(Collectors.toMap(
+                        SupplierEntity::getId,
+                        SupplierEntity::getSupplierName,
+                        (first, ignored) -> first,
+                        HashMap::new
+                ));
     }
 
     private List<?> payableExportRow(PayableResponse record) {
@@ -154,6 +214,10 @@ public class PayableQueryService {
 
     private String normalizeUpper(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
+    }
+
+    private String normalizeText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private long normalizePageNo(Integer pageNo) {

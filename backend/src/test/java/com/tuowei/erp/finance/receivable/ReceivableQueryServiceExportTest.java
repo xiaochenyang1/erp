@@ -1,11 +1,13 @@
 package com.tuowei.erp.finance.receivable;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import com.tuowei.erp.finance.receivable.service.ReceivableQueryService;
 import com.tuowei.erp.finance.receivable.web.ReceivablePageQuery;
 import com.tuowei.erp.finance.settlement.service.FinanceSettlementScopeSupport;
+import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,13 +32,24 @@ class ReceivableQueryServiceExportTest {
     private ReceivableMapper receivableMapper;
 
     @Mock
+    private CustomerMapper customerMapper;
+
+    @Mock
     private FinanceSettlementScopeSupport financeSettlementScopeSupport;
+
+    @Mock
+    private AuditMetadataFactory auditMetadataFactory;
 
     private ReceivableQueryService service;
 
     @BeforeEach
     void setUp() {
-        service = new ReceivableQueryService(receivableMapper, financeSettlementScopeSupport);
+        service = new ReceivableQueryService(
+                receivableMapper,
+                customerMapper,
+                financeSettlementScopeSupport,
+                auditMetadataFactory
+        );
     }
 
     @Test

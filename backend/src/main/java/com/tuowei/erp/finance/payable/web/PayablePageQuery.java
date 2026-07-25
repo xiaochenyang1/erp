@@ -6,6 +6,7 @@ public class PayablePageQuery {
 
     private Integer pageNo;
     private Integer pageSize;
+    private String payableNo;
     private Long supplierId;
     private String status;
     private String sourceType;
@@ -26,6 +27,14 @@ public class PayablePageQuery {
 
     public void setPageSize(Integer pageSize) {
         this.pageSize = pageSize;
+    }
+
+    public String getPayableNo() {
+        return payableNo;
+    }
+
+    public void setPayableNo(String payableNo) {
+        this.payableNo = payableNo;
     }
 
     public Long getSupplierId() {

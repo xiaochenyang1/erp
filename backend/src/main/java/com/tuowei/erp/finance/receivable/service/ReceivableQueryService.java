@@ -4,12 +4,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.export.CsvExport;
 import com.tuowei.erp.common.math.ScalePrecision;
+import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import com.tuowei.erp.finance.receivable.web.ReceivablePageQuery;
 import com.tuowei.erp.finance.receivable.web.ReceivableResponse;
 import com.tuowei.erp.finance.settlement.service.FinanceSettlementScopeSupport;
+import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
+import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -20,8 +24,13 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class ReceivableQueryService {
@@ -41,14 +50,20 @@ public class ReceivableQueryService {
     );
 
     private final ReceivableMapper receivableMapper;
+    private final CustomerMapper customerMapper;
     private final FinanceSettlementScopeSupport financeSettlementScopeSupport;
+    private final AuditMetadataFactory auditMetadataFactory;
 
     public ReceivableQueryService(
             ReceivableMapper receivableMapper,
-            FinanceSettlementScopeSupport financeSettlementScopeSupport
+            CustomerMapper customerMapper,
+            FinanceSettlementScopeSupport financeSettlementScopeSupport,
+            AuditMetadataFactory auditMetadataFactory
     ) {
         this.receivableMapper = receivableMapper;
+        this.customerMapper = customerMapper;
         this.financeSettlementScopeSupport = financeSettlementScopeSupport;
+        this.auditMetadataFactory = auditMetadataFactory;
     }
 
     @Transactional(readOnly = true)
@@ -57,11 +72,14 @@ public class ReceivableQueryService {
         Page<ReceivableEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
         LambdaQueryWrapper<ReceivableEntity> wrapper = buildQuery(safeQuery);
         Page<ReceivableEntity> result = receivableMapper.selectPage(page, wrapper);
+        Map<Long, String> customerNames = loadCustomerNames(result.getRecords());
         return new PageResponse<>(
                 result.getCurrent(),
                 result.getSize(),
                 result.getTotal(),
-                result.getRecords().stream().map(this::toResponse).toList()
+                result.getRecords().stream()
+                        .map(entity -> toResponse(entity, customerNames.get(entity.getCustomerId())))
+                        .toList()
         );
     }
 
@@ -69,7 +87,8 @@ public class ReceivableQueryService {
     public ReceivableResponse detail(Long id) {
         ReceivableEntity entity = requireReceivable(id);
         financeSettlementScopeSupport.assertCanViewReceivable(entity);
-        return toResponse(entity);
+        Map<Long, String> customerNames = loadCustomerNames(List.of(entity));
+        return toResponse(entity, customerNames.get(entity.getCustomerId()));
     }
 
     public StreamingResponseBody exportReceivables(ReceivablePageQuery query) {
@@ -78,7 +97,7 @@ public class ReceivableQueryService {
         return outputStream -> withAuthentication(authentication, () -> CsvExport.write(outputStream, RECEIVABLE_EXPORT_HEADERS, rowWriter -> {
             List<ReceivableEntity> receivables = receivableMapper.selectList(buildQuery(safeQuery));
             for (ReceivableEntity entity : receivables) {
-                rowWriter.write(receivableExportRow(toResponse(entity)));
+                rowWriter.write(receivableExportRow(toResponse(entity, null)));
             }
         }));
     }
@@ -93,6 +112,10 @@ public class ReceivableQueryService {
 
     private LambdaQueryWrapper<ReceivableEntity> buildQuery(ReceivablePageQuery safeQuery) {
         LambdaQueryWrapper<ReceivableEntity> wrapper = new LambdaQueryWrapper<>();
+        String receivableNo = normalizeText(safeQuery.getReceivableNo());
+        if (StringUtils.hasText(receivableNo)) {
+            wrapper.like(ReceivableEntity::getReceivableNo, receivableNo);
+        }
         if (safeQuery.getCustomerId() != null) {
             wrapper.eq(ReceivableEntity::getCustomerId, safeQuery.getCustomerId());
         }
@@ -114,11 +137,12 @@ public class ReceivableQueryService {
         return wrapper.orderByDesc(ReceivableEntity::getBizDate).orderByDesc(ReceivableEntity::getId);
     }
 
-    private ReceivableResponse toResponse(ReceivableEntity entity) {
+    private ReceivableResponse toResponse(ReceivableEntity entity, String customerName) {
         return new ReceivableResponse(
                 entity.getId(),
                 entity.getReceivableNo(),
                 entity.getCustomerId(),
+                customerName,
                 entity.getBizDate(),
                 entity.getSourceType(),
                 entity.getSourceId(),
@@ -128,8 +152,44 @@ public class ReceivableQueryService {
                 entity.getSettledAmount(),
                 remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
                 entity.getStatus(),
+                entity.getCreatedTime(),
+                entity.getUpdatedTime(),
                 entity.getRemark()
         );
+    }
+
+    private Map<Long, String> loadCustomerNames(List<ReceivableEntity> receivables) {
+        Set<Long> customerIds = receivables.stream()
+                .map(ReceivableEntity::getCustomerId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (customerIds.isEmpty()) {
+            return Map.of();
+        }
+
+        AuditMetadata audit = auditMetadataFactory.current();
+        return customerMapper.selectList(new LambdaQueryWrapper<CustomerEntity>()
+                        .select(
+                                CustomerEntity::getId,
+                                CustomerEntity::getCompanyId,
+                                CustomerEntity::getAccountBookId,
+                                CustomerEntity::getCustomerName,
+                                CustomerEntity::getDeletedFlag
+                        )
+                        .eq(CustomerEntity::getCompanyId, audit.companyId())
+                        .eq(CustomerEntity::getAccountBookId, audit.accountBookId())
+                        .eq(CustomerEntity::getDeletedFlag, 0)
+                        .in(CustomerEntity::getId, customerIds))
+                .stream()
+                .filter(customer -> Objects.equals(customer.getCompanyId(), audit.companyId()))
+                .filter(customer -> Objects.equals(customer.getAccountBookId(), audit.accountBookId()))
+                .filter(customer -> Objects.equals(customer.getDeletedFlag(), 0))
+                .collect(Collectors.toMap(
+                        CustomerEntity::getId,
+                        CustomerEntity::getCustomerName,
+                        (first, ignored) -> first,
+                        HashMap::new
+                ));
     }
 
     private List<?> receivableExportRow(ReceivableResponse record) {
@@ -154,6 +214,10 @@ public class ReceivableQueryService {
 
     private String normalizeUpper(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
+    }
+
+    private String normalizeText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private long normalizePageNo(Integer pageNo) {

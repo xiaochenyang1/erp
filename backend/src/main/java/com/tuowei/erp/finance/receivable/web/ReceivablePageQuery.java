@@ -6,6 +6,7 @@ public class ReceivablePageQuery {
 
     private Integer pageNo;
     private Integer pageSize;
+    private String receivableNo;
     private Long customerId;
     private String status;
     private String sourceType;
@@ -26,6 +27,14 @@ public class ReceivablePageQuery {
 
     public void setPageSize(Integer pageSize) {
         this.pageSize = pageSize;
+    }
+
+    public String getReceivableNo() {
+        return receivableNo;
+    }
+
+    public void setReceivableNo(String receivableNo) {
+        this.receivableNo = receivableNo;
     }
 
     public Long getCustomerId() {

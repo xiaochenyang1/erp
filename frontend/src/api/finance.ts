@@ -3,37 +3,40 @@ import type { PageQuery, PageResponse } from '@/types/common'
 
 // ==================== 应收账款 ====================
 
+export type FinanceAccountStatus = 'UNSETTLED' | 'PARTIALLY_SETTLED' | 'SETTLED' | 'OFFSET'
+
 export interface Receivable {
   id: string
   receivableNo: string
   customerId: string
   customerName?: string
-  orderId?: string
-  orderNo?: string
+  sourceType?: string
+  sourceId?: string
+  sourceNo?: string
+  direction?: string
   receivableAmount: number
   receivedAmount: number
   remainingAmount: number
   originalAmount?: number
   settledAmount?: number
   bizDate?: string
-  sourceNo?: string
-  dueDate?: string
-  status: 'UNPAID' | 'PARTIAL' | 'PAID' | 'OVERDUE'
-  createdAt?: string
-  updatedAt?: string
+  status: FinanceAccountStatus
+  createdTime?: string
+  updatedTime?: string
+  remark?: string
 }
 
 export interface ReceivableQuery extends PageQuery {
   receivableNo?: string
   customerId?: string | number
-  status?: string
+  status?: FinanceAccountStatus | ''
   startDate?: string
   endDate?: string
 }
 
 // 应收账款API
 export const getReceivables = (params: ReceivableQuery) => {
-  return request.get<PageResponse<Receivable>>('/finance/receivables', { params }).then((page) => ({
+  return request.get<PageResponse<Receivable>>('/finance/receivables', { params: normalizeFinanceAccountQuery(params) }).then((page) => ({
     ...page,
     records: page.records.map(normalizeReceivable)
   }))
@@ -45,11 +48,7 @@ export const getReceivable = (id: string | number) => {
 
 export const exportReceivables = (params: ReceivableQuery) => {
   return request.get<Blob>('/finance/receivables/export', {
-    params: {
-      ...params,
-      bizDateFrom: params.startDate || undefined,
-      bizDateTo: params.endDate || undefined
-    },
+    params: normalizeFinanceAccountQuery(params),
     responseType: 'blob'
   })
 }
@@ -61,32 +60,33 @@ export interface Payable {
   payableNo: string
   supplierId: string
   supplierName?: string
-  orderId?: string
-  orderNo?: string
+  sourceType?: string
+  sourceId?: string
+  sourceNo?: string
+  direction?: string
   payableAmount: number
   paidAmount: number
   remainingAmount: number
   originalAmount?: number
   settledAmount?: number
   bizDate?: string
-  sourceNo?: string
-  dueDate?: string
-  status: 'UNPAID' | 'PARTIAL' | 'PAID' | 'OVERDUE'
-  createdAt?: string
-  updatedAt?: string
+  status: FinanceAccountStatus
+  createdTime?: string
+  updatedTime?: string
+  remark?: string
 }
 
 export interface PayableQuery extends PageQuery {
   payableNo?: string
   supplierId?: string | number
-  status?: string
+  status?: FinanceAccountStatus | ''
   startDate?: string
   endDate?: string
 }
 
 // 应付账款API
 export const getPayables = (params: PayableQuery) => {
-  return request.get<PageResponse<Payable>>('/finance/payables', { params }).then((page) => ({
+  return request.get<PageResponse<Payable>>('/finance/payables', { params: normalizeFinanceAccountQuery(params) }).then((page) => ({
     ...page,
     records: page.records.map(normalizePayable)
   }))
@@ -98,11 +98,7 @@ export const getPayable = (id: string | number) => {
 
 export const exportPayables = (params: PayableQuery) => {
   return request.get<Blob>('/finance/payables/export', {
-    params: {
-      ...params,
-      bizDateFrom: params.startDate || undefined,
-      bizDateTo: params.endDate || undefined
-    },
+    params: normalizeFinanceAccountQuery(params),
     responseType: 'blob'
   })
 }
@@ -239,32 +235,37 @@ export const cancelPayment = (id: string | number, reason = '前端作废') => {
   return request.post<Payment>(`/finance/payments/${id}/cancel`, { reason }).then(normalizePayment)
 }
 
+const normalizeFinanceAccountQuery = (params: ReceivableQuery | PayableQuery) => {
+  const { startDate, endDate, ...rest } = params
+  return {
+    ...rest,
+    bizDateFrom: startDate || undefined,
+    bizDateTo: endDate || undefined
+  }
+}
+
 const normalizeReceivable = (item: Receivable): Receivable => ({
   ...item,
   id: String(item.id),
   customerId: String(item.customerId),
-  orderId: item.orderId != null ? String(item.orderId) : undefined,
-  orderNo: item.orderNo || item.sourceNo,
+  sourceId: item.sourceId != null ? String(item.sourceId) : undefined,
   receivableAmount: item.receivableAmount ?? item.originalAmount ?? 0,
   receivedAmount: item.receivedAmount ?? item.settledAmount ?? 0,
   remainingAmount: item.remainingAmount ?? 0,
-  dueDate: item.dueDate || item.bizDate,
-  createdAt: item.createdAt || item.bizDate || '',
-  updatedAt: item.updatedAt || ''
+  createdTime: item.createdTime || '',
+  updatedTime: item.updatedTime || ''
 })
 
 const normalizePayable = (item: Payable): Payable => ({
   ...item,
   id: String(item.id),
   supplierId: String(item.supplierId),
-  orderId: item.orderId != null ? String(item.orderId) : undefined,
-  orderNo: item.orderNo || item.sourceNo,
+  sourceId: item.sourceId != null ? String(item.sourceId) : undefined,
   payableAmount: item.payableAmount ?? item.originalAmount ?? 0,
   paidAmount: item.paidAmount ?? item.settledAmount ?? 0,
   remainingAmount: item.remainingAmount ?? 0,
-  dueDate: item.dueDate || item.bizDate,
-  createdAt: item.createdAt || item.bizDate || '',
-  updatedAt: item.updatedAt || ''
+  createdTime: item.createdTime || '',
+  updatedTime: item.updatedTime || ''
 })
 
 const normalizeReceipt = (item: Receipt): Receipt => ({

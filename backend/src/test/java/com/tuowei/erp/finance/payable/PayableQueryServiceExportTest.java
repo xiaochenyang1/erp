@@ -1,11 +1,13 @@
 package com.tuowei.erp.finance.payable;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.payable.service.PayableQueryService;
 import com.tuowei.erp.finance.payable.web.PayablePageQuery;
 import com.tuowei.erp.finance.settlement.service.FinanceSettlementScopeSupport;
+import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,13 +32,24 @@ class PayableQueryServiceExportTest {
     private PayableMapper payableMapper;
 
     @Mock
+    private SupplierMapper supplierMapper;
+
+    @Mock
     private FinanceSettlementScopeSupport financeSettlementScopeSupport;
+
+    @Mock
+    private AuditMetadataFactory auditMetadataFactory;
 
     private PayableQueryService service;
 
     @BeforeEach
     void setUp() {
-        service = new PayableQueryService(payableMapper, financeSettlementScopeSupport);
+        service = new PayableQueryService(
+                payableMapper,
+                supplierMapper,
+                financeSettlementScopeSupport,
+                auditMetadataFactory
+        );
     }
 
     @Test
