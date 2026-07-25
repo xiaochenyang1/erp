@@ -2,6 +2,7 @@ package com.tuowei.erp.workflow.service;
 
 import com.tuowei.erp.finance.expense.service.ExpenseService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
+import com.tuowei.erp.purchase.requisition.service.PurchaseRequisitionService;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderApproveRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderRejectRequest;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
@@ -19,17 +20,20 @@ public class WorkflowTaskActionService {
     private final WorkflowService workflowService;
     private final SalesOrderService salesOrderService;
     private final PurchaseOrderService purchaseOrderService;
+    private final PurchaseRequisitionService purchaseRequisitionService;
     private final ExpenseService expenseService;
 
     public WorkflowTaskActionService(
             WorkflowService workflowService,
             SalesOrderService salesOrderService,
             PurchaseOrderService purchaseOrderService,
+            PurchaseRequisitionService purchaseRequisitionService,
             ExpenseService expenseService
     ) {
         this.workflowService = workflowService;
         this.salesOrderService = salesOrderService;
         this.purchaseOrderService = purchaseOrderService;
+        this.purchaseRequisitionService = purchaseRequisitionService;
         this.expenseService = expenseService;
     }
 
@@ -41,6 +45,8 @@ public class WorkflowTaskActionService {
                     salesOrderService.approveWorkflowTask(task.id(), task.businessId(), new SalesOrderApproveRequest(comment));
             case "PURCHASE_ORDER" ->
                     purchaseOrderService.approveWorkflowTask(task.id(), task.businessId(), new PurchaseOrderApproveRequest(comment));
+            case "PURCHASE_REQUISITION" ->
+                    purchaseRequisitionService.approveWorkflowTask(task.id(), task.businessId(), comment);
             case "EXPENSE" -> expenseService.approveWorkflowTask(task.id(), task.businessId(), comment);
             default -> throw new IllegalArgumentException("审批中心暂不支持处理该业务类型");
         }
@@ -54,6 +60,8 @@ public class WorkflowTaskActionService {
                     salesOrderService.rejectWorkflowTask(task.id(), task.businessId(), new SalesOrderRejectRequest(comment));
             case "PURCHASE_ORDER" ->
                     purchaseOrderService.rejectWorkflowTask(task.id(), task.businessId(), new PurchaseOrderRejectRequest(comment));
+            case "PURCHASE_REQUISITION" ->
+                    purchaseRequisitionService.rejectWorkflowTask(task.id(), task.businessId(), comment);
             case "EXPENSE" -> expenseService.rejectWorkflowTask(task.id(), task.businessId(), comment);
             default -> throw new IllegalArgumentException("审批中心暂不支持处理该业务类型");
         }

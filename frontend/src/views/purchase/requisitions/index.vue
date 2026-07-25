@@ -21,6 +21,7 @@
         <el-table-column prop="requisitionNo" :label="t('purchaseRequisition.no')" min-width="150" />
         <el-table-column prop="requisitionDate" :label="t('purchaseRequisition.date')" width="120" />
         <el-table-column prop="status" :label="t('purchaseRequisition.status')" width="120" />
+        <el-table-column prop="approvalStatus" :label="t('purchaseRequisition.approvalStatus')" width="130" />
         <el-table-column prop="convertedOrderNo" :label="t('purchaseRequisition.convertedPo')" min-width="140" />
         <el-table-column prop="remark" :label="t('purchaseRequisition.remark')" min-width="140" show-overflow-tooltip />
         <el-table-column :label="t('purchaseRequisition.actions')" width="320" fixed="right">

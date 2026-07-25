@@ -22,6 +22,7 @@ import com.tuowei.erp.purchase.requisition.model.PurchaseRequisitionEntity;
 import com.tuowei.erp.purchase.requisition.model.PurchaseRequisitionLineEntity;
 import com.tuowei.erp.purchase.requisition.web.*;
 import com.tuowei.erp.system.config.service.SequenceNumberGenerator;
+import com.tuowei.erp.workflow.service.WorkflowService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -40,15 +41,17 @@ public class PurchaseRequisitionService {
     private final SupplierMapper supplierMapper;
     private final PurchaseOrderService purchaseOrderService;
     private final SequenceNumberGenerator sequenceNumberGenerator;
+    private final WorkflowService workflowService;
     private final AuditMetadataFactory auditMetadataFactory;
 
     public PurchaseRequisitionService(PurchaseRequisitionMapper requisitionMapper, PurchaseRequisitionLineMapper lineMapper,
                                       ProductMapper productMapper, SupplierMapper supplierMapper,
                                       PurchaseOrderService purchaseOrderService, SequenceNumberGenerator sequenceNumberGenerator,
+                                      WorkflowService workflowService,
                                       AuditMetadataFactory auditMetadataFactory) {
         this.requisitionMapper = requisitionMapper; this.lineMapper = lineMapper; this.productMapper = productMapper;
         this.supplierMapper = supplierMapper; this.purchaseOrderService = purchaseOrderService;
-        this.sequenceNumberGenerator = sequenceNumberGenerator; this.auditMetadataFactory = auditMetadataFactory;
+        this.sequenceNumberGenerator = sequenceNumberGenerator; this.workflowService = workflowService; this.auditMetadataFactory = auditMetadataFactory;
     }
 
     @Transactional
@@ -61,7 +64,7 @@ public class PurchaseRequisitionService {
         entity.setCompanyId(audit.companyId()); entity.setAccountBookId(audit.accountBookId());
         entity.setRequisitionNo(sequenceNumberGenerator.nextNumber("PURCHASE_REQUISITION", "采购请购单", request.requisitionDate()));
         entity.setRequisitionDate(request.requisitionDate()); entity.setNeededDate(request.neededDate());
-        entity.setStatus("DRAFT"); entity.setSupplierId(request.supplierId()); entity.setRequestUserId(audit.userId());
+        entity.setStatus("DRAFT"); entity.setApprovalStatus("NOT_SUBMITTED"); entity.setSupplierId(request.supplierId()); entity.setRequestUserId(audit.userId());
         entity.setRemark(trim(request.remark())); entity.setDeletedFlag(0);
         entity.setCreatedBy(audit.userId()); entity.setCreatedTime(now); entity.setUpdatedBy(audit.userId()); entity.setUpdatedTime(now); entity.setVersion(0);
         requisitionMapper.insert(entity);
@@ -89,10 +92,77 @@ public class PurchaseRequisitionService {
         return getById(id);
     }
 
-    @Transactional public PurchaseRequisitionResponse submit(Long id) { return transition(id, Set.of("DRAFT","REJECTED"), "SUBMITTED"); }
-    @Transactional public PurchaseRequisitionResponse approve(Long id) { return transition(id, Set.of("SUBMITTED"), "APPROVED"); }
-    @Transactional public PurchaseRequisitionResponse reject(Long id) { return transition(id, Set.of("SUBMITTED"), "REJECTED"); }
-    @Transactional public PurchaseRequisitionResponse cancel(Long id) { return transition(id, Set.of("DRAFT","SUBMITTED","APPROVED","REJECTED"), "CANCELLED"); }
+    @Transactional
+    public PurchaseRequisitionResponse submit(Long id) {
+        PurchaseRequisitionEntity entity = require(id, auditMetadataFactory.current());
+        if (!Set.of("DRAFT","REJECTED").contains(entity.getStatus())) throw new IllegalArgumentException("当前请购单状态不允许提交审批");
+        PurchaseRequisitionResponse response = transitionWorkflow(entity, "SUBMITTED", "IN_APPROVAL");
+        workflowService.submit("PURCHASE_REQUISITION", entity.getId(), entity.getRequisitionNo(), "采购请购单 " + entity.getRequisitionNo(), null);
+        return response;
+    }
+
+    @Transactional
+    public PurchaseRequisitionResponse approve(Long id) {
+        return approve(id, null, null);
+    }
+
+    @Transactional
+    public PurchaseRequisitionResponse approveWorkflowTask(Long taskId, Long id, String comment) {
+        return approve(id, taskId, comment);
+    }
+
+    private PurchaseRequisitionResponse approve(Long id, Long workflowTaskId, String comment) {
+        PurchaseRequisitionEntity entity = require(id, auditMetadataFactory.current());
+        if (!"SUBMITTED".equals(entity.getStatus()) || !"IN_APPROVAL".equals(entity.getApprovalStatus())) {
+            throw new IllegalArgumentException("当前请购单状态不允许审批通过");
+        }
+        PurchaseRequisitionResponse response = transitionWorkflow(entity, "APPROVED", "APPROVED");
+        if (workflowTaskId == null) workflowService.approve("PURCHASE_REQUISITION", entity.getId(), comment);
+        else workflowService.approveTaskForBusiness(workflowTaskId, "PURCHASE_REQUISITION", entity.getId(), comment);
+        return response;
+    }
+
+    @Transactional
+    public PurchaseRequisitionResponse reject(Long id) {
+        return reject(id, null, null);
+    }
+
+    @Transactional
+    public PurchaseRequisitionResponse rejectWorkflowTask(Long taskId, Long id, String comment) {
+        return reject(id, taskId, comment);
+    }
+
+    private PurchaseRequisitionResponse reject(Long id, Long workflowTaskId, String comment) {
+        PurchaseRequisitionEntity entity = require(id, auditMetadataFactory.current());
+        if (!"SUBMITTED".equals(entity.getStatus()) || !"IN_APPROVAL".equals(entity.getApprovalStatus())) {
+            throw new IllegalArgumentException("当前请购单状态不允许驳回");
+        }
+        PurchaseRequisitionResponse response = transitionWorkflow(entity, "REJECTED", "REJECTED");
+        if (workflowTaskId == null) workflowService.reject("PURCHASE_REQUISITION", entity.getId(), comment);
+        else workflowService.rejectTaskForBusiness(workflowTaskId, "PURCHASE_REQUISITION", entity.getId(), comment);
+        return response;
+    }
+
+    @Transactional
+    public PurchaseRequisitionResponse cancel(Long id) {
+        PurchaseRequisitionEntity entity = require(id, auditMetadataFactory.current());
+        if (!Set.of("DRAFT","SUBMITTED","REJECTED").contains(entity.getStatus())) {
+            throw new IllegalArgumentException("当前请购单状态不允许作废");
+        }
+        PurchaseRequisitionResponse response = transitionWorkflow(entity, "CANCELLED", "CANCELLED");
+        workflowService.cancel("PURCHASE_REQUISITION", entity.getId(), "作废采购请购单");
+        return response;
+    }
+
+    private PurchaseRequisitionResponse transitionWorkflow(PurchaseRequisitionEntity entity, String status, String approvalStatus) {
+        AuditMetadata audit = auditMetadataFactory.current();
+        entity.setStatus(status);
+        entity.setApprovalStatus(approvalStatus);
+        entity.setUpdatedBy(audit.userId());
+        entity.setUpdatedTime(audit.now());
+        OptimisticLockGuard.requireUpdated(requisitionMapper.updateById(entity), "请购单已被其他操作修改，请刷新后重试");
+        return getById(entity.getId());
+    }
 
     @Transactional
     public PurchaseRequisitionResponse convertToPurchaseOrder(Long id) {
@@ -231,7 +301,7 @@ public class PurchaseRequisitionService {
                     p==null?null:p.getProductCode(), p==null?null:p.getProductName(), ScalePrecision.quantity(line.getQty()), line.getRemark());
         }).toList();
         return new PurchaseRequisitionResponse(entity.getId(), entity.getRequisitionNo(), entity.getRequisitionDate(), entity.getNeededDate(),
-                entity.getStatus(), entity.getSupplierId(), entity.getConvertedOrderId(), entity.getConvertedOrderNo(), entity.getConvertedTime(),
+                entity.getStatus(), entity.getApprovalStatus(), entity.getSupplierId(), entity.getConvertedOrderId(), entity.getConvertedOrderNo(), entity.getConvertedTime(),
                 entity.getRemark(), lineResponses);
     }
 

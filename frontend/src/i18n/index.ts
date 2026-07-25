@@ -156,12 +156,12 @@ const coreMessages = {
       message: { loadFailed: '加载检验单失败', sourcesLoadFailed: '加载来源单据失败', detailLoadFailed: '加载检验单详情失败', created: '创建成功', submitConfirm: '确认提交检验单“{no}”吗？', submitted: '已提交', saved: '保存成功', judged: '判定完成', cancelConfirm: '确认作废检验单“{no}”吗？', cancelled: '已作废', exported: '导出成功', exportFailed: '导出失败', exportFile: 'quality_inspections_{date}.csv', prompt: '提示' }
     },
     purchaseRequisition: {
-      keyword: '单号', status: '状态', search: '查询', create: '新建请购', no: '请购单号', date: '请购日期', neededDate: '需求日期', supplier: '供应商', convertedPo: '采购订单', remark: '备注', actions: '操作', view: '查看', edit: '编辑', submit: '提交', approve: '审批', reject: '驳回', convert: '转采购订单', cancel: '作废', editTitle: '编辑请购', createTitle: '新建请购', lines: '明细', addLine: '加行', product: '商品', qty: '数量', delete: '删', close: '关闭', save: '保存',
+      keyword: '单号', status: '状态', approvalStatus: '审批状态', search: '查询', create: '新建请购', no: '请购单号', date: '请购日期', neededDate: '需求日期', supplier: '供应商', convertedPo: '采购订单', remark: '备注', actions: '操作', view: '查看', edit: '编辑', submit: '提交', approve: '审批', reject: '驳回', convert: '转采购订单', cancel: '作废', editTitle: '编辑请购', createTitle: '新建请购', lines: '明细', addLine: '加行', product: '商品', qty: '数量', delete: '删', close: '关闭', save: '保存',
       validation: { required: '请填写日期和明细' },
       message: { created: '创建成功', saved: '保存成功', done: '操作成功' }
     },
     purchaseRequisition: {
-      keyword: 'No.', status: 'Status', search: 'Search', create: 'New requisition', no: 'Requisition no.', date: 'Date', neededDate: 'Needed date', supplier: 'Supplier', convertedPo: 'PO', remark: 'Remark', actions: 'Actions', view: 'View', edit: 'Edit', submit: 'Submit', approve: 'Approve', reject: 'Reject', convert: 'Convert to PO', cancel: 'Cancel', editTitle: 'Edit requisition', createTitle: 'New requisition', lines: 'Lines', addLine: 'Add line', product: 'Product', qty: 'Qty', delete: 'Del', close: 'Close', save: 'Save',
+      keyword: 'No.', status: 'Status', approvalStatus: 'Approval status', search: 'Search', create: 'New requisition', no: 'Requisition no.', date: 'Date', neededDate: 'Needed date', supplier: 'Supplier', convertedPo: 'PO', remark: 'Remark', actions: 'Actions', view: 'View', edit: 'Edit', submit: 'Submit', approve: 'Approve', reject: 'Reject', convert: 'Convert to PO', cancel: 'Cancel', editTitle: 'Edit requisition', createTitle: 'New requisition', lines: 'Lines', addLine: 'Add line', product: 'Product', qty: 'Qty', delete: 'Del', close: 'Close', save: 'Save',
       validation: { required: 'Date and lines are required' },
       message: { created: 'Created', saved: 'Saved', done: 'Done' }
     },
