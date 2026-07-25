@@ -1,0 +1,77 @@
+name: Backend Verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-verify:
+    name: Release Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root_ci_test_password
+          MYSQL_DATABASE: erp_codex_test
+          MYSQL_USER: erp_test
+          MYSQL_PASSWORD: erp_test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot_ci_test_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      ERP_TEST_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/erp_codex_test?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+      ERP_TEST_DATASOURCE_USERNAME: erp_test
+      ERP_TEST_DATASOURCE_PASSWORD: erp_test_password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Run release check
+        shell: pwsh
+        run: ./scripts/release-check.ps1 -IncludeTestcontainers -MavenRepoLocal "$HOME/.m2/repository"
+
+      - name: Verify release check report
+        shell: pwsh
+        run: ./scripts/verify-release-check-report.ps1 -ReportDirectory target
+
+      - name: Upload release artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erp-server-release-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            backend/target/erp-server-1.0.0.jar
+            backend/target/classes/META-INF/sbom/application.cdx.json
+            backend/target/bom.json
+            backend/target/release-check-report.json
+            backend/target/release-check-report.md
+            backend/target/surefire-reports/**
