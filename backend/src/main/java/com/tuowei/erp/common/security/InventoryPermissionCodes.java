@@ -30,6 +30,9 @@ public interface InventoryPermissionCodes {
     String INVENTORY_MRP_RUN = "inventory:mrp:run";
     String INVENTORY_MRP_CONVERT = "inventory:mrp:convert";
 
+    String INVENTORY_SERIAL_VIEW = "inventory:serial:view";
+    String INVENTORY_SERIAL_MANAGE = "inventory:serial:manage";
+
     String HAS_INVENTORY_STOCK_VIEW = "hasAuthority('" + INVENTORY_STOCK_VIEW + "')";
     String HAS_INVENTORY_ADJUSTMENT_VIEW = "hasAuthority('" + INVENTORY_ADJUSTMENT_VIEW + "')";
     String HAS_INVENTORY_ADJUSTMENT_CREATE = "hasAuthority('" + INVENTORY_ADJUSTMENT_CREATE + "')";
@@ -57,4 +60,6 @@ public interface InventoryPermissionCodes {
     String HAS_INVENTORY_MRP_VIEW = "hasAuthority('" + INVENTORY_MRP_VIEW + "')";
     String HAS_INVENTORY_MRP_RUN = "hasAuthority('" + INVENTORY_MRP_RUN + "')";
     String HAS_INVENTORY_MRP_CONVERT = "hasAuthority('" + INVENTORY_MRP_CONVERT + "')";
+    String HAS_INVENTORY_SERIAL_VIEW = "hasAuthority('" + INVENTORY_SERIAL_VIEW + "')";
+    String HAS_INVENTORY_SERIAL_MANAGE = "hasAuthority('" + INVENTORY_SERIAL_MANAGE + "')";
 }

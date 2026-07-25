@@ -73,6 +73,7 @@ class ProductBarcodeControllerTest {
                 false,
                 false,
                 false,
+                false,
                 "barcode test",
                 "6901234567890"
         );

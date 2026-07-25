@@ -250,6 +250,9 @@
         </el-form-item>
         <el-form-item :label="texts.inspectionRequired" prop="inspectionRequired" :style="{ gridColumn: '1 / -1' }">
           <el-switch v-model="formData.inspectionRequired" />
+        </el-form-item>
+        <el-form-item :label="texts.serialControlled" prop="serialControlled" :style="{ gridColumn: '1 / -1' }">
+          <el-switch v-model="formData.serialControlled" />
           <span class="form-tip">{{ texts.inspectionHint }}</span>
         </el-form-item>
         <el-form-item :label="texts.lotControlled" prop="lotControlled">
@@ -347,6 +350,8 @@
             <div class="detail-item">
               <div class="detail-label">{{ texts.inspectionRequired }}</div>
               <div class="detail-value">{{ currentRow?.inspectionRequired ? texts.yes : texts.no }}</div>
+              <div class="detail-label">{{ texts.serialControlled }}</div>
+              <div class="detail-value">{{ currentRow?.serialControlled ? texts.yes : texts.no }}</div>
             </div>
             <div class="detail-item">
               <div class="detail-label">{{ texts.createdTime }}</div>
@@ -436,6 +441,7 @@ const PRODUCT_TEXTS = {
     enterCostPrice: '请输入成本单价',
     enterBarcode: '请输入条形码',
     inspectionRequired: '来料需检验',
+    serialControlled: '序列号管理',
     inspectionHint: '开启后，该商品的采购入库单在过账前必须先完成来料检验',
     lotControlled: '批次管理',
     shelfLifeControlled: '保质期管理',
@@ -542,6 +548,7 @@ const PRODUCT_TEXTS = {
     enterCostPrice: 'Enter cost price',
     enterBarcode: 'Enter barcode',
     inspectionRequired: 'Incoming inspection required',
+    serialControlled: 'Serial controlled',
     inspectionHint: 'When enabled, purchase receipts for this product must complete incoming inspection before posting.',
     lotControlled: 'Lot controlled',
     shelfLifeControlled: 'Shelf-life controlled',
@@ -838,6 +845,7 @@ const formData = reactive<ProductSaveRequest & { id?: string }>({
   barcode: '',
   status: 'ACTIVE',
   inspectionRequired: false,
+  serialControlled: false,
   lotControlled: false,
   shelfLifeControlled: false,
   remark: ''
@@ -925,6 +933,7 @@ const handleCreate = () => {
     barcode: '',
     status: 'ACTIVE',
     inspectionRequired: false,
+    serialControlled: false,
     lotControlled: false,
     shelfLifeControlled: false,
     remark: ''
@@ -948,6 +957,7 @@ const handleEdit = (row: Product) => {
     barcode: row.barcode || '',
     status: row.status,
     inspectionRequired: row.inspectionRequired ?? false,
+    serialControlled: row.serialControlled ?? false,
     lotControlled: row.lotControlled ?? false,
     shelfLifeControlled: row.shelfLifeControlled ?? false,
     remark: row.remark

@@ -48,6 +48,8 @@ public class ProductEntity {
 
     private Integer inspectionRequired;
 
+    private Integer serialControlled;
+
     private String remark;
 
     private Long createdBy;
@@ -203,6 +205,14 @@ public class ProductEntity {
 
     public void setInspectionRequired(Integer inspectionRequired) {
         this.inspectionRequired = inspectionRequired;
+    }
+
+    public Integer getSerialControlled() {
+        return serialControlled;
+    }
+
+    public void setSerialControlled(Integer serialControlled) {
+        this.serialControlled = serialControlled;
     }
 
     public String getRemark() {

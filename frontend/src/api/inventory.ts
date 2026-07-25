@@ -1235,3 +1235,46 @@ export const convertMrpLine = (
     .post<MrpSuggestionLine>(`/inventory/mrp/runs/${runId}/lines/${lineId}/convert`, data || {})
     .then(normalizeMrpLine)
 }
+
+
+export interface InventorySerial {
+  id: string | number
+  productId: string | number
+  productCode?: string
+  productName?: string
+  warehouseId?: string | number | null
+  locationId?: string | number | null
+  serialNo: string
+  status: string
+  inboundBizType?: string
+  inboundBizNo?: string
+  outboundBizType?: string
+  outboundBizNo?: string
+  remark?: string
+  updatedTime?: string
+}
+
+export const getInventorySerials = (params: PageQuery & { productId?: string | number; warehouseId?: string | number; status?: string; keyword?: string }) => {
+  return request.get<PageResponse<InventorySerial>>('/inventory/serials', { params }).then((page) => ({
+    ...page,
+    records: (page.records || []).map((item) => ({
+      ...item,
+      id: String(item.id),
+      productId: String(item.productId),
+      warehouseId: item.warehouseId != null ? String(item.warehouseId) : item.warehouseId,
+      locationId: item.locationId != null ? String(item.locationId) : item.locationId
+    }))
+  }))
+}
+
+export const createInventorySerial = (data: { productId: string | number; warehouseId?: string | number; locationId?: string | number; serialNo: string; inboundBizType?: string; inboundBizNo?: string; remark?: string }) => {
+  return request.post<InventorySerial>('/inventory/serials', data)
+}
+
+export const issueInventorySerial = (id: string | number, data?: { outboundBizType?: string; outboundBizNo?: string }) => {
+  return request.post<InventorySerial>(`/inventory/serials/${id}/issue`, data || {})
+}
+
+export const scrapInventorySerial = (id: string | number) => {
+  return request.post<InventorySerial>(`/inventory/serials/${id}/scrap`)
+}

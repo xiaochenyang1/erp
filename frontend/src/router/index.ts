@@ -278,6 +278,16 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'serials',
+            name: 'InventorySerials',
+            component: () => import('@/views/inventory/serials/index.vue'),
+            meta: {
+              title: '序列号台账',
+              icon: 'Ticket',
+              permission: 'inventory:serial:view'
+            }
+          },
+          {
             path: 'mrp',
             name: 'InventoryMrp',
             component: () => import('@/views/inventory/mrp/index.vue'),

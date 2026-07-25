@@ -155,6 +155,16 @@ const coreMessages = {
       validation: { delivery: '请选择销售出库单', receipt: '请选择采购入库单', productionOrder: '请输入生产工单ID', date: '请选择检验日期', draftOnly: '仅草稿状态可编辑', editableMissing: '未加载到可编辑的检验单', negativeQuantity: '第 {line} 行：检验数量不能为负数', judgeQuantity: '第 {line} 行：合格数量 + 不合格数量必须等于检验数量' },
       message: { loadFailed: '加载检验单失败', sourcesLoadFailed: '加载来源单据失败', detailLoadFailed: '加载检验单详情失败', created: '创建成功', submitConfirm: '确认提交检验单“{no}”吗？', submitted: '已提交', saved: '保存成功', judged: '判定完成', cancelConfirm: '确认作废检验单“{no}”吗？', cancelled: '已作废', exported: '导出成功', exportFailed: '导出失败', exportFile: 'quality_inspections_{date}.csv', prompt: '提示' }
     },
+    inventorySerial: {
+      keyword: '关键字', status: '状态', search: '查询', create: '登记序列号', serialNo: '序列号', productCode: '商品编码', productName: '商品名称', inboundBizNo: '入库单号', outboundBizNo: '出库单号', actions: '操作', issue: '出库', scrap: '报废', createTitle: '登记序列号', product: '商品', cancel: '取消', save: '保存',
+      validation: { required: '请填写商品和序列号' },
+      message: { created: '登记成功', issued: '已出库', scrapped: '已报废' }
+    },
+    inventorySerial: {
+      keyword: 'Keyword', status: 'Status', search: 'Search', create: 'Register serial', serialNo: 'Serial no.', productCode: 'Product code', productName: 'Product name', inboundBizNo: 'Inbound no.', outboundBizNo: 'Outbound no.', actions: 'Actions', issue: 'Issue', scrap: 'Scrap', createTitle: 'Register serial', product: 'Product', cancel: 'Cancel', save: 'Save',
+      validation: { required: 'Product and serial no. are required' },
+      message: { created: 'Created', issued: 'Issued', scrapped: 'Scrapped' }
+    },
     warehouseLocation: {
       warehouse: '仓库', selectWarehouse: '选择仓库', keyword: '关键字', keywordPlaceholder: '库位编码/名称', status: '状态', search: '查询', create: '新建库位',
       code: '库位编码', name: '库位名称', default: '默认', yes: '是', no: '否', active: '启用', inactive: '停用', remark: '备注', actions: '操作', edit: '编辑', enable: '启用', disable: '停用',

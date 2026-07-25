@@ -53,6 +53,7 @@ public class ProductService {
             "lotControlled",
             "shelfLifeControlled",
             "inspectionRequired",
+            "serialControlled",
             "remark"
     );
 
@@ -104,6 +105,7 @@ public class ProductService {
         entity.setLotControlled(flag(request.lotControlled()));
         entity.setShelfLifeControlled(flag(request.shelfLifeControlled()));
         entity.setInspectionRequired(flag(request.inspectionRequired()));
+        entity.setSerialControlled(flag(request.serialControlled()));
         entity.setRemark(request.remark());
         entity.setCreatedBy(audit.userId());
         entity.setCreatedTime(now);
@@ -211,6 +213,7 @@ public class ProductService {
         entity.setLotControlled(flag(request.lotControlled()));
         entity.setShelfLifeControlled(flag(request.shelfLifeControlled()));
         entity.setInspectionRequired(flag(request.inspectionRequired()));
+        entity.setSerialControlled(flag(request.serialControlled()));
         entity.setRemark(request.remark());
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(audit.now());
@@ -296,6 +299,7 @@ public class ProductService {
                 record.lotControlled(),
                 record.shelfLifeControlled(),
                 record.inspectionRequired(),
+                record.serialControlled(),
                 record.remark()
         );
     }
@@ -396,6 +400,7 @@ public class ProductService {
                 enabled(entity.getLotControlled()),
                 enabled(entity.getShelfLifeControlled()),
                 enabled(entity.getInspectionRequired()),
+                enabled(entity.getSerialControlled()),
                 entity.getRemark(),
                 entity.getBarcode()
         );

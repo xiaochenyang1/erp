@@ -19,6 +19,7 @@ public record ProductCreateRequest(
         Boolean lotControlled,
         Boolean shelfLifeControlled,
         Boolean inspectionRequired,
+        Boolean serialControlled,
         String remark,
         @Size(max = 128, message = "商品条码长度不能超过128个字符") String barcode
 ) {

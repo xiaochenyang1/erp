@@ -167,14 +167,11 @@ class ProductBarcodeServiceTest {
                 "条码测试",
                 "规格",
                 "件",
-                new BigDecimal("10.00"),
+                new BigDecimal("10.00"
+        ),
                 new BigDecimal("12.00"),
                 new BigDecimal("13.0000"),
-                false,
-                false,
-                false,
-                "barcode test",
-                barcode
+                false, false, false, false, "barcode test", barcode
         );
     }
 
@@ -184,14 +181,11 @@ class ProductBarcodeServiceTest {
                 "条码测试",
                 "规格",
                 "件",
-                new BigDecimal("10.00"),
+                new BigDecimal("10.00"
+        ),
                 new BigDecimal("12.00"),
                 new BigDecimal("13.0000"),
-                false,
-                false,
-                false,
-                "barcode test",
-                barcode
+                false, false, false, false, "barcode test", barcode
         );
     }
 

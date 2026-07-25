@@ -53,6 +53,7 @@ export interface ProductSaveRequest {
   shelfLifeControlled?: boolean
   status?: string
   inspectionRequired?: boolean
+  serialControlled?: boolean
   remark?: string
 }
 
@@ -152,6 +153,7 @@ const toProductCommonContract = (data: ProductSaveRequest): ProductUpdateContrac
   lotControlled: Boolean(data.lotControlled),
   shelfLifeControlled: Boolean(data.shelfLifeControlled),
   inspectionRequired: Boolean(data.inspectionRequired),
+  serialControlled: Boolean(data.serialControlled),
   remark: data.remark?.trim() || undefined
 })
 
