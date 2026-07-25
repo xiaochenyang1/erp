@@ -15,9 +15,24 @@ public record InventoryAdjustmentLineRequest(
         String lotNo,
         LocalDate productionDate,
         LocalDate expiryDate,
+        Long locationId,
+        String serialNos,
         String reason
 ) {
     public InventoryAdjustmentLineRequest(Long productId, String direction, BigDecimal qty, BigDecimal unitCost, String reason) {
-        this(productId, direction, qty, unitCost, null, null, null, reason);
+        this(productId, direction, qty, unitCost, null, null, null, null, null, reason);
+    }
+
+    public InventoryAdjustmentLineRequest(
+            Long productId,
+            String direction,
+            BigDecimal qty,
+            BigDecimal unitCost,
+            String lotNo,
+            LocalDate productionDate,
+            LocalDate expiryDate,
+            String reason
+    ) {
+        this(productId, direction, qty, unitCost, lotNo, productionDate, expiryDate, null, null, reason);
     }
 }

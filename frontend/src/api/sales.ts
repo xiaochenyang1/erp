@@ -358,6 +358,11 @@ export interface SalesReturnItem {
   taxRate?: number
   amount: number
   taxAmount?: number
+  lotNo?: string
+  productionDate?: string
+  expiryDate?: string
+  locationId?: string | number | null
+  serialNos?: string
   reason?: string
   remark?: string
 }
@@ -376,6 +381,11 @@ export interface SalesReturnLineResponse {
   taxRate?: number
   amount?: number
   taxAmount?: number
+  lotNo?: string
+  productionDate?: string
+  expiryDate?: string
+  locationId?: string | number | null
+  serialNos?: string
   reason?: string
   remark?: string
 }
@@ -452,6 +462,7 @@ const normalizeSalesReturnItem = (item: SalesReturnItem | SalesReturnLineRespons
   amount: Number(item.amount ?? 0),
   taxRate: Number(item.taxRate ?? 0),
   taxAmount: Number(item.taxAmount ?? 0),
+  locationId: item.locationId != null ? String(item.locationId) : item.locationId,
   reason: item.reason || item.remark || ''
 })
 
@@ -472,15 +483,17 @@ const toSalesReturnPayload = (data: SalesReturnCreateRequest) => ({
   deliveryId: data.deliveryId,
   returnDate: data.returnDate,
   remark: data.remark,
-    carrierName: data.carrierName,
-    trackingNo: data.trackingNo,
-    logisticsStatus: data.logisticsStatus,
+  carrierName: data.carrierName,
+  trackingNo: data.trackingNo,
+  logisticsStatus: data.logisticsStatus,
   lines: data.items.map((item) => ({
     deliveryLineId: item.deliveryLineId,
     qty: item.quantity,
-    lotNo: undefined,
-    productionDate: undefined,
-    expiryDate: undefined,
+    lotNo: item.lotNo || undefined,
+    productionDate: item.productionDate || undefined,
+    expiryDate: item.expiryDate || undefined,
+    locationId: item.locationId || undefined,
+    serialNos: item.serialNos || undefined,
     remark: item.reason || item.remark
   }))
 })

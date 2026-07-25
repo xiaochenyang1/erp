@@ -15,6 +15,7 @@ import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
@@ -76,6 +77,7 @@ public class SalesReturnService {
     private final ProductValidator productValidator;
     private final InventoryTransactionMapper inventoryTransactionMapper;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
     private final SalesReturnNumberService salesReturnNumberService;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
@@ -96,6 +98,7 @@ public class SalesReturnService {
             ProductValidator productValidator,
             InventoryTransactionMapper inventoryTransactionMapper,
             InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService,
             SalesReturnNumberService salesReturnNumberService,
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
@@ -115,6 +118,7 @@ public class SalesReturnService {
         this.productValidator = productValidator;
         this.inventoryTransactionMapper = inventoryTransactionMapper;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
         this.salesReturnNumberService = salesReturnNumberService;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
@@ -343,8 +347,19 @@ public class SalesReturnService {
                             entity.getReturnDate(),
                             returnLine.getLotNo(),
                             returnLine.getProductionDate(),
-                            returnLine.getExpiryDate()
+                            returnLine.getExpiryDate(),
+                            returnLine.getLocationId()
                     ),
+                    audit
+            );
+            inventorySerialNumberService.registerInboundSerials(
+                    returnLine.getProductId(),
+                    entity.getWarehouseId(),
+                    returnLine.getLocationId(),
+                    returnLine.getSerialNos(),
+                    "SALES_RETURN",
+                    entity.getReturnNo(),
+                    returnLine.getQty(),
                     audit
             );
             totalReturnCostAmount = ScalePrecision.amount(
@@ -474,6 +489,8 @@ public class SalesReturnService {
             returnLine.setLotNo(lotIntent.lotNo());
             returnLine.setProductionDate(lotIntent.productionDate());
             returnLine.setExpiryDate(lotIntent.expiryDate());
+            returnLine.setLocationId(request.locationId() != null ? request.locationId() : deliveryLine.getLocationId());
+            returnLine.setSerialNos(request.serialNos());
             returnLine.setRemark(request.remark());
             returnLine.setCreatedBy(audit.userId());
             returnLine.setCreatedTime(now);
@@ -642,6 +659,8 @@ public class SalesReturnService {
                 line.getLotNo(),
                 line.getProductionDate(),
                 line.getExpiryDate(),
+                line.getLocationId(),
+                line.getSerialNos(),
                 line.getRemark()
         );
     }

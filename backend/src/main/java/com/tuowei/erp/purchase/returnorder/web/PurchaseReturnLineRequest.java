@@ -13,9 +13,22 @@ public record PurchaseReturnLineRequest(
         String lotNo,
         LocalDate productionDate,
         LocalDate expiryDate,
+        Long locationId,
+        String serialNos,
         String remark
 ) {
     public PurchaseReturnLineRequest(Long receiptLineId, BigDecimal qty, String remark) {
-        this(receiptLineId, qty, null, null, null, remark);
+        this(receiptLineId, qty, null, null, null, null, null, remark);
+    }
+
+    public PurchaseReturnLineRequest(
+            Long receiptLineId,
+            BigDecimal qty,
+            String lotNo,
+            LocalDate productionDate,
+            LocalDate expiryDate,
+            String remark
+    ) {
+        this(receiptLineId, qty, lotNo, productionDate, expiryDate, null, null, remark);
     }
 }

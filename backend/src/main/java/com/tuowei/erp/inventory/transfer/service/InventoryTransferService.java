@@ -13,6 +13,7 @@ import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.inventory.stock.service.LotAllocation;
@@ -51,6 +52,7 @@ public class InventoryTransferService {
     private final InventoryTransferLineMapper lineMapper;
     private final InventoryTransferNumberService numberService;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
     private final AuditMetadataFactory auditMetadataFactory;
     private final CurrentUserContext currentUserContext;
     private final DataScopeService dataScopeService;
@@ -64,6 +66,7 @@ public class InventoryTransferService {
             InventoryTransferLineMapper lineMapper,
             InventoryTransferNumberService numberService,
             InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService,
             AuditMetadataFactory auditMetadataFactory,
             CurrentUserContext currentUserContext,
             DataScopeService dataScopeService,
@@ -76,6 +79,7 @@ public class InventoryTransferService {
         this.lineMapper = lineMapper;
         this.numberService = numberService;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
         this.auditMetadataFactory = auditMetadataFactory;
         this.currentUserContext = currentUserContext;
         this.dataScopeService = dataScopeService;
@@ -227,7 +231,8 @@ public class InventoryTransferService {
                     transfer.getTransferDate(),
                     line.getLotNo(),
                     line.getProductionDate(),
-                    line.getExpiryDate()
+                    line.getExpiryDate(),
+                    line.getFromLocationId()
             );
             List<LotAllocation> allocations = inventoryPostingService.postOutboundWithAllocations(outbound, audit, "库存不足，不能执行库存调拨");
 
@@ -244,10 +249,19 @@ public class InventoryTransferService {
                         transfer.getTransferDate(),
                         allocation.lot() == null ? line.getLotNo() : allocation.lot().getLotNo(),
                         allocation.lot() == null ? line.getProductionDate() : allocation.lot().getProductionDate(),
-                        allocation.lot() == null ? line.getExpiryDate() : allocation.lot().getExpiryDate()
+                        allocation.lot() == null ? line.getExpiryDate() : allocation.lot().getExpiryDate(),
+                        line.getToLocationId()
                 );
                 inventoryPostingService.postInbound(inbound, audit);
             }
+            inventorySerialNumberService.moveInStockSerials(
+                    line.getProductId(),
+                    transfer.getToWarehouseId(),
+                    line.getToLocationId(),
+                    line.getSerialNos(),
+                    line.getQty(),
+                    audit
+            );
         }
 
         transfer.setStatus(STATUS_POSTED);
@@ -304,6 +318,9 @@ public class InventoryTransferService {
         line.setLotNo(request.lotNo());
         line.setProductionDate(request.productionDate());
         line.setExpiryDate(request.expiryDate());
+        line.setFromLocationId(request.fromLocationId());
+        line.setToLocationId(request.toLocationId());
+        line.setSerialNos(request.serialNos());
         line.setRemark(request.remark());
         line.setVersion(0);
         return line;
@@ -337,6 +354,9 @@ public class InventoryTransferService {
                         line.getLotNo(),
                         line.getProductionDate(),
                         line.getExpiryDate(),
+                        line.getFromLocationId(),
+                        line.getToLocationId(),
+                        line.getSerialNos(),
                         line.getRemark()
                 ))
                 .toList();

@@ -13,6 +13,7 @@ import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
@@ -115,6 +116,9 @@ class PurchaseReturnServiceTenantBoundaryTest {
 
     @Mock
     private InventoryPostingService inventoryPostingService;
+
+    @Mock
+    private InventorySerialNumberService inventorySerialNumberService;
 
     @Mock
     private PurchaseOrderLookupService purchaseOrderLookupService;
@@ -396,6 +400,7 @@ class PurchaseReturnServiceTenantBoundaryTest {
                 productMapper,
                 productValidator,
                 inventoryPostingService,
+                inventorySerialNumberService,
                 purchaseOrderLookupService,
                 purchaseOrderReceiptStatusService,
                 purchaseReturnNumberService,

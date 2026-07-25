@@ -15,6 +15,7 @@ import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
@@ -92,6 +93,7 @@ public class PurchaseReturnService {
     private final ProductMapper productMapper;
     private final ProductValidator productValidator;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
     private final PurchaseOrderLookupService purchaseOrderLookupService;
     private final PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService;
     private final PurchaseReturnNumberService purchaseReturnNumberService;
@@ -109,6 +111,7 @@ public class PurchaseReturnService {
                                  WarehouseMapper warehouseMapper, ProductMapper productMapper,
                                  ProductValidator productValidator,
                                  InventoryPostingService inventoryPostingService,
+                                 InventorySerialNumberService inventorySerialNumberService,
                                  PurchaseOrderLookupService purchaseOrderLookupService,
                                  PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService,
                                  PurchaseReturnNumberService purchaseReturnNumberService,
@@ -129,6 +132,7 @@ public class PurchaseReturnService {
         this.productMapper = productMapper;
         this.productValidator = productValidator;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
         this.purchaseOrderLookupService = purchaseOrderLookupService;
         this.purchaseOrderReceiptStatusService = purchaseOrderReceiptStatusService;
         this.purchaseReturnNumberService = purchaseReturnNumberService;
@@ -382,10 +386,19 @@ public class PurchaseReturnService {
                             entity.getReturnDate(),
                             returnLine.getLotNo(),
                             returnLine.getProductionDate(),
-                            returnLine.getExpiryDate()
+                            returnLine.getExpiryDate(),
+                            returnLine.getLocationId()
                     ),
                     audit,
                     "库存不足，不能执行采购退货"
+            );
+            inventorySerialNumberService.issueOutboundSerials(
+                    returnLine.getProductId(),
+                    returnLine.getSerialNos(),
+                    "PURCHASE_RETURN",
+                    entity.getReturnNo(),
+                    returnLine.getQty(),
+                    audit
             );
         }
 
@@ -447,6 +460,8 @@ public class PurchaseReturnService {
             line.setLotNo(request.lotNo());
             line.setProductionDate(request.productionDate());
             line.setExpiryDate(request.expiryDate());
+            line.setLocationId(request.locationId() != null ? request.locationId() : receiptLine.getLocationId());
+            line.setSerialNos(request.serialNos());
             line.setRemark(request.remark());
             line.setCreatedBy(audit.userId());
             line.setCreatedTime(now);
@@ -546,7 +561,7 @@ public class PurchaseReturnService {
         return new PurchaseReturnLineResponse(line.getId(), line.getLineNo(), line.getReceiptLineId(), line.getOrderLineId(),
                 line.getProductId(), line.getProductName(), line.getQty(), line.getPrice(), line.getTaxRate(), line.getAmount(),
                 line.getTaxAmount(), line.getReceiptQty(), line.getReturnedQty(), line.getAvailableReturnQty(),
-                line.getLotNo(), line.getProductionDate(), line.getExpiryDate(), line.getRemark());
+                line.getLotNo(), line.getProductionDate(), line.getExpiryDate(), line.getLocationId(), line.getSerialNos(), line.getRemark());
     }
 
     private PurchaseReturnLineEntity enrichLine(PurchaseReturnLineEntity line) {

@@ -35,6 +35,8 @@ public class PurchaseReturnLineEntity {
     @TableField(exist = false)
     private BigDecimal availableReturnQty;
     private String lotNo;
+    private Long locationId;
+    private String serialNos;
     private LocalDate productionDate;
     private LocalDate expiryDate;
     private String remark;
@@ -81,6 +83,10 @@ public class PurchaseReturnLineEntity {
     public void setAvailableReturnQty(BigDecimal availableReturnQty) { this.availableReturnQty = availableReturnQty; }
     public String getLotNo() { return lotNo; }
     public void setLotNo(String lotNo) { this.lotNo = lotNo; }
+    public Long getLocationId() { return locationId; }
+    public void setLocationId(Long locationId) { this.locationId = locationId; }
+    public String getSerialNos() { return serialNos; }
+    public void setSerialNos(String serialNos) { this.serialNos = serialNos; }
     public LocalDate getProductionDate() { return productionDate; }
     public void setProductionDate(LocalDate productionDate) { this.productionDate = productionDate; }
     public LocalDate getExpiryDate() { return expiryDate; }

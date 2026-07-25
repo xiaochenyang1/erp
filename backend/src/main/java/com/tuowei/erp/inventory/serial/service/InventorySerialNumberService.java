@@ -204,6 +204,51 @@ public class InventorySerialNumberService {
         }
     }
 
+    @Transactional
+    public void moveInStockSerials(
+            Long productId,
+            Long toWarehouseId,
+            Long toLocationId,
+            String serialNos,
+            java.math.BigDecimal qty,
+            AuditMetadata audit
+    ) {
+        ProductEntity product = productMapper.selectById(productId);
+        if (product == null || !Integer.valueOf(1).equals(product.getSerialControlled())) {
+            if (StringUtils.hasText(serialNos)) {
+                throw new IllegalArgumentException("商品未启用序列号管理，不能填写序列号");
+            }
+            return;
+        }
+        java.util.List<String> serials = parseSerials(serialNos);
+        if (serials.isEmpty()) {
+            throw new IllegalArgumentException("启用序列号管理的商品调拨必须填写序列号");
+        }
+        if (qty != null && serials.size() != qty.stripTrailingZeros().intValueExact()) {
+            throw new IllegalArgumentException("序列号数量必须等于调拨数量");
+        }
+        for (String serial : serials) {
+            InventorySerialNumberEntity entity = serialNumberMapper.selectOne(new LambdaQueryWrapper<InventorySerialNumberEntity>()
+                    .eq(InventorySerialNumberEntity::getCompanyId, audit.companyId())
+                    .eq(InventorySerialNumberEntity::getAccountBookId, audit.accountBookId())
+                    .eq(InventorySerialNumberEntity::getProductId, productId)
+                    .eq(InventorySerialNumberEntity::getSerialNo, serial)
+                    .eq(InventorySerialNumberEntity::getDeletedFlag, 0)
+                    .last("limit 1"));
+            if (entity == null) {
+                throw new IllegalArgumentException("序列号不存在: " + serial);
+            }
+            if (!STATUS_IN_STOCK.equals(entity.getStatus())) {
+                throw new IllegalArgumentException("序列号不在库: " + serial);
+            }
+            entity.setWarehouseId(toWarehouseId);
+            entity.setLocationId(toLocationId);
+            entity.setUpdatedBy(audit.userId());
+            entity.setUpdatedTime(audit.now());
+            OptimisticLockGuard.requireUpdated(serialNumberMapper.updateById(entity), "序列号已被其他操作修改，请刷新后重试");
+        }
+    }
+
     private java.util.List<String> parseSerials(String serialNos) {
         if (!StringUtils.hasText(serialNos)) {
             return java.util.List.of();

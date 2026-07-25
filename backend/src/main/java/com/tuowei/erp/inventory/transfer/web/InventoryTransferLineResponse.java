@@ -13,5 +13,8 @@ public record InventoryTransferLineResponse(
         String lotNo,
         LocalDate productionDate,
         LocalDate expiryDate,
+        Long fromLocationId,
+        Long toLocationId,
+        String serialNos,
         String remark
 ) {}

@@ -511,6 +511,8 @@ export interface PurchaseReturnItem {
   lotNo?: string
   productionDate?: string
   expiryDate?: string
+  locationId?: string | number | null
+  serialNos?: string
   reason?: string
   remark?: string
 }
@@ -535,6 +537,8 @@ export interface PurchaseReturnLineResponse {
   lotNo?: string
   productionDate?: string
   expiryDate?: string
+  locationId?: string | number | null
+  serialNos?: string
   reason?: string
   remark?: string
 }
@@ -652,6 +656,7 @@ const normalizePurchaseReturnItem = (item: PurchaseReturnItem | PurchaseReturnLi
   amount: Number(item.amount ?? 0),
   taxRate: Number(item.taxRate ?? 0),
   taxAmount: Number(item.taxAmount ?? 0),
+  locationId: item.locationId != null ? String(item.locationId) : item.locationId,
   reason: item.reason || item.remark || ''
 })
 
@@ -683,6 +688,8 @@ const toPurchaseReturnPayload = (data: PurchaseReturnCreateRequest) => ({
     lotNo: item.lotNo,
     productionDate: item.productionDate,
     expiryDate: item.expiryDate,
+    locationId: item.locationId || undefined,
+    serialNos: item.serialNos || undefined,
     remark: item.reason || item.remark
   }))
 })

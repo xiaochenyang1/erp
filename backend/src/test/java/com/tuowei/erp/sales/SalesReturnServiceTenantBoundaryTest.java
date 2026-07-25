@@ -16,6 +16,7 @@ import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
@@ -114,6 +115,9 @@ class SalesReturnServiceTenantBoundaryTest {
 
     @Mock
     private InventoryPostingService inventoryPostingService;
+
+    @Mock
+    private InventorySerialNumberService inventorySerialNumberService;
 
     @Mock
     private SalesReturnNumberService salesReturnNumberService;
@@ -418,6 +422,7 @@ class SalesReturnServiceTenantBoundaryTest {
                 productValidator,
                 inventoryTransactionMapper,
                 inventoryPostingService,
+                inventorySerialNumberService,
                 salesReturnNumberService,
                 financePostingService,
                 auditMetadataFactory,

@@ -485,6 +485,11 @@ export interface InventoryAdjustmentItem {
   quantity: number
   qty?: number
   unitCost?: number
+  lotNo?: string
+  productionDate?: string
+  expiryDate?: string
+  locationId?: string | number | null
+  serialNos?: string
   reason?: string
   remark?: string
 }
@@ -498,6 +503,11 @@ interface InventoryAdjustmentLineResponse {
   qty?: number
   quantity?: number
   unitCost?: number
+  lotNo?: string
+  productionDate?: string
+  expiryDate?: string
+  locationId?: string | number | null
+  serialNos?: string
   reason?: string
   remark?: string
 }
@@ -559,6 +569,7 @@ const normalizeInventoryAdjustmentItem = (item: InventoryAdjustmentItem | Invent
   direction: item.direction,
   quantity: Number(item.quantity ?? item.qty ?? 0),
   unitCost: Number(item.unitCost ?? 0),
+  locationId: item.locationId != null ? String(item.locationId) : item.locationId,
   reason: item.reason || item.remark || ''
 })
 
@@ -583,6 +594,11 @@ const toAdjustmentPayload = (data: InventoryAdjustmentCreateRequest) => ({
     direction: item.direction ?? adjustmentDirection(data.type),
     qty: item.quantity,
     unitCost: item.unitCost ?? 0,
+    lotNo: item.lotNo || undefined,
+    productionDate: item.productionDate || undefined,
+    expiryDate: item.expiryDate || undefined,
+    locationId: item.locationId || undefined,
+    serialNos: item.serialNos || undefined,
     reason: item.reason
   }))
 })
@@ -768,6 +784,12 @@ export interface InventoryTransferItem {
   quantity: number
   qty?: number
   unitCost?: number
+  lotNo?: string
+  productionDate?: string
+  expiryDate?: string
+  fromLocationId?: string | number | null
+  toLocationId?: string | number | null
+  serialNos?: string
   remark?: string
 }
 
@@ -784,6 +806,9 @@ interface InventoryTransferLineResponse {
   lotNo?: string
   productionDate?: string
   expiryDate?: string
+  fromLocationId?: string | number | null
+  toLocationId?: string | number | null
+  serialNos?: string
   remark?: string
 }
 
@@ -850,6 +875,8 @@ const normalizeInventoryTransferItem = (item: InventoryTransferItem | InventoryT
   productName: item.productName || '',
   quantity: Number(item.quantity ?? item.qty ?? 0),
   unitCost: Number(item.unitCost ?? 0),
+  fromLocationId: item.fromLocationId != null ? String(item.fromLocationId) : item.fromLocationId,
+  toLocationId: item.toLocationId != null ? String(item.toLocationId) : item.toLocationId,
   remark: item.remark || ''
 })
 
@@ -874,6 +901,12 @@ const toTransferPayload = (data: InventoryTransferCreateRequest) => ({
     productId: item.productId,
     qty: item.quantity,
     unitCost: item.unitCost ?? 0,
+    lotNo: item.lotNo || undefined,
+    productionDate: item.productionDate || undefined,
+    expiryDate: item.expiryDate || undefined,
+    fromLocationId: item.fromLocationId || undefined,
+    toLocationId: item.toLocationId || undefined,
+    serialNos: item.serialNos || undefined,
     remark: item.remark
   }))
 })

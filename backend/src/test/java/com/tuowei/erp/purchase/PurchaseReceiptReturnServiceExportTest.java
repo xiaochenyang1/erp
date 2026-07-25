@@ -284,6 +284,7 @@ class PurchaseReceiptReturnServiceExportTest {
                 productMapper,
                 productValidator,
                 inventoryPostingService,
+                inventorySerialNumberService,
                 purchaseOrderLookupService,
                 purchaseOrderReceiptStatusService,
                 purchaseReturnNumberService,

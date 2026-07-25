@@ -33,6 +33,12 @@ public class InventoryTransferLineEntity {
 
     private String lotNo;
 
+    private Long fromLocationId;
+
+    private Long toLocationId;
+
+    private String serialNos;
+
     private LocalDate productionDate;
 
     private LocalDate expiryDate;
@@ -79,6 +85,15 @@ public class InventoryTransferLineEntity {
 
     public String getLotNo() { return lotNo; }
     public void setLotNo(String lotNo) { this.lotNo = lotNo; }
+
+    public Long getFromLocationId() { return fromLocationId; }
+    public void setFromLocationId(Long fromLocationId) { this.fromLocationId = fromLocationId; }
+
+    public Long getToLocationId() { return toLocationId; }
+    public void setToLocationId(Long toLocationId) { this.toLocationId = toLocationId; }
+
+    public String getSerialNos() { return serialNos; }
+    public void setSerialNos(String serialNos) { this.serialNos = serialNos; }
 
     public LocalDate getProductionDate() { return productionDate; }
     public void setProductionDate(LocalDate productionDate) { this.productionDate = productionDate; }

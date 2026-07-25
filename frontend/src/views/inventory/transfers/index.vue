@@ -263,6 +263,53 @@
               />
             </template>
           </el-table-column>
+          <el-table-column :label="$t('inventoryTransfers.fromLocation')" width="150">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.fromLocationId"
+                clearable
+                filterable
+                :placeholder="$t('inventoryTransfers.placeholder.fromLocation')"
+                :disabled="isView"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="location in locationsForFromWarehouse"
+                  :key="location.id"
+                  :label="`${location.locationCode} ${location.locationName}`"
+                  :value="location.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('inventoryTransfers.toLocation')" width="150">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.toLocationId"
+                clearable
+                filterable
+                :placeholder="$t('inventoryTransfers.placeholder.toLocation')"
+                :disabled="isView"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="location in locationsForToWarehouse"
+                  :key="location.id"
+                  :label="`${location.locationCode} ${location.locationName}`"
+                  :value="location.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('inventoryTransfers.serialNos')" min-width="150">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.serialNos"
+                :placeholder="$t('inventoryTransfers.placeholder.serialNos')"
+                :disabled="isView"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="$t('inventoryTransfers.remark')" prop="remark">
             <template #default="{ row }">
               <el-input
@@ -297,7 +344,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -311,8 +358,8 @@ import {
   type InventoryTransferCreateRequest,
   type InventoryTransfer
 } from '@/api/inventory'
-import { getWarehouses, type Warehouse } from '@/api/masterdata'
-import { getProducts, type Product } from '@/api/masterdata'
+import { getLocations, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
+import { getProducts } from '@/api/masterdata'
 import { formatBusinessDate } from '@/utils/locale'
 
 const { t } = useI18n()
@@ -339,6 +386,7 @@ const total = ref(0)
 
 // 仓库列表
 const warehouses = ref<Warehouse[]>([])
+const locations = ref<Location[]>([])
 
 // 产品列表
 const products = ref<Product[]>([])
@@ -357,6 +405,14 @@ const formData = reactive<InventoryTransferCreateRequest>({
   transferDate: '',
   items: [],
   remark: ''
+})
+const locationsForFromWarehouse = computed(() => {
+  if (!formData.fromWarehouseId) return locations.value
+  return locations.value.filter((location) => String(location.warehouseId) === String(formData.fromWarehouseId))
+})
+const locationsForToWarehouse = computed(() => {
+  if (!formData.toWarehouseId) return locations.value
+  return locations.value.filter((location) => String(location.warehouseId) === String(formData.toWarehouseId))
 })
 
 // 表单验证规则
@@ -392,6 +448,15 @@ const loadWarehouses = async () => {
     warehouses.value = response.records
   } catch (error) {
     ElMessage.error(t('inventoryTransfers.message.warehousesLoadFailed'))
+  }
+}
+
+const loadLocations = async () => {
+  try {
+    const page = await getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
+    locations.value = page.records || []
+  } catch {
+    locations.value = []
   }
 }
 
@@ -496,6 +561,9 @@ const handleAddItem = () => {
     productName: '',
     quantity: 0,
     unitCost: 0,
+    fromLocationId: undefined,
+    toLocationId: undefined,
+    serialNos: '',
     remark: ''
   })
 }
@@ -571,7 +639,7 @@ const resetForm = () => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadWarehouses(), loadProducts()])
+  await Promise.all([loadWarehouses(), loadProducts(), loadLocations()])
   loadData()
 })
 </script>

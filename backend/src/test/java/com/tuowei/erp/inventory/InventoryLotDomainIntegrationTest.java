@@ -135,6 +135,8 @@ class InventoryLotDomainIntegrationTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
                         "return without explicit lot"
                 ))
         ));
@@ -169,6 +171,8 @@ class InventoryLotDomainIntegrationTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
                         "return without lot"
                 ))
         ));
@@ -194,6 +198,9 @@ class InventoryLotDomainIntegrationTest {
                         TRANSFER_PRODUCT_ID,
                         new BigDecimal("4.0000"),
                         new BigDecimal("10.0000"),
+                        null,
+                        null,
+                        null,
                         null,
                         null,
                         null,

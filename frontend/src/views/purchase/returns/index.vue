@@ -199,6 +199,29 @@
                 />
               </template>
             </el-table-column>
+            <el-table-column :label="t('purchaseReturn.location')" width="160">
+              <template #default="{ row }">
+                <el-select
+                  v-model="row.locationId"
+                  clearable
+                  filterable
+                  :placeholder="t('purchaseReturn.selectLocation')"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="location in locationsForSelectedReceipt"
+                    :key="location.id"
+                    :label="`${location.locationCode} ${location.locationName}`"
+                    :value="location.id"
+                  />
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('purchaseReturn.serialNos')" min-width="160">
+              <template #default="{ row }">
+                <el-input v-model="row.serialNos" :placeholder="t('purchaseReturn.serialNosPlaceholder')" />
+              </template>
+            </el-table-column>
             <el-table-column :label="t('purchaseReturn.remark')">
               <template #default="{ row }">
                 <el-input v-model="row.remark" :placeholder="t('purchaseReturn.optional')" />
@@ -423,7 +446,7 @@ import {
   type PurchaseReturnCreateRequest,
   type PurchaseReceipt
 } from '@/api/purchase'
-import { getProducts, type Product } from '@/api/masterdata'
+import { getLocations, getProducts, type Location, type Product } from '@/api/masterdata'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
@@ -470,6 +493,12 @@ const linkedReceipt = ref<PurchaseReceipt>()
 const availableReceipts = ref<PurchaseReceipt[]>([])
 const selectedReceipt = ref<PurchaseReceipt>()
 const products = ref<Product[]>([])
+const locations = ref<Location[]>([])
+const locationsForSelectedReceipt = computed(() => {
+  const warehouseId = selectedReceipt.value?.warehouseId
+  if (!warehouseId) return locations.value
+  return locations.value.filter((location) => String(location.warehouseId) === String(warehouseId))
+})
 
 // 表单数据
 const form = reactive<PurchaseReturnCreateRequest>({
@@ -535,12 +564,14 @@ const handleAdd = async () => {
   try {
     const receiptPageQuery = { pageNo: 1, pageSize: 200, status: 'POSTED' }
     const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-    const [res, productResponse] = await Promise.all([
+    const [res, productResponse, locationResponse] = await Promise.all([
       getPurchaseReceipts(receiptPageQuery),
-      getProducts(optionPageQuery)
+      getProducts(optionPageQuery),
+      getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
     ])
     availableReceipts.value = res.records
     products.value = productResponse.records
+    locations.value = locationResponse.records || []
 
     if (availableReceipts.value.length === 0) {
       ElMessage.warning(t('purchaseReturn.message.noAvailableReceipts'))
@@ -575,6 +606,8 @@ const handleReceiptChange = async () => {
       taxRate: item.taxRate || 0,
       amount: item.amount || 0,
       taxAmount: item.taxAmount || 0,
+      locationId: item.locationId ?? undefined,
+      serialNos: item.serialNos || '',
       remark: ''
     }))
   }
@@ -618,6 +651,8 @@ const handleEdit = async (row: PurchaseReturn) => {
       lotNo: item.lotNo,
       productionDate: item.productionDate,
       expiryDate: item.expiryDate,
+      locationId: item.locationId ?? undefined,
+      serialNos: item.serialNos || '',
       remark: item.reason || item.remark || ''
     }))
     dialogVisible.value = true
@@ -761,8 +796,14 @@ const resetForm = () => {
 }
 
 // 初始化
-onMounted(() => {
+onMounted(async () => {
   handleQuery()
+  try {
+    const page = await getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
+    locations.value = page.records || []
+  } catch {
+    locations.value = []
+  }
 })
 </script>
 

@@ -15,6 +15,7 @@ import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentNumberService;
 import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentService;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentCreateRequest;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentLineRequest;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
@@ -65,6 +66,9 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
 
     @Mock
     private InventoryPostingService inventoryPostingService;
+
+    @Mock
+    private InventorySerialNumberService inventorySerialNumberService;
 
     @Mock
     private FinancePostingService financePostingService;
@@ -210,6 +214,7 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
                 lineMapper,
                 numberService,
                 inventoryPostingService,
+                inventorySerialNumberService,
                 financePostingService,
                 auditMetadataFactory,
                 warehouseMapper,

@@ -256,6 +256,34 @@
               {{ formatMoney(row.amount) }}
             </template>
           </el-table-column>
+          <el-table-column :label="$t('salesReturnOps.location')" width="160">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.locationId"
+                clearable
+                filterable
+                :placeholder="$t('salesReturnOps.placeholder.location')"
+                :disabled="isView"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="location in locationsForSelectedDelivery"
+                  :key="location.id"
+                  :label="`${location.locationCode} ${location.locationName}`"
+                  :value="location.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('salesReturnOps.serialNos')" min-width="160">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.serialNos"
+                :placeholder="$t('salesReturnOps.placeholder.serialNos')"
+                :disabled="isView"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="$t('salesReturnOps.reason')" prop="reason">
             <template #default="{ row }">
               <el-input
@@ -318,7 +346,7 @@ import {
   type SalesReturn,
   type SalesDelivery
 } from '@/api/sales'
-import { getProducts, type Product } from '@/api/masterdata'
+import { getLocations, getProducts, type Location, type Product } from '@/api/masterdata'
 import { formatBusinessDate, formatLocalizedCurrency } from '@/utils/locale'
 
 const { t } = useI18n()
@@ -347,6 +375,7 @@ const deliveries = ref<SalesDelivery[]>([])
 
 // 产品列表仅用于补齐发货明细展示字段
 const products = ref<Product[]>([])
+const locations = ref<Location[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -372,6 +401,11 @@ const formRules: FormRules = {
 
 const selectedDelivery = computed(() => {
   return deliveries.value.find(item => String(item.id) === String(formData.deliveryId))
+})
+const locationsForSelectedDelivery = computed(() => {
+  const warehouseId = selectedDelivery.value?.warehouseId
+  if (!warehouseId) return locations.value
+  return locations.value.filter((location) => String(location.warehouseId) === String(warehouseId))
 })
 
 // 计算总数量
@@ -421,6 +455,15 @@ const loadProducts = async () => {
     products.value = response.records
   } catch (error) {
     ElMessage.error(t('salesReturnOps.message.productsLoadFailed'))
+  }
+}
+
+const loadLocations = async () => {
+  try {
+    const page = await getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
+    locations.value = page.records || []
+  } catch {
+    locations.value = []
   }
 }
 
@@ -500,6 +543,8 @@ const handleEdit = async (row: SalesReturn) => {
       taxRate: Number(item.taxRate ?? 0),
       amount: Number(item.amount ?? 0),
       taxAmount: Number(item.taxAmount ?? 0),
+      locationId: item.locationId ?? undefined,
+      serialNos: item.serialNos || '',
       reason: item.reason || item.remark || ''
     }))
     dialogVisible.value = true
@@ -565,6 +610,8 @@ const handleDeliveryChange = async () => {
       taxRate: item.taxRate || 0,
       amount: (item.quantity - (item.returnedQty || 0)) * (item.price || 0),
       taxAmount: 0,
+      locationId: item.locationId ?? undefined,
+      serialNos: item.serialNos || '',
       reason: ''
     })).filter(item => item.quantity > 0)
   } catch (error) {
@@ -670,7 +717,8 @@ const formatMoney = (value?: number) => formatLocalizedCurrency(Number(value ?? 
 onMounted(async () => {
   await Promise.all([
     loadDeliveries(),
-    loadProducts()
+    loadProducts(),
+    loadLocations()
   ])
   loadData()
 })

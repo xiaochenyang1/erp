@@ -41,6 +41,10 @@ public class SalesReturnLineEntity {
 
     private String lotNo;
 
+    private Long locationId;
+
+    private String serialNos;
+
     private LocalDate productionDate;
 
     private LocalDate expiryDate;
@@ -86,6 +90,10 @@ public class SalesReturnLineEntity {
     public void setTaxAmount(BigDecimal taxAmount) { this.taxAmount = taxAmount; }
     public String getLotNo() { return lotNo; }
     public void setLotNo(String lotNo) { this.lotNo = lotNo; }
+    public Long getLocationId() { return locationId; }
+    public void setLocationId(Long locationId) { this.locationId = locationId; }
+    public String getSerialNos() { return serialNos; }
+    public void setSerialNos(String serialNos) { this.serialNos = serialNos; }
     public LocalDate getProductionDate() { return productionDate; }
     public void setProductionDate(LocalDate productionDate) { this.productionDate = productionDate; }
     public LocalDate getExpiryDate() { return expiryDate; }

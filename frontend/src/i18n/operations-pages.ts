@@ -3,6 +3,8 @@ export const operationsPageMessages = {
     inventoryAdjustments: {
       adjustmentNo: '调整单号',
       warehouse: '仓库',
+      location: '库位',
+      serialNos: '序列号',
       adjustmentType: '调整类型',
       statusLabel: '状态',
       dateRange: '日期范围',
@@ -53,6 +55,9 @@ export const operationsPageMessages = {
     },
     inventoryTransfers: {
       transferNo: '调拨单号',
+      fromLocation: '调出库位',
+      toLocation: '调入库位',
+      serialNos: '序列号',
       fromWarehouse: '调出仓库',
       toWarehouse: '调入仓库',
       statusLabel: '状态',
@@ -72,6 +77,7 @@ export const operationsPageMessages = {
       warehouseFallback: '仓库 {id}',
       productFallback: '产品 {id}',
       placeholder: {
+        fromLocation: '请选择调出库位', toLocation: '请选择调入库位', serialNos: '多个序列号用逗号/分号/换行分隔',
         transferNo: '请输入调拨单号', fromWarehouse: '请选择调出仓库',
         toWarehouse: '请选择调入仓库', status: '请选择状态', startDate: '开始日期',
         endDate: '结束日期', transferDate: '请选择调拨日期', remark: '请输入备注',
@@ -300,6 +306,8 @@ export const operationsPageMessages = {
     },
     salesReturnOps: {
       returnNo: '退货单号',
+      location: '库位',
+      serialNos: '序列号',
       salesDelivery: '销售发货单',
       statusLabel: '状态',
       dateRange: '日期范围',
@@ -324,6 +332,7 @@ export const operationsPageMessages = {
       prompt: '提示',
       deliveryFallback: '发货单 {id}',
       placeholder: {
+        location: '请选择库位', serialNos: '多个序列号用逗号/分号/换行分隔',
         returnNo: '请输入退货单号', salesDelivery: '请选择销售发货单', status: '请选择状态',
         startDate: '开始日期', endDate: '结束日期', returnDate: '请选择退货日期',
         remark: '请输入备注', reason: '请输入退货原因'
@@ -418,6 +427,8 @@ export const operationsPageMessages = {
     inventoryAdjustments: {
       adjustmentNo: 'Adjustment no.',
       warehouse: 'Warehouse',
+      location: 'Location',
+      serialNos: 'Serial nos.',
       adjustmentType: 'Adjustment type',
       statusLabel: 'Status',
       dateRange: 'Date range',
@@ -468,6 +479,9 @@ export const operationsPageMessages = {
     },
     inventoryTransfers: {
       transferNo: 'Transfer no.',
+      fromLocation: 'From location',
+      toLocation: 'To location',
+      serialNos: 'Serial nos.',
       fromWarehouse: 'From warehouse',
       toWarehouse: 'To warehouse',
       statusLabel: 'Status',
@@ -487,6 +501,7 @@ export const operationsPageMessages = {
       warehouseFallback: 'Warehouse {id}',
       productFallback: 'Product {id}',
       placeholder: {
+        fromLocation: 'Select from location', toLocation: 'Select to location', serialNos: 'Separate serials with comma, semicolon, or newline',
         transferNo: 'Enter a transfer no.', fromWarehouse: 'Select the source warehouse',
         toWarehouse: 'Select the destination warehouse', status: 'Select a status',
         startDate: 'Start date', endDate: 'End date', transferDate: 'Select a transfer date',
@@ -724,6 +739,8 @@ export const operationsPageMessages = {
     },
     salesReturnOps: {
       returnNo: 'Return no.',
+      location: 'Location',
+      serialNos: 'Serial nos.',
       salesDelivery: 'Sales delivery',
       statusLabel: 'Status',
       dateRange: 'Date range',
@@ -748,6 +765,7 @@ export const operationsPageMessages = {
       prompt: 'Prompt',
       deliveryFallback: 'Delivery {id}',
       placeholder: {
+        location: 'Select a location', serialNos: 'Separate serials with comma, semicolon, or newline',
         returnNo: 'Enter a return no.', salesDelivery: 'Select a sales delivery',
         status: 'Select a status', startDate: 'Start date', endDate: 'End date',
         returnDate: 'Select a return date', remark: 'Enter a remark', reason: 'Enter a return reason'

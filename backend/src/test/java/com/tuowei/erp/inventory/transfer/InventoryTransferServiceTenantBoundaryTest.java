@@ -11,6 +11,7 @@ import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.inventory.transfer.mapper.InventoryTransferLineMapper;
 import com.tuowei.erp.inventory.transfer.mapper.InventoryTransferMapper;
@@ -93,6 +94,9 @@ class InventoryTransferServiceTenantBoundaryTest {
 
     @Mock
     private InventoryPostingService inventoryPostingService;
+
+    @Mock
+    private InventorySerialNumberService inventorySerialNumberService;
 
     @Mock
     private AuditMetadataFactory auditMetadataFactory;
@@ -233,6 +237,7 @@ class InventoryTransferServiceTenantBoundaryTest {
                 lineMapper,
                 numberService,
                 inventoryPostingService,
+                inventorySerialNumberService,
                 auditMetadataFactory,
                 currentUserContext,
                 dataScopeService,

@@ -277,6 +277,34 @@
               />
             </template>
           </el-table-column>
+          <el-table-column :label="$t('inventoryAdjustments.location')" width="160">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.locationId"
+                clearable
+                filterable
+                :placeholder="$t('inventoryAdjustments.placeholder.location')"
+                :disabled="isView"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="location in locationsForWarehouse"
+                  :key="location.id"
+                  :label="`${location.locationCode} ${location.locationName}`"
+                  :value="location.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('inventoryAdjustments.serialNos')" min-width="160">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.serialNos"
+                :placeholder="$t('inventoryAdjustments.placeholder.serialNos')"
+                :disabled="isView"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="$t('inventoryAdjustments.reason')" prop="reason">
             <template #default="{ row }">
               <el-input
@@ -313,7 +341,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -327,8 +355,8 @@ import {
   type InventoryAdjustmentCreateRequest,
   type InventoryAdjustment
 } from '@/api/inventory'
-import { getWarehouses, type Warehouse } from '@/api/masterdata'
-import { getProducts, type Product } from '@/api/masterdata'
+import { getLocations, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
+import { getProducts } from '@/api/masterdata'
 import { formatBusinessDate } from '@/utils/locale'
 
 const { t } = useI18n()
@@ -355,6 +383,7 @@ const total = ref(0)
 
 // 仓库列表
 const warehouses = ref<Warehouse[]>([])
+const locations = ref<Location[]>([])
 
 // 产品列表
 const products = ref<Product[]>([])
@@ -373,6 +402,10 @@ const formData = reactive<InventoryAdjustmentCreateRequest>({
   type: 'GAIN',
   items: [],
   remark: ''
+})
+const locationsForWarehouse = computed(() => {
+  if (!formData.warehouseId) return locations.value
+  return locations.value.filter((location) => String(location.warehouseId) === String(formData.warehouseId))
 })
 
 // 表单验证规则
@@ -404,6 +437,15 @@ const loadWarehouses = async () => {
     warehouses.value = response.records
   } catch (error) {
     ElMessage.error(t('inventoryAdjustments.message.warehousesLoadFailed'))
+  }
+}
+
+const loadLocations = async () => {
+  try {
+    const page = await getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
+    locations.value = page.records || []
+  } catch {
+    locations.value = []
   }
 }
 
@@ -508,6 +550,8 @@ const handleAddItem = () => {
     productName: '',
     quantity: 0,
     unitCost: 0,
+    locationId: undefined,
+    serialNos: '',
     reason: ''
   })
 }
@@ -574,5 +618,6 @@ onMounted(() => {
   loadData()
   loadWarehouses()
   loadProducts()
+  loadLocations()
 })
 </script>

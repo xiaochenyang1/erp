@@ -19,6 +19,7 @@ import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentLineRequest;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentLineResponse;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentPageQuery;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentResponse;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -45,6 +46,7 @@ public class InventoryAdjustmentService {
     private final InventoryAdjustmentLineMapper lineMapper;
     private final InventoryAdjustmentNumberService numberService;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
     private final WarehouseMapper warehouseMapper;
@@ -56,6 +58,7 @@ public class InventoryAdjustmentService {
             InventoryAdjustmentLineMapper lineMapper,
             InventoryAdjustmentNumberService numberService,
             InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService,
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
             WarehouseMapper warehouseMapper,
@@ -66,6 +69,7 @@ public class InventoryAdjustmentService {
         this.lineMapper = lineMapper;
         this.numberService = numberService;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
         this.warehouseMapper = warehouseMapper;
@@ -211,13 +215,32 @@ public class InventoryAdjustmentService {
                     adjustment.getAdjustmentDate(),
                     line.getLotNo(),
                     line.getProductionDate(),
-                    line.getExpiryDate()
+                    line.getExpiryDate(),
+                    line.getLocationId()
             );
             if ("IN".equals(line.getDirection())) {
                 inventoryPostingService.postInbound(command, audit);
+                inventorySerialNumberService.registerInboundSerials(
+                        line.getProductId(),
+                        adjustment.getWarehouseId(),
+                        line.getLocationId(),
+                        line.getSerialNos(),
+                        BIZ_TYPE,
+                        adjustment.getAdjustmentNo(),
+                        line.getQty(),
+                        audit
+                );
             } else if ("OUT".equals(line.getDirection())) {
                 BigDecimal outboundAmount = inventoryPostingService.postOutbound(command, audit, "库存不足，不能执行库存调整");
                 line.setAmount(ScalePrecision.amount(ScalePrecision.zeroDefault(outboundAmount)));
+                inventorySerialNumberService.issueOutboundSerials(
+                        line.getProductId(),
+                        line.getSerialNos(),
+                        BIZ_TYPE,
+                        adjustment.getAdjustmentNo(),
+                        line.getQty(),
+                        audit
+                );
             } else {
                 throw new IllegalArgumentException("库存调整方向不正确");
             }
@@ -277,6 +300,8 @@ public class InventoryAdjustmentService {
         line.setLotNo(request.lotNo());
         line.setProductionDate(request.productionDate());
         line.setExpiryDate(request.expiryDate());
+        line.setLocationId(request.locationId());
+        line.setSerialNos(request.serialNos());
         line.setReason(request.reason());
         line.setRemark(request.reason());
         line.setVersion(0);
@@ -312,6 +337,8 @@ public class InventoryAdjustmentService {
                         line.getLotNo(),
                         line.getProductionDate(),
                         line.getExpiryDate(),
+                        line.getLocationId(),
+                        line.getSerialNos(),
                         line.getReason(),
                         line.getRemark()
                 ))
