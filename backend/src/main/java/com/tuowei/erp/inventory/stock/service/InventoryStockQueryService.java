@@ -610,7 +610,7 @@ public class InventoryStockQueryService {
             case "INVENTORY_ADJUSTMENT" -> "/inventory/adjustments?keyword=" + encoded;
             case "INVENTORY_TRANSFER" -> "/inventory/transfers?keyword=" + encoded;
             case "INVENTORY_CHECK" -> "/inventory/checks?keyword=" + encoded;
-            case "OPENING_INVENTORY" -> "/system/imports?keyword=" + encoded;
+            case "OPENING_INVENTORY", "OPENING_BALANCE" -> "/system/imports?importType=OPENING_INVENTORY&keyword=" + encoded;
             default -> null;
         };
     }
@@ -631,7 +631,7 @@ public class InventoryStockQueryService {
             case "INVENTORY_ADJUSTMENT" -> "库存调整";
             case "INVENTORY_TRANSFER" -> "库存调拨";
             case "INVENTORY_CHECK" -> "库存盘点";
-            case "OPENING_INVENTORY" -> "期初库存";
+            case "OPENING_INVENTORY", "OPENING_BALANCE" -> "期初库存";
             default -> bizType;
         };
     }

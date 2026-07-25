@@ -195,8 +195,8 @@ class InitialImportControllerTest {
         seedOpenPeriod();
         seedWarehouse(880301L, "IMP-WH-LOT");
         seedLotProduct(880401L, "IMP-PROD-LOT");
-        String csv = "warehouse_code,product_code,location_code,qty_on_hand,amount_on_hand,opening_date,lot_no,production_date,expiry_date,remark\n"
-                + "IMP-WH-LOT,IMP-PROD-LOT,MAIN,7.0000,70.00,2026-05-19,OPEN-LOT-A,2026-01-01,2026-12-31,期初批次库存\n";
+        String csv = "warehouse_code,product_code,location_code,qty_on_hand,amount_on_hand,opening_date,lot_no,production_date,expiry_date,serial_nos,remark\n"
+                + "IMP-WH-LOT,IMP-PROD-LOT,MAIN,7.0000,70.00,2026-05-19,OPEN-LOT-A,2026-01-01,2026-12-31,,期初批次库存\n";
 
         ImportJobResponse preview = importJobService.preview("OPENING_INVENTORY", csvFile("opening-inventory-lot.csv", csv));
         Assertions.assertThat(preview.status()).isEqualTo("VALIDATED");

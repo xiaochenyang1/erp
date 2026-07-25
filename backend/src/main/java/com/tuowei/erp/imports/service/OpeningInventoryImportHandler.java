@@ -5,6 +5,7 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.imports.model.ImportJobEntity;
 import com.tuowei.erp.imports.model.ImportJobRowEntity;
 import com.tuowei.erp.imports.web.ImportRowErrorResponse;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
@@ -22,11 +23,16 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class OpeningInventoryImportHandler extends AbstractImportHandler {
+
+    private static final String OPENING_BIZ_TYPE = "OPENING_BALANCE";
 
     private final WarehouseMapper warehouseMapper;
     private final ProductMapper productMapper;
@@ -34,6 +40,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
     private final InventoryBalanceMapper inventoryBalanceMapper;
     private final InventoryTransactionMapper inventoryTransactionMapper;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
 
     public OpeningInventoryImportHandler(
             ImportValidationSupport support,
@@ -42,7 +49,8 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
             LocationMapper locationMapper,
             InventoryBalanceMapper inventoryBalanceMapper,
             InventoryTransactionMapper inventoryTransactionMapper,
-            InventoryPostingService inventoryPostingService
+            InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService
     ) {
         super(support);
         this.warehouseMapper = warehouseMapper;
@@ -51,6 +59,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
         this.inventoryBalanceMapper = inventoryBalanceMapper;
         this.inventoryTransactionMapper = inventoryTransactionMapper;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
     }
 
     @Override
@@ -71,6 +80,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
         String lotNo = support.optionalText(raw, "lot_no");
         LocalDate productionDate = optionalDate(raw, "production_date", errors);
         LocalDate expiryDate = optionalDate(raw, "expiry_date", errors);
+        String serialNos = support.optionalText(raw, "serial_nos");
         if (qtyOnHand.compareTo(BigDecimal.ZERO) <= 0) {
             errors.add(new ImportRowErrorResponse("qty_on_hand", "期初库存数量必须大于0"));
         }
@@ -129,6 +139,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
                 }
             }
         }
+        List<String> serials = parseSerials(serialNos);
         if (product != null) {
             if (lotControlled(product) && lotNo == null) {
                 errors.add(new ImportRowErrorResponse("lot_no", "启用批次管理的商品必须填写批次号"));
@@ -138,6 +149,25 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
             }
             if (!lotControlled(product) && (lotNo != null || productionDate != null || expiryDate != null)) {
                 errors.add(new ImportRowErrorResponse("lot_no", "未启用批次管理的商品不能填写批次信息"));
+            }
+            if (serialControlled(product)) {
+                if (serials.isEmpty()) {
+                    errors.add(new ImportRowErrorResponse("serial_nos", "启用序列号管理的商品必须填写序列号"));
+                } else {
+                    try {
+                        int expected = qtyOnHand.stripTrailingZeros().intValueExact();
+                        if (serials.size() != expected) {
+                            errors.add(new ImportRowErrorResponse("serial_nos", "序列号数量必须等于期初数量"));
+                        }
+                    } catch (ArithmeticException ex) {
+                        errors.add(new ImportRowErrorResponse("qty_on_hand", "启用序列号管理的商品期初数量必须是整数"));
+                    }
+                    for (String serial : serials) {
+                        support.duplicateInFile(seen(context, "openingSerial"), serial, "serial_nos", errors);
+                    }
+                }
+            } else if (!serials.isEmpty()) {
+                errors.add(new ImportRowErrorResponse("serial_nos", "未启用序列号管理的商品不能填写序列号"));
             }
         }
         if (warehouseCode != null && productCode != null) {
@@ -170,6 +200,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
         normalized.put("lotNo", lotNo);
         normalized.put("productionDate", productionDate == null ? null : productionDate.toString());
         normalized.put("expiryDate", expiryDate == null ? null : expiryDate.toString());
+        normalized.put("serialNos", serials.isEmpty() ? null : String.join(",", serials));
         normalized.put("remark", support.optionalText(raw, "remark"));
         return new ImportRowPlan(normalized, errors);
     }
@@ -180,27 +211,42 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
                 .eq(InventoryTransactionEntity::getCompanyId, audit.companyId())
                 .eq(InventoryTransactionEntity::getAccountBookId, audit.accountBookId())
                 .ne(InventoryTransactionEntity::getBizType, ImportConstants.OPENING_INVENTORY)
-                .ne(InventoryTransactionEntity::getBizType, "OPENING_BALANCE"));
+                .ne(InventoryTransactionEntity::getBizType, OPENING_BIZ_TYPE));
         if (exists(normalTxnCount)) {
             throw new IllegalArgumentException("已有正常库存流水，不能再导入期初库存");
         }
         for (ImportJobRowEntity row : rows) {
             Map<String, Object> normalized = normalized(row);
+            Long warehouseId = longValue(normalized, "warehouseId");
+            Long productId = longValue(normalized, "productId");
+            Long locationId = longValue(normalized, "locationId");
+            BigDecimal qtyOnHand = decimalValue(normalized, "qtyOnHand");
+            String bizNo = "OPEN-INV-" + job.getId();
             inventoryPostingService.postInbound(new InventoryPostingCommand(
-                    longValue(normalized, "warehouseId"),
-                    longValue(normalized, "productId"),
-                    "OPENING_BALANCE",
-                    "OPEN-INV-" + job.getId(),
+                    warehouseId,
+                    productId,
+                    OPENING_BIZ_TYPE,
+                    bizNo,
                     row.getId(),
-                    decimalValue(normalized, "qtyOnHand"),
+                    qtyOnHand,
                     decimalValue(normalized, "amountOnHand"),
                     text(normalized, "remark"),
                     dateValue(normalized, "openingDate"),
                     text(normalized, "lotNo"),
                     dateValue(normalized, "productionDate"),
                     dateValue(normalized, "expiryDate"),
-                    longValue(normalized, "locationId")
+                    locationId
             ), audit);
+            inventorySerialNumberService.registerInboundSerials(
+                    productId,
+                    warehouseId,
+                    locationId,
+                    text(normalized, "serialNos"),
+                    OPENING_BIZ_TYPE,
+                    bizNo,
+                    qtyOnHand,
+                    audit
+            );
         }
         return rows.size();
     }
@@ -224,5 +270,21 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
 
     private boolean shelfLifeControlled(ProductEntity product) {
         return Integer.valueOf(1).equals(product.getShelfLifeControlled());
+    }
+
+    private boolean serialControlled(ProductEntity product) {
+        return Integer.valueOf(1).equals(product.getSerialControlled());
+    }
+
+    private List<String> parseSerials(String serialNos) {
+        if (!StringUtils.hasText(serialNos)) {
+            return List.of();
+        }
+        Set<String> serials = new LinkedHashSet<>();
+        Arrays.stream(serialNos.split("[,;，；\\s]+"))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .forEach(serials::add);
+        return List.copyOf(serials);
     }
 }

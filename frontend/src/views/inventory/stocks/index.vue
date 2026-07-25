@@ -572,6 +572,9 @@
         <el-table-column prop="warehouseId" :label="$t('inventoryStocks.warehouse')" min-width="150">
           <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
         </el-table-column>
+        <el-table-column prop="locationId" :label="$t('inventoryStocks.location')" min-width="140">
+          <template #default="{ row }">{{ locationName(row.locationId) }}</template>
+        </el-table-column>
         <el-table-column prop="productId" :label="$t('inventoryStocks.product')" min-width="200">
           <template #default="{ row }">{{ productName(row.productId) }}</template>
         </el-table-column>

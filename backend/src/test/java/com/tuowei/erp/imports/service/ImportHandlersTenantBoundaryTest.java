@@ -526,7 +526,8 @@ class ImportHandlersTenantBoundaryTest {
                 locationMapper,
                 inventoryBalanceMapper,
                 mock(InventoryTransactionMapper.class),
-                mock(InventoryPostingService.class)
+                mock(InventoryPostingService.class),
+                mock(com.tuowei.erp.inventory.serial.service.InventorySerialNumberService.class)
         ).validate(1, Map.of(
                 "warehouse_code", "W001",
                 "product_code", "P001",
@@ -555,6 +556,78 @@ class ImportHandlersTenantBoundaryTest {
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
         verify(inventoryBalanceMapper).selectOne(balanceWrapper.capture());
         assertTenantScoped(balanceWrapper.getValue());
+    }
+
+    @Test
+    void openingInventoryImportRequiresSerialsForSerialControlledProductsAndRegistersOnCommit() {
+        WarehouseMapper warehouseMapper = mock(WarehouseMapper.class);
+        ProductMapper productMapper = mock(ProductMapper.class);
+        LocationMapper locationMapper = mock(LocationMapper.class);
+        InventoryBalanceMapper inventoryBalanceMapper = mock(InventoryBalanceMapper.class);
+        InventoryTransactionMapper inventoryTransactionMapper = mock(InventoryTransactionMapper.class);
+        InventoryPostingService inventoryPostingService = mock(InventoryPostingService.class);
+        com.tuowei.erp.inventory.serial.service.InventorySerialNumberService serialService =
+                mock(com.tuowei.erp.inventory.serial.service.InventorySerialNumberService.class);
+
+        ProductEntity serialProduct = activeProduct();
+        serialProduct.setSerialControlled(1);
+        when(warehouseMapper.selectOne(any())).thenReturn(activeWarehouse());
+        when(productMapper.selectOne(any())).thenReturn(serialProduct);
+        when(locationMapper.selectOne(any())).thenReturn(activeLocation());
+        when(inventoryBalanceMapper.selectOne(any())).thenReturn(null);
+        when(inventoryTransactionMapper.selectCount(any())).thenReturn(0L);
+
+        ImportValidationSupport support = support();
+        OpeningInventoryImportHandler handler = new OpeningInventoryImportHandler(
+                support,
+                warehouseMapper,
+                productMapper,
+                locationMapper,
+                inventoryBalanceMapper,
+                inventoryTransactionMapper,
+                inventoryPostingService,
+                serialService
+        );
+
+        ImportTypeHandler.ImportRowPlan missing = handler.validate(1, Map.of(
+                "warehouse_code", "W001",
+                "product_code", "P001",
+                "qty_on_hand", "2.0000",
+                "amount_on_hand", "20.00",
+                "opening_date", "2026-06-08"
+        ), context());
+        assertThat(missing.valid()).isFalse();
+        assertThat(missing.errors())
+                .anySatisfy(error -> assertThat(error.column()).isEqualTo("serial_nos"));
+
+        ImportTypeHandler.ImportRowPlan ok = handler.validate(2, Map.of(
+                "warehouse_code", "W001",
+                "product_code", "P001",
+                "qty_on_hand", "2.0000",
+                "amount_on_hand", "20.00",
+                "opening_date", "2026-06-08",
+                "serial_nos", "SN-A,SN-B"
+        ), context());
+        assertThat(ok.valid()).isTrue();
+        assertThat(ok.normalized()).containsEntry("serialNos", "SN-A,SN-B");
+
+        ImportJobRowEntity row = row(support, ok);
+        row.setId(99001L);
+        ImportJobEntity job = new ImportJobEntity();
+        job.setId(88001L);
+        handler.commit(job, List.of(row), audit());
+
+        verify(inventoryPostingService).postInbound(any(), any());
+        verify(serialService).registerInboundSerials(
+                org.mockito.ArgumentMatchers.eq(4401L),
+                org.mockito.ArgumentMatchers.eq(4301L),
+                org.mockito.ArgumentMatchers.eq(4501L),
+                org.mockito.ArgumentMatchers.eq("SN-A,SN-B"),
+                org.mockito.ArgumentMatchers.eq("OPENING_BALANCE"),
+                org.mockito.ArgumentMatchers.eq("OPEN-INV-88001"),
+                org.mockito.ArgumentMatchers.any(),
+                any()
+        );
     }
 
     private ImportValidationSupport support() {
@@ -621,6 +694,7 @@ class ImportHandlersTenantBoundaryTest {
         entity.setDeletedFlag(0);
         entity.setLotControlled(0);
         entity.setShelfLifeControlled(0);
+        entity.setSerialControlled(0);
         return entity;
     }
 
