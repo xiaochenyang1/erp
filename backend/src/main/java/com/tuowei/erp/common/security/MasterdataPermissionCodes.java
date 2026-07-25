@@ -26,6 +26,9 @@ public interface MasterdataPermissionCodes {
     String MASTERDATA_WAREHOUSE_ENABLE = "masterdata:warehouse:enable";
     String MASTERDATA_WAREHOUSE_DISABLE = "masterdata:warehouse:disable";
 
+    String MASTERDATA_LOCATION_VIEW = "masterdata:location:view";
+    String MASTERDATA_LOCATION_MANAGE = "masterdata:location:manage";
+
     String HAS_MASTERDATA_PRODUCT_VIEW = "hasAuthority('" + MASTERDATA_PRODUCT_VIEW + "')";
     String HAS_MASTERDATA_PRODUCT_CREATE = "hasAuthority('" + MASTERDATA_PRODUCT_CREATE + "')";
     String HAS_MASTERDATA_PRODUCT_UPDATE = "hasAuthority('" + MASTERDATA_PRODUCT_UPDATE + "')";
@@ -49,4 +52,7 @@ public interface MasterdataPermissionCodes {
     String HAS_MASTERDATA_WAREHOUSE_UPDATE = "hasAuthority('" + MASTERDATA_WAREHOUSE_UPDATE + "')";
     String HAS_MASTERDATA_WAREHOUSE_ENABLE = "hasAuthority('" + MASTERDATA_WAREHOUSE_ENABLE + "')";
     String HAS_MASTERDATA_WAREHOUSE_DISABLE = "hasAuthority('" + MASTERDATA_WAREHOUSE_DISABLE + "')";
+
+    String HAS_MASTERDATA_LOCATION_VIEW = "hasAuthority('" + MASTERDATA_LOCATION_VIEW + "')";
+    String HAS_MASTERDATA_LOCATION_MANAGE = "hasAuthority('" + MASTERDATA_LOCATION_MANAGE + "')";
 }

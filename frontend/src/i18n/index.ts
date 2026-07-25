@@ -155,6 +155,20 @@ const coreMessages = {
       validation: { delivery: '请选择销售出库单', receipt: '请选择采购入库单', productionOrder: '请输入生产工单ID', date: '请选择检验日期', draftOnly: '仅草稿状态可编辑', editableMissing: '未加载到可编辑的检验单', negativeQuantity: '第 {line} 行：检验数量不能为负数', judgeQuantity: '第 {line} 行：合格数量 + 不合格数量必须等于检验数量' },
       message: { loadFailed: '加载检验单失败', sourcesLoadFailed: '加载来源单据失败', detailLoadFailed: '加载检验单详情失败', created: '创建成功', submitConfirm: '确认提交检验单“{no}”吗？', submitted: '已提交', saved: '保存成功', judged: '判定完成', cancelConfirm: '确认作废检验单“{no}”吗？', cancelled: '已作废', exported: '导出成功', exportFailed: '导出失败', exportFile: 'quality_inspections_{date}.csv', prompt: '提示' }
     },
+    warehouseLocation: {
+      warehouse: '仓库', selectWarehouse: '选择仓库', keyword: '关键字', keywordPlaceholder: '库位编码/名称', status: '状态', search: '查询', create: '新建库位',
+      code: '库位编码', name: '库位名称', default: '默认', yes: '是', no: '否', active: '启用', inactive: '停用', remark: '备注', actions: '操作', edit: '编辑', enable: '启用', disable: '停用',
+      editTitle: '编辑库位', createTitle: '新建库位', cancel: '取消', save: '保存',
+      validation: { required: '请完整填写仓库、编码和名称' },
+      message: { saved: '保存成功', created: '创建成功', enabled: '已启用', disabled: '已停用' }
+    },
+    warehouseLocation: {
+      warehouse: 'Warehouse', selectWarehouse: 'Select warehouse', keyword: 'Keyword', keywordPlaceholder: 'Location code / name', status: 'Status', search: 'Search', create: 'New location',
+      code: 'Location code', name: 'Location name', default: 'Default', yes: 'Yes', no: 'No', active: 'Active', inactive: 'Inactive', remark: 'Remark', actions: 'Actions', edit: 'Edit', enable: 'Enable', disable: 'Disable',
+      editTitle: 'Edit location', createTitle: 'New location', cancel: 'Cancel', save: 'Save',
+      validation: { required: 'Warehouse, code and name are required' },
+      message: { saved: 'Saved', created: 'Created', enabled: 'Enabled', disabled: 'Disabled' }
+    },
     inventoryMrp: {
       title: '轻量 MRP', history: '刷新历史', historyTitle: 'MRP运行历史', runNo: '运行号', asOfDate: '业务日', status: '状态', purchaseCount: '采购建议数', productionCount: '生产建议数', createdTime: '创建时间', open: '打开', lineStatus: '行状态', convertedDoc: '已转单据', actions: '操作', convertPo: '转采购', convertMo: '转生产', description: '独立需求=销售未发货+安全库存；供应=现存量+在途采购+在制；有 BOM 建议生产并展开材料采购', run: '运行计划',
       summary: '运行日 {date} · 采购建议 {purchaseCount} · 生产建议 {productionCount}', productionSuggestions: '生产建议', purchaseSuggestions: '采购建议',

@@ -26,6 +26,7 @@ import com.tuowei.erp.masterdata.supplier.web.SupplierCreateRequest;
 import com.tuowei.erp.masterdata.supplier.web.SupplierPageQuery;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
+import com.tuowei.erp.masterdata.location.service.LocationService;
 import com.tuowei.erp.masterdata.warehouse.service.WarehouseService;
 import com.tuowei.erp.masterdata.warehouse.web.WarehouseCreateRequest;
 import com.tuowei.erp.masterdata.warehouse.web.WarehousePageQuery;
@@ -306,7 +307,7 @@ class MasterdataServiceTenantBoundaryTest {
     }
 
     private WarehouseService warehouseService(WarehouseMapper mapper, DeptMapper deptMapper, UserMapper userMapper) {
-        return new WarehouseService(mapper, deptMapper, userMapper, auditMetadataFactory);
+        return new WarehouseService(mapper, deptMapper, userMapper, auditMetadataFactory, org.mockito.Mockito.mock(LocationService.class));
     }
 
     private <T> Page<T> page() {

@@ -25,6 +25,7 @@ public class MybatisPlusConfig {
             "md_customer",
             "md_supplier",
             "md_warehouse",
+            "md_location",
             "pur_order",
             "pur_order_line",
             "pur_receipt",

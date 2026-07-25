@@ -7,6 +7,7 @@ import com.tuowei.erp.common.export.CsvExport;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
+import com.tuowei.erp.masterdata.location.service.LocationService;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.masterdata.warehouse.web.WarehouseCreateRequest;
@@ -48,15 +49,18 @@ public class WarehouseService {
     private final DeptMapper deptMapper;
     private final UserMapper userMapper;
     private final AuditMetadataFactory auditMetadataFactory;
+    private final LocationService locationService;
 
     public WarehouseService(WarehouseMapper warehouseMapper,
                             DeptMapper deptMapper,
                             UserMapper userMapper,
-                            AuditMetadataFactory auditMetadataFactory) {
+                            AuditMetadataFactory auditMetadataFactory,
+                            LocationService locationService) {
         this.warehouseMapper = warehouseMapper;
         this.deptMapper = deptMapper;
         this.userMapper = userMapper;
         this.auditMetadataFactory = auditMetadataFactory;
+        this.locationService = locationService;
     }
 
     @Transactional
@@ -84,6 +88,7 @@ public class WarehouseService {
         entity.setVersion(0);
 
         warehouseMapper.insert(entity);
+        locationService.ensureDefaultLocation(entity, audit);
         return toResponse(entity);
     }
 

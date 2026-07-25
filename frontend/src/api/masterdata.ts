@@ -533,3 +533,60 @@ const normalizeSupplier = (supplier: Supplier): Supplier => ({
   contact: supplier.contact || supplier.contactName,
   mobile: supplier.mobile || supplier.contactPhone
 })
+
+
+export interface Location {
+  id: string | number
+  warehouseId: string | number
+  warehouseName?: string
+  locationCode: string
+  locationName: string
+  isDefault: boolean
+  status: string
+  remark?: string
+}
+
+export interface LocationQuery extends PageQuery {
+  warehouseId?: string | number
+  status?: string
+  keyword?: string
+}
+
+export interface LocationSaveRequest {
+  warehouseId?: string | number
+  locationCode: string
+  locationName: string
+  isDefault?: boolean
+  status?: string
+  remark?: string
+}
+
+const normalizeLocation = (item: Location): Location => ({
+  ...item,
+  id: String(item.id),
+  warehouseId: String(item.warehouseId),
+  isDefault: Boolean(item.isDefault)
+})
+
+export const getLocations = (params: LocationQuery) => {
+  return request.get<PageResponse<Location>>('/masterdata/locations', { params }).then((page) => ({
+    ...page,
+    records: (page.records || []).map(normalizeLocation)
+  }))
+}
+
+export const createLocation = (data: LocationSaveRequest) => {
+  return request.post<Location>('/masterdata/locations', data).then(normalizeLocation)
+}
+
+export const updateLocation = (id: string | number, data: LocationSaveRequest) => {
+  return request.put<Location>(`/masterdata/locations/${id}`, data).then(normalizeLocation)
+}
+
+export const enableLocation = (id: string | number) => {
+  return request.post<Location>(`/masterdata/locations/${id}/enable`).then(normalizeLocation)
+}
+
+export const disableLocation = (id: string | number) => {
+  return request.post<Location>(`/masterdata/locations/${id}/disable`).then(normalizeLocation)
+}

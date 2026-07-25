@@ -83,6 +83,16 @@ const routes: RouteRecordRaw[] = [
               icon: 'House',
               permission: 'masterdata:warehouse:view'
             }
+          },
+          {
+            path: 'locations',
+            name: 'MasterdataLocations',
+            component: () => import('@/views/masterdata/locations/index.vue'),
+            meta: {
+              title: '库位管理',
+              icon: 'Place',
+              permission: 'masterdata:location:view'
+            }
           }
         ]
       },
