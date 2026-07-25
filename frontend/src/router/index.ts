@@ -147,6 +147,13 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'prices',
+            name: 'PurchaseRequisitions',
+            path: 'requisitions',
+            component: () => import('@/views/purchase/requisitions/index.vue'),
+            meta: { title: '采购请购', icon: 'Document', permission: 'purchase:requisition:view' }
+          },
+          {
+            path: 'prices',
             name: 'PurchasePrices',
             component: () => import('@/views/purchase/prices/index.vue'),
             meta: {

@@ -946,3 +946,70 @@ export const resolvePurchasePrice = (params: {
     maxPrice: res.maxPrice != null ? Number(res.maxPrice) : res.maxPrice
   }))
 }
+
+
+export interface PurchaseRequisitionLine {
+  id?: string | number
+  lineNo?: number
+  productId: string | number
+  productCode?: string
+  productName?: string
+  qty: number
+  remark?: string
+}
+
+export interface PurchaseRequisition {
+  id: string | number
+  requisitionNo: string
+  requisitionDate: string
+  neededDate?: string
+  status: string
+  supplierId?: string | number | null
+  convertedOrderId?: string | number | null
+  convertedOrderNo?: string | null
+  remark?: string
+  lines?: PurchaseRequisitionLine[]
+}
+
+const normalizeRequisition = (item: PurchaseRequisition): PurchaseRequisition => ({
+  ...item,
+  id: String(item.id),
+  supplierId: item.supplierId != null ? String(item.supplierId) : item.supplierId,
+  convertedOrderId: item.convertedOrderId != null ? String(item.convertedOrderId) : item.convertedOrderId,
+  lines: (item.lines || []).map((line) => ({
+    ...line,
+    id: line.id != null ? String(line.id) : line.id,
+    productId: String(line.productId),
+    qty: Number(line.qty ?? 0)
+  }))
+})
+
+export const getPurchaseRequisitions = (params?: any) =>
+  request.get<PageResponse<PurchaseRequisition>>('/purchase/requisitions', { params }).then((page) => ({
+    ...page,
+    records: (page.records || []).map(normalizeRequisition)
+  }))
+
+export const getPurchaseRequisition = (id: string | number) =>
+  request.get<PurchaseRequisition>(`/purchase/requisitions/${id}`).then(normalizeRequisition)
+
+export const createPurchaseRequisition = (data: any) =>
+  request.post<PurchaseRequisition>('/purchase/requisitions', data).then(normalizeRequisition)
+
+export const updatePurchaseRequisition = (id: string | number, data: any) =>
+  request.put<PurchaseRequisition>(`/purchase/requisitions/${id}`, data).then(normalizeRequisition)
+
+export const submitPurchaseRequisition = (id: string | number) =>
+  request.post<PurchaseRequisition>(`/purchase/requisitions/${id}/submit`).then(normalizeRequisition)
+
+export const approvePurchaseRequisition = (id: string | number) =>
+  request.post<PurchaseRequisition>(`/purchase/requisitions/${id}/approve`).then(normalizeRequisition)
+
+export const rejectPurchaseRequisition = (id: string | number) =>
+  request.post<PurchaseRequisition>(`/purchase/requisitions/${id}/reject`).then(normalizeRequisition)
+
+export const cancelPurchaseRequisition = (id: string | number) =>
+  request.post<PurchaseRequisition>(`/purchase/requisitions/${id}/cancel`).then(normalizeRequisition)
+
+export const convertPurchaseRequisition = (id: string | number) =>
+  request.post<PurchaseRequisition>(`/purchase/requisitions/${id}/convert-to-purchase-order`).then(normalizeRequisition)
