@@ -308,8 +308,10 @@
             <template #default="{ row }">
               <el-input
                 v-model="row.serialNos"
-                :placeholder="t('salesDelivery.serialNosPlaceholder')"
-                :disabled="isView"
+                :placeholder="row.serialControlled
+                  ? t('salesDelivery.serialNosPlaceholder')
+                  : t('salesDelivery.remarkPlaceholder')"
+                :disabled="isView || row.serialControlled === false"
               />
             </template>
           </el-table-column>
@@ -317,8 +319,10 @@
             <template #default="{ row }">
               <el-input
                 v-model="row.lotNo"
-                :placeholder="t('salesDelivery.lotNoPlaceholder')"
-                :disabled="isView"
+                :placeholder="row.lotControlled
+                  ? t('salesDelivery.lotNoPlaceholder')
+                  : t('salesDelivery.remarkPlaceholder')"
+                :disabled="isView || row.lotControlled === false"
               />
             </template>
           </el-table-column>
@@ -329,7 +333,7 @@
                 type="date"
                 value-format="YYYY-MM-DD"
                 :placeholder="t('salesDelivery.productionDatePlaceholder')"
-                :disabled="isView"
+                :disabled="isView || row.lotControlled === false"
                 style="width: 100%"
               />
             </template>
@@ -340,8 +344,10 @@
                 v-model="row.expiryDate"
                 type="date"
                 value-format="YYYY-MM-DD"
-                :placeholder="t('salesDelivery.expiryDatePlaceholder')"
-                :disabled="isView"
+                :placeholder="row.shelfLifeControlled
+                  ? t('salesDelivery.expiryDatePlaceholder')
+                  : t('salesDelivery.remarkPlaceholder')"
+                :disabled="isView || (row.shelfLifeControlled === false && row.lotControlled === false)"
                 style="width: 100%"
               />
             </template>
@@ -401,7 +407,7 @@ import {
 } from '@/api/masterdata'
 import { BarcodeScanField } from '@/components/common'
 import { incrementScannedLine } from '@/utils/barcode'
-import { hydrateProductLineLabels } from '@/utils/productLines'
+import { hydrateProductLineLabels, validateProductControlLines } from '@/utils/productLines'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
 
 const route = useRoute()
@@ -819,6 +825,19 @@ const handleSubmit = async () => {
       const hasQuantity = formData.items.some(item => item.quantity > 0)
       if (!hasQuantity) {
         ElMessage.warning(t('salesDelivery.validation.quantityRequired'))
+        return
+      }
+
+      const controlIssues = validateProductControlLines(formData.items)
+      if (controlIssues.length > 0) {
+        const issue = controlIssues[0]
+        const product = issue.productCode || issue.productName || String(issue.productId)
+        ElMessage.warning(t(`salesDelivery.validation.${issue.messageKey}`, {
+          line: issue.index + 1,
+          product,
+          expected: issue.expectedSerialCount,
+          actual: issue.actualSerialCount
+        }))
         return
       }
 

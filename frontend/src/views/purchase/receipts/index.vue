@@ -253,7 +253,10 @@
               <template #default="{ row }">
                 <el-input
                   v-model="row.serialNos"
-                  :placeholder="t('purchaseReceipt.serialNosPlaceholder')"
+                  :placeholder="row.serialControlled
+                    ? t('purchaseReceipt.serialNosPlaceholder')
+                    : t('purchaseReceipt.optional')"
+                  :disabled="row.serialControlled === false"
                 />
               </template>
             </el-table-column>
@@ -261,7 +264,10 @@
               <template #default="{ row }">
                 <el-input
                   v-model="row.lotNo"
-                  :placeholder="t('purchaseReceipt.lotNoPlaceholder')"
+                  :placeholder="row.lotControlled
+                    ? t('purchaseReceipt.lotNoPlaceholder')
+                    : t('purchaseReceipt.optional')"
+                  :disabled="row.lotControlled === false"
                 />
               </template>
             </el-table-column>
@@ -272,6 +278,7 @@
                   type="date"
                   value-format="YYYY-MM-DD"
                   :placeholder="t('purchaseReceipt.productionDatePlaceholder')"
+                  :disabled="row.lotControlled === false"
                   style="width: 100%"
                 />
               </template>
@@ -282,7 +289,10 @@
                   v-model="row.expiryDate"
                   type="date"
                   value-format="YYYY-MM-DD"
-                  :placeholder="t('purchaseReceipt.expiryDatePlaceholder')"
+                  :placeholder="row.shelfLifeControlled
+                    ? t('purchaseReceipt.expiryDatePlaceholder')
+                    : t('purchaseReceipt.optional')"
+                  :disabled="row.shelfLifeControlled === false && row.lotControlled === false"
                   style="width: 100%"
                 />
               </template>
@@ -546,7 +556,7 @@ import {
 } from '@/api/masterdata'
 import { BarcodeScanField, PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { incrementScannedLine } from '@/utils/barcode'
-import { hydrateProductLineLabels } from '@/utils/productLines'
+import { hydrateProductLineLabels, validateProductControlLines } from '@/utils/productLines'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
 import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
@@ -920,6 +930,19 @@ const handleSubmitForm = async () => {
 
     if (form.items.length === 0) {
       ElMessage.warning(t('purchaseReceipt.validation.order'))
+      return
+    }
+
+    const controlIssues = validateProductControlLines(form.items)
+    if (controlIssues.length > 0) {
+      const issue = controlIssues[0]
+      const product = issue.productCode || issue.productName || String(issue.productId)
+      ElMessage.warning(t(`purchaseReceipt.validation.${issue.messageKey}`, {
+        line: issue.index + 1,
+        product,
+        expected: issue.expectedSerialCount,
+        actual: issue.actualSerialCount
+      }))
       return
     }
 
