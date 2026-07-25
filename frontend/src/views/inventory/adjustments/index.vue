@@ -305,6 +305,22 @@
               />
             </template>
           </el-table-column>
+          <el-table-column :label="$t('inventoryAdjustments.lotNo')" width="130">
+            <template #default="{ row }">
+              <el-input v-model="row.lotNo" :placeholder="$t('inventoryAdjustments.placeholder.lotNo')" :disabled="isView" />
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('inventoryAdjustments.productionDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker v-model="row.productionDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('inventoryAdjustments.placeholder.productionDate')" :disabled="isView" style="width: 100%" />
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('inventoryAdjustments.expiryDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker v-model="row.expiryDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('inventoryAdjustments.placeholder.expiryDate')" :disabled="isView" style="width: 100%" />
+            </template>
+          </el-table-column>
+
           <el-table-column :label="$t('inventoryAdjustments.reason')" prop="reason">
             <template #default="{ row }">
               <el-input
@@ -552,6 +568,9 @@ const handleAddItem = () => {
     unitCost: 0,
     locationId: undefined,
     serialNos: '',
+    lotNo: '',
+    productionDate: '',
+    expiryDate: '',
     reason: ''
   })
 }

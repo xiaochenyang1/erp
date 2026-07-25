@@ -2,11 +2,17 @@ export interface ProductLabelLine {
   productId: string | number
   productCode?: string
   productName?: string
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  serialControlled?: boolean
 }
 
 export interface ProductLabels {
   productCode?: string
   productName?: string
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  serialControlled?: boolean
 }
 
 /**
@@ -20,7 +26,10 @@ export async function hydrateProductLineLabels<T extends ProductLabelLine>(
   const requests = new Map<string, Promise<ProductLabels>>()
 
   return Promise.all(lines.map(async (line) => {
-    if (line.productCode && line.productName) {
+    const needsLabels = !(line.productCode && line.productName)
+    // Keep fully labeled lines unchanged to avoid extra masterdata lookups.
+    // Control flags are filled only when we already need to load the product.
+    if (!needsLabels) {
       return line
     }
 
@@ -36,7 +45,10 @@ export async function hydrateProductLineLabels<T extends ProductLabelLine>(
       return {
         ...line,
         productCode: line.productCode || product.productCode,
-        productName: line.productName || product.productName
+        productName: line.productName || product.productName,
+        lotControlled: line.lotControlled ?? Boolean(product.lotControlled),
+        shelfLifeControlled: line.shelfLifeControlled ?? Boolean(product.shelfLifeControlled),
+        serialControlled: line.serialControlled ?? Boolean(product.serialControlled)
       }
     } catch {
       return line

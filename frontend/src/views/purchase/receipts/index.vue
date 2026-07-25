@@ -257,6 +257,36 @@
                 />
               </template>
             </el-table-column>
+            <el-table-column :label="t('purchaseReceipt.lotNo')" width="140">
+              <template #default="{ row }">
+                <el-input
+                  v-model="row.lotNo"
+                  :placeholder="t('purchaseReceipt.lotNoPlaceholder')"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('purchaseReceipt.productionDate')" width="150">
+              <template #default="{ row }">
+                <el-date-picker
+                  v-model="row.productionDate"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  :placeholder="t('purchaseReceipt.productionDatePlaceholder')"
+                  style="width: 100%"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('purchaseReceipt.expiryDate')" width="150">
+              <template #default="{ row }">
+                <el-date-picker
+                  v-model="row.expiryDate"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  :placeholder="t('purchaseReceipt.expiryDatePlaceholder')"
+                  style="width: 100%"
+                />
+              </template>
+            </el-table-column>
             <el-table-column :label="t('purchaseReceipt.remark')">
               <template #default="{ row }">
                 <el-input v-model="row.remark" :placeholder="t('purchaseReceipt.optional')" />
@@ -346,6 +376,9 @@
               </template>
             </el-table-column>
             <el-table-column prop="serialNos" :label="t('purchaseReceipt.serialNos')" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="lotNo" :label="t('purchaseReceipt.lotNo')" width="120" show-overflow-tooltip />
+            <el-table-column prop="productionDate" :label="t('purchaseReceipt.productionDate')" width="120" />
+            <el-table-column prop="expiryDate" :label="t('purchaseReceipt.expiryDate')" width="120" />
             <el-table-column prop="remark" :label="t('purchaseReceipt.remark')" min-width="120" />
           </el-table>
         </div>

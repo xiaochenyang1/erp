@@ -16,8 +16,24 @@ describe('hydrateProductLineLabels', () => {
     const result = await hydrateProductLineLabels(lines, loadProduct)
 
     expect(result).toEqual([
-      { productId: '9007199254740993', quantity: 1, productCode: 'P-001', productName: '测试商品' },
-      { productId: '9007199254740993', quantity: 2, productCode: 'P-001', productName: '测试商品' }
+      {
+        productId: '9007199254740993',
+        quantity: 1,
+        productCode: 'P-001',
+        productName: '测试商品',
+        lotControlled: false,
+        shelfLifeControlled: false,
+        serialControlled: false
+      },
+      {
+        productId: '9007199254740993',
+        quantity: 2,
+        productCode: 'P-001',
+        productName: '测试商品',
+        lotControlled: false,
+        shelfLifeControlled: false,
+        serialControlled: false
+      }
     ])
     expect(loadProduct).toHaveBeenCalledOnce()
     expect(loadProduct).toHaveBeenCalledWith('9007199254740993')

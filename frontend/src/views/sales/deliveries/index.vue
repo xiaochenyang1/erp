@@ -313,6 +313,39 @@
               />
             </template>
           </el-table-column>
+          <el-table-column :label="t('salesDelivery.lotNo')" width="140">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.lotNo"
+                :placeholder="t('salesDelivery.lotNoPlaceholder')"
+                :disabled="isView"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('salesDelivery.productionDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker
+                v-model="row.productionDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :placeholder="t('salesDelivery.productionDatePlaceholder')"
+                :disabled="isView"
+                style="width: 100%"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('salesDelivery.expiryDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker
+                v-model="row.expiryDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :placeholder="t('salesDelivery.expiryDatePlaceholder')"
+                :disabled="isView"
+                style="width: 100%"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="t('salesDelivery.remark')" prop="remark">
             <template #default="{ row }">
               <el-input

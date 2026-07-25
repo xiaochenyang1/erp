@@ -222,6 +222,22 @@
                 <el-input v-model="row.serialNos" :placeholder="t('purchaseReturn.serialNosPlaceholder')" />
               </template>
             </el-table-column>
+          <el-table-column :label="t('purchaseReturn.lotNo')" width="130">
+            <template #default="{ row }">
+              <el-input v-model="row.lotNo" :placeholder="t('purchaseReturn.lotNoPlaceholder')"  />
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('purchaseReturn.productionDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker v-model="row.productionDate" type="date" value-format="YYYY-MM-DD" style="width: 100%"  />
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('purchaseReturn.expiryDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker v-model="row.expiryDate" type="date" value-format="YYYY-MM-DD" style="width: 100%"  />
+            </template>
+          </el-table-column>
+
             <el-table-column :label="t('purchaseReturn.remark')">
               <template #default="{ row }">
                 <el-input v-model="row.remark" :placeholder="t('purchaseReturn.optional')" />

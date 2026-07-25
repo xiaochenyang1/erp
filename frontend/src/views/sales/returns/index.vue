@@ -284,6 +284,22 @@
               />
             </template>
           </el-table-column>
+          <el-table-column :label="$t('salesReturnOps.lotNo')" width="130">
+            <template #default="{ row }">
+              <el-input v-model="row.lotNo" :placeholder="$t('salesReturnOps.placeholder.lotNo')" :disabled="isView" />
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('salesReturnOps.productionDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker v-model="row.productionDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" :disabled="isView" />
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('salesReturnOps.expiryDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker v-model="row.expiryDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" :disabled="isView" />
+            </template>
+          </el-table-column>
+
           <el-table-column :label="$t('salesReturnOps.reason')" prop="reason">
             <template #default="{ row }">
               <el-input
@@ -545,6 +561,9 @@ const handleEdit = async (row: SalesReturn) => {
       taxAmount: Number(item.taxAmount ?? 0),
       locationId: item.locationId ?? undefined,
       serialNos: item.serialNos || '',
+      lotNo: item.lotNo || '',
+      productionDate: item.productionDate || '',
+      expiryDate: item.expiryDate || '',
       reason: item.reason || item.remark || ''
     }))
     dialogVisible.value = true
@@ -612,6 +631,9 @@ const handleDeliveryChange = async () => {
       taxAmount: 0,
       locationId: item.locationId ?? undefined,
       serialNos: item.serialNos || '',
+      lotNo: item.lotNo || '',
+      productionDate: item.productionDate || '',
+      expiryDate: item.expiryDate || '',
       reason: ''
     })).filter(item => item.quantity > 0)
   } catch (error) {

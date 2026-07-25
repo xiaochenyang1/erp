@@ -248,6 +248,22 @@
               </el-select>
             </template>
           </el-table-column>
+          <el-table-column :label="$t('inventoryChecks.lotNo')" width="130">
+            <template #default="{ row }">
+              <el-input v-model="row.lotNo" :placeholder="$t('inventoryChecks.placeholder.lotNo')" :disabled="isView" />
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('inventoryChecks.productionDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker v-model="row.productionDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('inventoryChecks.placeholder.productionDate')" :disabled="isView" style="width: 100%" />
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('inventoryChecks.expiryDate')" width="150">
+            <template #default="{ row }">
+              <el-date-picker v-model="row.expiryDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('inventoryChecks.placeholder.expiryDate')" :disabled="isView" style="width: 100%" />
+            </template>
+          </el-table-column>
+
           <el-table-column :label="$t('inventoryChecks.bookQuantity')" prop="bookQuantity" width="120">
             <template #default="{ row }">
               {{ row.bookQuantity || 0 }}
@@ -547,6 +563,9 @@ const handleWarehouseChange = async () => {
       productCode: stock.productCode,
       productName: stock.productName,
       locationId: stock.locationId ?? undefined,
+      lotNo: stock.lotNo || '',
+      productionDate: stock.productionDate || '',
+      expiryDate: stock.expiryDate || '',
       bookQuantity: stock.quantity,
       actualQuantity: undefined,
       difference: undefined,
@@ -564,6 +583,9 @@ const handleAddItem = () => {
     productCode: '',
     productName: '',
     locationId: undefined,
+    lotNo: '',
+    productionDate: '',
+    expiryDate: '',
     bookQuantity: 0,
     actualQuantity: undefined,
     difference: undefined,
