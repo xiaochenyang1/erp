@@ -13,20 +13,29 @@ import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryLineMapper;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryMapper;
+import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryQuoteLineMapper;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryQuoteMapper;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryEntity;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryLineEntity;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryQuoteEntity;
+import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryQuoteLineEntity;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryCreateRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryLineRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryLineResponse;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryPageQuery;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryPoPrefillResponse;
+import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteLineRequest;
+import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteLineResponse;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteResponse;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryResponse;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquirySelectQuoteRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryUpdateRequest;
+import com.tuowei.erp.purchase.order.service.PurchaseOrderInquirySource;
+import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -34,9 +43,13 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,6 +58,7 @@ public class PurchaseInquiryService {
     private static final String STATUS_DRAFT = "DRAFT";
     private static final String STATUS_SUBMITTED = "SUBMITTED";
     private static final String STATUS_CLOSED = "CLOSED";
+    private static final String STATUS_CONVERTED = "CONVERTED";
     private static final String STATUS_CANCELLED = "CANCELLED";
     private static final String QUOTE_PENDING = "PENDING";
     private static final String QUOTE_SELECTED = "SELECTED";
@@ -52,27 +66,33 @@ public class PurchaseInquiryService {
     private final PurchaseInquiryMapper purchaseInquiryMapper;
     private final PurchaseInquiryLineMapper purchaseInquiryLineMapper;
     private final PurchaseInquiryQuoteMapper purchaseInquiryQuoteMapper;
+    private final PurchaseInquiryQuoteLineMapper purchaseInquiryQuoteLineMapper;
     private final PurchaseInquiryNumberService purchaseInquiryNumberService;
     private final ProductValidator productValidator;
     private final SupplierMapper supplierMapper;
     private final AuditMetadataFactory auditMetadataFactory;
+    private final PurchaseOrderService purchaseOrderService;
 
     public PurchaseInquiryService(
             PurchaseInquiryMapper purchaseInquiryMapper,
             PurchaseInquiryLineMapper purchaseInquiryLineMapper,
             PurchaseInquiryQuoteMapper purchaseInquiryQuoteMapper,
+            PurchaseInquiryQuoteLineMapper purchaseInquiryQuoteLineMapper,
             PurchaseInquiryNumberService purchaseInquiryNumberService,
             ProductValidator productValidator,
             SupplierMapper supplierMapper,
-            AuditMetadataFactory auditMetadataFactory
+            AuditMetadataFactory auditMetadataFactory,
+            PurchaseOrderService purchaseOrderService
     ) {
         this.purchaseInquiryMapper = purchaseInquiryMapper;
         this.purchaseInquiryLineMapper = purchaseInquiryLineMapper;
         this.purchaseInquiryQuoteMapper = purchaseInquiryQuoteMapper;
+        this.purchaseInquiryQuoteLineMapper = purchaseInquiryQuoteLineMapper;
         this.purchaseInquiryNumberService = purchaseInquiryNumberService;
         this.productValidator = productValidator;
         this.supplierMapper = supplierMapper;
         this.auditMetadataFactory = auditMetadataFactory;
+        this.purchaseOrderService = purchaseOrderService;
     }
 
     @Transactional
@@ -182,10 +202,11 @@ public class PurchaseInquiryService {
         requireActiveSupplier(request.supplierId(), audit);
         assertNoQuoteForSupplier(inquiry, request.supplierId());
 
-        BigDecimal unitPrice = ScalePrecision.amount(request.unitPrice());
-        BigDecimal taxRate = ScalePrecision.rate(
-                request.taxRate() == null ? BigDecimal.ZERO : request.taxRate()
-        );
+        List<PurchaseInquiryLineEntity> inquiryLines = loadLines(inquiry);
+        if (inquiryLines.isEmpty()) {
+            throw new IllegalArgumentException("询价单没有明细，无法录入报价");
+        }
+        List<QuoteLinePrice> quoteLinePrices = normalizeRequestedQuoteLines(request, inquiryLines);
         LocalDateTime now = audit.now();
 
         PurchaseInquiryQuoteEntity quote = new PurchaseInquiryQuoteEntity();
@@ -193,8 +214,9 @@ public class PurchaseInquiryService {
         quote.setAccountBookId(audit.accountBookId());
         quote.setInquiryId(inquiry.getId());
         quote.setSupplierId(request.supplierId());
-        quote.setUnitPrice(unitPrice);
-        quote.setTaxRate(taxRate);
+        // Header pricing is retained only for the single-line legacy contract. Multi-line pricing lives on quote lines.
+        quote.setUnitPrice(quoteLinePrices.size() == 1 ? quoteLinePrices.get(0).unitPrice() : null);
+        quote.setTaxRate(quoteLinePrices.size() == 1 ? quoteLinePrices.get(0).taxRate() : null);
         quote.setStatus(QUOTE_PENDING);
         quote.setDeletedFlag(0);
         quote.setRemark(trimToNull(request.remark()));
@@ -204,6 +226,7 @@ public class PurchaseInquiryService {
         quote.setUpdatedTime(now);
         quote.setVersion(0);
         purchaseInquiryQuoteMapper.insert(quote);
+        insertQuoteLines(quote, quoteLinePrices, audit, now);
 
         touch(inquiry, audit);
         OptimisticLockGuard.requireUpdated(
@@ -224,6 +247,17 @@ public class PurchaseInquiryService {
         if (!QUOTE_PENDING.equals(quote.getStatus())) {
             throw new IllegalArgumentException("报价状态不可选中");
         }
+        List<PurchaseInquiryLineEntity> inquiryLines = loadLines(inquiry);
+        if (inquiryLines.isEmpty()) {
+            throw new IllegalArgumentException("询价单没有明细，无法选定中标报价");
+        }
+        resolveQuotePrices(
+                inquiry,
+                quote,
+                inquiryLines,
+                "报价缺少单价，无法选定中标报价",
+                "报价明细不完整，无法选定中标报价"
+        );
         LocalDateTime now = audit.now();
 
         quote.setStatus(QUOTE_SELECTED);
@@ -273,7 +307,8 @@ public class PurchaseInquiryService {
     public PurchaseInquiryPoPrefillResponse poPrefill(Long id) {
         AuditMetadata audit = auditMetadataFactory.current();
         PurchaseInquiryEntity inquiry = requireInquiry(id, audit);
-        if (!STATUS_CLOSED.equals(inquiry.getStatus()) || inquiry.getSelectedQuoteId() == null) {
+        if ((!STATUS_CLOSED.equals(inquiry.getStatus()) && !STATUS_CONVERTED.equals(inquiry.getStatus()))
+                || inquiry.getSelectedQuoteId() == null) {
             throw new IllegalArgumentException("仅已选定中标报价的询价单可生成采购订单预填数据");
         }
         PurchaseInquiryQuoteEntity quote = requireQuote(inquiry.getSelectedQuoteId(), inquiry, audit);
@@ -281,25 +316,28 @@ public class PurchaseInquiryService {
         if (lines.isEmpty()) {
             throw new IllegalArgumentException("询价单没有明细，无法生成采购订单预填数据");
         }
-        if (quote.getUnitPrice() == null) {
-            throw new IllegalArgumentException("中标报价缺少单价，无法生成采购订单预填数据");
-        }
-        BigDecimal price = ScalePrecision.amount(quote.getUnitPrice());
-        BigDecimal taxRate = ScalePrecision.rate(
-                quote.getTaxRate() == null ? BigDecimal.ZERO : quote.getTaxRate()
+        Map<Long, QuoteLinePrice> quotePrices = resolveQuotePrices(
+                inquiry,
+                quote,
+                lines,
+                "中标报价缺少单价，无法生成采购订单预填数据",
+                "中标报价明细不完整，无法生成采购订单预填数据"
         );
         String remark = "来源询价单 " + inquiry.getInquiryNo();
         if (StringUtils.hasText(inquiry.getRemark())) {
             remark = remark + "；" + inquiry.getRemark();
         }
         List<PurchaseInquiryPoPrefillResponse.PurchaseInquiryPoPrefillLine> prefillLines = lines.stream()
-                .map(line -> new PurchaseInquiryPoPrefillResponse.PurchaseInquiryPoPrefillLine(
-                        line.getProductId(),
-                        ScalePrecision.quantity(line.getQty()),
-                        price,
-                        taxRate,
-                        line.getRemark()
-                ))
+                .map(line -> {
+                    QuoteLinePrice linePrice = quotePrices.get(line.getId());
+                    return new PurchaseInquiryPoPrefillResponse.PurchaseInquiryPoPrefillLine(
+                            line.getProductId(),
+                            ScalePrecision.quantity(line.getQty()),
+                            linePrice.unitPrice(),
+                            linePrice.taxRate(),
+                            line.getRemark()
+                    );
+                })
                 .toList();
         return new PurchaseInquiryPoPrefillResponse(
                 inquiry.getId(),
@@ -309,6 +347,86 @@ public class PurchaseInquiryService {
                 remark,
                 prefillLines
         );
+    }
+
+    @Transactional
+    public PurchaseOrderResponse convertToPurchaseOrder(Long id) {
+        AuditMetadata audit = auditMetadataFactory.current();
+        PurchaseInquiryEntity inquiry = requireInquiryForUpdate(id, audit);
+        if (inquiry.getConvertedOrderId() != null) {
+            return purchaseOrderService.getBySourceInquiry(inquiry.getConvertedOrderId(), inquiry.getId());
+        }
+        if (!STATUS_CLOSED.equals(inquiry.getStatus())
+                || inquiry.getSelectedSupplierId() == null
+                || inquiry.getSelectedQuoteId() == null) {
+            throw new IllegalArgumentException("仅已选定中标报价的询价单可转换为采购订单");
+        }
+
+        PurchaseInquiryQuoteEntity quote = requireQuote(inquiry.getSelectedQuoteId(), inquiry, audit);
+        if (!QUOTE_SELECTED.equals(quote.getStatus())
+                || !Objects.equals(quote.getSupplierId(), inquiry.getSelectedSupplierId())) {
+            throw new IllegalArgumentException("询价单中标报价无效，无法转换为采购订单");
+        }
+
+        List<PurchaseInquiryLineEntity> inquiryLines = loadLines(inquiry);
+        if (inquiryLines.isEmpty()) {
+            throw new IllegalArgumentException("询价单没有明细，无法转换为采购订单");
+        }
+        if (inquiryLines.stream().anyMatch(line -> line.getId() == null)) {
+            throw new IllegalArgumentException("询价单明细来源信息不完整");
+        }
+
+        Map<Long, QuoteLinePrice> quotePrices = resolveQuotePrices(
+                inquiry,
+                quote,
+                inquiryLines,
+                "中标报价缺少单价，无法转换为采购订单",
+                "中标报价明细不完整，无法转换为采购订单"
+        );
+        List<PurchaseOrderLineRequest> orderLines = inquiryLines.stream()
+                .map(line -> {
+                    QuoteLinePrice linePrice = quotePrices.get(line.getId());
+                    return new PurchaseOrderLineRequest(
+                            line.getProductId(),
+                            ScalePrecision.quantity(line.getQty()),
+                            linePrice.unitPrice(),
+                            linePrice.taxRate(),
+                            line.getRemark()
+                    );
+                })
+                .toList();
+        String remark = "来源询价单 " + inquiry.getInquiryNo();
+        if (StringUtils.hasText(inquiry.getRemark())) {
+            remark = remark + "；" + inquiry.getRemark();
+        }
+
+        PurchaseOrderResponse order = purchaseOrderService.createFromInquiry(
+                new PurchaseOrderCreateRequest(
+                        quote.getSupplierId(),
+                        inquiry.getInquiryDate(),
+                        null,
+                        remark,
+                        orderLines
+                ),
+                new PurchaseOrderInquirySource(
+                        inquiry.getId(),
+                        inquiry.getInquiryNo(),
+                        quote.getId(),
+                        inquiryLines.stream().map(PurchaseInquiryLineEntity::getId).toList()
+                )
+        );
+
+        inquiry.setStatus(STATUS_CONVERTED);
+        inquiry.setConvertedOrderId(order.id());
+        inquiry.setConvertedOrderNo(order.orderNo());
+        inquiry.setConvertedBy(audit.userId());
+        inquiry.setConvertedTime(audit.now());
+        touch(inquiry, audit);
+        OptimisticLockGuard.requireUpdated(
+                purchaseInquiryMapper.updateById(inquiry),
+                "询价单已被其他操作修改，请刷新后重试"
+        );
+        return order;
     }
 
     @Transactional
@@ -368,6 +486,106 @@ public class PurchaseInquiryService {
         return lines;
     }
 
+    private List<QuoteLinePrice> normalizeRequestedQuoteLines(
+            PurchaseInquiryQuoteRequest request,
+            List<PurchaseInquiryLineEntity> inquiryLines
+    ) {
+        List<PurchaseInquiryQuoteLineRequest> requestedLines = request.lines();
+        if (requestedLines == null || requestedLines.isEmpty()) {
+            if (inquiryLines.size() != 1) {
+                throw new IllegalArgumentException("多明细询价单必须逐行提交完整报价");
+            }
+            return List.of(normalizeQuoteLinePrice(
+                    inquiryLines.get(0).getId(),
+                    request.unitPrice(),
+                    request.taxRate(),
+                    "unitPrice不能为空"
+            ));
+        }
+
+        Set<Long> inquiryLineIds = inquiryLines.stream()
+                .map(PurchaseInquiryLineEntity::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (inquiryLineIds.size() != inquiryLines.size()) {
+            throw new IllegalArgumentException("询价单明细来源信息不完整");
+        }
+
+        Set<Long> requestedLineIds = new HashSet<>();
+        List<QuoteLinePrice> prices = new ArrayList<>();
+        for (PurchaseInquiryQuoteLineRequest requestedLine : requestedLines) {
+            if (requestedLine == null || requestedLine.inquiryLineId() == null) {
+                throw new IllegalArgumentException("inquiryLineId不能为空");
+            }
+            if (!requestedLineIds.add(requestedLine.inquiryLineId())) {
+                throw new IllegalArgumentException("报价明细不能重复提交询价行");
+            }
+            if (!inquiryLineIds.contains(requestedLine.inquiryLineId())) {
+                throw new IllegalArgumentException("报价明细不属于当前询价单");
+            }
+            prices.add(normalizeQuoteLinePrice(
+                    requestedLine.inquiryLineId(),
+                    requestedLine.unitPrice(),
+                    requestedLine.taxRate(),
+                    "unitPrice不能为空"
+            ));
+        }
+        if (!requestedLineIds.equals(inquiryLineIds)) {
+            throw new IllegalArgumentException("报价明细必须完整覆盖询价单明细");
+        }
+        return prices;
+    }
+
+    private QuoteLinePrice normalizeQuoteLinePrice(
+            Long inquiryLineId,
+            BigDecimal unitPrice,
+            BigDecimal taxRate,
+            String missingPriceMessage
+    ) {
+        if (unitPrice == null) {
+            throw new IllegalArgumentException(missingPriceMessage);
+        }
+        if (unitPrice.signum() < 0) {
+            throw new IllegalArgumentException("unitPrice不能小于0");
+        }
+        if (taxRate != null && taxRate.signum() < 0) {
+            throw new IllegalArgumentException("taxRate不能小于0");
+        }
+        return new QuoteLinePrice(
+                inquiryLineId,
+                ScalePrecision.amount(unitPrice),
+                ScalePrecision.rate(taxRate == null ? BigDecimal.ZERO : taxRate)
+        );
+    }
+
+    private void insertQuoteLines(
+            PurchaseInquiryQuoteEntity quote,
+            List<QuoteLinePrice> prices,
+            AuditMetadata audit,
+            LocalDateTime now
+    ) {
+        if (quote.getId() == null) {
+            throw new IllegalStateException("报价主表保存失败");
+        }
+        for (QuoteLinePrice price : prices) {
+            PurchaseInquiryQuoteLineEntity line = new PurchaseInquiryQuoteLineEntity();
+            line.setCompanyId(audit.companyId());
+            line.setAccountBookId(audit.accountBookId());
+            line.setInquiryId(quote.getInquiryId());
+            line.setQuoteId(quote.getId());
+            line.setInquiryLineId(price.inquiryLineId());
+            line.setUnitPrice(price.unitPrice());
+            line.setTaxRate(price.taxRate());
+            line.setDeletedFlag(0);
+            line.setCreatedBy(audit.userId());
+            line.setCreatedTime(now);
+            line.setUpdatedBy(audit.userId());
+            line.setUpdatedTime(now);
+            line.setVersion(0);
+            purchaseInquiryQuoteLineMapper.insert(line);
+        }
+    }
+
     private void softDeleteLines(PurchaseInquiryEntity inquiry, AuditMetadata audit, LocalDateTime now) {
         List<PurchaseInquiryLineEntity> existing = loadLines(inquiry);
         for (PurchaseInquiryLineEntity line : existing) {
@@ -416,6 +634,18 @@ public class PurchaseInquiryService {
         return entity;
     }
 
+    private PurchaseInquiryEntity requireInquiryForUpdate(Long id, AuditMetadata audit) {
+        PurchaseInquiryEntity entity = purchaseInquiryMapper.selectForUpdate(
+                id,
+                audit.companyId(),
+                audit.accountBookId()
+        );
+        if (entity == null) {
+            throw new IllegalArgumentException("询价单不存在");
+        }
+        return entity;
+    }
+
     private PurchaseInquiryQuoteEntity requireQuote(Long quoteId, PurchaseInquiryEntity inquiry, AuditMetadata audit) {
         PurchaseInquiryQuoteEntity quote = purchaseInquiryQuoteMapper.selectById(quoteId);
         if (quote == null || quote.getDeletedFlag() == null || quote.getDeletedFlag() != 0
@@ -447,6 +677,101 @@ public class PurchaseInquiryService {
                         .eq(PurchaseInquiryQuoteEntity::getDeletedFlag, 0)
                         .orderByAsc(PurchaseInquiryQuoteEntity::getId)
         );
+    }
+
+    private List<PurchaseInquiryQuoteLineEntity> loadQuoteLines(PurchaseInquiryEntity inquiry) {
+        return purchaseInquiryQuoteLineMapper.selectList(
+                new LambdaQueryWrapper<PurchaseInquiryQuoteLineEntity>()
+                        .eq(PurchaseInquiryQuoteLineEntity::getCompanyId, inquiry.getCompanyId())
+                        .eq(PurchaseInquiryQuoteLineEntity::getAccountBookId, inquiry.getAccountBookId())
+                        .eq(PurchaseInquiryQuoteLineEntity::getInquiryId, inquiry.getId())
+                        .eq(PurchaseInquiryQuoteLineEntity::getDeletedFlag, 0)
+                        .orderByAsc(PurchaseInquiryQuoteLineEntity::getQuoteId)
+                        .orderByAsc(PurchaseInquiryQuoteLineEntity::getInquiryLineId)
+        );
+    }
+
+    private List<PurchaseInquiryQuoteLineEntity> loadQuoteLines(
+            PurchaseInquiryEntity inquiry,
+            Long quoteId
+    ) {
+        return purchaseInquiryQuoteLineMapper.selectList(
+                new LambdaQueryWrapper<PurchaseInquiryQuoteLineEntity>()
+                        .eq(PurchaseInquiryQuoteLineEntity::getCompanyId, inquiry.getCompanyId())
+                        .eq(PurchaseInquiryQuoteLineEntity::getAccountBookId, inquiry.getAccountBookId())
+                        .eq(PurchaseInquiryQuoteLineEntity::getInquiryId, inquiry.getId())
+                        .eq(PurchaseInquiryQuoteLineEntity::getQuoteId, quoteId)
+                        .eq(PurchaseInquiryQuoteLineEntity::getDeletedFlag, 0)
+                        .orderByAsc(PurchaseInquiryQuoteLineEntity::getInquiryLineId)
+        );
+    }
+
+    private Map<Long, QuoteLinePrice> resolveQuotePrices(
+            PurchaseInquiryEntity inquiry,
+            PurchaseInquiryQuoteEntity quote,
+            List<PurchaseInquiryLineEntity> inquiryLines,
+            String missingPriceMessage,
+            String incompleteLinesMessage
+    ) {
+        List<PurchaseInquiryQuoteLineEntity> quoteLines = loadQuoteLines(inquiry, quote.getId());
+        if (quoteLines.isEmpty()) {
+            // V127 backfills historical multi-line quotes. Header fallback remains only for legacy single-line data.
+            if (inquiryLines.size() != 1) {
+                throw new IllegalArgumentException(incompleteLinesMessage);
+            }
+            QuoteLinePrice headerPrice = normalizeQuoteLinePrice(
+                    null,
+                    quote.getUnitPrice(),
+                    quote.getTaxRate(),
+                    missingPriceMessage
+            );
+            Map<Long, QuoteLinePrice> fallback = new HashMap<>();
+            for (PurchaseInquiryLineEntity inquiryLine : inquiryLines) {
+                if (inquiryLine.getId() == null) {
+                    throw new IllegalArgumentException(incompleteLinesMessage);
+                }
+                fallback.put(inquiryLine.getId(), new QuoteLinePrice(
+                        inquiryLine.getId(),
+                        headerPrice.unitPrice(),
+                        headerPrice.taxRate()
+                ));
+            }
+            return fallback;
+        }
+
+        Set<Long> inquiryLineIds = inquiryLines.stream()
+                .map(PurchaseInquiryLineEntity::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (inquiryLineIds.size() != inquiryLines.size() || quoteLines.size() != inquiryLines.size()) {
+            throw new IllegalArgumentException(incompleteLinesMessage);
+        }
+
+        Map<Long, QuoteLinePrice> prices = new HashMap<>();
+        for (PurchaseInquiryQuoteLineEntity quoteLine : quoteLines) {
+            if (!Objects.equals(quoteLine.getCompanyId(), inquiry.getCompanyId())
+                    || !Objects.equals(quoteLine.getAccountBookId(), inquiry.getAccountBookId())
+                    || !Objects.equals(quoteLine.getInquiryId(), inquiry.getId())
+                    || !Objects.equals(quoteLine.getQuoteId(), quote.getId())
+                    || quoteLine.getDeletedFlag() == null
+                    || quoteLine.getDeletedFlag() != 0
+                    || !inquiryLineIds.contains(quoteLine.getInquiryLineId())) {
+                throw new IllegalArgumentException(incompleteLinesMessage);
+            }
+            QuoteLinePrice price = normalizeQuoteLinePrice(
+                    quoteLine.getInquiryLineId(),
+                    quoteLine.getUnitPrice(),
+                    quoteLine.getTaxRate(),
+                    missingPriceMessage
+            );
+            if (prices.putIfAbsent(quoteLine.getInquiryLineId(), price) != null) {
+                throw new IllegalArgumentException(incompleteLinesMessage);
+            }
+        }
+        if (!prices.keySet().equals(inquiryLineIds)) {
+            throw new IllegalArgumentException(incompleteLinesMessage);
+        }
+        return prices;
     }
 
     private LambdaQueryWrapper<PurchaseInquiryEntity> buildListQuery(AuditMetadata audit, PurchaseInquiryPageQuery query) {
@@ -488,6 +813,10 @@ public class PurchaseInquiryService {
                 entity.getStatus(),
                 entity.getSelectedSupplierId(),
                 entity.getSelectedQuoteId(),
+                entity.getConvertedOrderId(),
+                entity.getConvertedOrderNo(),
+                entity.getConvertedBy(),
+                entity.getConvertedTime(),
                 entity.getTitle(),
                 entity.getRemark(),
                 List.of(),
@@ -500,6 +829,11 @@ public class PurchaseInquiryService {
             List<PurchaseInquiryLineEntity> lines,
             List<PurchaseInquiryQuoteEntity> quotes
     ) {
+        Map<Long, List<PurchaseInquiryQuoteLineEntity>> quoteLinesByQuoteId = quotes.isEmpty()
+                ? Map.of()
+                : loadQuoteLines(entity).stream().collect(Collectors.groupingBy(
+                        PurchaseInquiryQuoteLineEntity::getQuoteId
+                ));
         return new PurchaseInquiryResponse(
                 entity.getId(),
                 entity.getInquiryNo(),
@@ -507,10 +841,19 @@ public class PurchaseInquiryService {
                 entity.getStatus(),
                 entity.getSelectedSupplierId(),
                 entity.getSelectedQuoteId(),
+                entity.getConvertedOrderId(),
+                entity.getConvertedOrderNo(),
+                entity.getConvertedBy(),
+                entity.getConvertedTime(),
                 entity.getTitle(),
                 entity.getRemark(),
                 lines.stream().map(this::toLineResponse).collect(Collectors.toList()),
-                quotes.stream().map(this::toQuoteResponse).collect(Collectors.toList())
+                quotes.stream()
+                        .map(quote -> toQuoteResponse(
+                                quote,
+                                quoteLinesByQuoteId.getOrDefault(quote.getId(), List.of())
+                        ))
+                        .collect(Collectors.toList())
         );
     }
 
@@ -524,14 +867,25 @@ public class PurchaseInquiryService {
         );
     }
 
-    private PurchaseInquiryQuoteResponse toQuoteResponse(PurchaseInquiryQuoteEntity quote) {
+    private PurchaseInquiryQuoteResponse toQuoteResponse(
+            PurchaseInquiryQuoteEntity quote,
+            List<PurchaseInquiryQuoteLineEntity> quoteLines
+    ) {
         return new PurchaseInquiryQuoteResponse(
                 quote.getId(),
                 quote.getSupplierId(),
                 quote.getUnitPrice(),
                 quote.getTaxRate(),
                 quote.getStatus(),
-                quote.getRemark()
+                quote.getRemark(),
+                quoteLines.stream()
+                        .map(line -> new PurchaseInquiryQuoteLineResponse(
+                                line.getId(),
+                                line.getInquiryLineId(),
+                                line.getUnitPrice(),
+                                line.getTaxRate()
+                        ))
+                        .toList()
         );
     }
 
@@ -548,5 +902,12 @@ public class PurchaseInquiryService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private record QuoteLinePrice(
+            Long inquiryLineId,
+            BigDecimal unitPrice,
+            BigDecimal taxRate
+    ) {
     }
 }

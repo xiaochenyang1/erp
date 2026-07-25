@@ -16,6 +16,9 @@ export interface PurchaseOrder {
   status: 'DRAFT' | 'SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CLOSED' | 'COMPLETED' | 'CANCELLED'
   approvalStatus?: 'NOT_SUBMITTED' | 'IN_APPROVAL' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | string
   receiptStatus?: 'NOT_RECEIVED' | 'PARTIAL_RECEIVED' | 'RECEIVED' | string
+  sourceInquiryId?: string | number | null
+  sourceInquiryNo?: string | null
+  sourceQuoteId?: string | number | null
   items: PurchaseOrderItem[]
   lines?: PurchaseOrderItem[]
   remark?: string
@@ -37,6 +40,8 @@ export interface PurchaseOrderItem {
   amount: number
   taxAmount?: number
   receivedQty?: number
+  sourceInquiryId?: string | number | null
+  sourceInquiryLineId?: string | number | null
   remark?: string
 }
 
@@ -218,7 +223,9 @@ const normalizePurchaseOrderLine = (item: PurchaseOrderItem): PurchaseOrderItem 
   taxRate: Number(item.taxRate ?? 0),
   amount: Number(item.amount ?? 0),
   taxAmount: Number(item.taxAmount ?? 0),
-  receivedQty: Number(item.receivedQty ?? 0)
+  receivedQty: Number(item.receivedQty ?? 0),
+  sourceInquiryId: item.sourceInquiryId != null ? String(item.sourceInquiryId) : item.sourceInquiryId,
+  sourceInquiryLineId: item.sourceInquiryLineId != null ? String(item.sourceInquiryLineId) : item.sourceInquiryLineId
 })
 
 const normalizePurchaseOrder = (order: PurchaseOrder): PurchaseOrder => {
@@ -227,6 +234,8 @@ const normalizePurchaseOrder = (order: PurchaseOrder): PurchaseOrder => {
     ...order,
     id: String(order.id),
     supplierId: String(order.supplierId),
+    sourceInquiryId: order.sourceInquiryId != null ? String(order.sourceInquiryId) : order.sourceInquiryId,
+    sourceQuoteId: order.sourceQuoteId != null ? String(order.sourceQuoteId) : order.sourceQuoteId,
     expectedDate: order.expectedDate || order.deliveryDate,
     totalAmount: Number(order.totalAmount ?? 0),
     totalTaxAmount: Number(order.totalTaxAmount ?? 0),
@@ -680,19 +689,31 @@ export interface PurchaseInquiryLine {
 export interface PurchaseInquiryQuote {
   id: string | number
   supplierId: string | number
-  unitPrice: number
-  taxRate: number
+  unitPrice?: number | null
+  taxRate?: number | null
   status: 'PENDING' | 'SELECTED' | string
   remark?: string
+  lines?: PurchaseInquiryQuoteLine[]
+}
+
+export interface PurchaseInquiryQuoteLine {
+  id: string | number
+  inquiryLineId: string | number
+  unitPrice: number
+  taxRate?: number | null
 }
 
 export interface PurchaseInquiry {
   id: string | number
   inquiryNo: string
   inquiryDate: string
-  status: 'DRAFT' | 'SUBMITTED' | 'CLOSED' | 'CANCELLED' | string
+  status: 'DRAFT' | 'SUBMITTED' | 'CLOSED' | 'CONVERTED' | 'CANCELLED' | string
   selectedSupplierId?: string | number | null
   selectedQuoteId?: string | number | null
+  convertedOrderId?: string | number | null
+  convertedOrderNo?: string | null
+  convertedBy?: string | number | null
+  convertedTime?: string | null
   title?: string
   remark?: string
   lines: PurchaseInquiryLine[]
@@ -715,9 +736,16 @@ export interface PurchaseInquirySaveRequest {
 
 export interface PurchaseInquiryQuoteRequest {
   supplierId: string | number
+  unitPrice?: number
+  taxRate?: number
+  lines?: PurchaseInquiryQuoteLineRequest[]
+  remark?: string
+}
+
+export interface PurchaseInquiryQuoteLineRequest {
+  inquiryLineId: string | number
   unitPrice: number
   taxRate?: number
-  remark?: string
 }
 
 export interface PurchaseInquiryPoPrefill {
@@ -746,8 +774,15 @@ const normalizeInquiryQuote = (quote: PurchaseInquiryQuote): PurchaseInquiryQuot
   ...quote,
   id: String(quote.id),
   supplierId: String(quote.supplierId),
-  unitPrice: Number(quote.unitPrice ?? 0),
-  taxRate: Number(quote.taxRate ?? 0)
+  unitPrice: quote.unitPrice != null ? Number(quote.unitPrice) : quote.unitPrice,
+  taxRate: quote.taxRate != null ? Number(quote.taxRate) : quote.taxRate,
+  lines: (quote.lines || []).map((line) => ({
+    ...line,
+    id: String(line.id),
+    inquiryLineId: String(line.inquiryLineId),
+    unitPrice: Number(line.unitPrice ?? 0),
+    taxRate: line.taxRate != null ? Number(line.taxRate) : line.taxRate
+  }))
 })
 
 const normalizeInquiry = (inquiry: PurchaseInquiry): PurchaseInquiry => ({
@@ -755,6 +790,8 @@ const normalizeInquiry = (inquiry: PurchaseInquiry): PurchaseInquiry => ({
   id: String(inquiry.id),
   selectedSupplierId: inquiry.selectedSupplierId != null ? String(inquiry.selectedSupplierId) : inquiry.selectedSupplierId,
   selectedQuoteId: inquiry.selectedQuoteId != null ? String(inquiry.selectedQuoteId) : inquiry.selectedQuoteId,
+  convertedOrderId: inquiry.convertedOrderId != null ? String(inquiry.convertedOrderId) : inquiry.convertedOrderId,
+  convertedBy: inquiry.convertedBy != null ? String(inquiry.convertedBy) : inquiry.convertedBy,
   lines: (inquiry.lines || []).map(normalizeInquiryLine),
   quotes: (inquiry.quotes || []).map(normalizeInquiryQuote)
 })
@@ -803,6 +840,12 @@ export const getPurchaseInquiryPoPrefill = (id: string | number) => {
       taxRate: Number(line.taxRate ?? 0)
     }))
   }))
+}
+
+export const convertPurchaseInquiryToPurchaseOrder = (id: string | number) => {
+  return request
+    .post<PurchaseOrder>(`/purchase/inquiries/${id}/convert-to-purchase-order`)
+    .then(normalizePurchaseOrder)
 }
 
 export const cancelPurchaseInquiry = (id: string | number) => {

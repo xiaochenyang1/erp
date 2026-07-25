@@ -12,6 +12,8 @@ public record PurchaseOrderLineResponse(
         BigDecimal amount,
         BigDecimal taxAmount,
         BigDecimal receivedQty,
+        Long sourceInquiryId,
+        Long sourceInquiryLineId,
         String remark
 ) {
 }

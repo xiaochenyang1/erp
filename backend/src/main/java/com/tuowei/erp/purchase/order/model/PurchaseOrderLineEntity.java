@@ -36,6 +36,10 @@ public class PurchaseOrderLineEntity {
 
     private BigDecimal receivedQty;
 
+    private Long sourceInquiryId;
+
+    private Long sourceInquiryLineId;
+
     private String remark;
 
     private Long createdBy;
@@ -143,6 +147,22 @@ public class PurchaseOrderLineEntity {
 
     public void setReceivedQty(BigDecimal receivedQty) {
         this.receivedQty = receivedQty;
+    }
+
+    public Long getSourceInquiryId() {
+        return sourceInquiryId;
+    }
+
+    public void setSourceInquiryId(Long sourceInquiryId) {
+        this.sourceInquiryId = sourceInquiryId;
+    }
+
+    public Long getSourceInquiryLineId() {
+        return sourceInquiryLineId;
+    }
+
+    public void setSourceInquiryLineId(Long sourceInquiryLineId) {
+        this.sourceInquiryLineId = sourceInquiryLineId;
     }
 
     public String getRemark() {

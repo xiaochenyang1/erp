@@ -1,6 +1,7 @@
 package com.tuowei.erp.purchase.inquiry.web;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public record PurchaseInquiryQuoteResponse(
         Long id,
@@ -8,6 +9,7 @@ public record PurchaseInquiryQuoteResponse(
         BigDecimal unitPrice,
         BigDecimal taxRate,
         String status,
-        String remark
+        String remark,
+        List<PurchaseInquiryQuoteLineResponse> lines
 ) {
 }

@@ -134,6 +134,22 @@ public class PurchaseOrderService {
 
     @Transactional
     public PurchaseOrderResponse create(PurchaseOrderCreateRequest request) {
+        return createInternal(request, null);
+    }
+
+    @Transactional
+    public PurchaseOrderResponse createFromInquiry(
+            PurchaseOrderCreateRequest request,
+            PurchaseOrderInquirySource source
+    ) {
+        requireValidInquirySource(request, source);
+        return createInternal(request, source);
+    }
+
+    private PurchaseOrderResponse createInternal(
+            PurchaseOrderCreateRequest request,
+            PurchaseOrderInquirySource source
+    ) {
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = requireActiveSupplier(request.supplierId(), audit.companyId(), audit.accountBookId());
         OrderTotals totals = calculateTotals(request.lines());
@@ -148,6 +164,12 @@ public class PurchaseOrderService {
         entity.setDeliveryDate(request.deliveryDate());
         entity.setStatus("DRAFT");
         entity.setApprovalStatus("NOT_SUBMITTED");
+        entity.setReceiptStatus("NOT_RECEIVED");
+        if (source != null) {
+            entity.setSourceInquiryId(source.inquiryId());
+            entity.setSourceInquiryNo(source.inquiryNo());
+            entity.setSourceQuoteId(source.quoteId());
+        }
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
@@ -160,7 +182,7 @@ public class PurchaseOrderService {
         entity.setVersion(0);
         purchaseOrderMapper.insert(entity);
 
-        List<PurchaseOrderLineEntity> lines = saveOrderLines(entity.getId(), request.lines(), audit, now);
+        List<PurchaseOrderLineEntity> lines = saveOrderLines(entity.getId(), request.lines(), audit, now, source);
 
         return toResponse(entity, supplier.getSupplierName(), lines);
     }
@@ -169,12 +191,23 @@ public class PurchaseOrderService {
     public PurchaseOrderResponse getById(Long id) {
         PurchaseOrderEntity entity = requireOrder(id);
         assertCanView(entity);
-        List<PurchaseOrderLineEntity> lines = purchaseOrderLineMapper.selectList(new LambdaQueryWrapper<PurchaseOrderLineEntity>()
-                .eq(PurchaseOrderLineEntity::getCompanyId, entity.getCompanyId())
-                .eq(PurchaseOrderLineEntity::getAccountBookId, entity.getAccountBookId())
-                .eq(PurchaseOrderLineEntity::getOrderId, id)
-                .orderByAsc(PurchaseOrderLineEntity::getLineNo));
+        List<PurchaseOrderLineEntity> lines = loadOrderLines(entity);
         return toResponse(entity, findSupplierName(entity.getSupplierId()), lines);
+    }
+
+    @Transactional(readOnly = true)
+    public PurchaseOrderResponse getBySourceInquiry(Long orderId, Long inquiryId) {
+        AuditMetadata audit = auditMetadataFactory.current();
+        PurchaseOrderEntity entity = purchaseOrderMapper.selectById(orderId);
+        if (entity == null
+                || entity.getDeletedFlag() == null
+                || entity.getDeletedFlag() != 0
+                || !Objects.equals(entity.getCompanyId(), audit.companyId())
+                || !Objects.equals(entity.getAccountBookId(), audit.accountBookId())
+                || !Objects.equals(entity.getSourceInquiryId(), inquiryId)) {
+            throw new IllegalArgumentException("询价单关联的采购订单不存在");
+        }
+        return toResponse(entity, findSupplierName(entity.getSupplierId()), loadOrderLines(entity));
     }
 
     @Transactional(readOnly = true)
@@ -257,6 +290,11 @@ public class PurchaseOrderService {
             throw new IllegalArgumentException("当前采购订单状态不允许编辑");
         }
 
+        PurchaseOrderInquirySource inquirySource = sourceForUpdate(entity, request.lines());
+        if (inquirySource != null && !Objects.equals(entity.getSupplierId(), request.supplierId())) {
+            throw new IllegalArgumentException("询价单生成的采购订单不允许变更供应商");
+        }
+
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = requireActiveSupplier(request.supplierId(), audit.companyId(), audit.accountBookId());
         OrderTotals totals = calculateTotals(request.lines());
@@ -278,7 +316,7 @@ public class PurchaseOrderService {
                 .eq(PurchaseOrderLineEntity::getAccountBookId, entity.getAccountBookId())
                 .eq(PurchaseOrderLineEntity::getOrderId, entity.getId()));
 
-        saveOrderLines(entity.getId(), request.lines(), audit, now);
+        saveOrderLines(entity.getId(), request.lines(), audit, now, inquirySource);
 
         return getById(id);
     }
@@ -425,7 +463,8 @@ public class PurchaseOrderService {
             Long orderId,
             List<PurchaseOrderLineRequest> lineRequests,
             AuditMetadata audit,
-            LocalDateTime now
+            LocalDateTime now,
+            PurchaseOrderInquirySource source
     ) {
         List<PurchaseOrderLineEntity> lines = new ArrayList<>();
         productValidator.requireProducts(
@@ -450,6 +489,10 @@ public class PurchaseOrderService {
             line.setTaxRate(amounts.taxRate());
             line.setAmount(amounts.amount());
             line.setTaxAmount(amounts.taxAmount());
+            if (source != null) {
+                line.setSourceInquiryId(source.inquiryId());
+                line.setSourceInquiryLineId(source.inquiryLineIds().get(i));
+            }
             line.setRemark(lineRequest.remark());
             line.setCreatedBy(audit.userId());
             line.setCreatedTime(now);
@@ -461,6 +504,55 @@ public class PurchaseOrderService {
         // 批量插入优化
         lines.forEach(purchaseOrderLineMapper::insert);
         return lines;
+    }
+
+    private void requireValidInquirySource(
+            PurchaseOrderCreateRequest request,
+            PurchaseOrderInquirySource source
+    ) {
+        if (source == null
+                || source.inquiryId() == null
+                || !StringUtils.hasText(source.inquiryNo())
+                || source.quoteId() == null
+                || source.inquiryLineIds() == null
+                || source.inquiryLineIds().size() != request.lines().size()
+                || source.inquiryLineIds().stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("询价单来源信息不完整");
+        }
+    }
+
+    private List<PurchaseOrderLineEntity> loadOrderLines(PurchaseOrderEntity entity) {
+        return purchaseOrderLineMapper.selectList(new LambdaQueryWrapper<PurchaseOrderLineEntity>()
+                .eq(PurchaseOrderLineEntity::getCompanyId, entity.getCompanyId())
+                .eq(PurchaseOrderLineEntity::getAccountBookId, entity.getAccountBookId())
+                .eq(PurchaseOrderLineEntity::getOrderId, entity.getId())
+                .orderByAsc(PurchaseOrderLineEntity::getLineNo));
+    }
+
+    private PurchaseOrderInquirySource sourceForUpdate(
+            PurchaseOrderEntity entity,
+            List<PurchaseOrderLineRequest> requestedLines
+    ) {
+        if (entity.getSourceInquiryId() == null) {
+            return null;
+        }
+        List<PurchaseOrderLineEntity> existingLines = loadOrderLines(entity);
+        if (existingLines.size() != requestedLines.size()) {
+            throw new IllegalArgumentException("询价单生成的采购订单不允许增删明细");
+        }
+        for (int i = 0; i < existingLines.size(); i++) {
+            PurchaseOrderLineEntity existing = existingLines.get(i);
+            if (!Objects.equals(existing.getProductId(), requestedLines.get(i).productId())
+                    || existing.getSourceInquiryLineId() == null) {
+                throw new IllegalArgumentException("询价单生成的采购订单不允许变更来源商品明细");
+            }
+        }
+        return new PurchaseOrderInquirySource(
+                entity.getSourceInquiryId(),
+                entity.getSourceInquiryNo(),
+                entity.getSourceQuoteId(),
+                existingLines.stream().map(PurchaseOrderLineEntity::getSourceInquiryLineId).toList()
+        );
     }
 
     private LambdaQueryWrapper<PurchaseOrderEntity> buildListQuery(
@@ -698,6 +790,9 @@ public class PurchaseOrderService {
                 entity.getStatus(),
                 entity.getApprovalStatus(),
                 entity.getReceiptStatus(),
+                entity.getSourceInquiryId(),
+                entity.getSourceInquiryNo(),
+                entity.getSourceQuoteId(),
                 entity.getTotalQuantity(),
                 entity.getTotalAmount(),
                 entity.getTotalTaxAmount(),
@@ -717,6 +812,9 @@ public class PurchaseOrderService {
                 entity.getStatus(),
                 entity.getApprovalStatus(),
                 entity.getReceiptStatus(),
+                entity.getSourceInquiryId(),
+                entity.getSourceInquiryNo(),
+                entity.getSourceQuoteId(),
                 entity.getTotalQuantity(),
                 entity.getTotalAmount(),
                 entity.getTotalTaxAmount(),
@@ -754,6 +852,8 @@ public class PurchaseOrderService {
                 entity.getAmount(),
                 entity.getTaxAmount(),
                 entity.getReceivedQty(),
+                entity.getSourceInquiryId(),
+                entity.getSourceInquiryLineId(),
                 entity.getRemark()
         );
     }

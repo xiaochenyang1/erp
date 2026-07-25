@@ -112,6 +112,7 @@ public class MybatisPlusConfig {
             "pur_inquiry",
             "pur_inquiry_line",
             "pur_inquiry_quote",
+            "pur_inquiry_quote_line",
             "md_sales_price"
     );
 

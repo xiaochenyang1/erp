@@ -35,6 +35,8 @@ class GlobalExceptionHandlerTest {
             "uk_inv_transfer_transfer_no, 库存调拨单号已存在",
             "uk_sys_sequence_rule_company_book_biz_type, 业务类型已存在",
             "uk_pur_order_company_book_order_no, 采购订单号已存在",
+            "uk_pur_order_company_book_source_inquiry, 询价单已转换为采购订单",
+            "uk_pur_inquiry_quote_line_company_book_quote_line, 报价明细不能重复提交询价行",
             "uk_inv_alert_rule_company_book_product_warehouse, 库存预警规则已存在",
             "uk_inv_balance_company_book_warehouse_product, 库存余额已存在",
             "uk_inv_txn_company_book_biz_line_direction_lot_key, 库存流水已存在",

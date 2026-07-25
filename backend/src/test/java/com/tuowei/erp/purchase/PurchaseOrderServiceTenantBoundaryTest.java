@@ -25,6 +25,7 @@ import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderNumberService;
+import com.tuowei.erp.purchase.order.service.PurchaseOrderInquirySource;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
@@ -149,6 +150,47 @@ class PurchaseOrderServiceTenantBoundaryTest {
         assertThatThrownBy(() -> service().create(createRequest()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("商品不存在或已停用");
+    }
+
+    @Test
+    void createFromInquiryPersistsHeaderAndLineProvenance() {
+        stubAudit();
+        when(supplierMapper.selectById(SUPPLIER_ID))
+                .thenReturn(activeSupplier(SUPPLIER_ID, AUDIT.companyId(), AUDIT.accountBookId()));
+        when(purchaseOrderNumberService.nextOrderNo(LocalDate.of(2026, 6, 8)))
+                .thenReturn("PO202606080001");
+        stubOrderInsert();
+        when(purchaseOrderLineMapper.insert(any(PurchaseOrderLineEntity.class))).thenAnswer(invocation -> {
+            PurchaseOrderLineEntity line = invocation.getArgument(0);
+            line.setId(4401L);
+            return 1;
+        });
+
+        var response = service().createFromInquiry(
+                createRequest(),
+                new PurchaseOrderInquirySource(5101L, "RFQ202606080001", 5201L, List.of(5301L))
+        );
+
+        ArgumentCaptor<PurchaseOrderEntity> orderCaptor = ArgumentCaptor.forClass(PurchaseOrderEntity.class);
+        verify(purchaseOrderMapper).insert(orderCaptor.capture());
+        PurchaseOrderEntity insertedOrder = orderCaptor.getValue();
+        assertThat(insertedOrder.getSourceInquiryId()).isEqualTo(5101L);
+        assertThat(insertedOrder.getSourceInquiryNo()).isEqualTo("RFQ202606080001");
+        assertThat(insertedOrder.getSourceQuoteId()).isEqualTo(5201L);
+        assertThat(insertedOrder.getReceiptStatus()).isEqualTo("NOT_RECEIVED");
+
+        ArgumentCaptor<PurchaseOrderLineEntity> lineCaptor = ArgumentCaptor.forClass(PurchaseOrderLineEntity.class);
+        verify(purchaseOrderLineMapper).insert(lineCaptor.capture());
+        assertThat(lineCaptor.getValue().getSourceInquiryId()).isEqualTo(5101L);
+        assertThat(lineCaptor.getValue().getSourceInquiryLineId()).isEqualTo(5301L);
+        assertThat(response.sourceInquiryId()).isEqualTo(5101L);
+        assertThat(response.sourceInquiryNo()).isEqualTo("RFQ202606080001");
+        assertThat(response.sourceQuoteId()).isEqualTo(5201L);
+        assertThat(response.lines()).singleElement()
+                .satisfies(line -> {
+                    assertThat(line.sourceInquiryId()).isEqualTo(5101L);
+                    assertThat(line.sourceInquiryLineId()).isEqualTo(5301L);
+                });
     }
 
     @Test

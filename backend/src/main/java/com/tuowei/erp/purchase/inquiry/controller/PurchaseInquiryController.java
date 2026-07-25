@@ -11,6 +11,7 @@ import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryResponse;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquirySelectQuoteRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryUpdateRequest;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
 import com.tuowei.erp.system.log.annotation.OperationLog;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -92,6 +93,19 @@ public class PurchaseInquiryController {
     @GetMapping("/{id}/po-prefill")
     public ApiResponse<PurchaseInquiryPoPrefillResponse> poPrefill(@PathVariable Long id) {
         return ApiResponse.success(purchaseInquiryService.poPrefill(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_PURCHASE_INQUIRY_MANAGE + " and "
+            + PermissionCodes.HAS_PURCHASE_ORDER_CREATE)
+    @OperationLog(
+            module = "purchase",
+            operation = "inquiry-convert-to-purchase-order",
+            message = "询价单转换采购订单",
+            bizNo = "#result.data.orderNo"
+    )
+    @PostMapping("/{id}/convert-to-purchase-order")
+    public ApiResponse<PurchaseOrderResponse> convertToPurchaseOrder(@PathVariable Long id) {
+        return ApiResponse.success(purchaseInquiryService.convertToPurchaseOrder(id));
     }
 
     @PreAuthorize(PermissionCodes.HAS_PURCHASE_INQUIRY_MANAGE)

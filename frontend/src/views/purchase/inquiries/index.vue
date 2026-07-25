@@ -2,26 +2,27 @@
   <div class="purchase-inquiry-page">
     <el-card shadow="never" class="search-card">
       <el-form :inline="true" :model="searchForm" @submit.prevent>
-        <el-form-item label="关键字">
+        <el-form-item :label="$t('purchaseInquiryOps.keyword')">
           <el-input
             v-model="searchForm.keyword"
-            placeholder="询价单号/标题"
+            :placeholder="$t('purchaseInquiryOps.placeholder.keyword')"
             clearable
             style="width: 180px"
             @keyup.enter="handleSearch"
           />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="searchForm.status" placeholder="全部" clearable style="width: 150px">
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="已提交" value="SUBMITTED" />
-            <el-option label="已关闭" value="CLOSED" />
-            <el-option label="已作废" value="CANCELLED" />
+        <el-form-item :label="$t('purchaseInquiryOps.statusLabel')">
+          <el-select v-model="searchForm.status" :placeholder="$t('purchaseInquiryOps.placeholder.all')" clearable style="width: 150px">
+            <el-option :label="$t('purchaseInquiryOps.status.draft')" value="DRAFT" />
+            <el-option :label="$t('purchaseInquiryOps.status.submitted')" value="SUBMITTED" />
+            <el-option :label="$t('purchaseInquiryOps.status.closed')" value="CLOSED" />
+            <el-option :label="$t('purchaseInquiryOps.status.converted')" value="CONVERTED" />
+            <el-option :label="$t('purchaseInquiryOps.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{ $t('purchaseInquiryOps.action.search') }}</el-button>
+          <el-button @click="handleReset">{{ $t('purchaseInquiryOps.action.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -29,76 +30,78 @@
     <el-card shadow="never" class="table-card">
       <div class="toolbar">
         <el-button v-permission="'purchase:inquiry:manage'" type="primary" :icon="Plus" @click="handleCreate">
-          新建询价单
+          {{ $t('purchaseInquiryOps.action.create') }}
         </el-button>
       </div>
 
       <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
-        <el-table-column prop="inquiryNo" label="询价单号" min-width="170" />
-        <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="inquiryDate" label="询价日期" width="120" />
-        <el-table-column label="状态" width="100">
+        <el-table-column prop="inquiryNo" :label="$t('purchaseInquiryOps.inquiryNo')" min-width="170" />
+        <el-table-column prop="title" :label="$t('purchaseInquiryOps.title')" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="inquiryDate" :label="$t('purchaseInquiryOps.inquiryDate')" width="120" />
+        <el-table-column :label="$t('purchaseInquiryOps.statusLabel')" width="100">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="中标供应商" min-width="160" show-overflow-tooltip>
+        <el-table-column :label="$t('purchaseInquiryOps.winningSupplier')" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
             {{ supplierLabel(row.selectedSupplierId) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="420" fixed="right">
+        <el-table-column prop="convertedOrderNo" :label="$t('purchaseInquiryOps.purchaseOrder')" min-width="160">
+          <template #default="{ row }">{{ row.convertedOrderNo || '-' }}</template>
+        </el-table-column>
+        <el-table-column :label="$t('purchaseInquiryOps.actions')" width="420" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleView(row)">详情</el-button>
+            <el-button link type="primary" @click="handleView(row)">{{ $t('purchaseInquiryOps.action.view') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'purchase:inquiry:manage'"
               link
               type="primary"
               @click="handleEdit(row)"
-            >编辑</el-button>
+            >{{ $t('purchaseInquiryOps.action.edit') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'purchase:inquiry:manage'"
               link
               type="primary"
               @click="handleSubmit(row)"
-            >提交</el-button>
+            >{{ $t('purchaseInquiryOps.action.submit') }}</el-button>
             <el-button
               v-if="row.status === 'SUBMITTED'"
               v-permission="'purchase:inquiry:manage'"
               link
               type="success"
               @click="handleAddQuote(row)"
-            >录入报价</el-button>
+            >{{ $t('purchaseInquiryOps.action.addQuote') }}</el-button>
             <el-button
               v-if="row.status === 'SUBMITTED'"
               v-permission="'purchase:inquiry:manage'"
               link
               type="warning"
               @click="handleSelectQuote(row)"
-            >选定中标</el-button>
+            >{{ $t('purchaseInquiryOps.action.selectWinner') }}</el-button>
             <el-button
-              v-if="row.status === 'CLOSED'"
-              v-permission="'purchase:order:create'"
+              v-if="row.status === 'CLOSED' && canConvertToPurchaseOrder"
               link
               type="primary"
               @click="handleCreatePo(row)"
-            >生成采购订单</el-button>
+            >{{ $t('purchaseInquiryOps.action.createPurchaseOrder') }}</el-button>
             <el-button
-              v-if="row.status === 'CLOSED'"
+              v-if="row.status === 'CLOSED' || row.status === 'CONVERTED'"
               v-permission="'purchase:inquiry:view'"
               link
               type="info"
               @click="handlePoPrefill(row)"
-            >查看预填</el-button>
+            >{{ $t('purchaseInquiryOps.action.viewPrefill') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT' || row.status === 'SUBMITTED'"
               v-permission="'purchase:inquiry:manage'"
               link
               type="danger"
               @click="handleCancel(row)"
-            >作废</el-button>
+            >{{ $t('purchaseInquiryOps.action.void') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -117,30 +120,30 @@
     </el-card>
 
     <!-- 新建/编辑 -->
-    <el-dialog v-model="formVisible" :title="editingId ? '编辑询价单' : '新建询价单'" width="820px" destroy-on-close>
+    <el-dialog v-model="formVisible" :title="$t(editingId ? 'purchaseInquiryOps.dialog.edit' : 'purchaseInquiryOps.dialog.create')" width="820px" destroy-on-close>
       <el-form :model="form" label-width="100px">
-        <el-form-item label="询价日期" required>
+        <el-form-item :label="$t('purchaseInquiryOps.inquiryDate')" required>
           <el-date-picker v-model="form.inquiryDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="标题">
+        <el-form-item :label="$t('purchaseInquiryOps.title')">
           <el-input v-model="form.title" maxlength="128" />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('purchaseInquiryOps.remark')">
           <el-input v-model="form.remark" type="textarea" :rows="2" maxlength="255" />
         </el-form-item>
       </el-form>
       <div class="dialog-sub">
-        明细
-        <el-button link type="primary" @click="addLine">添加行</el-button>
+        {{ $t('purchaseInquiryOps.details') }}
+        <el-button link type="primary" @click="addLine">{{ $t('purchaseInquiryOps.action.addLine') }}</el-button>
       </div>
       <el-table :data="form.lines" border size="small">
-        <el-table-column label="商品" min-width="240">
+        <el-table-column :label="$t('purchaseInquiryOps.product')" min-width="240">
           <template #default="{ row }">
             <el-select
               v-model="row.productId"
               filterable
               clearable
-              placeholder="选择商品"
+              :placeholder="$t('purchaseInquiryOps.placeholder.product')"
               style="width: 100%"
               :loading="optionsLoading"
             >
@@ -153,37 +156,37 @@
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column label="数量" width="140">
+        <el-table-column :label="$t('purchaseInquiryOps.quantity')" width="140">
           <template #default="{ row }">
             <el-input-number v-model="row.qty" :min="0.0001" :precision="4" :controls="false" style="width: 100%" />
           </template>
         </el-table-column>
-        <el-table-column label="备注" min-width="140">
+        <el-table-column :label="$t('purchaseInquiryOps.remark')" min-width="140">
           <template #default="{ row }">
             <el-input v-model="row.remark" maxlength="255" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="80">
+        <el-table-column :label="$t('purchaseInquiryOps.actions')" width="80">
           <template #default="{ $index }">
-            <el-button link type="danger" @click="removeLine($index)">删除</el-button>
+            <el-button link type="danger" @click="removeLine($index)">{{ $t('purchaseInquiryOps.action.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
       <template #footer>
-        <el-button @click="formVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="confirmSave">保存</el-button>
+        <el-button @click="formVisible = false">{{ $t('purchaseInquiryOps.action.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="confirmSave">{{ $t('purchaseInquiryOps.action.save') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 录入报价 -->
-    <el-dialog v-model="quoteVisible" title="录入供应商报价" width="520px">
+    <el-dialog v-model="quoteVisible" :title="$t('purchaseInquiryOps.dialog.addQuote')" width="860px">
       <el-form :model="quoteForm" label-width="100px">
-        <el-form-item label="供应商" required>
+        <el-form-item :label="$t('purchaseInquiryOps.supplier')" required>
           <el-select
             v-model="quoteForm.supplierId"
             filterable
             clearable
-            placeholder="选择供应商"
+            :placeholder="$t('purchaseInquiryOps.placeholder.supplier')"
             style="width: 100%"
             :loading="optionsLoading"
           >
@@ -195,116 +198,156 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="单价" required>
-          <el-input-number v-model="quoteForm.unitPrice" :min="0" :precision="2" :controls="false" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="税率(%)">
-          <el-input-number v-model="quoteForm.taxRate" :min="0" :precision="4" :controls="false" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('purchaseInquiryOps.remark')">
           <el-input v-model="quoteForm.remark" maxlength="255" />
         </el-form-item>
       </el-form>
+      <div class="dialog-sub">{{ $t('purchaseInquiryOps.lineQuotes') }}</div>
+      <el-table :data="quoteForm.lines" border size="small">
+        <el-table-column :label="$t('purchaseInquiryOps.product')" min-width="220">
+          <template #default="{ row }">{{ productLabelById(row.productId) }}</template>
+        </el-table-column>
+        <el-table-column prop="qty" :label="$t('purchaseInquiryOps.inquiryQuantity')" width="110" align="right" />
+        <el-table-column :label="$t('purchaseInquiryOps.unitPrice')" width="160">
+          <template #default="{ row }">
+            <el-input-number v-model="row.unitPrice" :min="0" :precision="2" :controls="false" style="width: 100%" />
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('purchaseInquiryOps.taxRatePercent')" width="160">
+          <template #default="{ row }">
+            <el-input-number v-model="row.taxRate" :min="0" :precision="4" :controls="false" style="width: 100%" />
+          </template>
+        </el-table-column>
+      </el-table>
       <template #footer>
-        <el-button @click="quoteVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="confirmQuote">确定</el-button>
+        <el-button @click="quoteVisible = false">{{ $t('purchaseInquiryOps.action.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="confirmQuote">{{ $t('purchaseInquiryOps.action.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 选定中标 -->
-    <el-dialog v-model="selectVisible" title="选定中标报价" width="760px">
+    <el-dialog v-model="selectVisible" :title="$t('purchaseInquiryOps.dialog.selectQuote')" width="760px">
       <el-table :data="selectQuotes" border size="small" highlight-current-row @current-change="onSelectQuoteRow">
-        <el-table-column prop="id" label="报价ID" min-width="150" />
-        <el-table-column label="供应商" min-width="160">
+        <el-table-column prop="id" :label="$t('purchaseInquiryOps.quoteId')" min-width="150" />
+        <el-table-column :label="$t('purchaseInquiryOps.supplier')" min-width="160">
           <template #default="{ row }">{{ supplierLabel(row.supplierId) }}</template>
         </el-table-column>
-        <el-table-column prop="unitPrice" label="单价" width="100" align="right" />
-        <el-table-column prop="taxRate" label="税率%" width="100" align="right" />
-        <el-table-column prop="status" label="状态" width="100" />
-        <el-table-column prop="remark" label="备注" min-width="120" />
+        <el-table-column :label="$t('purchaseInquiryOps.lineQuotes')" min-width="360">
+          <template #default="{ row }">
+            <div v-if="row.lines?.length" class="quote-line-list">
+              <div v-for="line in row.lines" :key="line.id" class="quote-line-row">
+                <span>{{ inquiryLineProductLabel(line.inquiryLineId, selectInquiryLines) }}</span>
+                <span class="quote-line-meta">{{ $t('purchaseInquiryOps.lineQuoteSummary', { price: line.unitPrice, rate: line.taxRate ?? 0 }) }}</span>
+              </div>
+            </div>
+            <div v-else class="quote-line-meta">
+              {{ $t('purchaseInquiryOps.legacyQuoteSummary', { price: row.unitPrice ?? '-', rate: row.taxRate ?? 0 }) }}
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" :label="$t('purchaseInquiryOps.statusLabel')" width="100">
+          <template #default="{ row }">{{ quoteStatusText(row.status) }}</template>
+        </el-table-column>
+        <el-table-column prop="remark" :label="$t('purchaseInquiryOps.remark')" min-width="120" />
       </el-table>
       <template #footer>
-        <el-button @click="selectVisible = false">取消</el-button>
-        <el-button type="warning" :loading="submitting" @click="confirmSelectQuote">确认选定</el-button>
+        <el-button @click="selectVisible = false">{{ $t('purchaseInquiryOps.action.cancel') }}</el-button>
+        <el-button type="warning" :loading="submitting" @click="confirmSelectQuote">{{ $t('purchaseInquiryOps.action.confirmSelection') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 详情 -->
-    <el-dialog v-model="detailVisible" title="询价单详情" width="860px">
+    <el-dialog v-model="detailVisible" :title="$t('purchaseInquiryOps.dialog.detail')" width="860px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="询价单号">{{ current?.inquiryNo }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="$t('purchaseInquiryOps.inquiryNo')">{{ current?.inquiryNo }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.statusLabel')">
           <el-tag v-if="current" :type="statusType(current.status)">{{ statusText(current.status) }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="询价日期">{{ current?.inquiryDate }}</el-descriptions-item>
-        <el-descriptions-item label="标题">{{ current?.title || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="中标供应商">{{ supplierLabel(current?.selectedSupplierId) }}</el-descriptions-item>
-        <el-descriptions-item label="中标报价">{{ current?.selectedQuoteId || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ current?.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.inquiryDate')">{{ current?.inquiryDate }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.title')">{{ current?.title || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.winningSupplier')">{{ supplierLabel(current?.selectedSupplierId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.winningQuote')">{{ current?.selectedQuoteId || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.purchaseOrder')">{{ current?.convertedOrderNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.convertedTime')">{{ current?.convertedTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.remark')" :span="2">{{ current?.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
-      <div class="dialog-sub">明细</div>
+      <div class="dialog-sub">{{ $t('purchaseInquiryOps.details') }}</div>
       <el-table :data="current?.lines || []" border size="small">
-        <el-table-column prop="lineNo" label="行" width="60" />
-        <el-table-column label="商品" min-width="200">
+        <el-table-column prop="lineNo" :label="$t('purchaseInquiryOps.lineNo')" width="60" />
+        <el-table-column :label="$t('purchaseInquiryOps.product')" min-width="200">
           <template #default="{ row }">{{ productLabelById(row.productId) }}</template>
         </el-table-column>
-        <el-table-column prop="qty" label="数量" width="120" align="right" />
-        <el-table-column prop="remark" label="备注" min-width="140" />
+        <el-table-column prop="qty" :label="$t('purchaseInquiryOps.quantity')" width="120" align="right" />
+        <el-table-column prop="remark" :label="$t('purchaseInquiryOps.remark')" min-width="140" />
       </el-table>
-      <div class="dialog-sub">报价</div>
+      <div class="dialog-sub">{{ $t('purchaseInquiryOps.quotes') }}</div>
       <el-table :data="current?.quotes || []" border size="small">
-        <el-table-column prop="id" label="报价ID" min-width="150" />
-        <el-table-column label="供应商" min-width="160">
+        <el-table-column prop="id" :label="$t('purchaseInquiryOps.quoteId')" min-width="150" />
+        <el-table-column :label="$t('purchaseInquiryOps.supplier')" min-width="160">
           <template #default="{ row }">{{ supplierLabel(row.supplierId) }}</template>
         </el-table-column>
-        <el-table-column prop="unitPrice" label="单价" width="100" align="right" />
-        <el-table-column prop="taxRate" label="税率%" width="100" align="right" />
-        <el-table-column prop="status" label="状态" width="100" />
+        <el-table-column :label="$t('purchaseInquiryOps.lineQuotes')" min-width="360">
+          <template #default="{ row }">
+            <div v-if="row.lines?.length" class="quote-line-list">
+              <div v-for="line in row.lines" :key="line.id" class="quote-line-row">
+                <span>{{ inquiryLineProductLabel(line.inquiryLineId, current?.lines || []) }}</span>
+                <span class="quote-line-meta">{{ $t('purchaseInquiryOps.lineQuoteSummary', { price: line.unitPrice, rate: line.taxRate ?? 0 }) }}</span>
+              </div>
+            </div>
+            <div v-else class="quote-line-meta">
+              {{ $t('purchaseInquiryOps.legacyQuoteSummary', { price: row.unitPrice ?? '-', rate: row.taxRate ?? 0 }) }}
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" :label="$t('purchaseInquiryOps.statusLabel')" width="100">
+          <template #default="{ row }">{{ quoteStatusText(row.status) }}</template>
+        </el-table-column>
       </el-table>
     </el-dialog>
 
     <!-- PO 预填 -->
-    <el-dialog v-model="prefillVisible" title="采购订单预填数据" width="760px">
+    <el-dialog v-model="prefillVisible" :title="$t('purchaseInquiryOps.dialog.prefill')" width="760px">
       <el-alert
         type="info"
         :closable="false"
         show-icon
-        title="可一键创建采购订单草稿，或复制 JSON 到其它系统。"
+        :title="$t('purchaseInquiryOps.prefillNotice')"
         style="margin-bottom: 12px"
       />
       <el-descriptions v-if="prefill" :column="2" border>
-        <el-descriptions-item label="询价单号">{{ prefill.inquiryNo }}</el-descriptions-item>
-        <el-descriptions-item label="供应商">{{ supplierLabel(prefill.supplierId) }}</el-descriptions-item>
-        <el-descriptions-item label="订单日期">{{ prefill.orderDate }}</el-descriptions-item>
-        <el-descriptions-item label="备注">{{ prefill.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.inquiryNo')">{{ prefill.inquiryNo }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.supplier')">{{ supplierLabel(prefill.supplierId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.orderDate')">{{ prefill.orderDate }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('purchaseInquiryOps.remark')">{{ prefill.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
       <el-table :data="prefill?.lines || []" border size="small" style="margin-top: 12px">
-        <el-table-column label="商品" min-width="180">
+        <el-table-column :label="$t('purchaseInquiryOps.product')" min-width="180">
           <template #default="{ row }">{{ productLabelById(row.productId) }}</template>
         </el-table-column>
-        <el-table-column prop="qty" label="数量" width="110" align="right" />
-        <el-table-column prop="price" label="单价" width="110" align="right" />
-        <el-table-column prop="taxRate" label="税率%" width="110" align="right" />
-        <el-table-column prop="remark" label="备注" min-width="120" />
+        <el-table-column prop="qty" :label="$t('purchaseInquiryOps.quantity')" width="110" align="right" />
+        <el-table-column prop="price" :label="$t('purchaseInquiryOps.unitPrice')" width="110" align="right" />
+        <el-table-column prop="taxRate" :label="$t('purchaseInquiryOps.taxRatePercent')" width="110" align="right" />
+        <el-table-column prop="remark" :label="$t('purchaseInquiryOps.remark')" min-width="120" />
       </el-table>
       <template #footer>
-        <el-button @click="copyPrefill">复制 JSON</el-button>
+        <el-button @click="copyPrefill">{{ $t('purchaseInquiryOps.action.copyJson') }}</el-button>
         <el-button
-          v-permission="'purchase:order:create'"
+          v-if="canConvertToPurchaseOrder && prefillConversionAvailable"
           type="primary"
           :loading="creatingPo"
           @click="confirmCreatePoFromPrefill"
         >
-          创建采购订单草稿
+          {{ $t('purchaseInquiryOps.action.createOrderDraft') }}
         </el-button>
-        <el-button @click="prefillVisible = false">关闭</el-button>
+        <el-button @click="prefillVisible = false">{{ $t('purchaseInquiryOps.action.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -316,14 +359,18 @@ import {
   addPurchaseInquiryQuote,
   selectPurchaseInquiryQuote,
   getPurchaseInquiryPoPrefill,
+  convertPurchaseInquiryToPurchaseOrder,
   cancelPurchaseInquiry,
-  createPurchaseOrder,
   type PurchaseInquiry,
+  type PurchaseInquiryLine,
   type PurchaseInquiryQuery,
   type PurchaseInquiryQuote,
   type PurchaseInquiryPoPrefill
 } from '@/api/purchase'
 import { getProducts, getSuppliers, type Product, type Supplier } from '@/api/masterdata'
+import { useUserStore } from '@/store/modules/user'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -334,6 +381,10 @@ const total = ref(0)
 const current = ref<PurchaseInquiry>()
 const products = ref<Product[]>([])
 const suppliers = ref<Supplier[]>([])
+const userStore = useUserStore()
+const canConvertToPurchaseOrder = computed(() =>
+  userStore.hasPermission('purchase:inquiry:manage')
+  && userStore.hasPermission('purchase:order:create'))
 
 const searchForm = reactive<PurchaseInquiryQuery>({
   pageNo: 1,
@@ -343,10 +394,23 @@ const searchForm = reactive<PurchaseInquiryQuery>({
 })
 
 const statusText = (status: string) =>
-  ({ DRAFT: '草稿', SUBMITTED: '已提交', CLOSED: '已关闭', CANCELLED: '已作废' }[status] || status)
+  ({
+    DRAFT: t('purchaseInquiryOps.status.draft'),
+    SUBMITTED: t('purchaseInquiryOps.status.submitted'),
+    CLOSED: t('purchaseInquiryOps.status.closed'),
+    CONVERTED: t('purchaseInquiryOps.status.converted'),
+    CANCELLED: t('purchaseInquiryOps.status.cancelled')
+  }[status] || status)
+
+const quoteStatusText = (status: string) =>
+  ({
+    PENDING: t('purchaseInquiryOps.quoteStatus.pending'),
+    SELECTED: t('purchaseInquiryOps.quoteStatus.selected'),
+    REJECTED: t('purchaseInquiryOps.quoteStatus.rejected')
+  }[status] || status)
 
 const statusType = (status: string) =>
-  ({ DRAFT: 'info', SUBMITTED: 'warning', CLOSED: 'success', CANCELLED: 'danger' }[status] || 'info') as
+  ({ DRAFT: 'info', SUBMITTED: 'warning', CLOSED: 'success', CONVERTED: 'success', CANCELLED: 'danger' }[status] || 'info') as
     | 'info'
     | 'warning'
     | 'success'
@@ -368,6 +432,16 @@ const supplierLabel = (supplierId?: string | number | null) => {
   if (supplierId == null || supplierId === '') return '-'
   const found = suppliers.value.find((item) => String(item.id) === String(supplierId))
   return found ? supplierLabelByEntity(found) : String(supplierId)
+}
+
+const inquiryLineProductLabel = (
+  inquiryLineId: string | number,
+  inquiryLines: PurchaseInquiryLine[]
+) => {
+  const line = inquiryLines.find((item) => String(item.id) === String(inquiryLineId))
+  return line
+    ? productLabelById(line.productId)
+    : t('purchaseInquiryOps.inquiryLineFallback', { id: String(inquiryLineId) })
 }
 
 const loadOptions = async () => {
@@ -458,7 +532,7 @@ const addLine = () => {
 
 const removeLine = (index: number) => {
   if (form.lines.length <= 1) {
-    ElMessage.warning('至少保留一行明细')
+    ElMessage.warning(t('purchaseInquiryOps.validation.keepOneLine'))
     return
   }
   form.lines.splice(index, 1)
@@ -494,7 +568,7 @@ const handleEdit = async (row: PurchaseInquiry) => {
 
 const confirmSave = async () => {
   if (!form.inquiryDate) {
-    ElMessage.warning('请选择询价日期')
+    ElMessage.warning(t('purchaseInquiryOps.validation.inquiryDate'))
     return
   }
   const lines = form.lines
@@ -505,11 +579,11 @@ const confirmSave = async () => {
       remark: line.remark || undefined
     }))
   if (!lines.length) {
-    ElMessage.warning('请至少选择一行商品明细')
+    ElMessage.warning(t('purchaseInquiryOps.validation.lineRequired'))
     return
   }
   if (lines.some((line) => !line.qty || line.qty <= 0)) {
-    ElMessage.warning('数量必须大于 0')
+    ElMessage.warning(t('purchaseInquiryOps.validation.quantityPositive'))
     return
   }
   submitting.value = true
@@ -522,13 +596,13 @@ const confirmSave = async () => {
     }
     if (editingId.value) {
       await updatePurchaseInquiry(editingId.value, payload)
-      ElMessage.success('保存成功')
+      ElMessage.success(t('purchaseInquiryOps.message.saved'))
     } else {
       await createPurchaseInquiry(payload)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('purchaseInquiryOps.message.created'))
     }
     formVisible.value = false
-    loadData()
+    await loadData()
   } catch {
     // 拦截器已提示
   } finally {
@@ -539,14 +613,22 @@ const confirmSave = async () => {
 // ---- 提交/作废 ----
 const handleSubmit = async (row: PurchaseInquiry) => {
   try {
-    await ElMessageBox.confirm(`确认提交询价单「${row.inquiryNo}」吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('purchaseInquiryOps.message.submitConfirm', { no: row.inquiryNo }),
+      t('purchaseInquiryOps.prompt'),
+      {
+        type: 'warning',
+        confirmButtonText: t('purchaseInquiryOps.action.confirm'),
+        cancelButtonText: t('purchaseInquiryOps.action.cancel')
+      }
+    )
   } catch {
     return
   }
   try {
     await submitPurchaseInquiry(row.id)
-    ElMessage.success('已提交')
-    loadData()
+    ElMessage.success(t('purchaseInquiryOps.message.submitted'))
+    await loadData()
   } catch {
     // 拦截器已提示
   }
@@ -554,13 +636,21 @@ const handleSubmit = async (row: PurchaseInquiry) => {
 
 const handleCancel = async (row: PurchaseInquiry) => {
   try {
-    await ElMessageBox.confirm(`确认作废询价单「${row.inquiryNo}」吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('purchaseInquiryOps.message.voidConfirm', { no: row.inquiryNo }),
+      t('purchaseInquiryOps.prompt'),
+      {
+        type: 'warning',
+        confirmButtonText: t('purchaseInquiryOps.action.confirm'),
+        cancelButtonText: t('purchaseInquiryOps.action.cancel')
+      }
+    )
   } catch {
     return
   }
   try {
     await cancelPurchaseInquiry(row.id)
-    ElMessage.success('已作废')
+    ElMessage.success(t('purchaseInquiryOps.message.voided'))
     loadData()
   } catch {
     // 拦截器已提示
@@ -570,42 +660,80 @@ const handleCancel = async (row: PurchaseInquiry) => {
 // ---- 报价 ----
 const quoteVisible = ref(false)
 const quoteInquiryId = ref<string | number | null>(null)
-const quoteForm = reactive({
+const quoteForm = reactive<{
+  supplierId: string
+  remark: string
+  lines: Array<{
+    inquiryLineId: string
+    productId: string
+    qty: number
+    unitPrice: number
+    taxRate: number
+  }>
+}>({
   supplierId: '',
-  unitPrice: 0,
-  taxRate: 13,
-  remark: ''
+  remark: '',
+  lines: []
 })
 
 const handleAddQuote = async (row: PurchaseInquiry) => {
-  await loadOptions()
-  quoteInquiryId.value = row.id
-  quoteForm.supplierId = ''
-  quoteForm.unitPrice = 0
-  quoteForm.taxRate = 13
-  quoteForm.remark = ''
-  quoteVisible.value = true
+  try {
+    await loadOptions()
+    const detail = await getPurchaseInquiry(row.id)
+    if ((detail.lines || []).some((line) => line.id == null)) {
+      ElMessage.error(t('purchaseInquiryOps.validation.lineIdMissing'))
+      return
+    }
+    quoteInquiryId.value = detail.id
+    quoteForm.supplierId = ''
+    quoteForm.remark = ''
+    quoteForm.lines = (detail.lines || []).map((line) => ({
+      inquiryLineId: String(line.id),
+      productId: String(line.productId),
+      qty: Number(line.qty ?? 0),
+      unitPrice: 0,
+      taxRate: 13
+    }))
+    if (!quoteForm.lines.length) {
+      ElMessage.warning(t('purchaseInquiryOps.validation.noQuotableLines'))
+      return
+    }
+    quoteVisible.value = true
+  } catch {
+    // 拦截器已提示
+  }
 }
 
 const confirmQuote = async () => {
   if (!quoteInquiryId.value) return
   if (!String(quoteForm.supplierId || '').trim()) {
-    ElMessage.warning('请选择供应商')
+    ElMessage.warning(t('purchaseInquiryOps.validation.supplier'))
     return
   }
-  if (quoteForm.unitPrice == null || quoteForm.unitPrice < 0) {
-    ElMessage.warning('请填写单价')
+  if (!quoteForm.lines.length) {
+    ElMessage.warning(t('purchaseInquiryOps.validation.noQuotableLines'))
+    return
+  }
+  if (quoteForm.lines.some((line) => !Number.isFinite(Number(line.unitPrice)) || Number(line.unitPrice) < 0)) {
+    ElMessage.warning(t('purchaseInquiryOps.validation.lineUnitPrice'))
+    return
+  }
+  if (quoteForm.lines.some((line) => !Number.isFinite(Number(line.taxRate)) || Number(line.taxRate) < 0)) {
+    ElMessage.warning(t('purchaseInquiryOps.validation.taxRate'))
     return
   }
   submitting.value = true
   try {
     await addPurchaseInquiryQuote(quoteInquiryId.value, {
       supplierId: quoteForm.supplierId,
-      unitPrice: quoteForm.unitPrice,
-      taxRate: quoteForm.taxRate,
+      lines: quoteForm.lines.map((line) => ({
+        inquiryLineId: line.inquiryLineId,
+        unitPrice: Number(line.unitPrice),
+        taxRate: Number(line.taxRate)
+      })),
       remark: quoteForm.remark || undefined
     })
-    ElMessage.success('报价已录入')
+    ElMessage.success(t('purchaseInquiryOps.message.quoteAdded'))
     quoteVisible.value = false
     loadData()
   } catch {
@@ -619,6 +747,7 @@ const confirmQuote = async () => {
 const selectVisible = ref(false)
 const selectInquiryId = ref<string | number | null>(null)
 const selectQuotes = ref<PurchaseInquiryQuote[]>([])
+const selectInquiryLines = ref<PurchaseInquiryLine[]>([])
 const selectedQuoteId = ref<string | number | null>(null)
 
 const handleSelectQuote = async (row: PurchaseInquiry) => {
@@ -626,10 +755,11 @@ const handleSelectQuote = async (row: PurchaseInquiry) => {
     await loadOptions()
     const detail = await getPurchaseInquiry(row.id)
     selectInquiryId.value = detail.id
+    selectInquiryLines.value = detail.lines || []
     selectQuotes.value = (detail.quotes || []).filter((q) => q.status === 'PENDING')
     selectedQuoteId.value = null
     if (!selectQuotes.value.length) {
-      ElMessage.warning('暂无待选报价，请先录入')
+      ElMessage.warning(t('purchaseInquiryOps.validation.noPendingQuotes'))
       return
     }
     selectVisible.value = true
@@ -644,13 +774,13 @@ const onSelectQuoteRow = (row: PurchaseInquiryQuote | undefined) => {
 
 const confirmSelectQuote = async () => {
   if (!selectInquiryId.value || !selectedQuoteId.value) {
-    ElMessage.warning('请先点选一条报价')
+    ElMessage.warning(t('purchaseInquiryOps.validation.selectQuote'))
     return
   }
   submitting.value = true
   try {
     await selectPurchaseInquiryQuote(selectInquiryId.value, selectedQuoteId.value)
-    ElMessage.success('已选定中标报价')
+    ElMessage.success(t('purchaseInquiryOps.message.winnerSelected'))
     selectVisible.value = false
     loadData()
   } catch {
@@ -675,6 +805,7 @@ const handleView = async (row: PurchaseInquiry) => {
 const prefillVisible = ref(false)
 const prefill = ref<PurchaseInquiryPoPrefill>()
 const prefillInquiryId = ref<string | number | null>(null)
+const prefillConversionAvailable = ref(false)
 
 const loadPrefill = async (inquiryId: string | number) => {
   prefillInquiryId.value = inquiryId
@@ -684,6 +815,7 @@ const loadPrefill = async (inquiryId: string | number) => {
 const handlePoPrefill = async (row: PurchaseInquiry) => {
   try {
     await loadOptions()
+    prefillConversionAvailable.value = row.status === 'CLOSED'
     await loadPrefill(row.id)
     prefillVisible.value = true
   } catch {
@@ -707,12 +839,13 @@ const buildPoPayloadFromPrefill = (source: PurchaseInquiryPoPrefill) => ({
 })
 
 const confirmCreatePoFromPrefill = async () => {
-  if (!prefill.value) return
+  if (!prefill.value || !prefillInquiryId.value) return
   creatingPo.value = true
   try {
-    const order = await createPurchaseOrder(buildPoPayloadFromPrefill(prefill.value))
-    ElMessage.success(`已创建采购订单草稿 ${order.orderNo}`)
+    const order = await convertPurchaseInquiryToPurchaseOrder(prefillInquiryId.value)
+    ElMessage.success(t('purchaseInquiryOps.message.orderCreated', { no: order.orderNo }))
     prefillVisible.value = false
+    await loadData()
   } catch {
     // 拦截器已提示
   } finally {
@@ -723,20 +856,22 @@ const confirmCreatePoFromPrefill = async () => {
 const handleCreatePo = async (row: PurchaseInquiry) => {
   try {
     await ElMessageBox.confirm(
-      `确认根据询价单「${row.inquiryNo}」创建采购订单草稿吗？`,
-      '生成采购订单',
-      { type: 'warning' }
+      t('purchaseInquiryOps.message.createOrderConfirm', { no: row.inquiryNo }),
+      t('purchaseInquiryOps.dialog.createPurchaseOrder'),
+      {
+        type: 'warning',
+        confirmButtonText: t('purchaseInquiryOps.action.confirm'),
+        cancelButtonText: t('purchaseInquiryOps.action.cancel')
+      }
     )
   } catch {
     return
   }
   creatingPo.value = true
   try {
-    await loadOptions()
-    const source = await getPurchaseInquiryPoPrefill(row.id)
-    const order = await createPurchaseOrder(buildPoPayloadFromPrefill(source))
-    ElMessage.success(`已创建采购订单草稿 ${order.orderNo}`)
-    loadData()
+    const order = await convertPurchaseInquiryToPurchaseOrder(row.id)
+    ElMessage.success(t('purchaseInquiryOps.message.orderCreated', { no: order.orderNo }))
+    await loadData()
   } catch {
     // 拦截器已提示
   } finally {
@@ -749,9 +884,9 @@ const copyPrefill = async () => {
   const payload = buildPoPayloadFromPrefill(prefill.value)
   try {
     await navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
-    ElMessage.success('已复制到剪贴板')
+    ElMessage.success(t('purchaseInquiryOps.message.copied'))
   } catch {
-    ElMessage.error('复制失败，请手动选择文本')
+    ElMessage.error(t('purchaseInquiryOps.message.copyFailed'))
   }
 }
 
@@ -766,6 +901,20 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.quote-line-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.quote-line-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.quote-line-meta {
+  color: #606266;
+  white-space: nowrap;
 }
 .search-card :deep(.el-card__body),
 .table-card :deep(.el-card__body) {

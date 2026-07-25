@@ -20,6 +20,10 @@ public class PurchaseInquiryEntity {
     private String status;
     private Long selectedSupplierId;
     private Long selectedQuoteId;
+    private Long convertedOrderId;
+    private String convertedOrderNo;
+    private Long convertedBy;
+    private LocalDateTime convertedTime;
     private String title;
     private Integer deletedFlag;
     private String remark;
@@ -46,6 +50,14 @@ public class PurchaseInquiryEntity {
     public void setSelectedSupplierId(Long selectedSupplierId) { this.selectedSupplierId = selectedSupplierId; }
     public Long getSelectedQuoteId() { return selectedQuoteId; }
     public void setSelectedQuoteId(Long selectedQuoteId) { this.selectedQuoteId = selectedQuoteId; }
+    public Long getConvertedOrderId() { return convertedOrderId; }
+    public void setConvertedOrderId(Long convertedOrderId) { this.convertedOrderId = convertedOrderId; }
+    public String getConvertedOrderNo() { return convertedOrderNo; }
+    public void setConvertedOrderNo(String convertedOrderNo) { this.convertedOrderNo = convertedOrderNo; }
+    public Long getConvertedBy() { return convertedBy; }
+    public void setConvertedBy(Long convertedBy) { this.convertedBy = convertedBy; }
+    public LocalDateTime getConvertedTime() { return convertedTime; }
+    public void setConvertedTime(LocalDateTime convertedTime) { this.convertedTime = convertedTime; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public Integer getDeletedFlag() { return deletedFlag; }

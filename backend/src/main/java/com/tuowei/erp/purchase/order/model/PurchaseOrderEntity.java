@@ -33,6 +33,12 @@ public class PurchaseOrderEntity {
 
     private String receiptStatus;
 
+    private Long sourceInquiryId;
+
+    private String sourceInquiryNo;
+
+    private Long sourceQuoteId;
+
     private BigDecimal totalQuantity;
 
     private BigDecimal totalAmount;
@@ -132,6 +138,30 @@ public class PurchaseOrderEntity {
 
     public void setReceiptStatus(String receiptStatus) {
         this.receiptStatus = receiptStatus;
+    }
+
+    public Long getSourceInquiryId() {
+        return sourceInquiryId;
+    }
+
+    public void setSourceInquiryId(Long sourceInquiryId) {
+        this.sourceInquiryId = sourceInquiryId;
+    }
+
+    public String getSourceInquiryNo() {
+        return sourceInquiryNo;
+    }
+
+    public void setSourceInquiryNo(String sourceInquiryNo) {
+        this.sourceInquiryNo = sourceInquiryNo;
+    }
+
+    public Long getSourceQuoteId() {
+        return sourceQuoteId;
+    }
+
+    public void setSourceQuoteId(Long sourceQuoteId) {
+        this.sourceQuoteId = sourceQuoteId;
     }
 
     public BigDecimal getTotalQuantity() {
