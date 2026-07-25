@@ -17,6 +17,7 @@ public record SalesDeliveryResponse(
         String remark,
         String carrierName,
         String trackingNo,
+        String logisticsStatus,
         List<SalesDeliveryLineResponse> lines
 ) {
 }

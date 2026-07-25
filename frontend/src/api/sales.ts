@@ -22,6 +22,7 @@ export interface SalesOrder {
   remark?: string
   carrierName?: string
   trackingNo?: string
+  logisticsStatus?: string
   createdBy?: string
   createdAt?: string
   updatedAt?: string
@@ -162,6 +163,7 @@ const toSalesOrderPayload = (data: SalesOrderSaveRequest) => ({
   remark: data.remark,
     carrierName: data.carrierName,
     trackingNo: data.trackingNo,
+    logisticsStatus: data.logisticsStatus,
   lines: toSalesOrderLinePayload(data.items)
 })
 
@@ -195,6 +197,7 @@ export interface SalesDelivery {
   remark?: string
   carrierName?: string
   trackingNo?: string
+  logisticsStatus?: string
   createdBy?: string
   createdAt?: string
   updatedAt?: string
@@ -236,6 +239,7 @@ export interface SalesDeliveryCreateRequest {
   remark?: string
   carrierName?: string
   trackingNo?: string
+  logisticsStatus?: string
 }
 
 // 销售发货API
@@ -294,6 +298,7 @@ const toSalesDeliveryPayload = (data: SalesDeliveryCreateRequest) => ({
   remark: data.remark,
     carrierName: data.carrierName,
     trackingNo: data.trackingNo,
+    logisticsStatus: data.logisticsStatus,
   lines: data.items.map((item) => ({
     orderLineId: item.orderLineId ?? item.orderItemId,
     qty: item.quantity,
@@ -323,6 +328,7 @@ export interface SalesReturn {
   remark?: string
   carrierName?: string
   trackingNo?: string
+  logisticsStatus?: string
   createdBy?: string
   createdAt?: string
   updatedAt?: string
@@ -457,6 +463,7 @@ const toSalesReturnPayload = (data: SalesReturnCreateRequest) => ({
   remark: data.remark,
     carrierName: data.carrierName,
     trackingNo: data.trackingNo,
+    logisticsStatus: data.logisticsStatus,
   lines: data.items.map((item) => ({
     deliveryLineId: item.deliveryLineId,
     qty: item.quantity,
@@ -654,3 +661,11 @@ export const convertSalesQuoteToOrder = (id: string | number, warehouseId: strin
     id: String(order.id),
     orderNo: order.orderNo
   }))
+
+
+export const updateSalesDeliveryLogistics = (
+  id: string | number,
+  data: { logisticsStatus: string; carrierName?: string; trackingNo?: string; remark?: string }
+) => {
+  return request.post<SalesDelivery>(`/sales/deliveries/${id}/logistics`, data).then(normalizeSalesDelivery)
+}

@@ -14,6 +14,7 @@ public record SalesDeliveryCreateRequest(
         String remark,
         String carrierName,
         String trackingNo,
+        String logisticsStatus,
         @Valid @NotEmpty(message = "lines不能为空") List<SalesDeliveryLineRequest> lines
 ) {
 }

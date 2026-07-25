@@ -16,6 +16,7 @@ public class SalesDeliveryPageQuery {
 
     private String status;
     private String trackingNo;
+    private String logisticsStatus;
 
     private LocalDate deliveryDateFrom;
 
@@ -84,4 +85,7 @@ public class SalesDeliveryPageQuery {
     public void setDeliveryDateTo(LocalDate deliveryDateTo) {
         this.deliveryDateTo = deliveryDateTo;
     }
+
+    public String getLogisticsStatus(){return logisticsStatus;}
+    public void setLogisticsStatus(String logisticsStatus){this.logisticsStatus=logisticsStatus;}
 }

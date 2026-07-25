@@ -35,6 +35,7 @@ import com.tuowei.erp.sales.delivery.web.SalesDeliveryLineResponse;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryPageQuery;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryResponse;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryUpdateRequest;
+import com.tuowei.erp.sales.delivery.web.SalesDeliveryLogisticsUpdateRequest;
 import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
@@ -160,6 +161,7 @@ public class SalesDeliveryService {
         delivery.setRemark(request.remark());
         delivery.setCarrierName(request.carrierName());
         delivery.setTrackingNo(request.trackingNo());
+        delivery.setLogisticsStatus(normalizeLogisticsStatus(request.logisticsStatus()));
         delivery.setCreatedBy(audit.userId());
         delivery.setCreatedTime(now);
         delivery.setUpdatedBy(audit.userId());
@@ -188,6 +190,7 @@ public class SalesDeliveryService {
                 safeQuery.getOrderId(),
                 safeQuery.getWarehouseId(),
                 status,
+                normalizeNullableText(safeQuery.getLogisticsStatus()),
                 safeQuery.getDeliveryDateFrom(),
                 safeQuery.getDeliveryDateTo()
         );
@@ -254,6 +257,7 @@ public class SalesDeliveryService {
         delivery.setRemark(request.remark());
         delivery.setCarrierName(request.carrierName());
         delivery.setTrackingNo(request.trackingNo());
+        delivery.setLogisticsStatus(normalizeLogisticsStatus(request.logisticsStatus()));
         delivery.setUpdatedBy(audit.userId());
         delivery.setUpdatedTime(now);
         assertCanView(delivery);
@@ -618,6 +622,7 @@ public class SalesDeliveryService {
             Long orderId,
             Long warehouseId,
             String status,
+            String logisticsStatus,
             LocalDate deliveryDateFrom,
             LocalDate deliveryDateTo
     ) {
@@ -634,6 +639,9 @@ public class SalesDeliveryService {
         }
         if (StringUtils.hasText(status)) {
             wrapper.eq(SalesDeliveryEntity::getStatus, status);
+        }
+        if (StringUtils.hasText(logisticsStatus)) {
+            wrapper.eq(SalesDeliveryEntity::getLogisticsStatus, logisticsStatus.trim().toUpperCase(java.util.Locale.ROOT));
         }
         if (deliveryDateFrom != null) {
             wrapper.ge(SalesDeliveryEntity::getDeliveryDate, deliveryDateFrom);
@@ -706,6 +714,61 @@ public class SalesDeliveryService {
         return "NOT_DELIVERED";
     }
 
+
+    @Transactional
+    public SalesDeliveryResponse updateLogistics(Long id, SalesDeliveryLogisticsUpdateRequest request) {
+        SalesDeliveryEntity delivery = requireDelivery(id);
+        assertCanView(delivery);
+        if ("CANCELLED".equals(delivery.getStatus())) {
+            throw new IllegalArgumentException("已作废的发货单不能更新物流状态");
+        }
+        String next = normalizeLogisticsStatus(request.logisticsStatus());
+        String current = normalizeLogisticsStatus(delivery.getLogisticsStatus());
+        assertLogisticsTransition(current, next);
+        AuditMetadata audit = auditMetadataFactory.current();
+        delivery.setLogisticsStatus(next);
+        if (request.carrierName() != null) {
+            delivery.setCarrierName(request.carrierName().trim().isEmpty() ? null : request.carrierName().trim());
+        }
+        if (request.trackingNo() != null) {
+            delivery.setTrackingNo(request.trackingNo().trim().isEmpty() ? null : request.trackingNo().trim());
+        }
+        if (request.remark() != null) {
+            delivery.setRemark(request.remark());
+        }
+        delivery.setUpdatedBy(audit.userId());
+        delivery.setUpdatedTime(audit.now());
+        OptimisticLockGuard.requireUpdated(
+                salesDeliveryMapper.updateById(delivery),
+                "销售出库单已被其他操作修改，请刷新后重试"
+        );
+        return getById(id);
+    }
+
+    private String normalizeLogisticsStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "PENDING_SHIP";
+        }
+        String upper = status.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!java.util.Set.of("PENDING_SHIP", "PICKED_UP", "IN_TRANSIT", "DELIVERED").contains(upper)) {
+            throw new IllegalArgumentException("物流状态仅支持 PENDING_SHIP/PICKED_UP/IN_TRANSIT/DELIVERED");
+        }
+        return upper;
+    }
+
+    private void assertLogisticsTransition(String current, String next) {
+        if (current.equals(next)) {
+            return;
+        }
+        // allow forward-only progression, plus keep PENDING_SHIP until first update
+        java.util.List<String> order = java.util.List.of("PENDING_SHIP", "PICKED_UP", "IN_TRANSIT", "DELIVERED");
+        int from = order.indexOf(current);
+        int to = order.indexOf(next);
+        if (from < 0 || to < 0 || to < from) {
+            throw new IllegalArgumentException("物流状态不允许回退: " + current + " -> " + next);
+        }
+    }
+
     private SalesDeliveryResponse toResponse(SalesDeliveryEntity delivery, List<SalesDeliveryLineEntity> lines) {
         return new SalesDeliveryResponse(
                 delivery.getId(),
@@ -720,6 +783,7 @@ public class SalesDeliveryService {
                 delivery.getRemark(),
                 delivery.getCarrierName(),
                 delivery.getTrackingNo(),
+                delivery.getLogisticsStatus(),
                 lines.stream().map(this::toLineResponse).toList()
         );
     }
@@ -738,6 +802,7 @@ public class SalesDeliveryService {
                 delivery.getRemark(),
                 delivery.getCarrierName(),
                 delivery.getTrackingNo(),
+                delivery.getLogisticsStatus(),
                 List.of()
         );
     }

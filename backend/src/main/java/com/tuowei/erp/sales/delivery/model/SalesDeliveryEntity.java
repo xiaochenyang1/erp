@@ -41,6 +41,8 @@ public class SalesDeliveryEntity {
 
     private String trackingNo;
 
+    private String logisticsStatus;
+
     private String remark;
 
     private Long createdBy;
@@ -164,6 +166,14 @@ public class SalesDeliveryEntity {
 
     public void setTrackingNo(String trackingNo) {
         this.trackingNo = trackingNo;
+    }
+
+    public String getLogisticsStatus() {
+        return logisticsStatus;
+    }
+
+    public void setLogisticsStatus(String logisticsStatus) {
+        this.logisticsStatus = logisticsStatus;
     }
 
     public String getRemark() {

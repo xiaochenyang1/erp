@@ -8,6 +8,7 @@ import com.tuowei.erp.sales.delivery.web.SalesDeliveryCreateRequest;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryPageQuery;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryResponse;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryUpdateRequest;
+import com.tuowei.erp.sales.delivery.web.SalesDeliveryLogisticsUpdateRequest;
 import com.tuowei.erp.system.log.annotation.OperationLog;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -68,4 +69,14 @@ public class SalesDeliveryController {
     public ApiResponse<SalesDeliveryResponse> post(@PathVariable Long id) {
         return ApiResponse.success(salesDeliveryService.post(id));
     }
+
+    @PreAuthorize(PermissionCodes.HAS_SALES_DELIVERY_UPDATE)
+    @PostMapping("/{id}/logistics")
+    public ApiResponse<SalesDeliveryResponse> updateLogistics(
+            @PathVariable Long id,
+            @Valid @RequestBody SalesDeliveryLogisticsUpdateRequest request
+    ) {
+        return ApiResponse.success(salesDeliveryService.updateLogistics(id, request));
+    }
+
 }

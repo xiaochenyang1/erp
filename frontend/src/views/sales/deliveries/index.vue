@@ -101,6 +101,7 @@
         </el-table-column>
         <el-table-column prop="carrierName" :label="t('salesDelivery.carrierName')" width="120" show-overflow-tooltip />
         <el-table-column prop="trackingNo" :label="t('salesDelivery.trackingNo')" width="140" show-overflow-tooltip />
+        <el-table-column prop="logisticsStatus" :label="t('salesDelivery.logisticsStatus')" width="120" />
         <el-table-column prop="remark" :label="t('salesDelivery.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="t('salesDelivery.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="t('salesDelivery.createdAt')" width="190">
@@ -132,6 +133,7 @@
             >
               {{ t('salesDelivery.post') }}
             </el-button>
+            <el-button v-if=\"row.status==='POSTED'\" v-permission=\"'sales:delivery:update'\" link type=\"primary\" @click=\"advanceLogistics(row)\">{{ t('salesDelivery.advanceLogistics') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'sales:delivery:cancel'"
@@ -226,6 +228,14 @@
         <el-form-item :label="t('salesDelivery.trackingNo')">
           <el-input v-model="formData.trackingNo" :placeholder="t('salesDelivery.trackingPlaceholder')" />
         </el-form-item>
+        <el-form-item :label="t('salesDelivery.logisticsStatus')">
+          <el-select v-model="formData.logisticsStatus" style="width:100%">
+            <el-option :label="t('salesDelivery.logistics.pendingShip')" value="PENDING_SHIP" />
+            <el-option :label="t('salesDelivery.logistics.pickedUp')" value="PICKED_UP" />
+            <el-option :label="t('salesDelivery.logistics.inTransit')" value="IN_TRANSIT" />
+            <el-option :label="t('salesDelivery.logistics.delivered')" value="DELIVERED" />
+          </el-select>
+        </el-form-item>
         <el-form-item :label="t('salesDelivery.remark')">
           <el-input
             v-model="formData.remark"
@@ -309,7 +319,7 @@ import {
   createSalesDelivery,
   updateSalesDelivery,
   cancelSalesDelivery,
-  postSalesDelivery,
+  postSalesDelivery, updateSalesDeliveryLogistics,
   type SalesDeliveryQuery,
   type SalesDeliveryCreateRequest,
   type SalesDelivery,
@@ -379,7 +389,8 @@ const formData = reactive<SalesDeliveryCreateRequest>({
   items: [],
   remark: '',
   carrierName: '',
-  trackingNo: ''
+  trackingNo: '',
+  logisticsStatus: 'PENDING_SHIP'
 })
 const deliveryQuantityTotal = computed(() => formData.items.reduce(
   (total, item) => total + Number(item.quantity || 0),
@@ -528,6 +539,7 @@ const handleEdit = async (row: SalesDelivery) => {
     formData.remark = detail.remark || ''
     formData.carrierName = detail.carrierName || ''
     formData.trackingNo = detail.trackingNo || ''
+    formData.logisticsStatus = detail.logisticsStatus || 'PENDING_SHIP'
     const deliveryItems = (detail.items || detail.lines || []).map(item => {
       const orderLineId = item.orderLineId ?? item.orderItemId
       const orderItem = orderItems.find(oi => String(oi.id) === String(orderLineId))
@@ -574,6 +586,20 @@ const handleCancel = async (row: SalesDelivery) => {
 }
 
 // 过账
+const advanceLogistics = async (row: any) => {
+  const order = ['PENDING_SHIP','PICKED_UP','IN_TRANSIT','DELIVERED']
+  const current = row.logisticsStatus || 'PENDING_SHIP'
+  const idx = order.indexOf(current)
+  const next = order[Math.min(idx+1, order.length-1)]
+  if (next === current) {
+    ElMessage.info(t('salesDelivery.message.logisticsDone'))
+    return
+  }
+  await updateSalesDeliveryLogistics(row.id, { logisticsStatus: next, carrierName: row.carrierName, trackingNo: row.trackingNo })
+  ElMessage.success(t('salesDelivery.message.logisticsUpdated'))
+  handleQuery()
+}
+
 const handlePost = async (row: SalesDelivery) => {
   try {
     await ElMessageBox.confirm(t('salesDelivery.message.postConfirm'), t('salesDelivery.message.prompt'), {
@@ -716,6 +742,7 @@ const resetForm = () => {
   formData.remark = ''
   formData.carrierName = ''
   formData.trackingNo = ''
+  formData.logisticsStatus = 'PENDING_SHIP'
   scanFeedback.value = ''
   formRef.value?.clearValidate()
 }
