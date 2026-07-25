@@ -44,7 +44,7 @@ class WarehouseLocationLightMigrationTest {
 
         Integer menus = jdbcTemplate.queryForObject("""
                 select count(*) from sys_menu
-                where menu_code in ('MASTERDATA_LOCATION_VIEW', 'MASTERDATA_LOCATION_MANAGE')
+                where menu_code in ('MASTERDATA_LOCATION', 'MASTERDATA_LOCATION_MANAGE')
                 """, Integer.class);
         assertThat(menus).isEqualTo(2);
     }
