@@ -8,8 +8,10 @@ import com.tuowei.erp.inventory.alert.mapper.InventoryAlertDispositionMapper;
 import com.tuowei.erp.inventory.alert.mapper.InventoryAlertRuleMapper;
 import com.tuowei.erp.inventory.alert.model.InventoryAlertDispositionEntity;
 import com.tuowei.erp.inventory.alert.model.InventoryAlertRuleEntity;
+import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleCreateRequest;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleResponse;
+import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleUpdateRequest;
 import com.tuowei.erp.inventory.alert.web.InventoryLowStockResponse;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
@@ -20,11 +22,13 @@ import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -66,8 +70,9 @@ public class InventoryAlertService {
     public InventoryAlertRuleResponse createRule(InventoryAlertRuleCreateRequest request) {
         AuditMetadata audit = auditMetadataFactory.current();
         LocalDateTime now = audit.now();
-        requireWarehouse(request.warehouseId(), audit.companyId(), audit.accountBookId());
-        requireProduct(request.productId(), audit.companyId(), audit.accountBookId());
+        WarehouseEntity warehouse = requireWarehouse(request.warehouseId(), audit.companyId(), audit.accountBookId());
+        ProductEntity product = requireProduct(request.productId(), audit.companyId(), audit.accountBookId());
+        ensureRuleUnique(audit, request.warehouseId(), request.productId(), null);
         InventoryAlertRuleEntity rule = new InventoryAlertRuleEntity();
         rule.setCompanyId(audit.companyId());
         rule.setAccountBookId(audit.accountBookId());
@@ -76,14 +81,86 @@ public class InventoryAlertService {
         rule.setMinQty(ScalePrecision.quantity(request.minQty()));
         rule.setEnabled(1);
         rule.setDeletedFlag(0);
-        rule.setRemark(request.remark());
+        rule.setRemark(normalizeRemark(request.remark()));
         rule.setCreatedBy(audit.userId());
         rule.setCreatedTime(now);
         rule.setUpdatedBy(audit.userId());
         rule.setUpdatedTime(now);
         rule.setVersion(0);
         alertRuleMapper.insert(rule);
-        return toRuleResponse(rule);
+        return toRuleResponse(rule, warehouse, product);
+    }
+
+    @Transactional(readOnly = true)
+    public List<InventoryAlertRuleResponse> listRules(Long warehouseId, Long productId, Boolean enabled) {
+        AuditMetadata audit = auditMetadataFactory.current();
+        LambdaQueryWrapper<InventoryAlertRuleEntity> wrapper = new LambdaQueryWrapper<InventoryAlertRuleEntity>()
+                .eq(InventoryAlertRuleEntity::getCompanyId, audit.companyId())
+                .eq(InventoryAlertRuleEntity::getAccountBookId, audit.accountBookId())
+                .eq(InventoryAlertRuleEntity::getDeletedFlag, 0)
+                .orderByDesc(InventoryAlertRuleEntity::getUpdatedTime)
+                .orderByDesc(InventoryAlertRuleEntity::getId);
+        if (warehouseId != null) {
+            wrapper.eq(InventoryAlertRuleEntity::getWarehouseId, warehouseId);
+        }
+        if (productId != null) {
+            wrapper.eq(InventoryAlertRuleEntity::getProductId, productId);
+        }
+        if (enabled != null) {
+            wrapper.eq(InventoryAlertRuleEntity::getEnabled, Boolean.TRUE.equals(enabled) ? 1 : 0);
+        }
+        List<InventoryAlertRuleEntity> rules = alertRuleMapper.selectList(wrapper);
+        if (rules.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, WarehouseEntity> warehouses = loadWarehouses(rules, audit);
+        Map<Long, ProductEntity> products = loadProducts(rules, audit);
+        return rules.stream()
+                .map(rule -> toRuleResponse(rule, warehouses.get(rule.getWarehouseId()), products.get(rule.getProductId())))
+                .toList();
+    }
+
+    @Transactional
+    public InventoryAlertRuleResponse updateRule(Long id, InventoryAlertRuleUpdateRequest request) {
+        AuditMetadata audit = auditMetadataFactory.current();
+        InventoryAlertRuleEntity rule = requireRule(id, audit);
+        rule.setMinQty(ScalePrecision.quantity(request.minQty()));
+        rule.setRemark(normalizeRemark(request.remark()));
+        rule.setUpdatedBy(audit.userId());
+        rule.setUpdatedTime(audit.now());
+        OptimisticLockGuard.requireUpdated(alertRuleMapper.updateById(rule), "低库存规则已被其他操作修改，请刷新后重试");
+        return toRuleResponse(
+                rule,
+                requireWarehouse(rule.getWarehouseId(), audit.companyId(), audit.accountBookId()),
+                requireProduct(rule.getProductId(), audit.companyId(), audit.accountBookId())
+        );
+    }
+
+    @Transactional
+    public InventoryAlertRuleResponse enableRule(Long id) {
+        return updateRuleEnabled(id, true);
+    }
+
+    @Transactional
+    public InventoryAlertRuleResponse disableRule(Long id) {
+        return updateRuleEnabled(id, false);
+    }
+
+    private InventoryAlertRuleResponse updateRuleEnabled(Long id, boolean enabled) {
+        AuditMetadata audit = auditMetadataFactory.current();
+        InventoryAlertRuleEntity rule = requireRule(id, audit);
+        if (enabled) {
+            ensureRuleUnique(audit, rule.getWarehouseId(), rule.getProductId(), rule.getId());
+        }
+        rule.setEnabled(enabled ? 1 : 0);
+        rule.setUpdatedBy(audit.userId());
+        rule.setUpdatedTime(audit.now());
+        OptimisticLockGuard.requireUpdated(alertRuleMapper.updateById(rule), "低库存规则已被其他操作修改，请刷新后重试");
+        return toRuleResponse(
+                rule,
+                requireWarehouse(rule.getWarehouseId(), audit.companyId(), audit.accountBookId()),
+                requireProduct(rule.getProductId(), audit.companyId(), audit.accountBookId())
+        );
     }
 
     @Transactional(readOnly = true)
@@ -340,15 +417,58 @@ public class InventoryAlertService {
         return disposition.getStatus();
     }
 
-    private InventoryAlertRuleResponse toRuleResponse(InventoryAlertRuleEntity rule) {
+    private InventoryAlertRuleResponse toRuleResponse(
+            InventoryAlertRuleEntity rule,
+            WarehouseEntity warehouse,
+            ProductEntity product
+    ) {
         return new InventoryAlertRuleResponse(
                 rule.getId(),
                 rule.getWarehouseId(),
+                warehouse == null ? null : warehouse.getWarehouseName(),
                 rule.getProductId(),
+                product == null ? null : product.getProductCode(),
+                product == null ? null : product.getProductName(),
                 rule.getMinQty(),
                 Integer.valueOf(1).equals(rule.getEnabled()),
-                rule.getRemark()
+                rule.getRemark(),
+                rule.getUpdatedTime()
         );
+    }
+
+    private InventoryAlertRuleEntity requireRule(Long id, AuditMetadata audit) {
+        InventoryAlertRuleEntity rule = alertRuleMapper.selectById(id);
+        if (rule == null
+                || rule.getDeletedFlag() == null
+                || rule.getDeletedFlag() != 0
+                || !Objects.equals(rule.getCompanyId(), audit.companyId())
+                || !Objects.equals(rule.getAccountBookId(), audit.accountBookId())) {
+            throw new IllegalArgumentException("低库存规则不存在");
+        }
+        return rule;
+    }
+
+    private void ensureRuleUnique(AuditMetadata audit, Long warehouseId, Long productId, Long excludedId) {
+        LambdaQueryWrapper<InventoryAlertRuleEntity> wrapper = new LambdaQueryWrapper<InventoryAlertRuleEntity>()
+                .eq(InventoryAlertRuleEntity::getCompanyId, audit.companyId())
+                .eq(InventoryAlertRuleEntity::getAccountBookId, audit.accountBookId())
+                .eq(InventoryAlertRuleEntity::getWarehouseId, warehouseId)
+                .eq(InventoryAlertRuleEntity::getProductId, productId)
+                .eq(InventoryAlertRuleEntity::getDeletedFlag, 0)
+                .last("limit 1");
+        if (excludedId != null) {
+            wrapper.ne(InventoryAlertRuleEntity::getId, excludedId);
+        }
+        if (alertRuleMapper.selectOne(wrapper) != null) {
+            throw new IllegalArgumentException("该仓库商品已存在低库存规则");
+        }
+    }
+
+    private String normalizeRemark(String remark) {
+        if (!StringUtils.hasText(remark)) {
+            return null;
+        }
+        return remark.trim();
     }
 
     private WarehouseEntity requireWarehouse(Long id, Long companyId, Long accountBookId) {

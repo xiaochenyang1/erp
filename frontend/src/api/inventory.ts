@@ -947,10 +947,14 @@ export interface InventoryAlertQuery extends PageQuery {
 export interface InventoryAlertRule {
   id: string
   warehouseId: string
+  warehouseName?: string
   productId: string
+  productCode?: string
+  productName?: string
   minQty: number
   enabled: boolean
   remark?: string
+  updatedTime?: string
 }
 
 export interface InventoryAlertRuleCreateRequest {
@@ -958,6 +962,17 @@ export interface InventoryAlertRuleCreateRequest {
   productId: string | number
   minQty: number
   remark?: string
+}
+
+export interface InventoryAlertRuleUpdateRequest {
+  minQty: number
+  remark?: string
+}
+
+export interface InventoryAlertRuleQuery {
+  warehouseId?: string | number
+  productId?: string | number
+  enabled?: boolean
 }
 
 export interface InventoryAlertHandleRequest {
@@ -978,6 +993,24 @@ export const getInventoryAlerts = (params: InventoryAlertQuery) => {
 
 export const createInventoryAlertRule = (data: InventoryAlertRuleCreateRequest) => {
   return request.post<InventoryAlertRule>('/inventory/alert-rules', data).then(normalizeInventoryAlertRule)
+}
+
+export const getInventoryAlertRules = (params: InventoryAlertRuleQuery = {}) => {
+  return request.get<InventoryAlertRule[]>('/inventory/alert-rules', { params }).then((items) =>
+    (items || []).map(normalizeInventoryAlertRule)
+  )
+}
+
+export const updateInventoryAlertRule = (id: string | number, data: InventoryAlertRuleUpdateRequest) => {
+  return request.put<InventoryAlertRule>(`/inventory/alert-rules/${id}`, data).then(normalizeInventoryAlertRule)
+}
+
+export const enableInventoryAlertRule = (id: string | number) => {
+  return request.post<InventoryAlertRule>(`/inventory/alert-rules/${id}/enable`).then(normalizeInventoryAlertRule)
+}
+
+export const disableInventoryAlertRule = (id: string | number) => {
+  return request.post<InventoryAlertRule>(`/inventory/alert-rules/${id}/disable`).then(normalizeInventoryAlertRule)
 }
 
 // 忽略某仓某商品的当前低库存命中（后端写入处置记录 status=IGNORED）
@@ -1109,8 +1142,13 @@ const normalizeInventoryAlertRule = (rule: InventoryAlertRule): InventoryAlertRu
   id: String(rule.id),
   warehouseId: String(rule.warehouseId),
   productId: String(rule.productId),
+  warehouseName: rule.warehouseName || undefined,
+  productCode: rule.productCode || undefined,
+  productName: rule.productName || undefined,
   minQty: Number(rule.minQty ?? 0),
-  enabled: Boolean(rule.enabled)
+  enabled: Boolean(rule.enabled),
+  remark: rule.remark || undefined,
+  updatedTime: rule.updatedTime || undefined
 })
 
 const normalizeInventoryAlert = (alert: InventoryAlert): InventoryAlert => {

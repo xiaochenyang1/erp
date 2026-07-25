@@ -26,6 +26,8 @@ export const operationsPageMessages = {
       placeholder: {
         adjustmentNo: '请输入调整单号',
         warehouse: '请选择仓库',
+        location: '请选择库位',
+        serialNos: '多个序列号用逗号分隔',
         adjustmentType: '请选择调整类型',
         status: '请选择状态',
         startDate: '开始日期',
@@ -166,12 +168,14 @@ export const operationsPageMessages = {
         suggestionRemark: '补货说明（选填）', dispositionRemark: '处置说明（选填）'
       },
       type: { lowStock: '库存不足', outOfStock: '缺货' },
-      status: { active: '待处置', ignored: '已忽略', resolved: '已处理' },
+      status: { active: '待处置', ignored: '已忽略', resolved: '已处理', enabled: '启用', disabled: '停用' },
+      ruleStatus: '规则状态',
       statistics: {
         total: '总预警数', outOfStock: '缺货', belowSafetyStock: '低于安全库存', shortageTotal: '缺口合计'
       },
       action: {
-        search: '查询', reset: '重置', createRule: '新增规则', viewStock: '查看库存',
+        search: '查询', reset: '重置', createRule: '新增规则', manageRules: '规则管理', refreshRules: '刷新规则',
+        editRule: '编辑', enableRule: '启用', disableRule: '停用', viewStock: '查看库存',
         createSuggestion: '生成补货建议', resolve: '标记已处理', ignore: '忽略',
         reactivate: '重新激活', cancel: '取消', save: '保存', confirm: '确定'
       },
@@ -180,14 +184,19 @@ export const operationsPageMessages = {
         suggestedQuantity: '请输入建议数量'
       },
       dialog: {
-        createRule: '新增低库存规则', createSuggestion: '生成补货建议',
+        createRule: '新增低库存规则', editRule: '编辑低库存规则', manageRules: '低库存规则管理',
+        createSuggestion: '生成补货建议',
         ignore: '忽略预警', resolve: '标记已处理', reactivate: '重新激活预警'
       },
       message: {
         loadFailed: '加载数据失败', statisticsLoadFailed: '加载预警统计失败',
         warehousesLoadFailed: '加载仓库列表失败', productsLoadFailed: '加载产品列表失败',
-        suppliersLoadFailed: '加载供应商列表失败', ruleCreated: '低库存规则已创建',
-        ruleCreateFailed: '创建低库存规则失败', suggestionCreated: '补货建议已生成',
+        suppliersLoadFailed: '加载供应商列表失败', rulesLoadFailed: '加载低库存规则失败',
+        ruleCreated: '低库存规则已创建', ruleCreateFailed: '创建低库存规则失败',
+        ruleUpdated: '低库存规则已更新', ruleUpdateFailed: '更新低库存规则失败',
+        ruleEnabled: '低库存规则已启用', ruleEnableFailed: '启用低库存规则失败',
+        ruleDisabled: '低库存规则已停用', ruleDisableFailed: '停用低库存规则失败',
+        suggestionCreated: '补货建议已生成',
         suggestionCreateFailed: '生成补货建议失败',
         ignoreConfirm: '确定忽略【{warehouse} / {product}】的低库存预警吗？可填写处置说明。',
         resolveConfirm: '确定将【{warehouse} / {product}】的低库存预警标记为已处理吗？可填写处置说明。',
@@ -451,6 +460,8 @@ export const operationsPageMessages = {
       placeholder: {
         adjustmentNo: 'Enter an adjustment no.',
         warehouse: 'Select a warehouse',
+        location: 'Select a location',
+        serialNos: 'Separate multiple serials with commas',
         adjustmentType: 'Select an adjustment type',
         status: 'Select a status',
         startDate: 'Start date',
@@ -593,13 +604,15 @@ export const operationsPageMessages = {
         suggestionRemark: 'Replenishment note (optional)', dispositionRemark: 'Disposition note (optional)'
       },
       type: { lowStock: 'Low stock', outOfStock: 'Out of stock' },
-      status: { active: 'Pending', ignored: 'Ignored', resolved: 'Resolved' },
+      status: { active: 'Pending', ignored: 'Ignored', resolved: 'Resolved', enabled: 'Enabled', disabled: 'Disabled' },
+      ruleStatus: 'Rule status',
       statistics: {
         total: 'Total alerts', outOfStock: 'Out of stock',
         belowSafetyStock: 'Below safety stock', shortageTotal: 'Total shortage'
       },
       action: {
-        search: 'Search', reset: 'Reset', createRule: 'New rule', viewStock: 'View stock',
+        search: 'Search', reset: 'Reset', createRule: 'New rule', manageRules: 'Manage rules', refreshRules: 'Refresh rules',
+        editRule: 'Edit', enableRule: 'Enable', disableRule: 'Disable', viewStock: 'View stock',
         createSuggestion: 'Create replenishment suggestion', resolve: 'Mark resolved', ignore: 'Ignore',
         reactivate: 'Reactivate', cancel: 'Cancel', save: 'Save', confirm: 'Confirm'
       },
@@ -608,14 +621,18 @@ export const operationsPageMessages = {
         minimumStock: 'Enter the minimum stock', suggestedQuantity: 'Enter a suggested quantity'
       },
       dialog: {
-        createRule: 'New low-stock rule', createSuggestion: 'Create replenishment suggestion',
+        createRule: 'New low-stock rule', editRule: 'Edit low-stock rule', manageRules: 'Manage low-stock rules',
+        createSuggestion: 'Create replenishment suggestion',
         ignore: 'Ignore alert', resolve: 'Resolve alert', reactivate: 'Reactivate alert'
       },
       message: {
         loadFailed: 'Failed to load data', statisticsLoadFailed: 'Failed to load alert statistics',
         warehousesLoadFailed: 'Failed to load warehouses', productsLoadFailed: 'Failed to load products',
-        suppliersLoadFailed: 'Failed to load suppliers', ruleCreated: 'Low-stock rule created',
-        ruleCreateFailed: 'Failed to create the low-stock rule',
+        suppliersLoadFailed: 'Failed to load suppliers', rulesLoadFailed: 'Failed to load low-stock rules',
+        ruleCreated: 'Low-stock rule created', ruleCreateFailed: 'Failed to create the low-stock rule',
+        ruleUpdated: 'Low-stock rule updated', ruleUpdateFailed: 'Failed to update the low-stock rule',
+        ruleEnabled: 'Low-stock rule enabled', ruleEnableFailed: 'Failed to enable the low-stock rule',
+        ruleDisabled: 'Low-stock rule disabled', ruleDisableFailed: 'Failed to disable the low-stock rule',
         suggestionCreated: 'Replenishment suggestion created',
         suggestionCreateFailed: 'Failed to create the replenishment suggestion',
         ignoreConfirm: 'Ignore the low-stock alert for {warehouse} / {product}? You may add a disposition note.',

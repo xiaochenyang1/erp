@@ -56,9 +56,10 @@ describe('finance account localization', () => {
     expect(source).not.toMatch(/¥|\.toFixed\(/)
     expect(source).not.toMatch(/\s(?:label|placeholder|title)="[^"]+"/)
     expect(source).not.toMatch(/ElMessage\.(?:error|success)\(\s*['"`]/)
-    expect(source).not.toMatch(/\b(?:orderNo|dueDate|createdAt|updatedAt)\b/)
+    expect(source).not.toMatch(/\b(?:orderNo|createdAt|updatedAt)\b/)
     expect(source).toContain('prop="sourceNo"')
     expect(source).toContain('row.bizDate')
+    expect(source).toContain('row.dueDate')
     expect(source).toContain('row.createdTime')
     for (const status of ['UNSETTLED', 'PARTIALLY_SETTLED', 'SETTLED', 'OFFSET']) {
       expect(source).toContain(status)

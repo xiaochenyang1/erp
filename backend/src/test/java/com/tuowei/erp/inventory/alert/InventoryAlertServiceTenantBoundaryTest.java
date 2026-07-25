@@ -11,6 +11,7 @@ import com.tuowei.erp.inventory.alert.model.InventoryAlertDispositionEntity;
 import com.tuowei.erp.inventory.alert.model.InventoryAlertRuleEntity;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleCreateRequest;
+import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleUpdateRequest;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
@@ -140,6 +141,50 @@ class InventoryAlertServiceTenantBoundaryTest {
         assertThatThrownBy(() -> service().createRule(createRequest()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("商品不存在或已停用");
+    }
+
+    @Test
+    void listRulesScopesByCompanyAndAccountBook() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(alertRuleMapper.selectList(any())).thenReturn(List.of());
+
+        service().listRules(null, null, null);
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<InventoryAlertRuleEntity>> wrapperCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(alertRuleMapper).selectList(wrapperCaptor.capture());
+        assertTenantScoped(wrapperCaptor.getValue());
+    }
+
+    @Test
+    void updateRuleRejectsMissingTenantRule() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(alertRuleMapper.selectById(9101L)).thenReturn(null);
+
+        assertThatThrownBy(() -> service().updateRule(9101L, new InventoryAlertRuleUpdateRequest(
+                new BigDecimal("12.0000"), "missing"
+        ))).isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("低库存规则不存在");
+    }
+
+    @Test
+    void disableRuleUpdatesEnabledFlagForTenantRule() {
+        InventoryAlertRuleEntity rule = alertRule();
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(alertRuleMapper.selectById(9101L)).thenReturn(rule);
+        when(alertRuleMapper.updateById(any(InventoryAlertRuleEntity.class))).thenReturn(1);
+        when(warehouseMapper.selectById(WAREHOUSE_ID)).thenReturn(activeWarehouse(AUDIT.accountBookId()));
+        when(productMapper.selectById(PRODUCT_ID)).thenReturn(activeProduct(AUDIT.accountBookId()));
+
+        Object response = service().disableRule(9101L);
+
+        ArgumentCaptor<InventoryAlertRuleEntity> captor = ArgumentCaptor.forClass(InventoryAlertRuleEntity.class);
+        verify(alertRuleMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getEnabled()).isEqualTo(0);
+        assertThat(readRecordComponent(response, "enabled")).isEqualTo(false);
+        assertThat(readRecordComponent(response, "warehouseName")).isEqualTo("主仓");
+        assertThat(readRecordComponent(response, "productCode")).isEqualTo("MAT-001");
     }
 
     @Test

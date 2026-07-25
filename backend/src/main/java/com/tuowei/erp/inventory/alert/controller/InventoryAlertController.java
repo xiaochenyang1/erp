@@ -6,11 +6,14 @@ import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertHandleRequest;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleCreateRequest;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleResponse;
+import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleUpdateRequest;
 import com.tuowei.erp.inventory.alert.web.InventoryLowStockResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,6 +33,37 @@ public class InventoryAlertController {
     @PostMapping("/api/inventory/alert-rules")
     public ApiResponse<InventoryAlertRuleResponse> createRule(@Valid @RequestBody InventoryAlertRuleCreateRequest request) {
         return ApiResponse.success(inventoryAlertService.createRule(request));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_INVENTORY_ALERT_VIEW)
+    @GetMapping("/api/inventory/alert-rules")
+    public ApiResponse<List<InventoryAlertRuleResponse>> listRules(
+            @RequestParam(required = false) Long warehouseId,
+            @RequestParam(required = false) Long productId,
+            @RequestParam(required = false) Boolean enabled
+    ) {
+        return ApiResponse.success(inventoryAlertService.listRules(warehouseId, productId, enabled));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_INVENTORY_ALERT_CREATE)
+    @PutMapping("/api/inventory/alert-rules/{id}")
+    public ApiResponse<InventoryAlertRuleResponse> updateRule(
+            @PathVariable Long id,
+            @Valid @RequestBody InventoryAlertRuleUpdateRequest request
+    ) {
+        return ApiResponse.success(inventoryAlertService.updateRule(id, request));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_INVENTORY_ALERT_CREATE)
+    @PostMapping("/api/inventory/alert-rules/{id}/enable")
+    public ApiResponse<InventoryAlertRuleResponse> enableRule(@PathVariable Long id) {
+        return ApiResponse.success(inventoryAlertService.enableRule(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_INVENTORY_ALERT_CREATE)
+    @PostMapping("/api/inventory/alert-rules/{id}/disable")
+    public ApiResponse<InventoryAlertRuleResponse> disableRule(@PathVariable Long id) {
+        return ApiResponse.success(inventoryAlertService.disableRule(id));
     }
 
     @PreAuthorize(PermissionCodes.HAS_INVENTORY_ALERT_VIEW)

@@ -66,6 +66,10 @@
             <el-icon><Refresh /></el-icon>
             {{ $t('inventoryAlerts.action.reset') }}
           </el-button>
+          <el-button v-permission="'inventory:alert:view'" @click="openRulesDrawer">
+            <el-icon><Setting /></el-icon>
+            {{ $t('inventoryAlerts.action.manageRules') }}
+          </el-button>
           <el-button v-permission="'inventory:alert:create'" type="success" @click="handleCreateRule">
             <el-icon><Plus /></el-icon>
             {{ $t('inventoryAlerts.action.createRule') }}
@@ -224,10 +228,10 @@
       />
     </el-card>
 
-    <el-dialog v-model="ruleDialogVisible" :title="$t('inventoryAlerts.dialog.createRule')" width="560px" @close="resetRuleForm">
+    <el-dialog v-model="ruleDialogVisible" :title="editingRuleId ? $t('inventoryAlerts.dialog.editRule') : $t('inventoryAlerts.dialog.createRule')" width="560px" @close="resetRuleForm">
       <el-form ref="ruleFormRef" :model="ruleForm" :rules="ruleRules" label-width="100px">
         <el-form-item :label="$t('inventoryAlerts.warehouse')" prop="warehouseId">
-          <el-select v-model="ruleForm.warehouseId" :placeholder="$t('inventoryAlerts.placeholder.warehouse')" filterable style="width: 100%">
+          <el-select v-model="ruleForm.warehouseId" :placeholder="$t('inventoryAlerts.placeholder.warehouse')" filterable :disabled="!!editingRuleId" style="width: 100%">
             <el-option
               v-for="warehouse in warehouses"
               :key="warehouse.id"
@@ -237,7 +241,7 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('inventoryAlerts.product')" prop="productId">
-          <el-select v-model="ruleForm.productId" :placeholder="$t('inventoryAlerts.placeholder.product')" filterable style="width: 100%">
+          <el-select v-model="ruleForm.productId" :placeholder="$t('inventoryAlerts.placeholder.product')" filterable :disabled="!!editingRuleId" style="width: 100%">
             <el-option
               v-for="product in products"
               :key="product.id"
@@ -327,6 +331,56 @@
         <el-button type="primary" :loading="suggestionSubmitLoading" @click="submitSuggestion">{{ $t('inventoryAlerts.action.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <el-drawer v-model="rulesDrawerVisible" :title="$t('inventoryAlerts.dialog.manageRules')" size="720px">
+      <div class="rules-toolbar">
+        <el-button v-permission="'inventory:alert:create'" type="primary" @click="handleCreateRule">
+          {{ $t('inventoryAlerts.action.createRule') }}
+        </el-button>
+        <el-button :loading="rulesLoading" @click="loadRules">{{ $t('inventoryAlerts.action.refreshRules') }}</el-button>
+      </div>
+      <el-table v-loading="rulesLoading" :data="ruleRows" border stripe style="margin-top: 12px">
+        <el-table-column prop="warehouseName" :label="$t('inventoryAlerts.warehouse')" min-width="120" />
+        <el-table-column prop="productCode" :label="$t('inventoryAlerts.productCode')" width="120" />
+        <el-table-column prop="productName" :label="$t('inventoryAlerts.productName')" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="minQty" :label="$t('inventoryAlerts.minimumStock')" width="110" align="right">
+          <template #default="{ row }">{{ formatNumber(row.minQty) }}</template>
+        </el-table-column>
+        <el-table-column prop="enabled" :label="$t('inventoryAlerts.ruleStatus')" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.enabled ? 'success' : 'info'">
+              {{ row.enabled ? $t('inventoryAlerts.status.enabled') : $t('inventoryAlerts.status.disabled') }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('inventoryAlerts.actions')" width="220" fixed="right">
+          <template #default="{ row }">
+            <el-button v-permission="'inventory:alert:create'" link type="primary" @click="handleEditRule(row)">
+              {{ $t('inventoryAlerts.action.editRule') }}
+            </el-button>
+            <el-button
+              v-if="!row.enabled"
+              v-permission="'inventory:alert:create'"
+              link
+              type="success"
+              @click="handleToggleRule(row, true)"
+            >
+              {{ $t('inventoryAlerts.action.enableRule') }}
+            </el-button>
+            <el-button
+              v-else
+              v-permission="'inventory:alert:create'"
+              link
+              type="warning"
+              @click="handleToggleRule(row, false)"
+            >
+              {{ $t('inventoryAlerts.action.disableRule') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-drawer>
+
   </div>
 </template>
 
@@ -338,10 +392,15 @@ import { useRouter } from 'vue-router'
 import {
   createInventoryReplenishmentSuggestion,
   createInventoryAlertRule,
+  disableInventoryAlertRule,
+  enableInventoryAlertRule,
+  getInventoryAlertRules,
   getInventoryAlerts,
   ignoreInventoryAlert,
   reactivateInventoryAlert,
   resolveInventoryAlert,
+  updateInventoryAlertRule,
+  type InventoryAlertRule,
   type InventoryAlertRuleCreateRequest,
   type InventoryAlertQuery,
   type InventoryAlert
@@ -394,6 +453,10 @@ const ruleForm = reactive<InventoryAlertRuleCreateRequest>({
   minQty: 0,
   remark: ''
 })
+const rulesDrawerVisible = ref(false)
+const rulesLoading = ref(false)
+const ruleRows = ref<InventoryAlertRule[]>([])
+const editingRuleId = ref('')
 const ruleRules: FormRules = {
   warehouseId: [{ required: true, message: t('inventoryAlerts.validation.warehouse'), trigger: 'change' }],
   productId: [{ required: true, message: t('inventoryAlerts.validation.product'), trigger: 'change' }],
@@ -520,12 +583,25 @@ const submitRule = async () => {
     if (!valid) return
     ruleSubmitLoading.value = true
     try {
-      await createInventoryAlertRule(ruleForm)
-      ElMessage.success(t('inventoryAlerts.message.ruleCreated'))
+      if (editingRuleId.value) {
+        await updateInventoryAlertRule(editingRuleId.value, {
+          minQty: Number(ruleForm.minQty),
+          remark: ruleForm.remark
+        })
+        ElMessage.success(t('inventoryAlerts.message.ruleUpdated'))
+      } else {
+        await createInventoryAlertRule(ruleForm)
+        ElMessage.success(t('inventoryAlerts.message.ruleCreated'))
+      }
       ruleDialogVisible.value = false
-      loadData()
+      await loadData()
+      if (rulesDrawerVisible.value) {
+        await loadRules()
+      }
     } catch (error) {
-      ElMessage.error(t('inventoryAlerts.message.ruleCreateFailed'))
+      ElMessage.error(editingRuleId.value
+        ? t('inventoryAlerts.message.ruleUpdateFailed')
+        : t('inventoryAlerts.message.ruleCreateFailed'))
     } finally {
       ruleSubmitLoading.value = false
     }
@@ -534,12 +610,63 @@ const submitRule = async () => {
 
 const resetRuleForm = () => {
   ruleFormRef.value?.clearValidate()
+  editingRuleId.value = ''
   Object.assign(ruleForm, {
     warehouseId: '',
     productId: '',
     minQty: 0,
     remark: ''
   })
+}
+
+const openRulesDrawer = async () => {
+  rulesDrawerVisible.value = true
+  await loadRules()
+}
+
+const loadRules = async () => {
+  rulesLoading.value = true
+  try {
+    ruleRows.value = await getInventoryAlertRules({
+      warehouseId: queryParams.warehouseId,
+      productId: queryParams.productId
+    })
+  } catch {
+    ElMessage.error(t('inventoryAlerts.message.rulesLoadFailed'))
+  } finally {
+    rulesLoading.value = false
+  }
+}
+
+const handleEditRule = async (row: InventoryAlertRule) => {
+  if (warehouses.value.length === 0) await loadWarehouses()
+  if (products.value.length === 0) await loadProducts()
+  editingRuleId.value = row.id
+  Object.assign(ruleForm, {
+    warehouseId: row.warehouseId,
+    productId: row.productId,
+    minQty: Number(row.minQty || 0),
+    remark: row.remark || ''
+  })
+  ruleDialogVisible.value = true
+}
+
+const handleToggleRule = async (row: InventoryAlertRule, enable: boolean) => {
+  try {
+    if (enable) {
+      await enableInventoryAlertRule(row.id)
+      ElMessage.success(t('inventoryAlerts.message.ruleEnabled'))
+    } else {
+      await disableInventoryAlertRule(row.id)
+      ElMessage.success(t('inventoryAlerts.message.ruleDisabled'))
+    }
+    await loadRules()
+    await loadData()
+  } catch {
+    ElMessage.error(enable
+      ? t('inventoryAlerts.message.ruleEnableFailed')
+      : t('inventoryAlerts.message.ruleDisableFailed'))
+  }
 }
 
 const handleCreateSuggestion = async (row: InventoryAlert) => {
@@ -734,5 +861,9 @@ onMounted(() => {
   .suggestion-alert-summary {
     margin-bottom: 18px;
   }
+}
+.rules-toolbar {
+  display: flex;
+  gap: 8px;
 }
 </style>
