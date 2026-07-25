@@ -143,19 +143,19 @@ public class MenuService {
             return List.of();
         }
 
-        List<MenuEntity> allMenus = loadAllMenus();
-        if (allMenus.isEmpty()) {
+        List<MenuEntity> runtimeMenus = selectRuntimeVisibleMenus(loadAllMenus());
+        if (runtimeMenus.isEmpty()) {
             return List.of();
         }
         if (activeRoles.stream().anyMatch(role -> "SUPER_ADMIN".equals(role.getRoleCode()))) {
-            return buildTree(allMenus);
+            return buildTree(runtimeMenus);
         }
 
         Set<Long> assignedMenuIds = loadAssignedMenuIds(activeRoles);
         if (assignedMenuIds.isEmpty()) {
             return List.of();
         }
-        return buildTree(selectAssignedMenusWithAncestors(allMenus, assignedMenuIds));
+        return buildTree(selectAssignedMenusWithAncestors(runtimeMenus, assignedMenuIds));
     }
 
     @Transactional(readOnly = true)
@@ -314,6 +314,35 @@ public class MenuService {
                 .orderByAsc(MenuEntity::getParentId)
                 .orderByAsc(MenuEntity::getSortNo)
                 .orderByAsc(MenuEntity::getId));
+    }
+
+    private List<MenuEntity> selectRuntimeVisibleMenus(List<MenuEntity> allMenus) {
+        Map<Long, MenuEntity> menuMap = new LinkedHashMap<>();
+        for (MenuEntity entity : allMenus) {
+            menuMap.put(entity.getId(), entity);
+        }
+        return allMenus.stream()
+                .filter(entity -> hasCompleteRuntimeAncestorChain(entity, menuMap))
+                .toList();
+    }
+
+    private boolean hasCompleteRuntimeAncestorChain(MenuEntity entity, Map<Long, MenuEntity> menuMap) {
+        Set<Long> visited = new LinkedHashSet<>();
+        MenuEntity current = entity;
+        while (current != null) {
+            if (!"ACTIVE".equals(current.getStatus()) || !Integer.valueOf(1).equals(current.getVisibleFlag())) {
+                return false;
+            }
+            if (current.getId() == null || !visited.add(current.getId())) {
+                return false;
+            }
+            Long parentId = current.getParentId();
+            if (parentId == null || parentId == 0L) {
+                return true;
+            }
+            current = menuMap.get(parentId);
+        }
+        return false;
     }
 
     private String allMenusCacheKey() {

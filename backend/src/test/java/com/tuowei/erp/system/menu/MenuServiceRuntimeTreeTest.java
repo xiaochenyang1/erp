@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -123,6 +124,42 @@ class MenuServiceRuntimeTreeTest {
         verify(roleMenuMapper, never()).selectList(any());
     }
 
+    @Test
+    void runtimeTreeRequiresActiveVisibleMenusWithCompleteAncestorChains() {
+        CurrentUserContext currentUserContext = mock(CurrentUserContext.class);
+        UserRoleMapper userRoleMapper = mock(UserRoleMapper.class);
+        RoleMapper roleMapper = mock(RoleMapper.class);
+        RoleMenuMapper roleMenuMapper = mock(RoleMenuMapper.class);
+        MenuMapper menuMapper = mock(MenuMapper.class);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(Set.of("system:user:view")));
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(userRole()));
+        when(roleMapper.selectList(any())).thenReturn(List.of(activeRole("SUPER_ADMIN")));
+
+        MenuEntity system = menu(5001L, 0L, "CATALOG", "SYSTEM", "系统管理", "/system", null);
+        MenuEntity active = menu(5002L, 5001L, "MENU", "SYSTEM_USER", "用户管理",
+                "/system/users", "system:user:view");
+        MenuEntity invisible = menu(5003L, 5001L, "MENU", "SYSTEM_ROLE", "角色管理",
+                "/system/roles", "system:role:view");
+        invisible.setVisibleFlag(0);
+        MenuEntity disabledCatalog = menu(6001L, 0L, "CATALOG", "DISABLED_CATALOG", "停用目录",
+                "/disabled", null);
+        disabledCatalog.setStatus("INACTIVE");
+        MenuEntity childOfDisabled = menu(6002L, 6001L, "MENU", "CHILD_OF_DISABLED", "停用目录子项",
+                "/disabled/child", "disabled:view");
+        MenuEntity orphan = menu(7001L, 7999L, "MENU", "ORPHAN", "孤儿菜单", "/orphan", "orphan:view");
+        List<MenuEntity> allMenus = List.of(system, active, invisible, disabledCatalog, childOfDisabled, orphan);
+        when(menuMapper.selectList(any())).thenReturn(allMenus);
+
+        MenuService service = service(currentUserContext, userRoleMapper, roleMapper, roleMenuMapper, menuMapper);
+
+        List<MenuResponse> runtimeTree = service.runtimeTreeForCurrentUser();
+
+        assertThat(menuCodes(runtimeTree)).containsExactly("SYSTEM", "SYSTEM_USER");
+        assertThat(menuCodes(service.tree())).containsExactlyInAnyOrder(
+                "SYSTEM", "SYSTEM_USER", "SYSTEM_ROLE", "DISABLED_CATALOG", "CHILD_OF_DISABLED", "ORPHAN");
+        verify(roleMenuMapper, never()).selectList(any());
+    }
+
     private static MenuService service(
             CurrentUserContext currentUserContext,
             UserRoleMapper userRoleMapper,
@@ -204,6 +241,15 @@ class MenuServiceRuntimeTreeTest {
         entity.setStatus("ACTIVE");
         entity.setDeletedFlag(0);
         return entity;
+    }
+
+    private static List<String> menuCodes(List<MenuResponse> menus) {
+        List<String> result = new ArrayList<>();
+        for (MenuResponse menu : menus) {
+            result.add(menu.menuCode());
+            result.addAll(menuCodes(menu.children()));
+        }
+        return result;
     }
 
     private static void initTableInfo(Class<?> entityClass) {
