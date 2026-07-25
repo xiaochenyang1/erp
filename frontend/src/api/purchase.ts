@@ -982,6 +982,7 @@ export interface PurchaseRequisition {
   requisitionDate: string
   neededDate?: string
   status: string
+  approvalStatus?: string | null
   supplierId?: string | number | null
   convertedOrderId?: string | number | null
   convertedOrderNo?: string | null
@@ -998,7 +999,8 @@ const normalizeRequisition = (item: PurchaseRequisition): PurchaseRequisition =>
     ...line,
     id: line.id != null ? String(line.id) : line.id,
     productId: String(line.productId),
-    qty: Number(line.qty ?? 0)
+    qty: Number(line.qty ?? 0),
+    remark: line.remark || ''
   }))
 })
 

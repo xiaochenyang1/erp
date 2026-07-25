@@ -156,14 +156,28 @@ const coreMessages = {
       message: { loadFailed: '加载检验单失败', sourcesLoadFailed: '加载来源单据失败', detailLoadFailed: '加载检验单详情失败', created: '创建成功', submitConfirm: '确认提交检验单“{no}”吗？', submitted: '已提交', saved: '保存成功', judged: '判定完成', cancelConfirm: '确认作废检验单“{no}”吗？', cancelled: '已作废', exported: '导出成功', exportFailed: '导出失败', exportFile: 'quality_inspections_{date}.csv', prompt: '提示' }
     },
     purchaseRequisition: {
-      keyword: '单号', status: '状态', approvalStatus: '审批状态', search: '查询', create: '新建请购', no: '请购单号', date: '请购日期', neededDate: '需求日期', supplier: '供应商', convertedPo: '采购订单', remark: '备注', actions: '操作', view: '查看', edit: '编辑', submit: '提交', approve: '审批', reject: '驳回', convert: '转采购订单', cancel: '作废', editTitle: '编辑请购', createTitle: '新建请购', lines: '明细', addLine: '加行', product: '商品', qty: '数量', delete: '删', close: '关闭', save: '保存',
+      keyword: '单号', status: '状态', approvalStatus: '审批状态', search: '查询', reset: '重置', create: '新建请购', no: '请购单号', date: '请购日期', neededDate: '需求日期', supplier: '供应商', convertedPo: '采购订单', remark: '备注', actions: '操作', view: '查看', edit: '编辑', submit: '提交', approve: '审批', reject: '驳回', convert: '转采购订单', cancel: '作废', editTitle: '编辑请购', createTitle: '新建请购', detailTitle: '请购单详情', lines: '明细', addLine: '加行', product: '商品', productCode: '商品编码', productName: '商品名称', qty: '数量', lineRemark: '行备注', lineRemarkPlaceholder: '选填', sequence: '序号', delete: '删除', close: '关闭', save: '保存', confirm: '确定', prompt: '提示',
+      statusValue: { draft: '草稿', submitted: '已提交', approved: '已审批', rejected: '已驳回', converted: '已转单', cancelled: '已作废' },
+      approvalValue: { none: '无', pending: '审批中', approved: '已通过', rejected: '已驳回', cancelled: '已取消' },
       validation: { required: '请填写日期和明细' },
-      message: { created: '创建成功', saved: '保存成功', done: '操作成功' }
+      message: {
+        created: '创建成功', saved: '保存成功', done: '操作成功', failed: '操作失败', detailLoadFailed: '加载详情失败',
+        submitConfirm: '确认提交请购单“{no}”吗？', approveConfirm: '确认审批通过请购单“{no}”吗？',
+        rejectConfirm: '确认驳回请购单“{no}”吗？', cancelConfirm: '确认作废请购单“{no}”吗？',
+        convertConfirm: '确认将请购单“{no}”转为采购订单吗？'
+      }
     },
     purchaseRequisition: {
-      keyword: 'No.', status: 'Status', approvalStatus: 'Approval status', search: 'Search', create: 'New requisition', no: 'Requisition no.', date: 'Date', neededDate: 'Needed date', supplier: 'Supplier', convertedPo: 'PO', remark: 'Remark', actions: 'Actions', view: 'View', edit: 'Edit', submit: 'Submit', approve: 'Approve', reject: 'Reject', convert: 'Convert to PO', cancel: 'Cancel', editTitle: 'Edit requisition', createTitle: 'New requisition', lines: 'Lines', addLine: 'Add line', product: 'Product', qty: 'Qty', delete: 'Del', close: 'Close', save: 'Save',
+      keyword: 'No.', status: 'Status', approvalStatus: 'Approval status', search: 'Search', reset: 'Reset', create: 'New requisition', no: 'Requisition no.', date: 'Date', neededDate: 'Needed date', supplier: 'Supplier', convertedPo: 'PO', remark: 'Remark', actions: 'Actions', view: 'View', edit: 'Edit', submit: 'Submit', approve: 'Approve', reject: 'Reject', convert: 'Convert to PO', cancel: 'Cancel', editTitle: 'Edit requisition', createTitle: 'New requisition', detailTitle: 'Requisition details', lines: 'Lines', addLine: 'Add line', product: 'Product', productCode: 'Product code', productName: 'Product name', qty: 'Qty', lineRemark: 'Line remark', lineRemarkPlaceholder: 'Optional', sequence: 'No.', delete: 'Delete', close: 'Close', save: 'Save', confirm: 'Confirm', prompt: 'Confirmation',
+      statusValue: { draft: 'Draft', submitted: 'Submitted', approved: 'Approved', rejected: 'Rejected', converted: 'Converted', cancelled: 'Cancelled' },
+      approvalValue: { none: 'None', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled' },
       validation: { required: 'Date and lines are required' },
-      message: { created: 'Created', saved: 'Saved', done: 'Done' }
+      message: {
+        created: 'Created', saved: 'Saved', done: 'Done', failed: 'Operation failed', detailLoadFailed: 'Failed to load details',
+        submitConfirm: 'Submit requisition “{no}”?', approveConfirm: 'Approve requisition “{no}”?',
+        rejectConfirm: 'Reject requisition “{no}”?', cancelConfirm: 'Cancel requisition “{no}”?',
+        convertConfirm: 'Convert requisition “{no}” to a purchase order?'
+      }
     },
     inventorySerial: {
       keyword: '关键字', status: '状态', search: '查询', create: '登记序列号', serialNo: '序列号', productCode: '商品编码', productName: '商品名称', warehouse: '仓库', location: '库位', inboundBizNo: '入库单号', outboundBizNo: '出库单号', actions: '操作', issue: '出库', scrap: '报废', createTitle: '登记序列号', product: '商品', cancel: '取消', save: '保存', remark: '备注',
