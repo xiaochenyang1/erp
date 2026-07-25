@@ -1,6 +1,6 @@
-import { computed, type Ref } from 'vue'
+import { computed, ref, type Ref } from 'vue'
 
-import type { Product, Warehouse } from '@/api/masterdata'
+import type { Location, Product, Warehouse } from '@/api/masterdata'
 import { formatLocalizedNumber } from '@/utils/locale'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
@@ -9,7 +9,8 @@ type TagType = 'success' | 'info' | 'warning' | 'danger'
 export const useInventoryStockPresentation = (
   warehouses: Ref<Warehouse[]>,
   products: Ref<Product[]>,
-  t: Translate
+  t: Translate,
+  locations: Ref<Location[]> = ref([])
 ) => {
   const warehouseMap = computed(() => new Map(
     warehouses.value.map((item) => [String(item.id), item.name])
@@ -18,6 +19,12 @@ export const useInventoryStockPresentation = (
     products.value.map((item) => [
       String(item.id),
       `${item.code || item.productCode || item.id} - ${item.name || item.productName || '-'}`
+    ])
+  ))
+  const locationMap = computed(() => new Map(
+    locations.value.map((item) => [
+      String(item.id),
+      `${item.locationCode} ${item.locationName}`
     ])
   ))
 
@@ -32,6 +39,11 @@ export const useInventoryStockPresentation = (
     || t('inventoryStocks.warehouseFallback', { id })
   const productName = (id: string) => productMap.value.get(String(id))
     || t('inventoryStocks.productFallback', { id })
+  const locationName = (id?: string | number | null) => {
+    if (id == null || id === '') return '-'
+    return locationMap.value.get(String(id))
+      || t('inventoryStocks.locationFallback', { id })
+  }
   const formatNumber = (value?: number) => formatLocalizedNumber(
     Number(value ?? 0),
     { maximumFractionDigits: 4 }
@@ -85,6 +97,7 @@ export const useInventoryStockPresentation = (
     formatMoney,
     formatNumber,
     formatOptionalNumber,
+    locationName,
     productName,
     reservationEventLabel,
     reservationStatusLabel,

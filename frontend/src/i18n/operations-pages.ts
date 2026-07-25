@@ -192,6 +192,7 @@ export const operationsPageMessages = {
     },
     inventoryStocks: {
       warehouse: '仓库',
+      location: '库位',
       product: '产品',
       stockQuery: '库存查询',
       bookStock: '账面库存',
@@ -258,8 +259,9 @@ export const operationsPageMessages = {
       sourceReservationDetail: '来源预留详情',
       warehouseFallback: '仓库 {id}',
       productFallback: '产品 {id}',
+      locationFallback: '库位 {id}',
       placeholder: {
-        warehouse: '请选择仓库', product: '请选择产品', all: '全部',
+        warehouse: '请选择仓库', product: '请选择产品', location: '请选择库位', all: '全部',
         allStatuses: '全部状态', sourceNo: '请输入来源单号', lotNo: '请输入批号',
         businessNo: '请输入业务单号', releaseReason: '请输入释放原因'
       },
@@ -609,6 +611,7 @@ export const operationsPageMessages = {
     },
     inventoryStocks: {
       warehouse: 'Warehouse',
+      location: 'Location',
       product: 'Product',
       stockQuery: 'Inventory inquiry',
       bookStock: 'Book stock',
@@ -675,8 +678,9 @@ export const operationsPageMessages = {
       sourceReservationDetail: 'Source reservation details',
       warehouseFallback: 'Warehouse {id}',
       productFallback: 'Product {id}',
+      locationFallback: 'Location {id}',
       placeholder: {
-        warehouse: 'Select a warehouse', product: 'Select a product', all: 'All',
+        warehouse: 'Select a warehouse', product: 'Select a product', location: 'Select a location', all: 'All',
         allStatuses: 'All statuses', sourceNo: 'Enter a source no.', lotNo: 'Enter a lot no.',
         businessNo: 'Enter a business no.', releaseReason: 'Enter a release reason'
       },

@@ -7,6 +7,7 @@ import { useInventoryStockPresentation } from './useInventoryStockPresentation'
 const messages: Record<string, string> = {
   'inventoryStocks.warehouseFallback': 'Warehouse {id}',
   'inventoryStocks.productFallback': 'Product {id}',
+  'inventoryStocks.locationFallback': 'Location {id}',
   'inventoryStocks.sourceTypeValue.salesOrder': 'Sales order',
   'inventoryStocks.reservationStatus.active': 'Active',
   'inventoryStocks.reservationStatus.released': 'Released',
@@ -39,6 +40,8 @@ describe('inventory stock presentation', () => {
 
     expect(presentation.warehouseName('10')).toBe('Warehouse 10')
     expect(presentation.productName('20')).toBe('Product 20')
+    expect(presentation.locationName('30')).toBe('Location 30')
+    expect(presentation.locationName()).toBe('-')
 
     warehouses.value = [{ id: '10', name: 'Main warehouse' } as Warehouse]
     products.value = [{ id: '20', code: 'P-20', name: 'Widget' } as Product]

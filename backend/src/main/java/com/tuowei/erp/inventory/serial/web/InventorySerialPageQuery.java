@@ -5,6 +5,7 @@ public class InventorySerialPageQuery {
     private Long pageSize = 20L;
     private Long productId;
     private Long warehouseId;
+    private Long locationId;
     private String status;
     private String keyword;
     public Long getPageNo() { return pageNo; }
@@ -15,6 +16,8 @@ public class InventorySerialPageQuery {
     public void setProductId(Long productId) { this.productId = productId; }
     public Long getWarehouseId() { return warehouseId; }
     public void setWarehouseId(Long warehouseId) { this.warehouseId = warehouseId; }
+    public Long getLocationId() { return locationId; }
+    public void setLocationId(Long locationId) { this.locationId = locationId; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getKeyword() { return keyword; }

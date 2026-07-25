@@ -34,6 +34,22 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item :label="$t('inventoryStocks.location')">
+          <el-select
+            v-model="queryParams.locationId"
+            :placeholder="$t('inventoryStocks.placeholder.location')"
+            clearable
+            filterable
+            style="width: 220px"
+          >
+            <el-option
+              v-for="location in locationsForQuery"
+              :key="location.id"
+              :label="`${location.locationCode} ${location.locationName}`"
+              :value="location.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('inventoryStocks.action.search') }}</el-button>
           <el-button :icon="Refresh" @click="handleReset">{{ $t('inventoryStocks.action.reset') }}</el-button>
@@ -60,6 +76,11 @@
         <el-table-column prop="warehouseId" :label="$t('inventoryStocks.warehouse')" min-width="160">
           <template #default="{ row }">
             {{ warehouseName(row.warehouseId) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="locationId" :label="$t('inventoryStocks.location')" min-width="160">
+          <template #default="{ row }">
+            {{ locationName(row.locationId) }}
           </template>
         </el-table-column>
         <el-table-column prop="productId" :label="$t('inventoryStocks.product')" min-width="220">
@@ -598,6 +619,7 @@
       <el-skeleton v-if="detailLoading" :rows="5" animated />
       <el-descriptions v-else-if="selectedStock" :column="2" border>
         <el-descriptions-item :label="$t('inventoryStocks.warehouse')">{{ warehouseName(selectedStock.warehouseId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.location')">{{ locationName(selectedStock.locationId) }}</el-descriptions-item>
         <el-descriptions-item :label="$t('inventoryStocks.product')">{{ productName(selectedStock.productId) }}</el-descriptions-item>
         <el-descriptions-item :label="$t('inventoryStocks.bookStock')">{{ formatNumber(selectedStock.quantity) }}</el-descriptions-item>
         <el-descriptions-item :label="$t('inventoryStocks.reserved')">{{ formatNumber(selectedStock.reservedQuantity) }}</el-descriptions-item>
@@ -680,7 +702,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
@@ -695,7 +717,7 @@ import {
   type InventoryReservationCheckIssue,
   type InventoryStock,
 } from '@/api/inventory'
-import { getProducts, getWarehouses, type Product, type Warehouse } from '@/api/masterdata'
+import { getLocations, getProducts, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
 import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails'
 import { useInventoryStockQueries } from '@/composables/useInventoryStockQueries'
 import { useInventoryStockPresentation } from '@/composables/useInventoryStockPresentation'
@@ -716,11 +738,17 @@ const {
   transactionQuery
 } = useInventoryStockQueries({
   warehouseId: route.query.warehouseId ? String(route.query.warehouseId) : undefined,
-  productId: route.query.productId ? String(route.query.productId) : undefined
+  productId: route.query.productId ? String(route.query.productId) : undefined,
+  locationId: route.query.locationId ? String(route.query.locationId) : undefined
 })
 
 const warehouses = ref<Warehouse[]>([])
 const products = ref<Product[]>([])
+const locations = ref<Location[]>([])
+const locationsForQuery = computed(() => {
+  if (!queryParams.warehouseId) return locations.value
+  return locations.value.filter((location) => String(location.warehouseId) === String(queryParams.warehouseId))
+})
 const reservationDialogVisible = ref(false)
 const releaseDialogVisible = ref(false)
 const checkDialogVisible = ref(false)
@@ -827,6 +855,7 @@ const {
   formatMoney,
   formatNumber,
   formatOptionalNumber,
+  locationName,
   productName,
   reservationEventLabel,
   reservationStatusLabel,
@@ -834,16 +863,18 @@ const {
   severityLabel,
   sourceTypeLabel,
   warehouseName
-} = useInventoryStockPresentation(warehouses, products, t)
+} = useInventoryStockPresentation(warehouses, products, t, locations)
 
 const loadOptions = async () => {
   const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-  const [warehousePage, productPage] = await Promise.all([
+  const [warehousePage, productPage, locationPage] = await Promise.all([
     getWarehouses(optionPageQuery),
-    getProducts(optionPageQuery)
+    getProducts(optionPageQuery),
+    getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
   ])
   warehouses.value = warehousePage.records
   products.value = productPage.records
+  locations.value = locationPage.records || []
 }
 
 const handleQuery = () => {
@@ -854,6 +885,7 @@ const handleQuery = () => {
 const handleReset = () => {
   queryParams.warehouseId = undefined
   queryParams.productId = undefined
+  queryParams.locationId = undefined
   queryParams.pageNo = 1
   loadData()
 }

@@ -166,12 +166,12 @@ const coreMessages = {
       message: { created: 'Created', saved: 'Saved', done: 'Done' }
     },
     inventorySerial: {
-      keyword: '关键字', status: '状态', search: '查询', create: '登记序列号', serialNo: '序列号', productCode: '商品编码', productName: '商品名称', inboundBizNo: '入库单号', outboundBizNo: '出库单号', actions: '操作', issue: '出库', scrap: '报废', createTitle: '登记序列号', product: '商品', cancel: '取消', save: '保存',
+      keyword: '关键字', status: '状态', search: '查询', create: '登记序列号', serialNo: '序列号', productCode: '商品编码', productName: '商品名称', warehouse: '仓库', location: '库位', inboundBizNo: '入库单号', outboundBizNo: '出库单号', actions: '操作', issue: '出库', scrap: '报废', createTitle: '登记序列号', product: '商品', cancel: '取消', save: '保存', remark: '备注',
       validation: { required: '请填写商品和序列号' },
       message: { created: '登记成功', issued: '已出库', scrapped: '已报废' }
     },
     inventorySerial: {
-      keyword: 'Keyword', status: 'Status', search: 'Search', create: 'Register serial', serialNo: 'Serial no.', productCode: 'Product code', productName: 'Product name', inboundBizNo: 'Inbound no.', outboundBizNo: 'Outbound no.', actions: 'Actions', issue: 'Issue', scrap: 'Scrap', createTitle: 'Register serial', product: 'Product', cancel: 'Cancel', save: 'Save',
+      keyword: 'Keyword', status: 'Status', search: 'Search', create: 'Register serial', serialNo: 'Serial no.', productCode: 'Product code', productName: 'Product name', warehouse: 'Warehouse', location: 'Location', inboundBizNo: 'Inbound no.', outboundBizNo: 'Outbound no.', actions: 'Actions', issue: 'Issue', scrap: 'Scrap', createTitle: 'Register serial', product: 'Product', cancel: 'Cancel', save: 'Save', remark: 'Remark',
       validation: { required: 'Product and serial no. are required' },
       message: { created: 'Created', issued: 'Issued', scrapped: 'Scrapped' }
     },

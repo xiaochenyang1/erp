@@ -100,6 +100,7 @@ public class InventorySerialNumberService {
                 .orderByDesc(InventorySerialNumberEntity::getId);
         if (safe.getProductId() != null) wrapper.eq(InventorySerialNumberEntity::getProductId, safe.getProductId());
         if (safe.getWarehouseId() != null) wrapper.eq(InventorySerialNumberEntity::getWarehouseId, safe.getWarehouseId());
+        if (safe.getLocationId() != null) wrapper.eq(InventorySerialNumberEntity::getLocationId, safe.getLocationId());
         if (StringUtils.hasText(safe.getStatus())) wrapper.eq(InventorySerialNumberEntity::getStatus, safe.getStatus().trim().toUpperCase(Locale.ROOT));
         if (StringUtils.hasText(safe.getKeyword())) {
             String kw = safe.getKeyword().trim();

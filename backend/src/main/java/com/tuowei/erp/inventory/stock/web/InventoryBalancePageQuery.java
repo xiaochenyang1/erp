@@ -10,6 +10,8 @@ public class InventoryBalancePageQuery {
 
     private Long productId;
 
+    private Long locationId;
+
     public Integer getPageNo() {
         return pageNo;
     }
@@ -40,5 +42,13 @@ public class InventoryBalancePageQuery {
 
     public void setProductId(Long productId) {
         this.productId = productId;
+    }
+
+    public Long getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(Long locationId) {
+        this.locationId = locationId;
     }
 }

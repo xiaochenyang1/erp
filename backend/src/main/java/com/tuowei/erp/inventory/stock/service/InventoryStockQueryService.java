@@ -250,8 +250,12 @@ public class InventoryStockQueryService {
         if (query.getProductId() != null) {
             wrapper.eq(InventoryBalanceEntity::getProductId, query.getProductId());
         }
+        if (query.getLocationId() != null) {
+            wrapper.eq(InventoryBalanceEntity::getLocationId, query.getLocationId());
+        }
         return wrapper
                 .orderByAsc(InventoryBalanceEntity::getWarehouseId)
+                .orderByAsc(InventoryBalanceEntity::getLocationId)
                 .orderByAsc(InventoryBalanceEntity::getProductId)
                 .orderByDesc(InventoryBalanceEntity::getId);
     }
@@ -407,6 +411,7 @@ public class InventoryStockQueryService {
         safeQuery.setPageSize(EXPORT_PAGE_SIZE);
         safeQuery.setWarehouseId(source.getWarehouseId());
         safeQuery.setProductId(source.getProductId());
+        safeQuery.setLocationId(source.getLocationId());
         return safeQuery;
     }
 

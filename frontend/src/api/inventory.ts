@@ -27,6 +27,7 @@ export interface InventoryStock {
 export interface InventoryStockQuery extends PageQuery {
   warehouseId?: string | number
   productId?: string | number
+  locationId?: string | number
   productCode?: string
   productName?: string
 }
@@ -1254,7 +1255,7 @@ export interface InventorySerial {
   updatedTime?: string
 }
 
-export const getInventorySerials = (params: PageQuery & { productId?: string | number; warehouseId?: string | number; status?: string; keyword?: string }) => {
+export const getInventorySerials = (params: PageQuery & { productId?: string | number; warehouseId?: string | number; locationId?: string | number; status?: string; keyword?: string }) => {
   return request.get<PageResponse<InventorySerial>>('/inventory/serials', { params }).then((page) => ({
     ...page,
     records: (page.records || []).map((item) => ({
