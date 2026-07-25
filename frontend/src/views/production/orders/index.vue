@@ -425,6 +425,31 @@
             style="width: 100%"
           />
         </el-form-item>
+        <el-form-item :label="t('productionOrder.lotNo')">
+          <el-input
+            v-model="completeForm.lotNo"
+            clearable
+            :placeholder="t('productionOrder.lotNoPlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('productionOrder.productionDate')">
+          <el-date-picker
+            v-model="completeForm.productionDate"
+            type="date"
+            :placeholder="t('productionOrder.selectDate')"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item :label="t('productionOrder.expiryDate')">
+          <el-date-picker
+            v-model="completeForm.expiryDate"
+            type="date"
+            :placeholder="t('productionOrder.selectDate')"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
         <el-form-item :label="t('productionOrder.remark')">
           <el-input
             v-model="completeForm.remark"
@@ -709,6 +734,9 @@ const completeForm = reactive({
   completedQuantity: 0,
   scrapQuantity: 0,
   completionDate: '',
+  lotNo: '',
+  productionDate: '',
+  expiryDate: '',
   maxQuantity: 0,
   remark: ''
 })
@@ -905,6 +933,9 @@ const handleComplete = (row: ProductionOrder) => {
   completeForm.completedQuantity = completeForm.maxQuantity
   completeForm.scrapQuantity = 0
   completeForm.completionDate = formatBusinessDate()
+  completeForm.lotNo = ''
+  completeForm.productionDate = ''
+  completeForm.expiryDate = ''
   completeForm.remark = ''
   completeDialogVisible.value = true
 }
@@ -988,6 +1019,9 @@ const handleConfirmComplete = async () => {
       completedQuantity: completeForm.completedQuantity,
       scrapQuantity: completeForm.scrapQuantity,
       completionDate: completeForm.completionDate,
+      lotNo: completeForm.lotNo || undefined,
+      productionDate: completeForm.productionDate || undefined,
+      expiryDate: completeForm.expiryDate || undefined,
       remark: completeForm.remark
     })
     ElMessage.success(t('productionOrder.message.completed'))
