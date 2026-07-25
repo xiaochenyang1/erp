@@ -91,8 +91,8 @@ class InitialImportControllerTest {
     @WithErpUser(userId = IMPORT_USER_ID, authorities = {IMPORT_PERMISSION})
     void previewsAndCommitsProductImportThenRejectsRepeatedCommit() {
         String productCode = "IMP-PROD-880001";
-        String csv = "product_code,product_name,product_type,category_name,specification,unit_name,aux_unit_name,conversion_factor,purchase_price,sale_price,tax_rate,status,remark\n"
-                + productCode + ",导入测试商品,STANDARD,导入分类,规格A,件,箱,12,10.00,18.00,13.00,ACTIVE,导入测试\n";
+        String csv = "product_code,product_name,product_type,category_name,specification,unit_name,aux_unit_name,conversion_factor,barcode,purchase_price,sale_price,tax_rate,status,lot_controlled,shelf_life_controlled,inspection_required,serial_controlled,remark\n"
+                + productCode + ",导入测试商品,STANDARD,导入分类,规格A,件,箱,12,6901234567890,10.00,18.00,13.00,ACTIVE,1,1,1,0,导入测试\n";
 
         ImportJobResponse preview = importJobService.preview("PRODUCT", csvFile("product.csv", csv));
         Assertions.assertThat(preview.status()).isEqualTo("VALIDATED");
@@ -111,13 +111,19 @@ class InitialImportControllerTest {
         Assertions.assertThat(importedCount).isEqualTo(1L);
 
         Map<String, Object> product = jdbcTemplate.queryForMap(
-                "select aux_unit_name, conversion_factor from md_product where product_code = ? and company_id = 1 and account_book_id = 1",
+                "select aux_unit_name, conversion_factor, barcode, lot_controlled, shelf_life_controlled, inspection_required, serial_controlled from md_product where product_code = ? and company_id = 1 and account_book_id = 1",
                 productCode
         );
         Assertions.assertThat(String.valueOf(product.get("AUX_UNIT_NAME") != null ? product.get("AUX_UNIT_NAME") : product.get("aux_unit_name")))
                 .isEqualTo("箱");
         Object factor = product.get("CONVERSION_FACTOR") != null ? product.get("CONVERSION_FACTOR") : product.get("conversion_factor");
         Assertions.assertThat(new BigDecimal(factor.toString()).compareTo(new BigDecimal("12"))).isZero();
+        Object barcode = product.get("BARCODE") != null ? product.get("BARCODE") : product.get("barcode");
+        Assertions.assertThat(String.valueOf(barcode)).isEqualTo("6901234567890");
+        Assertions.assertThat(intColumn(product, "LOT_CONTROLLED", "lot_controlled")).isEqualTo(1);
+        Assertions.assertThat(intColumn(product, "SHELF_LIFE_CONTROLLED", "shelf_life_controlled")).isEqualTo(1);
+        Assertions.assertThat(intColumn(product, "INSPECTION_REQUIRED", "inspection_required")).isEqualTo(1);
+        Assertions.assertThat(intColumn(product, "SERIAL_CONTROLLED", "serial_controlled")).isEqualTo(0);
 
         Assertions.assertThatThrownBy(() -> importJobService.commit(preview.jobId()))
                 .isInstanceOf(BusinessConflictException.class)
@@ -241,8 +247,13 @@ class InitialImportControllerTest {
     }
 
     private String productCsv(String productCode) {
-        return "product_code,product_name,product_type,category_name,specification,unit_name,aux_unit_name,conversion_factor,purchase_price,sale_price,tax_rate,status,remark\n"
-                + productCode + ",导入测试商品,STANDARD,导入分类,规格A,件,,,10.00,18.00,13.00,ACTIVE,导入测试\n";
+        return "product_code,product_name,product_type,category_name,specification,unit_name,aux_unit_name,conversion_factor,barcode,purchase_price,sale_price,tax_rate,status,lot_controlled,shelf_life_controlled,inspection_required,serial_controlled,remark\n"
+                + productCode + ",导入测试商品,STANDARD,导入分类,规格A,件,,,,10.00,18.00,13.00,ACTIVE,0,0,0,0,导入测试\n";
+    }
+
+    private int intColumn(Map<String, Object> row, String upperKey, String lowerKey) {
+        Object value = row.get(upperKey) != null ? row.get(upperKey) : row.get(lowerKey);
+        return value == null ? 0 : Integer.parseInt(value.toString());
     }
 
     private void seedCustomer(long id, String customerCode) {

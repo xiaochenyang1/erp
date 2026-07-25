@@ -37,6 +37,11 @@ public class ProductImportHandler extends AbstractImportHandler {
         String productName = support.required(raw, "product_name", errors);
         String unitName = support.required(raw, "unit_name", errors);
         String auxUnitName = support.optionalText(raw, "aux_unit_name");
+        String barcode = support.optionalText(raw, "barcode");
+        if (barcode != null && barcode.length() > 128) {
+            errors.add(new ImportRowErrorResponse("barcode", "商品条码长度不能超过128个字符"));
+            barcode = null;
+        }
         if (productCode != null) {
             support.duplicateInFile(seen(context, "productCode"), productCode, "product_code", errors);
             Long count = productMapper.selectCount(new LambdaQueryWrapper<ProductEntity>()
@@ -46,6 +51,17 @@ public class ProductImportHandler extends AbstractImportHandler {
                     .eq(ProductEntity::getDeletedFlag, 0));
             if (exists(count)) {
                 errors.add(new ImportRowErrorResponse("product_code", "商品编码已存在"));
+            }
+        }
+        if (barcode != null) {
+            support.duplicateInFile(seen(context, "productBarcode"), barcode, "barcode", errors);
+            Long barcodeCount = productMapper.selectCount(new LambdaQueryWrapper<ProductEntity>()
+                    .eq(ProductEntity::getCompanyId, context.companyId())
+                    .eq(ProductEntity::getAccountBookId, context.accountBookId())
+                    .eq(ProductEntity::getBarcode, barcode)
+                    .eq(ProductEntity::getDeletedFlag, 0));
+            if (exists(barcodeCount)) {
+                errors.add(new ImportRowErrorResponse("barcode", "商品条码已存在"));
             }
         }
         BigDecimal purchasePrice = support.optionalAmount(raw, "purchase_price", BigDecimal.ZERO, errors);
@@ -68,6 +84,13 @@ public class ProductImportHandler extends AbstractImportHandler {
         } else if (org.springframework.util.StringUtils.hasText(raw.get("conversion_factor"))) {
             errors.add(new ImportRowErrorResponse("conversion_factor", "未填写辅单位时不能填写换算率"));
         }
+        boolean lotControlled = support.optionalFlag(raw, "lot_controlled", false, errors);
+        boolean shelfLifeControlled = support.optionalFlag(raw, "shelf_life_controlled", false, errors);
+        boolean inspectionRequired = support.optionalFlag(raw, "inspection_required", false, errors);
+        boolean serialControlled = support.optionalFlag(raw, "serial_controlled", false, errors);
+        if (shelfLifeControlled && !lotControlled) {
+            errors.add(new ImportRowErrorResponse("shelf_life_controlled", "启用效期管理必须同时启用批次管理"));
+        }
         rejectNegative("purchase_price", purchasePrice, errors);
         rejectNegative("sale_price", salePrice, errors);
         rejectNegative("tax_rate", taxRate, errors);
@@ -79,10 +102,15 @@ public class ProductImportHandler extends AbstractImportHandler {
         normalized.put("unitName", unitName);
         normalized.put("auxUnitName", auxUnitName);
         normalized.put("conversionFactor", conversionFactor);
+        normalized.put("barcode", barcode);
         normalized.put("purchasePrice", purchasePrice);
         normalized.put("salePrice", salePrice);
         normalized.put("taxRate", taxRate);
         normalized.put("status", support.optionalText(raw, "status", "ACTIVE"));
+        normalized.put("lotControlled", lotControlled ? 1 : 0);
+        normalized.put("shelfLifeControlled", shelfLifeControlled ? 1 : 0);
+        normalized.put("inspectionRequired", inspectionRequired ? 1 : 0);
+        normalized.put("serialControlled", serialControlled ? 1 : 0);
         normalized.put("remark", support.optionalText(raw, "remark"));
         return new ImportRowPlan(normalized, errors);
     }
@@ -108,10 +136,15 @@ public class ProductImportHandler extends AbstractImportHandler {
             } else if (conversionFactor != null) {
                 entity.setConversionFactor(new BigDecimal(conversionFactor.toString()).stripTrailingZeros());
             }
+            entity.setBarcode(text(normalized, "barcode"));
             entity.setPurchasePrice(decimalValue(normalized, "purchasePrice"));
             entity.setSalePrice(decimalValue(normalized, "salePrice"));
             entity.setTaxRate(decimalValue(normalized, "taxRate"));
             entity.setStatus(text(normalized, "status"));
+            entity.setLotControlled(intFlag(normalized, "lotControlled"));
+            entity.setShelfLifeControlled(intFlag(normalized, "shelfLifeControlled"));
+            entity.setInspectionRequired(intFlag(normalized, "inspectionRequired"));
+            entity.setSerialControlled(intFlag(normalized, "serialControlled"));
             entity.setDeletedFlag(0);
             entity.setRemark(text(normalized, "remark"));
             entity.setCreatedBy(audit.userId());
@@ -122,5 +155,19 @@ public class ProductImportHandler extends AbstractImportHandler {
             productMapper.insert(entity);
         }
         return rows.size();
+    }
+
+    private int intFlag(Map<String, Object> normalized, String key) {
+        Object value = normalized.get(key);
+        if (value == null) {
+            return 0;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() == 1 ? 1 : 0;
+        }
+        if (value instanceof Boolean bool) {
+            return bool ? 1 : 0;
+        }
+        return "1".equals(value.toString()) || "true".equalsIgnoreCase(value.toString()) ? 1 : 0;
     }
 }

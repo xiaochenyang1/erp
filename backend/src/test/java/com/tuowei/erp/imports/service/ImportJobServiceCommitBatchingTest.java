@@ -277,7 +277,7 @@ class ImportJobServiceCommitBatchingTest {
 
     private MockMultipartFile productCsvFile() {
         String content = String.join(",", new ImportTemplateRegistry().headers(ImportConstants.PRODUCT))
-                + "\nP001,示例商品,STANDARD,默认分类,规格A,件,10.00,15.00,13.00,ACTIVE,备注\n";
+                + "\nP001,示例商品,STANDARD,默认分类,规格A,件,箱,12,6901234567890,10.00,15.00,13.00,ACTIVE,0,0,0,0,备注\n";
         return new MockMultipartFile(
                 "file",
                 "product.csv",

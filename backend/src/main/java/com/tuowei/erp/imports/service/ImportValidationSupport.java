@@ -113,6 +113,26 @@ public class ImportValidationSupport {
         }
     }
 
+    /**
+     * Optional 0/1 style flag. Empty defaults to {@code defaultValue}.
+     * Accepts 0/1, true/false, Y/N, YES/NO (case-insensitive).
+     */
+    public boolean optionalFlag(Map<String, String> raw, String column, boolean defaultValue, List<ImportRowErrorResponse> errors) {
+        String value = raw.get(column);
+        if (!StringUtils.hasText(value)) {
+            return defaultValue;
+        }
+        String normalized = value.trim().toUpperCase(java.util.Locale.ROOT);
+        return switch (normalized) {
+            case "1", "TRUE", "Y", "YES" -> true;
+            case "0", "FALSE", "N", "NO" -> false;
+            default -> {
+                errors.add(new ImportRowErrorResponse(column, column + "仅支持0/1、true/false、Y/N或YES/NO"));
+                yield defaultValue;
+            }
+        };
+    }
+
     public Long requiredLong(Map<String, String> raw, String column, List<ImportRowErrorResponse> errors) {
         String value = required(raw, column, errors);
         if (value == null) {

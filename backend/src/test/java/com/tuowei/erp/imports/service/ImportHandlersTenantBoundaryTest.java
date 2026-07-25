@@ -177,6 +177,82 @@ class ImportHandlersTenantBoundaryTest {
     }
 
     @Test
+    void productImportPersistsBarcodeAndControlFlags() {
+        ProductMapper productMapper = mock(ProductMapper.class);
+        when(productMapper.selectCount(any())).thenReturn(0L);
+        ImportValidationSupport support = support();
+        ProductImportHandler handler = new ProductImportHandler(support, productMapper);
+
+        ImportTypeHandler.ImportRowPlan plan = handler.validate(1, Map.of(
+                "product_code", "P-CTRL-001",
+                "product_name", "controlled product",
+                "unit_name", "件",
+                "barcode", "6901234567890",
+                "lot_controlled", "1",
+                "shelf_life_controlled", "YES",
+                "inspection_required", "true",
+                "serial_controlled", "0"
+        ), context());
+
+        assertThat(plan.valid()).isTrue();
+        assertThat(plan.normalized())
+                .containsEntry("barcode", "6901234567890")
+                .containsEntry("lotControlled", 1)
+                .containsEntry("shelfLifeControlled", 1)
+                .containsEntry("inspectionRequired", 1)
+                .containsEntry("serialControlled", 0);
+
+        handler.commit(new ImportJobEntity(), List.of(row(support, plan)), audit());
+
+        ArgumentCaptor<ProductEntity> entity = ArgumentCaptor.forClass(ProductEntity.class);
+        verify(productMapper).insert(entity.capture());
+        assertThat(entity.getValue().getBarcode()).isEqualTo("6901234567890");
+        assertThat(entity.getValue().getLotControlled()).isEqualTo(1);
+        assertThat(entity.getValue().getShelfLifeControlled()).isEqualTo(1);
+        assertThat(entity.getValue().getInspectionRequired()).isEqualTo(1);
+        assertThat(entity.getValue().getSerialControlled()).isEqualTo(0);
+    }
+
+    @Test
+    void productImportRejectsShelfLifeWithoutLotControl() {
+        ProductMapper productMapper = mock(ProductMapper.class);
+        when(productMapper.selectCount(any())).thenReturn(0L);
+
+        ImportTypeHandler.ImportRowPlan plan = new ProductImportHandler(support(), productMapper)
+                .validate(1, Map.of(
+                        "product_code", "P-CTRL-002",
+                        "product_name", "invalid shelf life",
+                        "unit_name", "件",
+                        "lot_controlled", "0",
+                        "shelf_life_controlled", "1"
+                ), context());
+
+        assertThat(plan.valid()).isFalse();
+        assertThat(plan.errors())
+                .anySatisfy(error -> {
+                    assertThat(error.column()).isEqualTo("shelf_life_controlled");
+                    assertThat(error.message()).contains("批次管理");
+                });
+    }
+
+    @Test
+    void productTemplateExposesBarcodeAndControlFlags() {
+        ImportTemplateRegistry registry = new ImportTemplateRegistry();
+
+        assertThat(registry.headers(ImportConstants.PRODUCT)).containsExactly(
+                "product_code", "product_name", "product_type", "category_name", "specification",
+                "unit_name", "aux_unit_name", "conversion_factor", "barcode",
+                "purchase_price", "sale_price", "tax_rate", "status",
+                "lot_controlled", "shelf_life_controlled", "inspection_required", "serial_controlled",
+                "remark"
+        );
+        assertThat(registry.csvTemplate(ImportConstants.PRODUCT))
+                .contains("6901234567890")
+                .contains("lot_controlled")
+                .contains("serial_controlled");
+    }
+
+    @Test
     void supplierImportValidatesAndPersistsProfileFields() {
         SupplierMapper supplierMapper = mock(SupplierMapper.class);
         when(supplierMapper.selectCount(any())).thenReturn(0L);
