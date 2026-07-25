@@ -6,6 +6,7 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
@@ -44,6 +45,7 @@ public class ProductionReturnService {
     private final ProductionReturnMapper returnMapper;
     private final ProductionReturnLineMapper returnLineMapper;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
     private final AccountPeriodGuard accountPeriodGuard;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
@@ -56,6 +58,7 @@ public class ProductionReturnService {
             ProductionReturnMapper returnMapper,
             ProductionReturnLineMapper returnLineMapper,
             InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService,
             AccountPeriodGuard accountPeriodGuard,
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
@@ -67,6 +70,7 @@ public class ProductionReturnService {
         this.returnMapper = returnMapper;
         this.returnLineMapper = returnLineMapper;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
         this.accountPeriodGuard = accountPeriodGuard;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
@@ -134,6 +138,8 @@ public class ProductionReturnService {
             line.setLotNo(requestLine.lotNo());
             line.setProductionDate(requestLine.productionDate());
             line.setExpiryDate(requestLine.expiryDate());
+            line.setLocationId(requestLine.locationId());
+            line.setSerialNos(requestLine.serialNos());
             line.setRemark(StringUtils.hasText(requestLine.remark()) ? requestLine.remark().trim() : actionRemark);
             fillAudit(line, audit, now);
             returnLineMapper.insert(line);
@@ -151,8 +157,19 @@ public class ProductionReturnService {
                             returnDate,
                             line.getLotNo(),
                             line.getProductionDate(),
-                            line.getExpiryDate()
+                            line.getExpiryDate(),
+                            line.getLocationId()
                     ),
+                    audit
+            );
+            inventorySerialNumberService.registerInboundSerials(
+                    line.getMaterialProductId(),
+                    order.getMaterialWarehouseId(),
+                    line.getLocationId(),
+                    line.getSerialNos(),
+                    BIZ_TYPE,
+                    order.getOrderNo(),
+                    returnQty,
                     audit
             );
             inventoryPostingService.restoreReservation(

@@ -9,9 +9,22 @@ public record ProductionReturnLineRequest(
         String lotNo,
         LocalDate productionDate,
         LocalDate expiryDate,
+        Long locationId,
+        String serialNos,
         String remark
 ) {
     public ProductionReturnLineRequest(Long orderMaterialId, BigDecimal returnQty, String remark) {
-        this(orderMaterialId, returnQty, null, null, null, remark);
+        this(orderMaterialId, returnQty, null, null, null, null, null, remark);
+    }
+
+    public ProductionReturnLineRequest(
+            Long orderMaterialId,
+            BigDecimal returnQty,
+            String lotNo,
+            LocalDate productionDate,
+            LocalDate expiryDate,
+            String remark
+    ) {
+        this(orderMaterialId, returnQty, lotNo, productionDate, expiryDate, null, null, remark);
     }
 }

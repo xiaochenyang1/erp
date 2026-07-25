@@ -9,9 +9,22 @@ public record ProductionIssueLineRequest(
         String lotNo,
         LocalDate productionDate,
         LocalDate expiryDate,
+        Long locationId,
+        String serialNos,
         String remark
 ) {
     public ProductionIssueLineRequest(Long orderMaterialId, BigDecimal issueQty, String remark) {
-        this(orderMaterialId, issueQty, null, null, null, remark);
+        this(orderMaterialId, issueQty, null, null, null, null, null, remark);
+    }
+
+    public ProductionIssueLineRequest(
+            Long orderMaterialId,
+            BigDecimal issueQty,
+            String lotNo,
+            LocalDate productionDate,
+            LocalDate expiryDate,
+            String remark
+    ) {
+        this(orderMaterialId, issueQty, lotNo, productionDate, expiryDate, null, null, remark);
     }
 }

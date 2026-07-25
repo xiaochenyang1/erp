@@ -225,6 +225,8 @@ export interface ProductionIssueRequest {
     lotNo?: string
     productionDate?: string
     expiryDate?: string
+    locationId?: string | number
+    serialNos?: string
     remark?: string
   }[]
   remark?: string
@@ -240,6 +242,8 @@ export interface ProductionCompleteRequest {
   lotNo?: string
   productionDate?: string
   expiryDate?: string
+  locationId?: string | number
+  serialNos?: string
   remark?: string
 }
 
@@ -252,6 +256,8 @@ export interface ProductionReturnRequest {
     lotNo?: string
     productionDate?: string
     expiryDate?: string
+    locationId?: string | number
+    serialNos?: string
     remark?: string
   }[]
   remark?: string
@@ -390,6 +396,8 @@ const toProductionCompletePayload = (data: ProductionCompleteRequest) => ({
   lotNo: data.lotNo ?? data.lotNumber,
   productionDate: data.productionDate,
   expiryDate: data.expiryDate,
+  locationId: data.locationId || undefined,
+  serialNos: data.serialNos || undefined,
   remark: data.remark
 })
 

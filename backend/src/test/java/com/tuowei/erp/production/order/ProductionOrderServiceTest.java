@@ -112,6 +112,7 @@ class ProductionOrderServiceTest {
         jdbcTemplate.update("delete from prd_order");
         jdbcTemplate.update("delete from prd_bom_line");
         jdbcTemplate.update("delete from prd_bom");
+        jdbcTemplate.update("delete from md_location where warehouse_id between 892100 and 892199");
         jdbcTemplate.update("delete from md_warehouse where id between 892100 and 892199");
         jdbcTemplate.update("delete from md_product where id between 892000 and 892999");
         jdbcTemplate.update("delete from fin_account_period where id between 892500 and 892599");
@@ -574,15 +575,23 @@ class ProductionOrderServiceTest {
                  address, status, deleted_flag, remark, created_by, updated_by, version)
                 values (?, 1, 1, ?, ?, 1, 1, '生产测试地址', 'ACTIVE', 0, '生产测试', 892001, 892001, 0)
                 """, id, code, name);
+        jdbcTemplate.update("""
+                insert into md_location
+                (id, company_id, account_book_id, warehouse_id, location_code, location_name,
+                 is_default, status, deleted_flag, remark, created_by, updated_by, version)
+                values (?, 1, 1, ?, 'MAIN', '默认库位',
+                        1, 'ACTIVE', 0, '生产测试默认库位', 892001, 892001, 0)
+                """, id + 500000000000000000L, id);
     }
 
     private void seedMaterialBalance(long productId, String qty, String amount) {
         jdbcTemplate.update("""
                 insert into inv_balance
-                (id, company_id, account_book_id, warehouse_id, product_id, qty_on_hand, qty_reserved,
+                (id, company_id, account_book_id, warehouse_id, product_id, location_id, qty_on_hand, qty_reserved,
                  amount_on_hand, created_by, updated_by, version)
-                values (?, 1, 1, ?, ?, ?, 0.0000, ?, 892001, 892001, 0)
-                """, 8920000L + productId, MATERIAL_WAREHOUSE_ID, productId, new BigDecimal(qty), new BigDecimal(amount));
+                values (?, 1, 1, ?, ?, ?, ?, 0.0000, ?, 892001, 892001, 0)
+                """, 8920000L + productId, MATERIAL_WAREHOUSE_ID, productId,
+                MATERIAL_WAREHOUSE_ID + 500000000000000000L, new BigDecimal(qty), new BigDecimal(amount));
     }
 
     private void seedMaterialLotBalance(
@@ -597,12 +606,12 @@ class ProductionOrderServiceTest {
     ) {
         jdbcTemplate.update("""
                 insert into inv_lot_balance
-                (id, company_id, account_book_id, warehouse_id, product_id, lot_no, production_date, expiry_date,
+                (id, company_id, account_book_id, warehouse_id, product_id, location_id, lot_no, production_date, expiry_date,
                  first_inbound_time, qty_on_hand, qty_reserved, amount_on_hand,
                  created_by, updated_by, version)
-                values (?, 1, 1, ?, ?, ?, ?, ?, ?, ?, 0.0000, ?, 892001, 892001, 0)
-                """, id, MATERIAL_WAREHOUSE_ID, productId, lotNo, productionDate, expiryDate,
-                firstInboundTime, new BigDecimal(qty), new BigDecimal(amount));
+                values (?, 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, 0.0000, ?, 892001, 892001, 0)
+                """, id, MATERIAL_WAREHOUSE_ID, productId, MATERIAL_WAREHOUSE_ID + 500000000000000000L,
+                lotNo, productionDate, expiryDate, firstInboundTime, new BigDecimal(qty), new BigDecimal(amount));
     }
 
     private BigDecimal readAmount(String table, String column, long warehouseId, long productId) {

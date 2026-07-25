@@ -6,6 +6,7 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.production.issue.mapper.ProductionIssueLineMapper;
@@ -43,6 +44,7 @@ public class ProductionIssueService {
     private final ProductionIssueMapper issueMapper;
     private final ProductionIssueLineMapper issueLineMapper;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
     private final AccountPeriodGuard accountPeriodGuard;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
@@ -55,6 +57,7 @@ public class ProductionIssueService {
             ProductionIssueMapper issueMapper,
             ProductionIssueLineMapper issueLineMapper,
             InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService,
             AccountPeriodGuard accountPeriodGuard,
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
@@ -66,6 +69,7 @@ public class ProductionIssueService {
         this.issueMapper = issueMapper;
         this.issueLineMapper = issueLineMapper;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
         this.accountPeriodGuard = accountPeriodGuard;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
@@ -129,6 +133,8 @@ public class ProductionIssueService {
             line.setLotNo(requestLine == null ? null : requestLine.lotNo());
             line.setProductionDate(requestLine == null ? null : requestLine.productionDate());
             line.setExpiryDate(requestLine == null ? null : requestLine.expiryDate());
+            line.setLocationId(requestLine == null ? null : requestLine.locationId());
+            line.setSerialNos(requestLine == null ? null : requestLine.serialNos());
             line.setRemark(StringUtils.hasText(actionRemark) ? actionRemark : material.getRemark());
             fillAudit(line, audit, now);
             issueLineMapper.insert(line);
@@ -152,10 +158,19 @@ public class ProductionIssueService {
                             issueDate,
                             line.getLotNo(),
                             line.getProductionDate(),
-                            line.getExpiryDate()
+                            line.getExpiryDate(),
+                            line.getLocationId()
                     ),
                     audit,
                     "材料库存不足，不能生产领料"
+            );
+            inventorySerialNumberService.issueOutboundSerials(
+                    line.getMaterialProductId(),
+                    line.getSerialNos(),
+                    BIZ_TYPE,
+                    order.getOrderNo(),
+                    line.getIssueQty(),
+                    audit
             );
             line.setIssueAmount(ScalePrecision.amount(lineAmount));
             line.setUpdatedBy(audit.userId());

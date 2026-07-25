@@ -6,6 +6,7 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.production.completion.mapper.ProductionCompletionMapper;
@@ -38,6 +39,7 @@ public class ProductionCompletionService {
     private final ProductionOrderMapper orderMapper;
     private final ProductionCompletionMapper completionMapper;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
     private final AccountPeriodGuard accountPeriodGuard;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
@@ -50,6 +52,7 @@ public class ProductionCompletionService {
             ProductionOrderMapper orderMapper,
             ProductionCompletionMapper completionMapper,
             InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService,
             AccountPeriodGuard accountPeriodGuard,
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
@@ -61,6 +64,7 @@ public class ProductionCompletionService {
         this.orderMapper = orderMapper;
         this.completionMapper = completionMapper;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
         this.accountPeriodGuard = accountPeriodGuard;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
@@ -130,6 +134,8 @@ public class ProductionCompletionService {
         completion.setLotNo(request == null ? null : request.lotNo());
         completion.setProductionDate(request == null ? null : request.productionDate());
         completion.setExpiryDate(request == null ? null : request.expiryDate());
+        completion.setLocationId(request == null ? null : request.locationId());
+        completion.setSerialNos(request == null ? null : request.serialNos());
         completion.setRemark(actionRemark);
         fillAudit(completion, audit, now);
         completionMapper.insert(completion);
@@ -147,8 +153,19 @@ public class ProductionCompletionService {
                         completionDate,
                         completion.getLotNo(),
                         completion.getProductionDate(),
-                        completion.getExpiryDate()
+                        completion.getExpiryDate(),
+                        completion.getLocationId()
                 ),
+                audit
+        );
+        inventorySerialNumberService.registerInboundSerials(
+                order.getProductId(),
+                order.getFinishedWarehouseId(),
+                completion.getLocationId(),
+                completion.getSerialNos(),
+                BIZ_TYPE,
+                order.getOrderNo(),
+                completionQty,
                 audit
         );
         BigDecimal newCompletedQty = ScalePrecision.quantity(ScalePrecision.zeroDefault(order.getCompletedQty()).add(completionQty));

@@ -450,6 +450,29 @@
             style="width: 100%"
           />
         </el-form-item>
+        <el-form-item :label="t('productionOrder.location')">
+          <el-select
+            v-model="completeForm.locationId"
+            clearable
+            filterable
+            :placeholder="t('productionOrder.selectLocation')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="location in finishedLocations"
+              :key="location.id"
+              :label="`${location.locationCode} ${location.locationName}`"
+              :value="location.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('productionOrder.serialNos')">
+          <el-input
+            v-model="completeForm.serialNos"
+            clearable
+            :placeholder="t('productionOrder.serialNosPlaceholder')"
+          />
+        </el-form-item>
         <el-form-item :label="t('productionOrder.remark')">
           <el-input
             v-model="completeForm.remark"
@@ -545,12 +568,29 @@
               />
             </template>
           </el-table-column>
-          <el-table-column :label="t('productionOrder.lotNo')" width="160">
+          <el-table-column :label="t('productionOrder.lotNo')" width="140">
             <template #default="{ row }">
               <el-input v-model="row.lotNo" clearable />
             </template>
           </el-table-column>
-          <el-table-column :label="t('productionOrder.remark')" min-width="180">
+          <el-table-column :label="t('productionOrder.location')" width="160">
+            <template #default="{ row }">
+              <el-select v-model="row.locationId" clearable filterable :placeholder="t('productionOrder.selectLocation')" style="width: 100%">
+                <el-option
+                  v-for="location in materialLocations"
+                  :key="location.id"
+                  :label="`${location.locationCode} ${location.locationName}`"
+                  :value="location.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('productionOrder.serialNos')" min-width="160">
+            <template #default="{ row }">
+              <el-input v-model="row.serialNos" clearable :placeholder="t('productionOrder.serialNosPlaceholder')" />
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('productionOrder.remark')" min-width="160">
             <template #default="{ row }">
               <el-input v-model="row.remark" clearable />
             </template>
@@ -657,8 +697,7 @@ import {
   type ProductionOrderMaterial,
   type ProductionOrderOperation
 } from '@/api/production'
-import { getProducts, type Product } from '@/api/masterdata'
-import { getWarehouses, type Warehouse } from '@/api/masterdata'
+import { getProducts, getWarehouses, getLocations, type Product, type Warehouse, type Location } from '@/api/masterdata'
 import { getBOMs, type BOM } from '@/api/production'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
 
@@ -737,6 +776,8 @@ const completeForm = reactive({
   lotNo: '',
   productionDate: '',
   expiryDate: '',
+  locationId: undefined as string | number | undefined,
+  serialNos: '',
   maxQuantity: 0,
   remark: ''
 })
@@ -936,8 +977,11 @@ const handleComplete = (row: ProductionOrder) => {
   completeForm.lotNo = ''
   completeForm.productionDate = ''
   completeForm.expiryDate = ''
+  completeForm.locationId = undefined
+  completeForm.serialNos = ''
   completeForm.remark = ''
   completeDialogVisible.value = true
+  void loadFinishedLocations()
 }
 
 const openOperations = async (row: ProductionOrder) => {
@@ -1022,6 +1066,8 @@ const handleConfirmComplete = async () => {
       lotNo: completeForm.lotNo || undefined,
       productionDate: completeForm.productionDate || undefined,
       expiryDate: completeForm.expiryDate || undefined,
+      locationId: completeForm.locationId || undefined,
+      serialNos: completeForm.serialNos || undefined,
       remark: completeForm.remark
     })
     ElMessage.success(t('productionOrder.message.completed'))
@@ -1084,6 +1130,8 @@ const handleReturnMaterials = async (row: ProductionOrder) => {
         ...material,
         returnQty: 0,
         lotNo: '',
+        locationId: undefined,
+        serialNos: '',
         remark: ''
       }))
 
@@ -1097,6 +1145,7 @@ const handleReturnMaterials = async (row: ProductionOrder) => {
     returnForm.remark = ''
     returnForm.materials = returnableMaterials
     returnDialogVisible.value = true
+    void loadMaterialLocations(order.materialWarehouseId || order.warehouseId)
   } catch (error) {
     ElMessage.error(t('productionOrder.message.returnableLoadFailed'))
   }
@@ -1109,6 +1158,8 @@ const handleConfirmReturnMaterials = async () => {
       orderMaterialId: material.id,
       returnQty: material.returnQty,
       lotNo: material.lotNo || undefined,
+      locationId: material.locationId || undefined,
+      serialNos: material.serialNos || undefined,
       remark: material.remark || undefined
     }))
 
