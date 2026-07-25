@@ -3,41 +3,41 @@
     <!-- 查询表单 -->
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="角色编码">
+        <el-form-item :label="$t('systemRoles.code')">
           <el-input
             v-model="queryParams.code"
-            placeholder="请输入角色编码"
+            :placeholder="$t('systemRoles.codePlaceholder')"
             clearable
             style="width: 200px"
           />
         </el-form-item>
-        <el-form-item label="角色名称">
+        <el-form-item :label="$t('systemRoles.name')">
           <el-input
             v-model="queryParams.name"
-            placeholder="请输入角色名称"
+            :placeholder="$t('systemRoles.namePlaceholder')"
             clearable
             style="width: 200px"
           />
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="$t('systemRoles.status')">
           <el-select
             v-model="queryParams.status"
-            placeholder="请选择状态"
+            :placeholder="$t('systemRoles.selectStatus')"
             clearable
             style="width: 150px"
           >
-            <el-option label="正常" value="ACTIVE" />
-            <el-option label="停用" value="INACTIVE" />
+            <el-option :label="$t('systemRoles.active')" value="ACTIVE" />
+            <el-option :label="$t('systemRoles.inactive')" value="INACTIVE" />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ $t('systemRoles.search') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ $t('systemRoles.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -47,7 +47,7 @@
     <el-card class="toolbar-card" shadow="never">
       <el-button v-permission="'system:role:create'" type="primary" @click="handleCreate">
         <el-icon><Plus /></el-icon>
-        新增角色
+        {{ $t('systemRoles.addRole') }}
       </el-button>
     </el-card>
 
@@ -59,37 +59,37 @@
         border
         stripe
       >
-        <el-table-column prop="code" label="角色编码" width="150" />
-        <el-table-column prop="name" label="角色名称" width="150" />
-        <el-table-column prop="permissions" label="权限数量" width="100">
+        <el-table-column prop="code" :label="$t('systemRoles.code')" width="150" />
+        <el-table-column prop="name" :label="$t('systemRoles.name')" width="150" />
+        <el-table-column prop="permissions" :label="$t('systemRoles.permissionCount')" width="100">
           <template #default="{ row }">
             {{ row.permissions?.length || 0 }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="$t('systemRoles.status')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'ACTIVE'" type="success">正常</el-tag>
-            <el-tag v-else type="danger">停用</el-tag>
+            <el-tag v-if="row.status === 'ACTIVE'" type="success">{{ $t('systemRoles.active') }}</el-tag>
+            <el-tag v-else type="danger">{{ $t('systemRoles.inactive') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" show-overflow-tooltip />
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="380" fixed="right">
+        <el-table-column prop="remark" :label="$t('systemRoles.remark')" show-overflow-tooltip />
+        <el-table-column prop="createdAt" :label="$t('systemRoles.createdAt')" width="160" />
+        <el-table-column :label="$t('systemRoles.operations')" width="380" fixed="right">
           <template #default="{ row }: { row: Role }">
             <el-button v-permission="'system:role:update'" link type="primary" @click="handleEdit(row)">
-              编辑
+              {{ $t('systemRoles.edit') }}
             </el-button>
             <el-button v-permission="'system:role:assign-menu'" link type="primary" @click="handlePermission(row)">
-              权限设置
+              {{ $t('systemRoles.permissionSettings') }}
             </el-button>
             <el-button v-permission="'system:role:assign-data-scope'" link type="primary" @click="handleAssignDataScope(row)">
-              数据范围
+              {{ $t('systemRoles.dataScope') }}
             </el-button>
             <el-button v-if="row.status === 'ACTIVE'" v-permission="'system:role:disable'" link type="danger" @click="handleDisable(row)">
-              停用
+              {{ $t('systemRoles.disable') }}
             </el-button>
             <el-button v-else v-permission="'system:role:enable'" link type="success" @click="handleEnable(row)">
-              启用
+              {{ $t('systemRoles.enable') }}
             </el-button>
           </template>
         </el-table-column>
@@ -120,39 +120,39 @@
         :rules="formRules"
         label-width="100px"
       >
-        <el-form-item label="角色编码" prop="code">
+        <el-form-item :label="$t('systemRoles.code')" prop="code">
           <el-input
             v-model="formData.code"
-            placeholder="请输入角色编码"
+            :placeholder="$t('systemRoles.codePlaceholder')"
             :disabled="isEdit"
           />
         </el-form-item>
-        <el-form-item label="角色名称" prop="name">
+        <el-form-item :label="$t('systemRoles.name')" prop="name">
           <el-input
             v-model="formData.name"
-            placeholder="请输入角色名称"
+            :placeholder="$t('systemRoles.namePlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="$t('systemRoles.status')" prop="status">
           <el-radio-group v-model="formData.status">
-            <el-radio value="ACTIVE">正常</el-radio>
-            <el-radio value="INACTIVE">停用</el-radio>
+            <el-radio value="ACTIVE">{{ $t('systemRoles.active') }}</el-radio>
+            <el-radio value="INACTIVE">{{ $t('systemRoles.inactive') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('systemRoles.remark')">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注"
+            :placeholder="$t('systemRoles.remarkPlaceholder')"
           />
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('systemRoles.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
-          确定
+          {{ $t('systemRoles.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -160,7 +160,7 @@
     <!-- 权限设置对话框 -->
     <el-dialog
       v-model="permissionDialogVisible"
-      title="权限设置"
+      :title="$t('systemRoles.permissionSettings')"
       width="500px"
       :close-on-click-modal="false"
     >
@@ -174,45 +174,45 @@
       />
 
       <template #footer>
-        <el-button @click="permissionDialogVisible = false">取消</el-button>
+        <el-button @click="permissionDialogVisible = false">{{ $t('systemRoles.cancel') }}</el-button>
         <el-button type="primary" :loading="permissionSubmitLoading" @click="handleSavePermission">
-          确定
+          {{ $t('systemRoles.confirm') }}
         </el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="dataScopeDialogVisible" title="配置数据范围" width="640px" destroy-on-close>
+    <el-dialog v-model="dataScopeDialogVisible" :title="$t('systemRoles.dataScopeDialog')" width="640px" destroy-on-close>
       <div v-loading="dataScopeLoading">
         <el-alert
           class="role-alert"
-          :title="`当前角色：${currentRoleName || '-'}`"
+          :title="$t('systemRoles.currentRole', { role: currentRoleName || '-' })"
           type="info"
           show-icon
           :closable="false"
-          description="角色数据范围为该角色下所有用户的默认可见范围，与用户级范围取并集。勾选「全部数据」时忽略部门/岗位/本人/仓库范围。"
+          :description="$t('systemRoles.dataScopeDescription')"
         />
         <el-alert
           v-if="dataScopeForm.hasAllScope"
           class="role-alert"
-          title="当前为「全部数据」：持有该角色的用户默认可见本账套全部业务数据（用户级未再收紧时）"
+          :title="$t('systemRoles.allDataNotice')"
           type="warning"
           show-icon
           :closable="false"
         />
         <el-form label-width="110px" class="data-scope-form">
-          <el-form-item label="全部数据">
+          <el-form-item :label="$t('systemRoles.allData')">
             <el-switch v-model="dataScopeForm.hasAllScope" />
           </el-form-item>
-          <el-form-item label="本部门">
+          <el-form-item :label="$t('systemRoles.ownDepartment')">
             <el-switch v-model="dataScopeForm.deptScoped" :disabled="dataScopeForm.hasAllScope" />
           </el-form-item>
-          <el-form-item label="本岗位">
+          <el-form-item :label="$t('systemRoles.ownPost')">
             <el-switch v-model="dataScopeForm.postScoped" :disabled="dataScopeForm.hasAllScope" />
           </el-form-item>
-          <el-form-item label="仅本人">
+          <el-form-item :label="$t('systemRoles.selfOnly')">
             <el-switch v-model="dataScopeForm.selfScoped" :disabled="dataScopeForm.hasAllScope" />
           </el-form-item>
-          <el-form-item label="仓库范围">
+          <el-form-item :label="$t('systemRoles.warehouseScope')">
             <el-select
               v-model="dataScopeForm.warehouseIds"
               multiple
@@ -221,7 +221,7 @@
               collapse-tags
               collapse-tags-tooltip
               :disabled="dataScopeForm.hasAllScope"
-              placeholder="选择可见仓库"
+              :placeholder="$t('systemRoles.selectWarehouses')"
               style="width: 100%"
             >
               <el-option
@@ -235,15 +235,16 @@
         </el-form>
       </div>
       <template #footer>
-        <el-button @click="dataScopeDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="dataScopeSubmitLoading" @click="submitDataScopeAssignment">保存</el-button>
+        <el-button @click="dataScopeDialogVisible = false">{{ $t('systemRoles.cancel') }}</el-button>
+        <el-button type="primary" :loading="dataScopeSubmitLoading" @click="submitDataScopeAssignment">{{ $t('systemRoles.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { computed, ref, reactive, onMounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ElTree } from 'element-plus'
@@ -265,6 +266,8 @@ import {
   type Role
 } from '@/api/system'
 import { getWarehouses, type Warehouse } from '@/api/masterdata'
+
+const { t } = useI18n()
 
 // 查询参数
 const queryParams = reactive<RoleQuery>({
@@ -299,14 +302,14 @@ const formData = reactive<RoleSaveRequest>({
 })
 
 // 表单验证规则
-const formRules: FormRules = {
+const formRules = computed<FormRules>(() => ({
   code: [
-    { required: true, message: '请输入角色编码', trigger: 'blur' },
-    { pattern: /^[A-Z_]+$/, message: '角色编码只能包含大写字母和下划线', trigger: 'blur' }
+    { required: true, message: t('systemRoles.codePlaceholder'), trigger: 'blur' },
+    { pattern: /^[A-Z_]+$/, message: t('systemRoles.validation.codePattern'), trigger: 'blur' }
   ],
-  name: [{ required: true, message: '请输入角色名称', trigger: 'blur' }],
-  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
-}
+  name: [{ required: true, message: t('systemRoles.namePlaceholder'), trigger: 'blur' }],
+  status: [{ required: true, message: t('systemRoles.selectStatus'), trigger: 'change' }]
+}))
 
 // 权限设置对话框
 const permissionDialogVisible = ref(false)
@@ -337,7 +340,7 @@ const loadData = async () => {
     tableData.value = response.records
     total.value = response.total
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('systemRoles.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -359,7 +362,7 @@ const handleReset = () => {
 
 // 新增
 const handleCreate = () => {
-  dialogTitle.value = '新增角色'
+  dialogTitle.value = t('systemRoles.dialog.add')
   isEdit.value = false
   resetForm()
   dialogVisible.value = true
@@ -367,7 +370,7 @@ const handleCreate = () => {
 
 // 编辑
 const handleEdit = async (row: Role) => {
-  dialogTitle.value = '编辑角色'
+  dialogTitle.value = t('systemRoles.dialog.edit')
   isEdit.value = true
   currentId.value = row.id
   try {
@@ -375,24 +378,24 @@ const handleEdit = async (row: Role) => {
     Object.assign(formData, data)
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载详情失败')
+    ElMessage.error(t('systemRoles.message.detailLoadFailed'))
   }
 }
 
 // 停用
 const handleDisable = async (row: Role) => {
   try {
-    await ElMessageBox.confirm(`确认停用角色"${row.name}"吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('systemRoles.message.disableConfirm', { name: row.name }), t('systemRoles.prompt'), {
+      confirmButtonText: t('systemRoles.confirm'),
+      cancelButtonText: t('systemRoles.cancel'),
       type: 'warning'
     })
     await deleteRole(row.id)
-    ElMessage.success('停用成功')
+    ElMessage.success(t('systemRoles.message.disableSuccess'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('停用失败')
+      ElMessage.error(t('systemRoles.message.disableFailed'))
     }
   }
 }
@@ -400,17 +403,17 @@ const handleDisable = async (row: Role) => {
 // 启用
 const handleEnable = async (row: Role) => {
   try {
-    await ElMessageBox.confirm(`确认启用角色"${row.name}"吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('systemRoles.message.enableConfirm', { name: row.name }), t('systemRoles.prompt'), {
+      confirmButtonText: t('systemRoles.confirm'),
+      cancelButtonText: t('systemRoles.cancel'),
       type: 'warning'
     })
     await enableRole(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(t('systemRoles.message.enableSuccess'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(t('systemRoles.message.enableFailed'))
     }
   }
 }
@@ -430,14 +433,14 @@ const handlePermission = async (row: Role) => {
     await nextTick()
     permissionTreeRef.value?.setCheckedKeys(selectedPermissions.value, false)
   } catch (error) {
-    ElMessage.error('加载权限失败')
+    ElMessage.error(t('systemRoles.message.permissionsLoadFailed'))
   }
 }
 
 const warehouseOptionLabel = (warehouse: Warehouse) => {
-  const name = warehouse.name || warehouse.warehouseName || `仓库 ${warehouse.id}`
+  const name = warehouse.name || warehouse.warehouseName || t('systemRoles.warehouseFallback', { id: warehouse.id })
   const code = warehouse.code || warehouse.warehouseCode
-  return code ? `${name}（${code}）` : name
+  return code ? t('systemRoles.warehouseOption', { name, code }) : name
 }
 
 const handleAssignDataScope = async (row: Role) => {
@@ -462,7 +465,7 @@ const handleAssignDataScope = async (row: Role) => {
     dataScopeForm.postScoped = false
     dataScopeForm.selfScoped = false
     dataScopeForm.warehouseIds = []
-    ElMessage.error('加载数据范围失败')
+    ElMessage.error(t('systemRoles.message.dataScopeLoadFailed'))
   } finally {
     dataScopeLoading.value = false
   }
@@ -479,10 +482,10 @@ const submitDataScopeAssignment = async () => {
       selfScoped: dataScopeForm.selfScoped,
       warehouseIds: dataScopeForm.warehouseIds
     })
-    ElMessage.success('数据范围已保存（持有该角色的用户下次请求即生效）')
+    ElMessage.success(t('systemRoles.message.dataScopeSaved'))
     dataScopeDialogVisible.value = false
   } catch (error) {
-    ElMessage.error('保存数据范围失败')
+    ElMessage.error(t('systemRoles.message.dataScopeSaveFailed'))
   } finally {
     dataScopeSubmitLoading.value = false
   }
@@ -498,17 +501,17 @@ const handleSavePermission = async () => {
     const halfCheckedKeys = permissionTreeRef.value.getHalfCheckedKeys() as Array<string | number>
     const menuIds = [...new Set([...checkedKeys, ...halfCheckedKeys].map(String))]
     if (menuIds.length === 0) {
-      ElMessage.error('请至少选择一个菜单')
+      ElMessage.error(t('systemRoles.message.menuRequired'))
       return
     }
 
     await assignRoleMenus(currentRoleId.value, menuIds)
 
-    ElMessage.success('权限设置成功')
+    ElMessage.success(t('systemRoles.message.permissionsSaved'))
     permissionDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error('权限设置失败')
+    ElMessage.error(t('systemRoles.message.permissionsSaveFailed'))
   } finally {
     permissionSubmitLoading.value = false
   }
@@ -527,11 +530,11 @@ const handleSubmit = async () => {
         } else {
           await createRole(formData)
         }
-        ElMessage.success('操作成功')
+        ElMessage.success(t('systemRoles.message.operationSuccess'))
         dialogVisible.value = false
         loadData()
       } catch (error) {
-        ElMessage.error('操作失败')
+        ElMessage.error(t('systemRoles.message.operationFailed'))
       } finally {
         submitLoading.value = false
       }

@@ -3,18 +3,18 @@
     <!-- 查询表单 -->
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="盘点单号">
+        <el-form-item :label="$t('inventoryChecks.checkNo')">
           <el-input
             v-model="queryParams.checkNo"
-            placeholder="请输入盘点单号"
+            :placeholder="$t('inventoryChecks.placeholder.checkNo')"
             clearable
             style="width: 200px"
           />
         </el-form-item>
-        <el-form-item label="仓库">
+        <el-form-item :label="$t('inventoryChecks.warehouse')">
           <el-select
             v-model="queryParams.warehouseId"
-            placeholder="请选择仓库"
+            :placeholder="$t('inventoryChecks.placeholder.warehouse')"
             clearable
             style="width: 200px"
           >
@@ -26,25 +26,25 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="$t('inventoryChecks.statusLabel')">
           <el-select
             v-model="queryParams.status"
-            placeholder="请选择状态"
+            :placeholder="$t('inventoryChecks.placeholder.status')"
             clearable
             style="width: 150px"
           >
-            <el-option label="已录入" value="COUNTED" />
-            <el-option label="已调整" value="ADJUSTED" />
-            <el-option label="已取消" value="CANCELLED" />
+            <el-option :label="$t('inventoryChecks.status.counted')" value="COUNTED" />
+            <el-option :label="$t('inventoryChecks.status.adjusted')" value="ADJUSTED" />
+            <el-option :label="$t('inventoryChecks.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期范围">
+        <el-form-item :label="$t('inventoryChecks.dateRange')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="$t('inventoryChecks.rangeSeparator')"
+            :start-placeholder="$t('inventoryChecks.placeholder.startDate')"
+            :end-placeholder="$t('inventoryChecks.placeholder.endDate')"
             value-format="YYYY-MM-DD"
             style="width: 240px"
           />
@@ -52,11 +52,11 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ $t('inventoryChecks.action.search') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ $t('inventoryChecks.action.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -66,7 +66,7 @@
     <el-card class="toolbar-card" shadow="never">
       <el-button v-permission="'inventory:check:create'" type="primary" @click="handleCreate">
         <el-icon><Plus /></el-icon>
-        新增盘点
+        {{ $t('inventoryChecks.action.create') }}
       </el-button>
     </el-card>
 
@@ -78,24 +78,24 @@
         border
         stripe
       >
-        <el-table-column prop="checkNo" label="盘点单号" width="180" />
-        <el-table-column prop="warehouseName" label="仓库" width="150" />
-        <el-table-column prop="checkDate" label="盘点日期" width="120" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="checkNo" :label="$t('inventoryChecks.checkNo')" width="180" />
+        <el-table-column prop="warehouseName" :label="$t('inventoryChecks.warehouse')" width="150" />
+        <el-table-column prop="checkDate" :label="$t('inventoryChecks.checkDate')" width="120" />
+        <el-table-column prop="status" :label="$t('inventoryChecks.statusLabel')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'COUNTED'" type="warning">已录入</el-tag>
-            <el-tag v-else-if="row.status === 'ADJUSTED'" type="success">已调整</el-tag>
-            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">已取消</el-tag>
+            <el-tag v-if="row.status === 'COUNTED'" type="warning">{{ $t('inventoryChecks.status.counted') }}</el-tag>
+            <el-tag v-else-if="row.status === 'ADJUSTED'" type="success">{{ $t('inventoryChecks.status.adjusted') }}</el-tag>
+            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">{{ $t('inventoryChecks.status.cancelled') }}</el-tag>
             <el-tag v-else type="info">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" show-overflow-tooltip />
-        <el-table-column prop="createdBy" label="创建人" width="120" />
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column prop="remark" :label="$t('inventoryChecks.remark')" show-overflow-tooltip />
+        <el-table-column prop="createdBy" :label="$t('inventoryChecks.createdBy')" width="120" />
+        <el-table-column prop="createdAt" :label="$t('inventoryChecks.createdTime')" width="160" />
+        <el-table-column :label="$t('inventoryChecks.actions')" width="250" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
-              查看
+              {{ $t('inventoryChecks.action.view') }}
             </el-button>
             <el-button
               v-if="row.status === 'COUNTED'"
@@ -104,7 +104,7 @@
               type="primary"
               @click="handleEdit(row)"
             >
-              编辑
+              {{ $t('inventoryChecks.action.edit') }}
             </el-button>
             <el-button
               v-if="row.status === 'COUNTED'"
@@ -113,7 +113,7 @@
               type="success"
               @click="handleComplete(row)"
             >
-              调整
+              {{ $t('inventoryChecks.action.adjust') }}
             </el-button>
             <el-button
               v-if="row.status === 'COUNTED'"
@@ -122,7 +122,7 @@
               type="danger"
               @click="handleCancel(row)"
             >
-              取消
+              {{ $t('inventoryChecks.action.cancel') }}
             </el-button>
           </template>
         </el-table-column>
@@ -155,10 +155,10 @@
       >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="仓库" prop="warehouseId">
+            <el-form-item :label="$t('inventoryChecks.warehouse')" prop="warehouseId">
               <el-select
                 v-model="formData.warehouseId"
-                placeholder="请选择仓库"
+                :placeholder="$t('inventoryChecks.placeholder.warehouse')"
                 style="width: 100%"
                 :disabled="isView || isEdit"
                 @change="handleWarehouseChange"
@@ -173,11 +173,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="盘点日期" prop="checkDate">
+            <el-form-item :label="$t('inventoryChecks.checkDate')" prop="checkDate">
               <el-date-picker
                 v-model="formData.checkDate"
                 type="date"
-                placeholder="请选择盘点日期"
+                :placeholder="$t('inventoryChecks.placeholder.checkDate')"
                 style="width: 100%"
                 value-format="YYYY-MM-DD"
                 :disabled="isView || isEdit"
@@ -185,18 +185,18 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('inventoryChecks.remark')">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="2"
-            placeholder="请输入备注"
+            :placeholder="$t('inventoryChecks.placeholder.remark')"
             :disabled="isView || isEdit"
           />
         </el-form-item>
 
         <!-- 盘点明细 -->
-        <el-divider content-position="left">盘点明细</el-divider>
+        <el-divider content-position="left">{{ $t('inventoryChecks.details') }}</el-divider>
         <el-button
           v-if="!isView && !isEdit"
           type="primary"
@@ -205,14 +205,14 @@
           style="margin-bottom: 10px"
         >
           <el-icon><Plus /></el-icon>
-          添加产品
+          {{ $t('inventoryChecks.action.addProduct') }}
         </el-button>
         <el-table :data="formData.items" border max-height="400">
-          <el-table-column label="产品" prop="productId" width="250">
+          <el-table-column :label="$t('inventoryChecks.product')" prop="productId" width="250">
             <template #default="{ row, $index }">
               <el-select
                 v-model="row.productId"
-                placeholder="请选择产品"
+                :placeholder="$t('inventoryChecks.placeholder.product')"
                 filterable
                 style="width: 100%"
                 :disabled="isView || isEdit"
@@ -227,14 +227,14 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="产品编码" prop="productCode" width="130" />
-          <el-table-column label="产品名称" prop="productName" width="150" />
-          <el-table-column label="账面数量" prop="bookQuantity" width="120">
+          <el-table-column :label="$t('inventoryChecks.productCode')" prop="productCode" width="130" />
+          <el-table-column :label="$t('inventoryChecks.productName')" prop="productName" width="150" />
+          <el-table-column :label="$t('inventoryChecks.bookQuantity')" prop="bookQuantity" width="120">
             <template #default="{ row }">
               {{ row.bookQuantity || 0 }}
             </template>
           </el-table-column>
-          <el-table-column label="实际数量" prop="actualQuantity" width="130">
+          <el-table-column :label="$t('inventoryChecks.actualQuantity')" prop="actualQuantity" width="130">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.actualQuantity"
@@ -246,30 +246,30 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="差异" prop="difference" width="100">
+          <el-table-column :label="$t('inventoryChecks.difference')" prop="difference" width="100">
             <template #default="{ row }">
               <span :class="{ 'text-danger': row.difference < 0, 'text-success': row.difference > 0 }">
                 {{ row.difference || 0 }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="备注" prop="remark">
+          <el-table-column :label="$t('inventoryChecks.remark')" prop="remark">
             <template #default="{ row }">
               <el-input
                 v-model="row.remark"
-                placeholder="请输入备注"
+                :placeholder="$t('inventoryChecks.placeholder.remark')"
                 :disabled="isView"
               />
             </template>
           </el-table-column>
-          <el-table-column v-if="!isView && !isEdit" label="操作" width="80" fixed="right">
+          <el-table-column v-if="!isView && !isEdit" :label="$t('inventoryChecks.actions')" width="80" fixed="right">
             <template #default="{ $index }">
               <el-button
                 link
                 type="danger"
                 @click="handleDeleteItem($index)"
               >
-                删除
+                {{ $t('inventoryChecks.action.delete') }}
               </el-button>
             </template>
           </el-table-column>
@@ -277,9 +277,9 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('inventoryChecks.action.cancel') }}</el-button>
         <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSubmit">
-          确定
+          {{ $t('inventoryChecks.action.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -288,6 +288,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
@@ -306,6 +307,9 @@ import {
 import { getWarehouses, type Warehouse } from '@/api/masterdata'
 import { getProducts, type Product } from '@/api/masterdata'
 import { getInventoryStocks, type InventoryStockQuery } from '@/api/inventory'
+import { formatBusinessDate } from '@/utils/locale'
+
+const { t } = useI18n()
 
 // 查询参数
 const queryParams = reactive<InventoryCheckQuery>({
@@ -351,8 +355,8 @@ const formData = reactive<InventoryCheckCreateRequest & { items: InventoryCheckI
 
 // 表单验证规则
 const formRules: FormRules = {
-  warehouseId: [{ required: true, message: '请选择仓库', trigger: 'change' }],
-  checkDate: [{ required: true, message: '请选择盘点日期', trigger: 'change' }]
+  warehouseId: [{ required: true, message: t('inventoryChecks.validation.warehouse'), trigger: 'change' }],
+  checkDate: [{ required: true, message: t('inventoryChecks.validation.checkDate'), trigger: 'change' }]
 }
 
 // 加载数据
@@ -366,7 +370,7 @@ const loadData = async () => {
     }))
     total.value = response.total
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('inventoryChecks.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -379,7 +383,7 @@ const loadWarehouses = async () => {
     const response = await getWarehouses(optionPageQuery)
     warehouses.value = response.records
   } catch (error) {
-    ElMessage.error('加载仓库列表失败')
+    ElMessage.error(t('inventoryChecks.message.warehousesLoadFailed'))
   }
 }
 
@@ -390,7 +394,7 @@ const loadProducts = async () => {
     const response = await getProducts(optionPageQuery)
     products.value = response.records
   } catch (error) {
-    ElMessage.error('加载产品列表失败')
+    ElMessage.error(t('inventoryChecks.message.productsLoadFailed'))
   }
 }
 
@@ -420,7 +424,7 @@ const handleReset = () => {
 
 // 新增
 const handleCreate = () => {
-  dialogTitle.value = '新增库存盘点'
+  dialogTitle.value = t('inventoryChecks.dialog.create')
   isView.value = false
   isEdit.value = false
   resetForm()
@@ -429,7 +433,7 @@ const handleCreate = () => {
 
 // 编辑
 const handleEdit = async (row: InventoryCheck) => {
-  dialogTitle.value = '编辑库存盘点'
+  dialogTitle.value = t('inventoryChecks.dialog.edit')
   isView.value = false
   isEdit.value = true
   currentId.value = row.id
@@ -438,13 +442,13 @@ const handleEdit = async (row: InventoryCheck) => {
     Object.assign(formData, data)
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载详情失败')
+    ElMessage.error(t('inventoryChecks.message.detailLoadFailed'))
   }
 }
 
 // 查看
 const handleView = async (row: InventoryCheck) => {
-  dialogTitle.value = '查看库存盘点'
+  dialogTitle.value = t('inventoryChecks.dialog.view')
   isView.value = true
   isEdit.value = false
   try {
@@ -452,24 +456,24 @@ const handleView = async (row: InventoryCheck) => {
     Object.assign(formData, data)
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载详情失败')
+    ElMessage.error(t('inventoryChecks.message.detailLoadFailed'))
   }
 }
 
 // 调整
 const handleComplete = async (row: InventoryCheck) => {
   try {
-    await ElMessageBox.confirm('确认根据此盘点差异调整库存吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('inventoryChecks.message.adjustConfirm'), t('inventoryChecks.prompt'), {
+      confirmButtonText: t('inventoryChecks.action.confirm'),
+      cancelButtonText: t('inventoryChecks.action.cancel'),
       type: 'warning'
     })
     await completeInventoryCheck(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('inventoryChecks.message.success'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('inventoryChecks.message.failed'))
     }
   }
 }
@@ -477,17 +481,17 @@ const handleComplete = async (row: InventoryCheck) => {
 // 取消
 const handleCancel = async (row: InventoryCheck) => {
   try {
-    await ElMessageBox.confirm('确认取消此库存盘点吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('inventoryChecks.message.cancelConfirm'), t('inventoryChecks.prompt'), {
+      confirmButtonText: t('inventoryChecks.action.confirm'),
+      cancelButtonText: t('inventoryChecks.action.cancel'),
       type: 'warning'
     })
     await cancelInventoryCheck(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('inventoryChecks.message.success'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('inventoryChecks.message.failed'))
     }
   }
 }
@@ -515,7 +519,7 @@ const handleWarehouseChange = async () => {
       remark: ''
     }))
   } catch (error) {
-    ElMessage.error('加载库存数据失败')
+    ElMessage.error(t('inventoryChecks.message.stockLoadFailed'))
   }
 }
 
@@ -548,7 +552,7 @@ const handleProductChange = (index: number) => {
   }
 }
 
-const warehouseLabel = (warehouse: Warehouse) => warehouse.name || warehouse.warehouseName || `仓库${warehouse.id}`
+const warehouseLabel = (warehouse: Warehouse) => warehouse.name || warehouse.warehouseName || t('inventoryChecks.warehouseFallback', { id: warehouse.id })
 
 const warehouseNameById = (warehouseId: string | number) => {
   const warehouse = warehouses.value.find(item => String(item.id) === String(warehouseId))
@@ -558,7 +562,7 @@ const warehouseNameById = (warehouseId: string | number) => {
 const productLabel = (product: Product) => {
   const code = product.code || product.productCode || ''
   const name = product.name || product.productName || ''
-  return code && name ? `${code} - ${name}` : name || code || `产品${product.id}`
+  return code && name ? `${code} - ${name}` : name || code || t('inventoryChecks.productFallback', { id: product.id })
 }
 
 // 数量变化
@@ -575,7 +579,7 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       if (formData.items.length === 0) {
-        ElMessage.warning('请至少添加一条盘点明细')
+        ElMessage.warning(t('inventoryChecks.validation.itemRequired'))
         return
       }
 
@@ -591,11 +595,11 @@ const handleSubmit = async () => {
           // 新增模式
           await createInventoryCheck(formData)
         }
-        ElMessage.success('操作成功')
+        ElMessage.success(t('inventoryChecks.message.success'))
         dialogVisible.value = false
         loadData()
       } catch (error) {
-        ElMessage.error('操作失败')
+        ElMessage.error(t('inventoryChecks.message.failed'))
       } finally {
         submitLoading.value = false
       }
@@ -606,7 +610,7 @@ const handleSubmit = async () => {
 // 重置表单
 const resetForm = () => {
   formData.warehouseId = 0
-  formData.checkDate = new Date().toISOString().split('T')[0]
+  formData.checkDate = formatBusinessDate()
   formData.items = []
   formData.remark = ''
   currentId.value = ''

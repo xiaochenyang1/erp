@@ -806,9 +806,7 @@ router.beforeEach(async (to, from, next) => {
     try {
       await userStore.getUserInfo()
     } catch {
-      // token 失效等：清理本地登录态并回登录页
-      localStorage.removeItem('token')
-      localStorage.removeItem('refreshToken')
+      // getUserInfo 会同步清理持久化登录态、用户权限与运行时菜单
       next('/login')
       return
     }

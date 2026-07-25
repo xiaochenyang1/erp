@@ -1,15 +1,15 @@
 <template>
   <div class="app-container">
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-      <el-tab-pane label="系统配置" name="configs">
+      <el-tab-pane :label="$t('systemConfigs.tabs.configs')" name="configs">
         <el-card shadow="never" class="search-card">
           <el-form :model="queryForm" inline>
-            <el-form-item label="配置键">
-              <el-input v-model="queryForm.configKey" placeholder="请输入配置键" clearable style="width: 250px" />
+            <el-form-item :label="$t('systemConfigs.configKey')">
+              <el-input v-model="queryForm.configKey" :placeholder="$t('systemConfigs.configKeyPlaceholder')" clearable style="width: 250px" />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-              <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+              <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('systemConfigs.search') }}</el-button>
+              <el-button :icon="Refresh" @click="handleReset">{{ $t('systemConfigs.reset') }}</el-button>
             </el-form-item>
           </el-form>
         </el-card>
@@ -17,27 +17,27 @@
         <el-card shadow="never" class="table-card">
           <template #header>
             <div class="card-header">
-              <span>系统配置管理</span>
-              <el-button v-permission="'system:config:create'" type="primary" :icon="Plus" @click="handleCreate">新增配置</el-button>
+              <span>{{ $t('systemConfigs.managementTitle') }}</span>
+              <el-button v-permission="'system:config:create'" type="primary" :icon="Plus" @click="handleCreate">{{ $t('systemConfigs.addConfig') }}</el-button>
             </div>
           </template>
 
             <el-table v-loading="loading" :data="tableData" border stripe>
-              <el-table-column prop="configKey" label="配置键" width="250" show-overflow-tooltip />
-              <el-table-column prop="configValue" label="配置值" min-width="200" show-overflow-tooltip />
-              <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-              <el-table-column prop="status" label="状态" width="100">
+              <el-table-column prop="configKey" :label="$t('systemConfigs.configKey')" width="250" show-overflow-tooltip />
+              <el-table-column prop="configValue" :label="$t('systemConfigs.configValue')" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="description" :label="$t('systemConfigs.description')" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="status" :label="$t('systemConfigs.status')" width="100">
                 <template #default="{ row }">
                   <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                    {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                    {{ row.status === 'ACTIVE' ? $t('systemConfigs.active') : $t('systemConfigs.disabled') }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="updatedAt" label="更新时间" width="160" />
-              <el-table-column label="操作" width="190" align="center" fixed="right">
+              <el-table-column prop="updatedAt" :label="$t('systemConfigs.updatedAt')" width="160" />
+              <el-table-column :label="$t('systemConfigs.operations')" width="190" align="center" fixed="right">
                 <template #default="{ row }">
                   <el-button v-permission="'system:config:update'" type="primary" link :icon="Edit" @click="handleEdit(row)">
-                    编辑
+                    {{ $t('systemConfigs.edit') }}
                   </el-button>
                   <el-button
                     v-if="row.status === 'ACTIVE'"
@@ -46,7 +46,7 @@
                     link
                     @click="handleToggleConfigStatus(row)"
                   >
-                    停用
+                    {{ $t('systemConfigs.disable') }}
                   </el-button>
                   <el-button
                     v-else
@@ -55,7 +55,7 @@
                     link
                     @click="handleToggleConfigStatus(row)"
                   >
-                    启用
+                    {{ $t('systemConfigs.enable') }}
                   </el-button>
                 </template>
               </el-table-column>
@@ -74,55 +74,55 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane label="编号规则" name="sequenceRules">
+      <el-tab-pane :label="$t('systemConfigs.tabs.sequenceRules')" name="sequenceRules">
         <el-card shadow="never" class="search-card">
           <el-form :model="sequenceRuleQuery" inline>
-            <el-form-item label="关键字">
+            <el-form-item :label="$t('systemConfigs.keyword')">
               <el-input
                 v-model="sequenceRuleQuery.keyword"
-                placeholder="业务类型或前缀"
+                :placeholder="$t('systemConfigs.keywordPlaceholder')"
                 clearable
                 style="width: 220px"
               />
             </el-form-item>
-            <el-form-item label="状态">
-              <el-select v-model="sequenceRuleQuery.status" placeholder="全部状态" clearable style="width: 140px">
-                <el-option label="启用" value="ACTIVE" />
-                <el-option label="停用" value="DISABLED" />
+            <el-form-item :label="$t('systemConfigs.status')">
+              <el-select v-model="sequenceRuleQuery.status" :placeholder="$t('systemConfigs.allStatuses')" clearable style="width: 140px">
+                <el-option :label="$t('systemConfigs.active')" value="ACTIVE" />
+                <el-option :label="$t('systemConfigs.disabled')" value="DISABLED" />
               </el-select>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" :icon="Search" @click="handleSequenceRuleQuery">查询</el-button>
-              <el-button :icon="Refresh" @click="handleSequenceRuleReset">重置</el-button>
-              <el-button v-permission="'system:sequence-rule:create'" type="primary" :icon="Plus" @click="handleCreateSequenceRule">新增</el-button>
+              <el-button type="primary" :icon="Search" @click="handleSequenceRuleQuery">{{ $t('systemConfigs.search') }}</el-button>
+              <el-button :icon="Refresh" @click="handleSequenceRuleReset">{{ $t('systemConfigs.reset') }}</el-button>
+              <el-button v-permission="'system:sequence-rule:create'" type="primary" :icon="Plus" @click="handleCreateSequenceRule">{{ $t('systemConfigs.add') }}</el-button>
             </el-form-item>
           </el-form>
         </el-card>
 
         <el-card shadow="never" class="table-card">
           <template #header>
-            <span>编号规则</span>
+            <span>{{ $t('systemConfigs.sequenceRules') }}</span>
           </template>
 
           <el-table v-loading="sequenceRuleLoading" :data="sequenceRuleData" border stripe>
-            <el-table-column prop="bizType" label="业务类型" min-width="180" show-overflow-tooltip />
-            <el-table-column prop="prefix" label="前缀" width="140" show-overflow-tooltip />
-            <el-table-column prop="datePattern" label="日期格式" width="160" />
-            <el-table-column prop="seqLength" label="流水长度" width="100" align="right" />
-            <el-table-column prop="currentValue" label="当前流水" width="140" align="right" />
-            <el-table-column prop="companyId" label="公司ID" width="160" show-overflow-tooltip />
-            <el-table-column prop="accountBookId" label="账套ID" width="160" show-overflow-tooltip />
-            <el-table-column prop="status" label="状态" width="100">
+            <el-table-column prop="bizType" :label="$t('systemConfigs.businessType')" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="prefix" :label="$t('systemConfigs.prefix')" width="140" show-overflow-tooltip />
+            <el-table-column prop="datePattern" :label="$t('systemConfigs.datePattern')" width="160" />
+            <el-table-column prop="seqLength" :label="$t('systemConfigs.sequenceLength')" width="100" align="right" />
+            <el-table-column prop="currentValue" :label="$t('systemConfigs.currentSequence')" width="140" align="right" />
+            <el-table-column prop="companyId" :label="$t('systemConfigs.companyId')" width="160" show-overflow-tooltip />
+            <el-table-column prop="accountBookId" :label="$t('systemConfigs.accountBookId')" width="160" show-overflow-tooltip />
+            <el-table-column prop="status" :label="$t('systemConfigs.status')" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                  {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                  {{ row.status === 'ACTIVE' ? $t('systemConfigs.active') : $t('systemConfigs.disabled') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="190" align="center" fixed="right">
+            <el-table-column :label="$t('systemConfigs.operations')" width="190" align="center" fixed="right">
               <template #default="{ row }">
                 <el-button v-permission="'system:sequence-rule:update'" type="primary" link :icon="Edit" @click="handleEditSequenceRule(row)">
-                  编辑
+                  {{ $t('systemConfigs.edit') }}
                 </el-button>
                 <el-button
                   v-if="row.status === 'ACTIVE'"
@@ -131,7 +131,7 @@
                   link
                   @click="handleToggleSequenceRuleStatus(row)"
                 >
-                  停用
+                  {{ $t('systemConfigs.disable') }}
                 </el-button>
                 <el-button
                   v-else
@@ -140,7 +140,7 @@
                   link
                   @click="handleToggleSequenceRuleStatus(row)"
                 >
-                  启用
+                  {{ $t('systemConfigs.enable') }}
                 </el-button>
               </template>
             </el-table-column>
@@ -172,37 +172,37 @@
         :rules="formRules"
         label-width="100px"
       >
-        <el-form-item label="配置键" prop="configKey">
-          <el-input v-model="formData.configKey" :disabled="configMode === 'edit'" placeholder="请输入配置键" />
+        <el-form-item :label="$t('systemConfigs.configKey')" prop="configKey">
+          <el-input v-model="formData.configKey" :disabled="configMode === 'edit'" :placeholder="$t('systemConfigs.configKeyPlaceholder')" />
         </el-form-item>
 
-        <el-form-item label="配置名称" prop="configName">
-          <el-input v-model="formData.configName" placeholder="请输入配置名称" />
+        <el-form-item :label="$t('systemConfigs.configName')" prop="configName">
+          <el-input v-model="formData.configName" :placeholder="$t('systemConfigs.configNamePlaceholder')" />
         </el-form-item>
 
-        <el-form-item label="配置值" prop="configValue">
+        <el-form-item :label="$t('systemConfigs.configValue')" prop="configValue">
           <el-input
             v-model="formData.configValue"
             type="textarea"
             :rows="5"
-            placeholder="请输入配置值"
+            :placeholder="$t('systemConfigs.configValuePlaceholder')"
           />
         </el-form-item>
 
-        <el-form-item label="描述" prop="description">
+        <el-form-item :label="$t('systemConfigs.description')" prop="description">
           <el-input
             v-model="formData.description"
             type="textarea"
             :rows="3"
-            placeholder="请输入配置描述"
+            :placeholder="$t('systemConfigs.descriptionPlaceholder')"
           />
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('systemConfigs.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
-          保存
+          {{ $t('systemConfigs.save') }}
         </el-button>
       </template>
     </el-dialog>
@@ -219,31 +219,31 @@
         :rules="sequenceRuleRules"
         label-width="110px"
       >
-        <el-form-item label="业务类型" prop="bizType">
+        <el-form-item :label="$t('systemConfigs.businessType')" prop="bizType">
           <el-input
             v-model="sequenceRuleForm.bizType"
             :disabled="sequenceRuleMode === 'edit'"
-            placeholder="如 SALES_ORDER"
+            :placeholder="$t('systemConfigs.businessTypePlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="前缀" prop="prefix">
-          <el-input v-model="sequenceRuleForm.prefix" placeholder="如 SO" />
+        <el-form-item :label="$t('systemConfigs.prefix')" prop="prefix">
+          <el-input v-model="sequenceRuleForm.prefix" :placeholder="$t('systemConfigs.prefixPlaceholder')" />
         </el-form-item>
-        <el-form-item label="日期格式" prop="datePattern">
-          <el-input v-model="sequenceRuleForm.datePattern" placeholder="如 yyyyMMdd" />
+        <el-form-item :label="$t('systemConfigs.datePattern')" prop="datePattern">
+          <el-input v-model="sequenceRuleForm.datePattern" :placeholder="$t('systemConfigs.datePatternPlaceholder')" />
         </el-form-item>
-        <el-form-item label="流水长度" prop="seqLength">
-          <el-input v-model="sequenceRuleForm.seqLength" placeholder="请输入正整数" />
+        <el-form-item :label="$t('systemConfigs.sequenceLength')" prop="seqLength">
+          <el-input v-model="sequenceRuleForm.seqLength" :placeholder="$t('systemConfigs.positiveIntegerPlaceholder')" />
         </el-form-item>
-        <el-form-item label="当前流水" prop="currentValue">
-          <el-input v-model="sequenceRuleForm.currentValue" placeholder="请输入非负整数" />
+        <el-form-item :label="$t('systemConfigs.currentSequence')" prop="currentValue">
+          <el-input v-model="sequenceRuleForm.currentValue" :placeholder="$t('systemConfigs.nonNegativeIntegerPlaceholder')" />
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="sequenceRuleDialogVisible = false">取消</el-button>
+        <el-button @click="sequenceRuleDialogVisible = false">{{ $t('systemConfigs.cancel') }}</el-button>
         <el-button type="primary" :loading="sequenceRuleSubmitting" @click="handleSubmitSequenceRule">
-          保存
+          {{ $t('systemConfigs.save') }}
         </el-button>
       </template>
     </el-dialog>
@@ -252,6 +252,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import {
@@ -272,6 +273,8 @@ import {
   type SystemConfig
 } from '@/api/system'
 
+const { t } = useI18n()
+
 const activeTab = ref('configs')
 
 const queryForm = reactive({
@@ -291,7 +294,9 @@ const dialogVisible = ref(false)
 const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
 const configMode = ref<'create' | 'edit'>('edit')
-const configDialogTitle = computed(() => (configMode.value === 'create' ? '新增配置' : '编辑配置'))
+const configDialogTitle = computed(() =>
+  configMode.value === 'create' ? t('systemConfigs.dialog.addConfig') : t('systemConfigs.dialog.editConfig')
+)
 const formData = reactive({
   id: '',
   configKey: '',
@@ -300,11 +305,11 @@ const formData = reactive({
   description: ''
 })
 
-const formRules: FormRules = {
-  configKey: [{ required: true, message: '请输入配置键', trigger: 'blur' }],
-  configName: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
-  configValue: [{ required: true, message: '请输入配置值', trigger: 'blur' }]
-}
+const formRules = computed<FormRules>(() => ({
+  configKey: [{ required: true, message: t('systemConfigs.validation.configKey'), trigger: 'blur' }],
+  configName: [{ required: true, message: t('systemConfigs.validation.configName'), trigger: 'blur' }],
+  configValue: [{ required: true, message: t('systemConfigs.validation.configValue'), trigger: 'blur' }]
+}))
 
 const sequenceRuleQuery = reactive<SequenceRuleQuery>({
   keyword: '',
@@ -330,11 +335,15 @@ const sequenceRuleForm = reactive({
   currentValue: '0'
 })
 
-const sequenceRuleDialogTitle = computed(() => (sequenceRuleMode.value === 'create' ? '新增编号规则' : '编辑编号规则'))
+const sequenceRuleDialogTitle = computed(() =>
+  sequenceRuleMode.value === 'create'
+    ? t('systemConfigs.dialog.addSequenceRule')
+    : t('systemConfigs.dialog.editSequenceRule')
+)
 
 const validatePositiveInteger = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (!/^[1-9]\d*$/.test(value || '')) {
-    callback(new Error('请输入正整数'))
+    callback(new Error(t('systemConfigs.validation.positiveInteger')))
     return
   }
   callback()
@@ -342,19 +351,19 @@ const validatePositiveInteger = (_rule: unknown, value: string, callback: (error
 
 const validateNonNegativeInteger = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (!/^\d+$/.test(value || '')) {
-    callback(new Error('请输入非负整数'))
+    callback(new Error(t('systemConfigs.validation.nonNegativeInteger')))
     return
   }
   callback()
 }
 
-const sequenceRuleRules: FormRules = {
-  bizType: [{ required: true, message: '请输入业务类型', trigger: 'blur' }],
-  prefix: [{ required: true, message: '请输入前缀', trigger: 'blur' }],
-  datePattern: [{ required: true, message: '请输入日期格式', trigger: 'blur' }],
+const sequenceRuleRules = computed<FormRules>(() => ({
+  bizType: [{ required: true, message: t('systemConfigs.validation.businessType'), trigger: 'blur' }],
+  prefix: [{ required: true, message: t('systemConfigs.validation.prefix'), trigger: 'blur' }],
+  datePattern: [{ required: true, message: t('systemConfigs.validation.datePattern'), trigger: 'blur' }],
   seqLength: [{ validator: validatePositiveInteger, trigger: 'blur' }],
   currentValue: [{ validator: validateNonNegativeInteger, trigger: 'blur' }]
-}
+}))
 
 const loadData = async () => {
   loading.value = true
@@ -410,7 +419,7 @@ const handleEdit = async (row: SystemConfig) => {
     })
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载配置详情失败')
+    ElMessage.error(t('systemConfigs.message.configDetailLoadFailed'))
   }
 }
 
@@ -430,7 +439,7 @@ const handleSubmit = async () => {
           configValue: formData.configValue,
           description: formData.description
         })
-        ElMessage.success('创建成功')
+        ElMessage.success(t('systemConfigs.message.createSuccess'))
       } else {
         await updateSystemConfig(formData.id, {
           ...formData,
@@ -438,12 +447,16 @@ const handleSubmit = async () => {
           configValue: formData.configValue,
           description: formData.description
         })
-        ElMessage.success('更新成功')
+        ElMessage.success(t('systemConfigs.message.updateSuccess'))
       }
       dialogVisible.value = false
       loadData()
     } catch (error) {
-      ElMessage.error(configMode.value === 'create' ? '创建失败' : '更新失败')
+      ElMessage.error(
+        configMode.value === 'create'
+          ? t('systemConfigs.message.createFailed')
+          : t('systemConfigs.message.updateFailed')
+      )
     } finally {
       submitLoading.value = false
     }
@@ -451,19 +464,23 @@ const handleSubmit = async () => {
 }
 
 const handleToggleConfigStatus = async (row: SystemConfig) => {
-  const nextAction = row.status === 'ACTIVE' ? '停用' : '启用'
-  await ElMessageBox.confirm(`确定${nextAction}系统配置「${row.configKey}」吗？`, '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  })
+  const nextAction = row.status === 'ACTIVE' ? t('systemConfigs.disable') : t('systemConfigs.enable')
+  await ElMessageBox.confirm(
+    t('systemConfigs.message.toggleConfigConfirm', { action: nextAction, key: row.configKey }),
+    t('systemConfigs.prompt'),
+    {
+      confirmButtonText: t('systemConfigs.confirm'),
+      cancelButtonText: t('systemConfigs.cancel'),
+      type: 'warning'
+    }
+  )
 
   if (row.status === 'ACTIVE') {
     await disableSystemConfig(row.id)
   } else {
     await enableSystemConfig(row.id)
   }
-  ElMessage.success(`${nextAction}成功`)
+  ElMessage.success(t('systemConfigs.message.operationSuccess', { action: nextAction }))
   loadData()
 }
 
@@ -544,7 +561,7 @@ const handleSubmitSequenceRule = async () => {
       } else {
         await updateSequenceRule(sequenceRuleForm.id, payload)
       }
-      ElMessage.success('保存成功')
+      ElMessage.success(t('systemConfigs.message.saveSuccess'))
       sequenceRuleDialogVisible.value = false
       loadSequenceRules()
     } finally {
@@ -554,19 +571,23 @@ const handleSubmitSequenceRule = async () => {
 }
 
 const handleToggleSequenceRuleStatus = async (row: SequenceRule) => {
-  const nextAction = row.status === 'ACTIVE' ? '停用' : '启用'
-  await ElMessageBox.confirm(`确定${nextAction}编号规则「${row.bizType}」吗？`, '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  })
+  const nextAction = row.status === 'ACTIVE' ? t('systemConfigs.disable') : t('systemConfigs.enable')
+  await ElMessageBox.confirm(
+    t('systemConfigs.message.toggleSequenceRuleConfirm', { action: nextAction, bizType: row.bizType }),
+    t('systemConfigs.prompt'),
+    {
+      confirmButtonText: t('systemConfigs.confirm'),
+      cancelButtonText: t('systemConfigs.cancel'),
+      type: 'warning'
+    }
+  )
 
   if (row.status === 'ACTIVE') {
     await disableSequenceRule(row.id)
   } else {
     await enableSequenceRule(row.id)
   }
-  ElMessage.success(`${nextAction}成功`)
+  ElMessage.success(t('systemConfigs.message.operationSuccess', { action: nextAction }))
   loadSequenceRules()
 }
 

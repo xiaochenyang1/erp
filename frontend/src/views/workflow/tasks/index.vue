@@ -209,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -226,6 +226,7 @@ import {
 } from '@/api/workflow'
 import { getUsers } from '@/api/system'
 import { formatLocalizedDateTime } from '@/utils/locale'
+import { createWorkflowTaskQueryFromRoute } from './query'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -242,20 +243,7 @@ const escalateUserId = ref('')
 const escalateComment = ref('')
 const escalateUsers = ref<any[]>([])
 
-const readQueryString = (key: string) => {
-  const value = route.query[key]
-  return typeof value === 'string' ? value : ''
-}
-
-const queryParams = reactive<WorkflowTaskQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  businessType: readQueryString('businessType'),
-  businessId: readQueryString('businessId'),
-  businessNo: readQueryString('businessNo'),
-  status: readQueryString('status') || 'PENDING',
-  overdueOnly: false
-})
+const queryParams = reactive<WorkflowTaskQuery>(createWorkflowTaskQueryFromRoute(route.query))
 
 const actionForm = reactive({
   comment: ''
@@ -436,6 +424,12 @@ const taskStatusType = (status: string) => {
 const formatTime = (value?: string) => {
   return formatLocalizedDateTime(value) || '-'
 }
+
+watch(() => route.fullPath, () => {
+  if (route.name !== 'WorkflowTasks') return
+  Object.assign(queryParams, createWorkflowTaskQueryFromRoute(route.query))
+  loadData()
+})
 
 onMounted(() => {
   loadData()

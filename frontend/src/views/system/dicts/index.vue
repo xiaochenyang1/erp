@@ -6,9 +6,9 @@
         <el-card shadow="never">
           <template #header>
             <div class="card-header">
-              <span>字典类型</span>
+              <span>{{ $t('systemDicts.types') }}</span>
               <el-button v-permission="'system:dict:create'" type="primary" :icon="Plus" size="small" @click="handleAddType">
-                新增
+                {{ $t('systemDicts.add') }}
               </el-button>
             </div>
           </template>
@@ -16,7 +16,7 @@
           <!-- 搜索 -->
           <el-input
             v-model="typeSearchText"
-            placeholder="搜索字典类型"
+            :placeholder="$t('systemDicts.searchTypes')"
             :prefix-icon="Search"
             clearable
             style="margin-bottom: 15px"
@@ -31,19 +31,19 @@
             style="width: 100%"
             max-height="600px"
           >
-            <el-table-column prop="code" label="字典编码" show-overflow-tooltip />
-            <el-table-column prop="name" label="字典名称" show-overflow-tooltip />
-            <el-table-column prop="status" label="状态" width="80" align="center">
+            <el-table-column prop="code" :label="$t('systemDicts.code')" show-overflow-tooltip />
+            <el-table-column prop="name" :label="$t('systemDicts.name')" show-overflow-tooltip />
+            <el-table-column prop="status" :label="$t('systemDicts.status')" width="80" align="center">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'danger'" size="small">
-                  {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                  {{ row.status === 'ACTIVE' ? $t('systemDicts.active') : $t('systemDicts.inactive') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150" align="center">
+            <el-table-column :label="$t('systemDicts.operations')" width="150" align="center">
               <template #default="{ row }">
                 <el-button v-permission="'system:dict:update'" type="primary" link :icon="Edit" @click="handleEditType(row)">
-                  编辑
+                  {{ $t('systemDicts.edit') }}
                 </el-button>
                 <el-button
                   v-if="row.status === 'ACTIVE'"
@@ -53,10 +53,10 @@
                   :icon="Delete"
                   @click="handleDisableType(row)"
                 >
-                  停用
+                  {{ $t('systemDicts.disable') }}
                 </el-button>
                 <el-button v-else v-permission="'system:dict:enable'" type="success" link @click="handleEnableType(row)">
-                  启用
+                  {{ $t('systemDicts.enable') }}
                 </el-button>
               </template>
             </el-table-column>
@@ -69,7 +69,7 @@
         <el-card shadow="never">
           <template #header>
             <div class="card-header">
-              <span>字典项 {{ currentType ? `- ${currentType.name}` : '' }}</span>
+              <span>{{ currentType ? $t('systemDicts.itemsFor', { name: currentType.name }) : $t('systemDicts.items') }}</span>
               <el-button
                 v-permission="'system:dict:create'"
                 type="primary"
@@ -78,7 +78,7 @@
                 :disabled="!currentType"
                 @click="handleAddItem"
               >
-                新增
+                {{ $t('systemDicts.add') }}
               </el-button>
             </div>
           </template>
@@ -91,20 +91,20 @@
             stripe
             style="width: 100%"
           >
-            <el-table-column prop="label" label="字典标签" width="150" />
-            <el-table-column prop="value" label="字典值" width="150" />
-            <el-table-column prop="orderNum" label="排序" width="80" align="center" />
-            <el-table-column prop="status" label="状态" width="100" align="center">
+            <el-table-column prop="label" :label="$t('systemDicts.label')" width="150" />
+            <el-table-column prop="value" :label="$t('systemDicts.value')" width="150" />
+            <el-table-column prop="orderNum" :label="$t('systemDicts.sort')" width="80" align="center" />
+            <el-table-column prop="status" :label="$t('systemDicts.status')" width="100" align="center">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'danger'" size="small">
-                  {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                  {{ row.status === 'ACTIVE' ? $t('systemDicts.active') : $t('systemDicts.inactive') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="200" align="center" fixed="right">
+            <el-table-column :label="$t('systemDicts.operations')" width="200" align="center" fixed="right">
               <template #default="{ row }">
                 <el-button v-permission="'system:dict:update'" type="primary" link :icon="Edit" @click="handleEditItem(row)">
-                  编辑
+                  {{ $t('systemDicts.edit') }}
                 </el-button>
                 <el-button
                   v-if="row.status === 'ACTIVE'"
@@ -114,10 +114,10 @@
                   :icon="Delete"
                   @click="handleDisableItem(row)"
                 >
-                  停用
+                  {{ $t('systemDicts.disable') }}
                 </el-button>
                 <el-button v-else v-permission="'system:dict:enable'" type="success" link @click="handleEnableItem(row)">
-                  启用
+                  {{ $t('systemDicts.enable') }}
                 </el-button>
               </template>
             </el-table-column>
@@ -139,31 +139,31 @@
         :rules="typeFormRules"
         label-width="100px"
       >
-        <el-form-item label="字典编码" prop="code">
-          <el-input v-model="typeFormData.code" placeholder="请输入字典编码" />
+        <el-form-item :label="$t('systemDicts.code')" prop="code">
+          <el-input v-model="typeFormData.code" :placeholder="$t('systemDicts.codePlaceholder')" />
         </el-form-item>
-        <el-form-item label="字典名称" prop="name">
-          <el-input v-model="typeFormData.name" placeholder="请输入字典名称" />
+        <el-form-item :label="$t('systemDicts.name')" prop="name">
+          <el-input v-model="typeFormData.name" :placeholder="$t('systemDicts.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="$t('systemDicts.status')" prop="status">
           <el-radio-group v-model="typeFormData.status">
-            <el-radio label="ACTIVE">启用</el-radio>
-            <el-radio label="INACTIVE">停用</el-radio>
+            <el-radio label="ACTIVE">{{ $t('systemDicts.active') }}</el-radio>
+            <el-radio label="INACTIVE">{{ $t('systemDicts.inactive') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
+        <el-form-item :label="$t('systemDicts.remark')" prop="remark">
           <el-input
             v-model="typeFormData.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注"
+            :placeholder="$t('systemDicts.remarkPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="typeDialogVisible = false">取消</el-button>
+        <el-button @click="typeDialogVisible = false">{{ $t('systemDicts.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleTypeSubmit">
-          确定
+          {{ $t('systemDicts.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -181,29 +181,29 @@
         :rules="itemFormRules"
         label-width="100px"
       >
-        <el-form-item label="字典类型">
+        <el-form-item :label="$t('systemDicts.types')">
           <el-input :value="currentType?.name" disabled />
         </el-form-item>
-        <el-form-item label="字典标签" prop="label">
-          <el-input v-model="itemFormData.label" placeholder="请输入字典标签" />
+        <el-form-item :label="$t('systemDicts.label')" prop="label">
+          <el-input v-model="itemFormData.label" :placeholder="$t('systemDicts.labelPlaceholder')" />
         </el-form-item>
-        <el-form-item label="字典值" prop="value">
-          <el-input v-model="itemFormData.value" placeholder="请输入字典值" />
+        <el-form-item :label="$t('systemDicts.value')" prop="value">
+          <el-input v-model="itemFormData.value" :placeholder="$t('systemDicts.valuePlaceholder')" />
         </el-form-item>
-        <el-form-item label="排序" prop="orderNum">
+        <el-form-item :label="$t('systemDicts.sort')" prop="orderNum">
           <el-input-number v-model="itemFormData.orderNum" :min="0" controls-position="right" />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="$t('systemDicts.status')" prop="status">
           <el-radio-group v-model="itemFormData.status">
-            <el-radio label="ACTIVE">启用</el-radio>
-            <el-radio label="INACTIVE">停用</el-radio>
+            <el-radio label="ACTIVE">{{ $t('systemDicts.active') }}</el-radio>
+            <el-radio label="INACTIVE">{{ $t('systemDicts.inactive') }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="itemDialogVisible = false">取消</el-button>
+        <el-button @click="itemDialogVisible = false">{{ $t('systemDicts.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleItemSubmit">
-          确定
+          {{ $t('systemDicts.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -212,6 +212,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Plus, Edit, Delete } from '@element-plus/icons-vue'
 import {
@@ -229,6 +230,8 @@ import {
   type DictType,
   type DictItem
 } from '@/api/system'
+
+const { t } = useI18n()
 
 // 字典类型
 const typeLoading = ref(false)
@@ -262,10 +265,10 @@ const typeFormData = reactive({
   remark: ''
 })
 
-const typeFormRules: FormRules = {
-  code: [{ required: true, message: '请输入字典编码', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入字典名称', trigger: 'blur' }]
-}
+const typeFormRules = computed<FormRules>(() => ({
+  code: [{ required: true, message: t('systemDicts.codePlaceholder'), trigger: 'blur' }],
+  name: [{ required: true, message: t('systemDicts.namePlaceholder'), trigger: 'blur' }]
+}))
 
 // 字典项对话框
 const itemDialogVisible = ref(false)
@@ -280,10 +283,10 @@ const itemFormData = reactive({
   status: 'ACTIVE'
 })
 
-const itemFormRules: FormRules = {
-  label: [{ required: true, message: '请输入字典标签', trigger: 'blur' }],
-  value: [{ required: true, message: '请输入字典值', trigger: 'blur' }]
-}
+const itemFormRules = computed<FormRules>(() => ({
+  label: [{ required: true, message: t('systemDicts.labelPlaceholder'), trigger: 'blur' }],
+  value: [{ required: true, message: t('systemDicts.valuePlaceholder'), trigger: 'blur' }]
+}))
 
 const submitLoading = ref(false)
 
@@ -294,8 +297,8 @@ const loadTypeList = async () => {
     const res = await getDictTypes({ page: 1, size: 1000 })
     typeList.value = res.records || []
   } catch (error) {
-    console.error('加载字典类型失败:', error)
-    ElMessage.error('加载字典类型失败')
+    console.error(t('systemDicts.message.loadTypesFailed'), error)
+    ElMessage.error(t('systemDicts.message.loadTypesFailed'))
   } finally {
     typeLoading.value = false
   }
@@ -318,8 +321,8 @@ const loadItemList = async (typeCode: string) => {
     const res = await getDictItems(typeCode)
     itemList.value = res || []
   } catch (error) {
-    console.error('加载字典项失败:', error)
-    ElMessage.error('加载字典项失败')
+    console.error(t('systemDicts.message.loadItemsFailed'), error)
+    ElMessage.error(t('systemDicts.message.loadItemsFailed'))
   } finally {
     itemLoading.value = false
   }
@@ -327,13 +330,13 @@ const loadItemList = async (typeCode: string) => {
 
 // 新增字典类型
 const handleAddType = () => {
-  typeDialogTitle.value = '新增字典类型'
+  typeDialogTitle.value = t('systemDicts.dialog.addType')
   typeDialogVisible.value = true
 }
 
 // 编辑字典类型
 const handleEditType = async (row: DictType) => {
-  typeDialogTitle.value = '编辑字典类型'
+  typeDialogTitle.value = t('systemDicts.dialog.editType')
   try {
     const res = await getDictType(row.id)
     Object.assign(typeFormData, {
@@ -345,18 +348,18 @@ const handleEditType = async (row: DictType) => {
     })
     typeDialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载字典类型详情失败')
+    ElMessage.error(t('systemDicts.message.loadTypeDetailFailed'))
   }
 }
 
 // 停用字典类型
 const handleDisableType = async (row: DictType) => {
   try {
-    await ElMessageBox.confirm(`确定要停用字典类型"${row.name}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('systemDicts.message.disableTypeConfirm', { name: row.name }), t('systemDicts.prompt'), {
       type: 'warning'
     })
     await deleteDictType(row.id)
-    ElMessage.success('停用成功')
+    ElMessage.success(t('systemDicts.message.disableSuccess'))
     loadTypeList()
     if (currentType.value?.id === row.id) {
       currentType.value = null
@@ -364,7 +367,7 @@ const handleDisableType = async (row: DictType) => {
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('停用失败')
+      ElMessage.error(t('systemDicts.message.disableFailed'))
     }
   }
 }
@@ -372,15 +375,15 @@ const handleDisableType = async (row: DictType) => {
 // 启用字典类型
 const handleEnableType = async (row: DictType) => {
   try {
-    await ElMessageBox.confirm(`确定要启用字典类型"${row.name}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('systemDicts.message.enableTypeConfirm', { name: row.name }), t('systemDicts.prompt'), {
       type: 'warning'
     })
     await enableDictType(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(t('systemDicts.message.enableSuccess'))
     loadTypeList()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(t('systemDicts.message.enableFailed'))
     }
   }
 }
@@ -396,15 +399,15 @@ const handleTypeSubmit = async () => {
     try {
       if (typeFormData.id) {
         await updateDictType(typeFormData.id, typeFormData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('systemDicts.message.updateSuccess'))
       } else {
         await createDictType(typeFormData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('systemDicts.message.createSuccess'))
       }
       typeDialogVisible.value = false
       loadTypeList()
     } catch (error) {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('systemDicts.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -426,14 +429,14 @@ const handleTypeDialogClose = () => {
 // 新增字典项
 const handleAddItem = () => {
   if (!currentType.value) return
-  itemDialogTitle.value = '新增字典项'
+  itemDialogTitle.value = t('systemDicts.dialog.addItem')
   itemFormData.typeCode = currentType.value.code
   itemDialogVisible.value = true
 }
 
 // 编辑字典项
 const handleEditItem = (row: DictItem) => {
-  itemDialogTitle.value = '编辑字典项'
+  itemDialogTitle.value = t('systemDicts.dialog.editItem')
   Object.assign(itemFormData, {
     id: row.id,
     typeCode: row.typeCode,
@@ -448,17 +451,17 @@ const handleEditItem = (row: DictItem) => {
 // 停用字典项
 const handleDisableItem = async (row: DictItem) => {
   try {
-    await ElMessageBox.confirm(`确定要停用字典项"${row.label}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('systemDicts.message.disableItemConfirm', { label: row.label }), t('systemDicts.prompt'), {
       type: 'warning'
     })
     await deleteDictItem(row.id)
-    ElMessage.success('停用成功')
+    ElMessage.success(t('systemDicts.message.disableSuccess'))
     if (currentType.value) {
       loadItemList(currentType.value.code)
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('停用失败')
+      ElMessage.error(t('systemDicts.message.disableFailed'))
     }
   }
 }
@@ -466,17 +469,17 @@ const handleDisableItem = async (row: DictItem) => {
 // 启用字典项
 const handleEnableItem = async (row: DictItem) => {
   try {
-    await ElMessageBox.confirm(`确定要启用字典项"${row.label}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('systemDicts.message.enableItemConfirm', { label: row.label }), t('systemDicts.prompt'), {
       type: 'warning'
     })
     await enableDictItem(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(t('systemDicts.message.enableSuccess'))
     if (currentType.value) {
       loadItemList(currentType.value.code)
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(t('systemDicts.message.enableFailed'))
     }
   }
 }
@@ -492,17 +495,17 @@ const handleItemSubmit = async () => {
     try {
       if (itemFormData.id) {
         await updateDictItem(itemFormData.id, itemFormData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('systemDicts.message.updateSuccess'))
       } else {
         await createDictItem(itemFormData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('systemDicts.message.createSuccess'))
       }
       itemDialogVisible.value = false
       if (currentType.value) {
         loadItemList(currentType.value.code)
       }
     } catch (error) {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('systemDicts.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }

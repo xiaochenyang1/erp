@@ -3,21 +3,23 @@
     <el-card shadow="never" class="header-card">
       <div class="header-row">
         <div>
-          <div class="page-title">可观测性</div>
-          <div class="page-subtitle">业务健康状态生成时间：{{ health.generatedAt || '-' }}</div>
+          <div class="page-title">{{ $t('systemObservability.title') }}</div>
+          <div class="page-subtitle">
+            {{ $t('systemObservability.generatedAt', { time: formatLocalizedDateTime(health.generatedAt) || '-' }) }}
+          </div>
         </div>
         <div class="header-actions">
           <el-tag :type="platformHealthTagType(platformHealth.status)" size="large">
-            平台状态：{{ platformHealthLabel(platformHealth.status) }}
+            {{ $t('systemObservability.platformStatus', { status: platformHealthLabel(platformHealth.status) }) }}
           </el-tag>
           <el-tag :type="health.overallStatus === 'UP' ? 'success' : 'warning'" size="large">
-            {{ health.overallStatus === 'UP' ? '业务正常' : '存在风险' }}
+            {{ health.overallStatus === 'UP' ? $t('systemObservability.businessHealthy') : $t('systemObservability.businessAtRisk') }}
           </el-tag>
           <el-tag v-if="systemProfile" type="info" size="large">
-            环境：{{ systemProfile.scope }}
+            {{ $t('systemObservability.environment', { scope: systemProfile.scope }) }}
           </el-tag>
           <el-button type="primary" :icon="Refresh" :loading="loading || platformHealthLoading" @click="loadData">
-            刷新
+            {{ $t('systemObservability.refresh') }}
           </el-button>
         </div>
       </div>
@@ -28,13 +30,13 @@
         <el-card shadow="never" class="metric-card">
           <div class="metric-top">
             <el-tag :type="check.status === 'UP' ? 'success' : 'warning'">
-              {{ check.status === 'UP' ? '正常' : '预警' }}
+              {{ check.status === 'UP' ? $t('systemObservability.healthy') : $t('systemObservability.warning') }}
             </el-tag>
             <span class="metric-code">{{ check.code }}</span>
           </div>
           <div class="metric-name">{{ check.name }}</div>
           <div class="metric-value">{{ check.count }}</div>
-          <div class="metric-threshold">阈值：{{ check.threshold }}</div>
+          <div class="metric-threshold">{{ $t('systemObservability.thresholdValue', { value: check.threshold }) }}</div>
           <div class="metric-summary">{{ check.summary }}</div>
         </el-card>
       </el-col>
@@ -42,21 +44,21 @@
 
     <el-card shadow="never" class="table-card">
       <template #header>
-        <span>业务健康检查</span>
+        <span>{{ $t('systemObservability.businessHealthChecks') }}</span>
       </template>
       <el-table v-loading="loading" :data="health.checks" border stripe>
-        <el-table-column prop="name" label="检查项" min-width="180" />
-        <el-table-column prop="code" label="编码" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="name" :label="$t('systemObservability.checkItem')" min-width="180" />
+        <el-table-column prop="code" :label="$t('systemObservability.code')" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="status" :label="$t('systemObservability.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'UP' ? 'success' : 'warning'">
-              {{ row.status === 'UP' ? '正常' : '预警' }}
+              {{ row.status === 'UP' ? $t('systemObservability.healthy') : $t('systemObservability.warning') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="count" label="数量" width="100" align="right" />
-        <el-table-column prop="threshold" label="阈值" width="100" align="right" />
-        <el-table-column prop="summary" label="说明" min-width="260" show-overflow-tooltip />
+        <el-table-column prop="count" :label="$t('systemObservability.count')" width="100" align="right" />
+        <el-table-column prop="threshold" :label="$t('systemObservability.threshold')" width="100" align="right" />
+        <el-table-column prop="summary" :label="$t('systemObservability.description')" min-width="260" show-overflow-tooltip />
       </el-table>
     </el-card>
   </div>
@@ -64,10 +66,14 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { getBusinessHealth, getSystemHealth, type BusinessHealth, type SystemHealth } from '@/api/observability'
 import { getSystemProfile, type SystemProfile } from '@/api/system'
+import { formatLocalizedDateTime } from '@/utils/locale'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const platformHealthLoading = ref(false)
@@ -86,8 +92,8 @@ const loadBusinessHealth = async () => {
   try {
     health.value = await getBusinessHealth()
   } catch (error) {
-    console.error('加载业务健康失败:', error)
-    ElMessage.error('加载业务健康失败')
+    console.error('Failed to load business health:', error)
+    ElMessage.error(t('systemObservability.message.businessHealthLoadFailed'))
   } finally {
     loading.value = false
   }
@@ -99,7 +105,7 @@ const loadPlatformHealth = async () => {
     platformHealth.value = await getSystemHealth()
   } catch {
     platformHealth.value = { status: 'DOWN' }
-    ElMessage.error('加载平台状态失败')
+    ElMessage.error(t('systemObservability.message.platformHealthLoadFailed'))
   } finally {
     platformHealthLoading.value = false
   }
@@ -119,10 +125,10 @@ const loadSystemProfile = async () => {
 
 const platformHealthLabel = (status: string) => {
   const map: Record<string, string> = {
-    UP: '正常',
-    DOWN: '异常',
-    OUT_OF_SERVICE: '停服',
-    UNKNOWN: '未知'
+    UP: t('systemObservability.platformHealth.up'),
+    DOWN: t('systemObservability.platformHealth.down'),
+    OUT_OF_SERVICE: t('systemObservability.platformHealth.outOfService'),
+    UNKNOWN: t('systemObservability.platformHealth.unknown')
   }
   return map[status] || status
 }

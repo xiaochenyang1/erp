@@ -10,6 +10,7 @@ const productionApi = readFileSync(resolve(root, 'src/api/production.ts'), 'utf8
 const inventoryApi = readFileSync(resolve(root, 'src/api/inventory.ts'), 'utf8')
 const authApi = readFileSync(resolve(root, 'src/api/auth.ts'), 'utf8')
 const purchaseApi = readFileSync(resolve(root, 'src/api/purchase.ts'), 'utf8')
+const purchaseInquiryView = readFileSync(resolve(root, 'src/views/purchase/inquiries/index.vue'), 'utf8')
 const purchaseReceiptView = readFileSync(resolve(root, 'src/views/purchase/receipts/index.vue'), 'utf8')
 const purchaseReturnView = readFileSync(resolve(root, 'src/views/purchase/returns/index.vue'), 'utf8')
 const salesApi = readFileSync(resolve(root, 'src/api/sales.ts'), 'utf8')
@@ -23,6 +24,7 @@ const salesDeliveryView = readFileSync(resolve(root, 'src/views/sales/deliveries
 const purchaseOrderView = readFileSync(resolve(root, 'src/views/purchase/orders/index.vue'), 'utf8')
 const financeReceivableView = readFileSync(resolve(root, 'src/views/finance/receivables/index.vue'), 'utf8')
 const financePayableView = readFileSync(resolve(root, 'src/views/finance/payables/index.vue'), 'utf8')
+const financeAccountView = readFileSync(resolve(root, 'src/views/finance/FinanceAccountsPage.vue'), 'utf8')
 const financePaymentView = readFileSync(resolve(root, 'src/views/finance/payments/index.vue'), 'utf8')
 const systemLogView = readFileSync(resolve(root, 'src/views/system/logs/index.vue'), 'utf8')
 const systemApi = readFileSync(resolve(root, 'src/api/system.ts'), 'utf8')
@@ -57,6 +59,7 @@ const supplierView = readFileSync(resolve(root, 'src/views/masterdata/suppliers/
 const warehouseView = readFileSync(resolve(root, 'src/views/masterdata/warehouses/index.vue'), 'utf8')
 const workflowApi = readFileSync(resolve(root, 'src/api/workflow.ts'), 'utf8')
 const workflowTaskView = readFileSync(resolve(root, 'src/views/workflow/tasks/index.vue'), 'utf8')
+const workflowTaskQuery = readFileSync(resolve(root, 'src/views/workflow/tasks/query.ts'), 'utf8')
 const workflowRecordView = readFileSync(resolve(root, 'src/views/workflow/records/index.vue'), 'utf8')
 const workflowConfigViewPath = resolve(root, 'src/views/workflow/configs/index.vue')
 const workflowConfigView = existsSync(workflowConfigViewPath) ? readFileSync(workflowConfigViewPath, 'utf8') : ''
@@ -74,6 +77,8 @@ const importsViewPath = resolve(root, 'src/views/system/imports/index.vue')
 const importsApi = existsSync(importsApiPath) ? readFileSync(importsApiPath, 'utf8') : ''
 const importsView = existsSync(importsViewPath) ? readFileSync(importsViewPath, 'utf8') : ''
 const inventoryStockView = readFileSync(resolve(root, 'src/views/inventory/stocks/index.vue'), 'utf8')
+const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInventoryStockDetails.ts'), 'utf8')
+const inventoryStockFeature = `${inventoryStockView}\n${inventoryStockDetails}`
 const inventoryAlertView = readFileSync(resolve(root, 'src/views/inventory/alerts/index.vue'), 'utf8')
 const inventoryOptionViews = [
   {
@@ -91,10 +96,10 @@ const inventoryOptionViews = [
 ]
 
 const requiredFragments = [
-  'label="材料出库仓"',
+  ':label="t(\'productionOrder.materialWarehouse\')"',
   'prop="materialWarehouseId"',
   'v-model="formData.materialWarehouseId"',
-  'label="成品入库仓"',
+  ':label="t(\'productionOrder.finishedWarehouse\')"',
   'prop="finishedWarehouseId"',
   'v-model="formData.finishedWarehouseId"',
   'const optionPageQuery = { pageNo: 1, pageSize: 200 }',
@@ -286,7 +291,7 @@ for (const fragment of [
   'getSystemHealth',
   'platformHealth',
   'loadPlatformHealth',
-  '平台状态'
+  'systemObservability.platformStatus'
 ]) {
   if (!observabilityView.includes(fragment)) {
     errors.push(`可观测性页面缺少 /api/health 平台状态入口片段: ${fragment}`)
@@ -339,7 +344,7 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  '预生产验收',
+  'systemReadiness.title',
   'recordReadinessPreflightEvidence',
   'addReadinessItem',
   'addReadinessEvidence',
@@ -415,7 +420,7 @@ for (const fragment of [
   'handleTraceOrder',
   'canCancelOrder(row)',
   'canCloseOrder(row)',
-  'title="采购订单追踪"',
+  ':title="t(\'purchaseOrder.traceTitle\')"',
   'purchaseTrace.executionInfo',
   'purchaseTrace.relatedDocs'
 ]) {
@@ -432,6 +437,88 @@ for (const fragment of [
 ]) {
   if (purchaseOrderView.includes(fragment)) {
     errors.push(`采购订单页仍保留取消接口的删除伪语义片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'sourceInquiryId?: string | number | null',
+  'sourceInquiryNo?: string | null',
+  'sourceQuoteId?: string | number | null',
+  'sourceInquiryLineId?: string | number | null',
+  'convertedOrderId?: string | number | null',
+  'convertedOrderNo?: string | null',
+  "status: 'DRAFT' | 'SUBMITTED' | 'CLOSED' | 'CONVERTED' | 'CANCELLED' | string",
+  'export const convertPurchaseInquiryToPurchaseOrder = (id: string | number)',
+  '.post<PurchaseOrder>(`/purchase/inquiries/${id}/convert-to-purchase-order`)',
+  '.then(normalizePurchaseOrder)',
+  'convertedOrderId: inquiry.convertedOrderId != null ? String(inquiry.convertedOrderId) : inquiry.convertedOrderId',
+  'sourceInquiryLineId: item.sourceInquiryLineId != null ? String(item.sourceInquiryLineId) : item.sourceInquiryLineId'
+]) {
+  if (!purchaseApi.includes(fragment)) {
+    errors.push(`采购询价原子转换 API 缺少双向来源或 Long ID 归一化片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'convertPurchaseInquiryToPurchaseOrder,',
+  "userStore.hasPermission('purchase:inquiry:manage')",
+  "userStore.hasPermission('purchase:order:create')",
+  "row.status === 'CLOSED' && canConvertToPurchaseOrder",
+  "CONVERTED: t('purchaseInquiryOps.status.converted')",
+  'current?.convertedOrderNo',
+  'current?.convertedTime',
+  'await convertPurchaseInquiryToPurchaseOrder(prefillInquiryId.value)',
+  'await convertPurchaseInquiryToPurchaseOrder(row.id)'
+]) {
+  if (!purchaseInquiryView.includes(fragment)) {
+    errors.push(`采购询价页缺少原子转换、双权限或转换结果展示片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'createPurchaseOrder,',
+  'await createPurchaseOrder(',
+  'const source = await getPurchaseInquiryPoPrefill(row.id)'
+]) {
+  if (purchaseInquiryView.includes(fragment)) {
+    errors.push(`采购询价页仍保留预填后再次创建采购订单的非原子流程片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'export interface PurchaseInquiryQuoteLine {',
+  'inquiryLineId: string | number',
+  'lines?: PurchaseInquiryQuoteLine[]',
+  'export interface PurchaseInquiryQuoteLineRequest {',
+  'lines?: PurchaseInquiryQuoteLineRequest[]',
+  'lines: (quote.lines || []).map((line) => ({',
+  'id: String(line.id)',
+  'inquiryLineId: String(line.inquiryLineId)'
+]) {
+  if (!purchaseApi.includes(fragment)) {
+    errors.push(`采购询价 API 缺少逐行报价类型或 Long ID 归一化片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'quoteForm.lines = (detail.lines || []).map((line) => ({',
+  'inquiryLineId: String(line.id)',
+  'lines: quoteForm.lines.map((line) => ({',
+  'inquiryLineProductLabel(line.inquiryLineId, selectInquiryLines)',
+  "row.lines?.length",
+  'purchaseInquiryOps.legacyQuoteSummary'
+]) {
+  if (!purchaseInquiryView.includes(fragment)) {
+    errors.push(`采购询价页缺少逐行报价录入、展示或历史报价回退片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'unitPrice: quoteForm.unitPrice',
+  'taxRate: quoteForm.taxRate'
+]) {
+  if (purchaseInquiryView.includes(fragment)) {
+    errors.push(`采购询价页仍提交旧的整单报价字段: ${fragment}`)
   }
 }
 
@@ -585,8 +672,8 @@ const traceRouteTargetViews = [
   { name: '销售发货页', content: salesDeliveryView, field: 'queryParams.deliveryNo' },
   { name: '采购订单页', content: purchaseOrderView, field: 'queryForm.orderNo' },
   { name: '采购收货页', content: purchaseReceiptView, field: 'queryForm.receiptNo' },
-  { name: '应收账款页', content: financeReceivableView, field: 'receivableQuery.receivableNo' },
-  { name: '应付账款页', content: financePayableView, field: 'payableQuery.payableNo' },
+  { name: '应收账款页', content: financeAccountView, field: 'receivableQuery.receivableNo' },
+  { name: '应付账款页', content: financeAccountView, field: 'payableQuery.payableNo' },
   { name: '操作日志页', content: systemLogView, field: 'queryForm.bizNo' }
 ]
 
@@ -675,8 +762,8 @@ for (const fragment of [
   'const handleViewStatement = async (row: BankStatement) =>',
   'await getFundAccount(row.id)',
   'await getBankStatement(row.id)',
-  'title="资金账户详情"',
-  'title="银行流水详情"',
+  'financeReportPages.funds.accountDetail',
+  'financeReportPages.funds.statementDetail',
   'handleViewAccount(row)',
   'handleViewStatement(row)',
   'openMatchDialog(row)',
@@ -736,13 +823,13 @@ for (const fragment of [
 
 for (const fragment of [
   'getAccountSubjectTree',
-  'label="费用科目"',
+  'financeReportPages.expenses.expenseSubject',
   'prop="subjectId"',
   'v-model="formData.subjectId"',
-  'label="支付科目"',
+  'financeReportPages.expenses.paymentSubject',
   'prop="paymentSubjectId"',
   'v-model="formData.paymentSubjectId"',
-  'label="费用金额"',
+  'financeReportPages.expenses.expenseAmount',
   'prop="amount"',
   'v-model="formData.amount"',
   'const flattenSubjects =',
@@ -751,10 +838,10 @@ for (const fragment of [
   'const handleReconciliation = async (row: Expense) =>',
   'reconciliationDialogVisible',
   'reconciliationData',
-  'label="原凭证分录"',
-  'label="红冲分录"',
+  'financeReportPages.expenses.originalEntries',
+  'financeReportPages.expenses.reversalEntries',
   "row.status === 'POSTED'",
-  '红冲'
+  'viewData.reversalVoucherNo'
 ]) {
   if (!expenseView.includes(fragment)) {
     errors.push(`费用页缺少后端契约兼容片段: ${fragment}`)
@@ -829,11 +916,20 @@ for (const fragment of [
   'const handleViewPayable = async (row: Payable) =>',
   'await getReceivable(row.id)',
   'await getPayable(row.id)',
-  'title="应收账款详情"',
-  'title="应付账款详情"'
+  ":title=\"t('financeAccount.dialog.receivable')\"",
+  ":title=\"t('financeAccount.dialog.payable')\""
 ]) {
-  if (!financeReceivableView.includes(fragment) || !financePayableView.includes(fragment)) {
+  if (!financeAccountView.includes(fragment)) {
     errors.push(`应收/应付账款页缺少真实详情接口入口片段: ${fragment}`)
+  }
+}
+
+for (const [content, fragment] of [
+  [financeReceivableView, '<FinanceAccountsPage default-tab="receivables" />'],
+  [financePayableView, '<FinanceAccountsPage default-tab="payables" />']
+]) {
+  if (!content.includes(fragment)) {
+    errors.push(`应收/应付账款薄路由页缺少共享组件默认页签片段: ${fragment}`)
   }
 }
 
@@ -841,7 +937,7 @@ for (const fragment of [
   'getCustomers({ pageNo: 1000',
   'getSuppliers({ pageNo: 1000'
 ]) {
-  if (financeReceivableView.includes(fragment) || financePayableView.includes(fragment)) {
+  if (financeAccountView.includes(fragment)) {
     errors.push(`应收/应付账款页仍保留错误选项分页片段: ${fragment}`)
   }
 }
@@ -867,12 +963,16 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  '凭证查询',
+  "financeReportPages.vouchers.title",
   'getVoucher,',
   'getVoucherEntries',
   'const handleView = async',
-  'currentVoucher.value = await getVoucher(row.id)',
-  '费用凭证'
+  'const [voucher, entries] = await Promise.all([',
+  'getVoucher(row.id)',
+  'getVoucherEntries(row.id)',
+  'currentVoucher.value = voucher',
+  'detailEntries.value = entries',
+  "financeReportPages.vouchers.sourceValue.expense"
 ]) {
   if (!voucherView.includes(fragment)) {
     errors.push(`凭证页缺少只读查询契约片段: ${fragment}`)
@@ -964,13 +1064,13 @@ for (const fragment of [
   'await getAccountSubjects({',
   'pageNo: 1,',
   'pageSize: 200,',
-  'label="科目编码"',
+  `:label="$t('financeReportPages.subjects.code')"`,
   'v-model="formData.subjectCode"',
-  'label="科目名称"',
+  `:label="$t('financeReportPages.subjects.name')"`,
   'v-model="formData.subjectName"',
-  'label="科目类别"',
+  `:label="$t('financeReportPages.subjects.category')"`,
   'v-model="formData.subjectType"',
-  'label="余额方向"',
+  `:label="$t('financeReportPages.subjects.balanceDirection')"`,
   'v-model="formData.balanceDirection"',
   'id: undefined as string | undefined',
   'parentId: undefined as string | undefined'
@@ -1108,11 +1208,11 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  '解锁时间',
-  '解锁',
-  '确定解锁 ${row.periodMonth} 会计期间吗？',
-  '会计期间已解锁',
-  '解锁会计期间失败'
+  'financeReportPages.periods.unlockTime',
+  'financeReportPages.periods.unlock',
+  'financeReportPages.periods.message.unlockConfirm',
+  'financeReportPages.periods.message.unlocked',
+  'financeReportPages.periods.message.unlockFailed'
 ]) {
   if (!financePeriodView.includes(fragment)) {
     errors.push(`会计期间页缺少锁定期间解锁语义片段: ${fragment}`)
@@ -1433,7 +1533,7 @@ for (const fragment of [
 for (const fragment of [
   'getDeptTree,',
   'deptOptions',
-  'label="所属部门"',
+  'systemPost.dept',
   'prop="deptId"',
   'v-model="formData.deptId"',
   `:props="{ label: 'name', value: 'id' }"`,
@@ -1500,27 +1600,27 @@ const systemEnableViewContracts = [
   {
     name: '系统用户页',
     content: systemUserView,
-    fragments: ['enableUser,', 'const handleEnable = async (row: User) =>', 'await enableUser(row.id)', '启用']
+    fragments: ['enableUser,', 'const handleEnable = async (row: User) =>', 'await enableUser(row.id)', 'systemUsers.enable']
   },
   {
     name: '系统角色页',
     content: roleView,
-    fragments: ['enableRole,', 'const handleEnable = async (row: Role) =>', 'await enableRole(row.id)', '停用', '启用']
+    fragments: ['enableRole,', 'const handleEnable = async (row: Role) =>', 'await enableRole(row.id)', 'systemRoles.disable', 'systemRoles.enable']
   },
   {
     name: '系统菜单页',
     content: menuView,
-    fragments: ['enableMenu,', 'const handleEnable = async (row: Menu) =>', 'await enableMenu(row.id)', '停用', '启用']
+    fragments: ['enableMenu,', 'const handleEnable = async (row: Menu) =>', 'await enableMenu(row.id)', 'systemMenu.disable', 'systemMenu.enable']
   },
   {
     name: '系统部门页',
     content: deptView,
-    fragments: ['enableDept,', 'const handleEnable = async (row: Dept) =>', 'await enableDept(row.id)', '停用', '启用']
+    fragments: ['enableDept,', 'const handleEnable = async (row: Dept) =>', 'await enableDept(row.id)', 'systemDept.disable', 'systemDept.enable']
   },
   {
     name: '系统岗位页',
     content: postView,
-    fragments: ['enablePost,', 'const handleEnable = async (row: Post) =>', 'await enablePost(row.id)', '停用', '启用']
+    fragments: ['enablePost,', 'const handleEnable = async (row: Post) =>', 'await enablePost(row.id)', 'systemPost.disable', 'systemPost.enable']
   },
   {
     name: '系统字典页',
@@ -1532,8 +1632,8 @@ const systemEnableViewContracts = [
       'const handleEnableItem = async (row: DictItem) =>',
       'await enableDictType(row.id)',
       'await enableDictItem(row.id)',
-      '停用',
-      '启用'
+      'systemDicts.disable',
+      'systemDicts.enable'
     ]
   },
   {
@@ -1545,7 +1645,7 @@ const systemEnableViewContracts = [
       'const handleToggleConfigStatus = async (row: SystemConfig) =>',
       'await enableSystemConfig(row.id)',
       'await disableSystemConfig(row.id)',
-      'row.status === \'ACTIVE\' ? \'停用\' : \'启用\''
+      "row.status === 'ACTIVE' ? t('systemConfigs.disable') : t('systemConfigs.enable')"
     ]
   }
 ]
@@ -1616,8 +1716,8 @@ for (const fragment of [
   'name="operation"',
   'name="login"',
   'name="audit"',
-  '登录日志',
-  '审计日志',
+  'systemLogs.tabs.login',
+  'systemLogs.tabs.audit',
   'getLoginLogs',
   'getAuditLogs',
   'loginQueryForm.username',
@@ -1752,7 +1852,7 @@ for (const fragment of [
   'v-model="activeTab"',
   'name="configs"',
   'name="sequenceRules"',
-  '编号规则',
+  'systemConfigs.sequenceRules',
   'getSequenceRules',
   'getSequenceRule',
   'createSequenceRule',
@@ -1849,8 +1949,9 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  "businessId: readQueryString('businessId')",
-  'const readQueryString =',
+  "import { createWorkflowTaskQueryFromRoute } from './query'",
+  'reactive<WorkflowTaskQuery>(createWorkflowTaskQueryFromRoute(route.query))',
+  'Object.assign(queryParams, createWorkflowTaskQueryFromRoute(route.query))',
   'approveWorkflowTask({ taskId: currentTask.value.id',
   'rejectWorkflowTask({ taskId: currentTask.value.id'
 ]) {
@@ -1860,10 +1961,20 @@ for (const fragment of [
 }
 
 for (const fragment of [
+  "businessId: readQueryString(query, 'businessId')",
+  "overdueOnly: readQueryBoolean(query, 'overdueOnly')",
+  "value === true || (typeof value === 'string' && value.trim().toLowerCase() === 'true')"
+]) {
+  if (!workflowTaskQuery.includes(fragment)) {
+    errors.push(`审批待办查询 helper 缺少 URL 字符串或布尔值兼容片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
   "businessId: readQueryNumber('businessId')",
   'function readQueryNumber'
 ]) {
-  if (workflowTaskView.includes(fragment)) {
+  if (workflowTaskView.includes(fragment) || workflowTaskQuery.includes(fragment)) {
     errors.push(`审批待办页仍把业务 Long ID 从 URL 转成 number: ${fragment}`)
   }
 }
@@ -1899,7 +2010,7 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  '审批配置',
+  'workflowConfig.title',
   'getWorkflowApprovalConfig',
   'saveWorkflowApprovalConfig',
   'getUsers',
@@ -2176,7 +2287,7 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  '导入任务',
+  'systemImports.jobsTitle',
   'v-model="queryForm.importType"',
   'v-model="queryForm.status"',
   'downloadImportTemplate',
@@ -2272,7 +2383,7 @@ for (const fragment of [
   'updateProductionOrder,',
   '@click="handleEdit(row)"',
   'const handleEdit = async (row: ProductionOrder) =>',
-  "dialogTitle.value = '编辑生产订单'",
+  "dialogTitle.value = t('productionOrder.dialog.edit')",
   'Object.assign(formData, {',
   'if (formData.id) {',
   'await updateProductionOrder(formData.id, formData)',
@@ -2321,7 +2432,7 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  '<el-option label="启用" value="ACTIVE" />',
+  '<el-option :label="t(\'productionBom.status.active\')" value="ACTIVE" />',
   'v-model="formData.baseQty"',
   'baseQty: res.baseQty',
   'baseQty: 1',
@@ -2453,6 +2564,7 @@ for (const fragment of [
 
 for (const fragment of [
   'handleCreateRule',
+  'v-permission="\'inventory:alert:create\'"',
   'ruleDialogVisible',
   'ruleForm.warehouseId',
   'ruleForm.productId',
@@ -2584,7 +2696,7 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  '预留明细',
+  'inventoryStocks.reservationDetails',
   'getInventoryReservations',
   'getInventoryReservation',
   'manualReleaseInventoryReservation',
@@ -2606,7 +2718,7 @@ for (const fragment of [
   'warehouseId: row.warehouseId',
   'productId: row.productId'
 ]) {
-  if (!inventoryStockView.includes(fragment)) {
+  if (!inventoryStockFeature.includes(fragment)) {
     errors.push(`库存查询页缺少库存预留真实操作入口片段: ${fragment}`)
   }
 }
@@ -2626,10 +2738,10 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  '批次库存',
-  '库存流水',
-  '效期预警',
-  '批次追踪',
+  'inventoryStocks.lotStock',
+  'inventoryStocks.transactions',
+  'inventoryStocks.expiryAlerts',
+  'inventoryStocks.lotTrace',
   'getInventoryLotBalances',
   'getInventoryLotTrace',
   'getInventoryLotExpiryAlerts',
@@ -2650,9 +2762,9 @@ for (const fragment of [
   'selectedStock',
   'selectedLotBalance',
   'selectedTransaction',
-  'await getInventoryStock(row.id)',
-  'await getInventoryLotBalance(row.id)',
-  'await getInventoryTransaction(row.id)',
+  'await dependencies.getStock(row.id)',
+  'await dependencies.getLotBalance(row.id)',
+  'await dependencies.getTransaction(row.id)',
   'lotBalanceData',
   'transactionData',
   'lotAlertData',
@@ -2660,7 +2772,7 @@ for (const fragment of [
   'warehouseId: row.warehouseId',
   'productId: row.productId'
 ]) {
-  if (!inventoryStockView.includes(fragment)) {
+  if (!inventoryStockFeature.includes(fragment)) {
     errors.push(`库存查询页缺少批次库存/流水真实入口片段: ${fragment}`)
   }
 }
@@ -2737,7 +2849,7 @@ for (const fragment of [
 }
 for (const fragment of [
   '过账',
-  '确认过账此库存调拨吗？',
+  'inventoryTransfers.message.postConfirm',
   ':label="productLabel(product)"',
   'const productLabel = (product: Product) =>',
   'item.productCode = product.code || product.productCode || \'\'',
@@ -2798,7 +2910,7 @@ for (const fragment of [
   }
 }
 for (const fragment of [
-  '确认根据此盘点差异调整库存吗？',
+  'inventoryChecks.message.adjustConfirm',
   "const currentId = ref<string | number>('')",
   ':disabled="isView"',
   "v-if=\"row.status === 'COUNTED'\"",
@@ -2845,13 +2957,13 @@ for (const fragment of [
 for (const fragment of [
   'getSalesDeliveries',
   'postSalesReturn',
-  'label="销售发货单"',
+  'salesReturnOps.salesDelivery',
   'prop="deliveryId"',
   'v-model="formData.deliveryId"',
   '@change="handleDeliveryChange"',
   "v-if=\"row.status === 'DRAFT'\"",
   '过账',
-  '确认过账此销售退货单吗？',
+  'salesReturnOps.message.postConfirm',
   'const handleDeliveryChange = async () =>',
   'formData.items = delivery.items.map(item => ({',
   'deliveryLineId: item.id',
@@ -2903,7 +3015,7 @@ for (const fragment of [
   'linkedOrderVisible',
   'const linkedOrder = ref<PurchaseOrder>()',
   'await getPurchaseOrder(orderId)',
-  'title="采购订单详情"',
+  ':title="t(\'purchaseOrder.detailTitle\')"',
   'v-if="linkedOrder"'
 ]) {
   if (!purchaseReceiptView.includes(fragment)) {
@@ -2944,13 +3056,13 @@ for (const fragment of [
   'getPurchaseReceipt',
   'getPurchaseReturn',
   'postPurchaseReturn',
-  'label="采购收货单"',
+  ':label="t(\'purchaseReturn.receipt\')"',
   'prop="receiptId"',
   'v-model="form.receiptId"',
   '@change="handleReceiptChange"',
   "v-if=\"row.status === 'DRAFT'\"",
-  '过账',
-  '确认过账此采购退货单吗？',
+  "t('purchaseReturn.post')",
+  "t('purchaseReturn.message.postConfirm')",
   'const handleReceiptChange = async () =>',
   'const handleView = async (row: PurchaseReturn) =>',
   'currentRow.value = await getPurchaseReturn(row.id)',
@@ -2987,7 +3099,7 @@ for (const fragment of [
   'linkedReceiptVisible',
   'const linkedReceipt = ref<PurchaseReceipt>()',
   'await getPurchaseReceipt(receiptId)',
-  'title="采购收货单详情"',
+  ':title="t(\'purchaseReturn.linkedReceiptTitle\')"',
   'v-if="linkedReceipt"'
 ]) {
   if (!purchaseReturnView.includes(fragment)) {

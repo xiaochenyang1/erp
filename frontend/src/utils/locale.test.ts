@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  formatBusinessDate,
   formatLocalizedCurrency,
+  formatLocalizedDate,
   formatLocalizedDateTime,
   formatLocalizedNumber,
+  getBusinessMonthDateRange,
   parseApiDateTime,
   readDisplayPreferences
 } from './locale'
@@ -32,5 +35,30 @@ describe('localized display preferences', () => {
 
   it('returns invalid source text instead of an Invalid Date label', () => {
     expect(formatLocalizedDateTime('not-a-date')).toBe('not-a-date')
+  })
+
+  it('localizes a backend LocalDate without shifting its calendar day', () => {
+    expect(formatLocalizedDate('2026-07-23', {}, {
+      locale: 'en-US',
+      timeZone: 'America/New_York'
+    })).toBe('07/23/2026')
+    expect(formatLocalizedDate('2026-07-23', {}, {
+      locale: 'zh-CN',
+      timeZone: 'Asia/Shanghai'
+    })).toBe('2026/07/23')
+  })
+
+  it('formats LocalDate defaults in the configured time zone instead of UTC', () => {
+    const instant = new Date('2026-07-22T16:30:00.000Z')
+    expect(formatBusinessDate(instant, { locale: 'zh-CN', timeZone: 'Asia/Shanghai' })).toBe('2026-07-23')
+    expect(formatBusinessDate(instant, { locale: 'zh-CN', timeZone: 'UTC' })).toBe('2026-07-22')
+  })
+
+  it('builds the current business month without crossing into the prior UTC month', () => {
+    const shanghaiMonthStart = new Date('2026-06-30T16:30:00.000Z')
+    expect(getBusinessMonthDateRange(shanghaiMonthStart, {
+      locale: 'zh-CN',
+      timeZone: 'Asia/Shanghai'
+    })).toEqual(['2026-07-01', '2026-07-01'])
   })
 })

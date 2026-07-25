@@ -3,24 +3,24 @@
     <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="关键字">
+        <el-form-item :label="t('productionWorkCenter.keyword')">
           <el-input
             v-model="queryForm.keyword"
-            placeholder="工作中心编码/名称"
+            :placeholder="t('productionWorkCenter.keywordPlaceholder')"
             clearable
             style="width: 220px"
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 120px">
-            <el-option label="启用" value="ACTIVE" />
-            <el-option label="已停用" value="DISABLED" />
+        <el-form-item :label="t('productionWorkCenter.statusLabel')">
+          <el-select v-model="queryForm.status" :placeholder="t('productionWorkCenter.all')" clearable style="width: 120px">
+            <el-option :label="t('productionWorkCenter.status.active')" value="ACTIVE" />
+            <el-option :label="t('productionWorkCenter.status.disabled')" value="DISABLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ t('productionWorkCenter.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ t('productionWorkCenter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -29,26 +29,26 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>工作中心</span>
+          <span>{{ t('productionWorkCenter.title') }}</span>
           <el-button
             v-permission="'production:work-center:create'"
             type="primary"
             :icon="Plus"
             @click="handleAdd"
-          >新增工作中心</el-button>
+          >{{ t('productionWorkCenter.create') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="workCenterCode" label="编码" width="180" />
-        <el-table-column prop="workCenterName" label="名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="workCenterCode" :label="t('productionWorkCenter.code')" width="180" />
+        <el-table-column prop="workCenterName" :label="t('productionWorkCenter.name')" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="status" :label="t('productionWorkCenter.statusLabel')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip />
-        <el-table-column label="操作" width="200" align="center" fixed="right">
+        <el-table-column prop="remark" :label="t('productionWorkCenter.remark')" min-width="200" show-overflow-tooltip />
+        <el-table-column :label="t('productionWorkCenter.actions')" width="200" align="center" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 'ACTIVE'"
@@ -57,21 +57,21 @@
               link
               :icon="Edit"
               @click="handleEdit(row)"
-            >编辑</el-button>
+            >{{ t('productionWorkCenter.edit') }}</el-button>
             <el-button
               v-if="row.status !== 'ACTIVE'"
               v-permission="'production:work-center:enable'"
               type="success"
               link
               @click="handleEnable(row)"
-            >启用</el-button>
+            >{{ t('productionWorkCenter.enable') }}</el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
               v-permission="'production:work-center:disable'"
               type="danger"
               link
               @click="handleDisable(row)"
-            >停用</el-button>
+            >{{ t('productionWorkCenter.disable') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -91,23 +91,23 @@
     <!-- 新增/编辑对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="520px" @close="handleDialogClose">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="90px">
-        <el-form-item label="编码" prop="workCenterCode">
+        <el-form-item :label="t('productionWorkCenter.code')" prop="workCenterCode">
           <el-input
             v-model="formData.workCenterCode"
-            placeholder="请输入工作中心编码"
+            :placeholder="t('productionWorkCenter.codePlaceholder')"
             :disabled="isEdit"
           />
         </el-form-item>
-        <el-form-item label="名称" prop="workCenterName">
-          <el-input v-model="formData.workCenterName" placeholder="请输入工作中心名称" />
+        <el-form-item :label="t('productionWorkCenter.name')" prop="workCenterName">
+          <el-input v-model="formData.workCenterName" :placeholder="t('productionWorkCenter.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model="formData.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+        <el-form-item :label="t('productionWorkCenter.remark')" prop="remark">
+          <el-input v-model="formData.remark" type="textarea" :rows="3" :placeholder="t('productionWorkCenter.remarkPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ t('productionWorkCenter.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('productionWorkCenter.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -115,6 +115,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, Edit } from '@element-plus/icons-vue'
 import {
@@ -125,6 +126,8 @@ import {
   disableWorkCenter,
   type WorkCenter
 } from '@/api/production'
+
+const { t } = useI18n()
 
 const queryForm = reactive({
   keyword: '',
@@ -152,10 +155,10 @@ const formData = reactive({
 })
 const isEdit = computed(() => formData.id != null)
 
-const formRules: FormRules = {
-  workCenterCode: [{ required: true, message: '请输入工作中心编码', trigger: 'blur' }],
-  workCenterName: [{ required: true, message: '请输入工作中心名称', trigger: 'blur' }]
-}
+const formRules = computed<FormRules>(() => ({
+  workCenterCode: [{ required: true, message: t('productionWorkCenter.validation.code'), trigger: 'blur' }],
+  workCenterName: [{ required: true, message: t('productionWorkCenter.validation.name'), trigger: 'blur' }]
+}))
 
 const loadData = async () => {
   loading.value = true
@@ -168,7 +171,8 @@ const loadData = async () => {
     tableData.value = res.records || []
     pagination.total = res.total || 0
   } catch (error) {
-    console.error('加载工作中心失败:', error)
+    console.error(t('productionWorkCenter.message.loadFailed'), error)
+    ElMessage.error(t('productionWorkCenter.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -187,12 +191,12 @@ const handleReset = () => {
 }
 
 const handleAdd = () => {
-  dialogTitle.value = '新增工作中心'
+  dialogTitle.value = t('productionWorkCenter.dialog.create')
   dialogVisible.value = true
 }
 
 const handleEdit = (row: WorkCenter) => {
-  dialogTitle.value = '编辑工作中心'
+  dialogTitle.value = t('productionWorkCenter.dialog.edit')
   Object.assign(formData, {
     id: row.id,
     workCenterCode: row.workCenterCode,
@@ -204,13 +208,13 @@ const handleEdit = (row: WorkCenter) => {
 
 const handleEnable = async (row: WorkCenter) => {
   try {
-    await ElMessageBox.confirm(`确认启用工作中心「${row.workCenterName}」吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('productionWorkCenter.message.enableConfirm', { name: row.workCenterName }), t('productionWorkCenter.message.prompt'), { type: 'warning' })
   } catch {
     return
   }
   try {
     await enableWorkCenter(row.id)
-    ElMessage.success('已启用')
+    ElMessage.success(t('productionWorkCenter.message.enabled'))
     loadData()
   } catch {
     // 拦截器已提示
@@ -219,13 +223,13 @@ const handleEnable = async (row: WorkCenter) => {
 
 const handleDisable = async (row: WorkCenter) => {
   try {
-    await ElMessageBox.confirm(`确认停用工作中心「${row.workCenterName}」吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('productionWorkCenter.message.disableConfirm', { name: row.workCenterName }), t('productionWorkCenter.message.prompt'), { type: 'warning' })
   } catch {
     return
   }
   try {
     await disableWorkCenter(row.id)
-    ElMessage.success('已停用')
+    ElMessage.success(t('productionWorkCenter.message.disabled'))
     loadData()
   } catch {
     // 拦截器已提示
@@ -243,14 +247,14 @@ const handleSubmit = async () => {
           workCenterName: formData.workCenterName,
           remark: formData.remark
         })
-        ElMessage.success('更新成功')
+        ElMessage.success(t('productionWorkCenter.message.updated'))
       } else {
         await createWorkCenter({
           workCenterCode: formData.workCenterCode,
           workCenterName: formData.workCenterName,
           remark: formData.remark
         })
-        ElMessage.success('创建成功')
+        ElMessage.success(t('productionWorkCenter.message.created'))
       }
       dialogVisible.value = false
       loadData()
@@ -272,7 +276,10 @@ const handleDialogClose = () => {
   })
 }
 
-const getStatusLabel = (status: string) => ({ ACTIVE: '启用', DISABLED: '已停用' }[status] || status)
+const getStatusLabel = (status: string) => ({
+  ACTIVE: t('productionWorkCenter.status.active'),
+  DISABLED: t('productionWorkCenter.status.disabled')
+}[status] || status)
 const getStatusType = (status: string) =>
   (({ ACTIVE: 'success', DISABLED: 'danger' } as Record<string, string>)[status] || 'info') as
     'primary' | 'success' | 'warning' | 'info' | 'danger'

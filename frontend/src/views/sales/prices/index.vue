@@ -2,21 +2,21 @@
   <div class="sales-price-page">
     <el-card shadow="never" class="search-card">
       <el-form :inline="true" :model="searchForm" @submit.prevent>
-        <el-form-item label="关键字">
+        <el-form-item :label="$t('salesPrice.keyword')">
           <el-input
             v-model="searchForm.keyword"
-            placeholder="商品编码/名称"
+            :placeholder="$t('salesPrice.keywordPlaceholder')"
             clearable
             style="width: 180px"
             @keyup.enter="handleSearch"
           />
         </el-form-item>
-        <el-form-item label="客户">
+        <el-form-item :label="$t('salesPrice.customer')">
           <el-select
             v-model="searchForm.customerId"
             clearable
             filterable
-            placeholder="全部（含通用价）"
+            :placeholder="$t('salesPrice.allWithGeneral')"
             style="width: 200px"
           >
             <el-option
@@ -27,15 +27,15 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="searchForm.status" clearable placeholder="全部" style="width: 140px">
-            <el-option label="启用" value="ACTIVE" />
-            <el-option label="停用" value="INACTIVE" />
+        <el-form-item :label="$t('salesPrice.status')">
+          <el-select v-model="searchForm.status" clearable :placeholder="$t('salesPrice.all')" style="width: 140px">
+            <el-option :label="$t('salesPrice.active')" value="ACTIVE" />
+            <el-option :label="$t('salesPrice.inactive')" value="INACTIVE" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{ $t('salesPrice.search') }}</el-button>
+          <el-button @click="handleReset">{{ $t('salesPrice.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -43,46 +43,46 @@
     <el-card shadow="never" class="table-card">
       <div class="toolbar">
         <el-button v-permission="'sales:price:manage'" type="primary" :icon="Plus" @click="handleCreate">
-          新建价目
+          {{ $t('salesPrice.create') }}
         </el-button>
       </div>
 
       <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
-        <el-table-column label="适用范围" min-width="160">
+        <el-table-column :label="$t('salesPrice.scope')" min-width="160">
           <template #default="{ row }">
-            <el-tag v-if="row.customerId" type="warning" size="small">客户专价</el-tag>
-            <el-tag v-else type="info" size="small">商品通用</el-tag>
-            <div class="sub">{{ row.customerId ? row.customerName || row.customerId : '全部客户' }}</div>
+            <el-tag v-if="row.customerId" type="warning" size="small">{{ $t('salesPrice.customerSpecific') }}</el-tag>
+            <el-tag v-else type="info" size="small">{{ $t('salesPrice.productGeneral') }}</el-tag>
+            <div class="sub">{{ row.customerId ? row.customerName || row.customerId : $t('salesPrice.allCustomers') }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="商品" min-width="180">
+        <el-table-column :label="$t('salesPrice.product')" min-width="180">
           <template #default="{ row }">
             <div>{{ row.productCode }} {{ row.productName }}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="listPrice" label="标准价" width="110" align="right">
-          <template #default="{ row }">{{ formatMoney(row.listPrice) }}</template>
+        <el-table-column prop="listPrice" :label="$t('salesPrice.listPrice')" width="130" align="right">
+          <template #default="{ row }">{{ formatLocalizedCurrency(row.listPrice) }}</template>
         </el-table-column>
-        <el-table-column prop="minPrice" label="最低价" width="110" align="right">
-          <template #default="{ row }">{{ formatMoney(row.minPrice) }}</template>
+        <el-table-column prop="minPrice" :label="$t('salesPrice.minPrice')" width="130" align="right">
+          <template #default="{ row }">{{ formatLocalizedCurrency(row.minPrice) }}</template>
         </el-table-column>
-        <el-table-column label="生效区间" min-width="200">
+        <el-table-column :label="$t('salesPrice.effectivePeriod')" min-width="220">
           <template #default="{ row }">
-            {{ row.effectiveFrom }} ~ {{ row.effectiveTo || '长期' }}
+            {{ formatLocalizedDate(row.effectiveFrom) }} ~ {{ row.effectiveTo ? formatLocalizedDate(row.effectiveTo) : $t('salesPrice.longTerm') }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="90" align="center">
+        <el-table-column :label="$t('salesPrice.status')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-              {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+              {{ row.status === 'ACTIVE' ? $t('salesPrice.active') : $t('salesPrice.inactive') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column prop="remark" :label="$t('salesPrice.remark')" min-width="120" show-overflow-tooltip />
+        <el-table-column :label="$t('salesPrice.actions')" width="220" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'sales:price:manage'" link type="primary" @click="handleEdit(row)">
-              编辑
+              {{ $t('salesPrice.edit') }}
             </el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
@@ -91,7 +91,7 @@
               type="warning"
               @click="handleDisable(row)"
             >
-              停用
+              {{ $t('salesPrice.disable') }}
             </el-button>
             <el-button
               v-else
@@ -100,7 +100,7 @@
               type="success"
               @click="handleEnable(row)"
             >
-              启用
+              {{ $t('salesPrice.enable') }}
             </el-button>
           </template>
         </el-table-column>
@@ -119,16 +119,16 @@
       />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑价目' : '新建价目'" width="560px" destroy-on-close>
+    <el-dialog v-model="dialogVisible" :title="editingId ? $t('salesPrice.editTitle') : $t('salesPrice.createTitle')" width="560px" destroy-on-close>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
-        <el-form-item label="适用范围">
+        <el-form-item :label="$t('salesPrice.scope')">
           <el-radio-group v-model="scopeType">
-            <el-radio-button value="PRODUCT">商品通用</el-radio-button>
-            <el-radio-button value="CUSTOMER">客户专价</el-radio-button>
+            <el-radio-button value="PRODUCT">{{ $t('salesPrice.productGeneral') }}</el-radio-button>
+            <el-radio-button value="CUSTOMER">{{ $t('salesPrice.customerSpecific') }}</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="scopeType === 'CUSTOMER'" label="客户" prop="customerId">
-          <el-select v-model="form.customerId" filterable placeholder="选择客户" style="width: 100%">
+        <el-form-item v-if="scopeType === 'CUSTOMER'" :label="$t('salesPrice.customer')" prop="customerId">
+          <el-select v-model="form.customerId" filterable :placeholder="$t('salesPrice.selectCustomer')" style="width: 100%">
             <el-option
               v-for="customer in customers"
               :key="customer.id"
@@ -137,8 +137,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="商品" prop="productId">
-          <el-select v-model="form.productId" filterable placeholder="选择商品" style="width: 100%">
+        <el-form-item :label="$t('salesPrice.product')" prop="productId">
+          <el-select v-model="form.productId" filterable :placeholder="$t('salesPrice.selectProduct')" style="width: 100%">
             <el-option
               v-for="product in products"
               :key="product.id"
@@ -147,40 +147,41 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="标准价" prop="listPrice">
+        <el-form-item :label="$t('salesPrice.listPrice')" prop="listPrice">
           <el-input-number v-model="form.listPrice" :min="0" :precision="2" :controls="false" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="最低价" prop="minPrice">
+        <el-form-item :label="$t('salesPrice.minPrice')" prop="minPrice">
           <el-input-number v-model="form.minPrice" :min="0" :precision="2" :controls="false" style="width: 100%" />
-          <div class="form-tip">销售订单单价不得低于最低价；无匹配价目时不拦截</div>
+          <div class="form-tip">{{ $t('salesPrice.minPriceTip') }}</div>
         </el-form-item>
-        <el-form-item label="生效日期" prop="effectiveFrom">
+        <el-form-item :label="$t('salesPrice.effectiveFrom')" prop="effectiveFrom">
           <el-date-picker v-model="form.effectiveFrom" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="失效日期">
+        <el-form-item :label="$t('salesPrice.effectiveTo')">
           <el-date-picker
             v-model="form.effectiveTo"
             type="date"
             value-format="YYYY-MM-DD"
             clearable
-            placeholder="留空=长期有效"
+            :placeholder="$t('salesPrice.noExpiry')"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('salesPrice.remark')">
           <el-input v-model="form.remark" type="textarea" :rows="2" maxlength="255" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="confirmSave">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('salesPrice.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="confirmSave">{{ $t('salesPrice.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -193,7 +194,9 @@ import {
   type SalesPriceQuery
 } from '@/api/sales'
 import { getCustomers, getProducts, type Customer, type Product } from '@/api/masterdata'
-import { formatLocalizedNumber } from '@/utils/locale'
+import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -224,13 +227,13 @@ const form = reactive({
   remark: ''
 })
 
-const rules: FormRules = {
-  customerId: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  productId: [{ required: true, message: '请选择商品', trigger: 'change' }],
-  listPrice: [{ required: true, message: '请输入标准价', trigger: 'blur' }],
-  minPrice: [{ required: true, message: '请输入最低价', trigger: 'blur' }],
-  effectiveFrom: [{ required: true, message: '请选择生效日期', trigger: 'change' }]
-}
+const rules = computed<FormRules>(() => ({
+  customerId: [{ required: true, message: t('salesPrice.validation.customer'), trigger: 'change' }],
+  productId: [{ required: true, message: t('salesPrice.validation.product'), trigger: 'change' }],
+  listPrice: [{ required: true, message: t('salesPrice.validation.listPrice'), trigger: 'blur' }],
+  minPrice: [{ required: true, message: t('salesPrice.validation.minPrice'), trigger: 'blur' }],
+  effectiveFrom: [{ required: true, message: t('salesPrice.validation.effectiveFrom'), trigger: 'change' }]
+}))
 
 watch(scopeType, (value) => {
   if (value === 'PRODUCT') {
@@ -238,10 +241,7 @@ watch(scopeType, (value) => {
   }
 })
 
-const today = () => new Date().toISOString().slice(0, 10)
-
-const formatMoney = (value: number) =>
-  formatLocalizedNumber(Number(value || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const today = () => formatBusinessDate()
 
 const loadOptions = async () => {
   const [customerPage, productPage] = await Promise.all([
@@ -264,7 +264,7 @@ const loadData = async () => {
     tableData.value = res.records || []
     total.value = res.total || 0
   } catch {
-    // interceptor
+    // The shared request interceptor already surfaces the error.
   } finally {
     loading.value = false
   }
@@ -329,13 +329,13 @@ const handleEdit = async (row: SalesPrice) => {
 const confirmSave = async () => {
   if (!formRef.value) return
   if (scopeType.value === 'CUSTOMER' && !form.customerId) {
-    ElMessage.warning('请选择客户')
+    ElMessage.warning(t('salesPrice.validation.customer'))
     return
   }
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     if (form.minPrice > form.listPrice) {
-      ElMessage.warning('最低价不能高于标准价')
+      ElMessage.warning(t('salesPrice.validation.minAboveList'))
       return
     }
     submitting.value = true
@@ -351,15 +351,15 @@ const confirmSave = async () => {
       }
       if (editingId.value) {
         await updateSalesPrice(editingId.value, payload)
-        ElMessage.success('保存成功')
+        ElMessage.success(t('salesPrice.message.saved'))
       } else {
         await createSalesPrice(payload)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('salesPrice.message.created'))
       }
       dialogVisible.value = false
       loadData()
     } catch {
-      // interceptor
+      // The shared request interceptor already surfaces the error.
     } finally {
       submitting.value = false
     }
@@ -369,21 +369,21 @@ const confirmSave = async () => {
 const handleEnable = async (row: SalesPrice) => {
   try {
     await enableSalesPrice(row.id)
-    ElMessage.success('已启用')
+    ElMessage.success(t('salesPrice.message.enabled'))
     loadData()
   } catch {
-    // interceptor
+    // The shared request interceptor already surfaces the error.
   }
 }
 
 const handleDisable = async (row: SalesPrice) => {
   try {
-    await ElMessageBox.confirm(`确认停用该价目吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('salesPrice.message.disableConfirm'), t('salesPrice.message.prompt'), { type: 'warning' })
     await disableSalesPrice(row.id)
-    ElMessage.success('已停用')
+    ElMessage.success(t('salesPrice.message.disabled'))
     loadData()
   } catch {
-    // cancel or interceptor
+    // Cancelled by the user or handled by the shared interceptor.
   }
 }
 

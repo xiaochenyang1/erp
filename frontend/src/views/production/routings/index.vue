@@ -3,24 +3,24 @@
     <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="关键字">
+        <el-form-item :label="t('productionRouting.keyword')">
           <el-input
             v-model="queryForm.keyword"
-            placeholder="工艺路线编码/名称"
+            :placeholder="t('productionRouting.keywordPlaceholder')"
             clearable
             style="width: 220px"
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 120px">
-            <el-option label="启用" value="ACTIVE" />
-            <el-option label="已停用" value="DISABLED" />
+        <el-form-item :label="t('productionRouting.statusLabel')">
+          <el-select v-model="queryForm.status" :placeholder="t('productionRouting.all')" clearable style="width: 120px">
+            <el-option :label="t('productionRouting.status.active')" value="ACTIVE" />
+            <el-option :label="t('productionRouting.status.disabled')" value="DISABLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ t('productionRouting.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ t('productionRouting.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -29,34 +29,34 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>工艺路线</span>
+          <span>{{ t('productionRouting.title') }}</span>
           <el-button
             v-permission="'production:routing:create'"
             type="primary"
             :icon="Plus"
             @click="handleAdd"
-          >新增工艺路线</el-button>
+          >{{ t('productionRouting.create') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="routingCode" label="编码" width="170" />
-        <el-table-column prop="routingName" label="名称" min-width="180" show-overflow-tooltip />
-        <el-table-column label="BOM" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="routingCode" :label="t('productionRouting.code')" width="170" />
+        <el-table-column prop="routingName" :label="t('productionRouting.name')" min-width="180" show-overflow-tooltip />
+        <el-table-column :label="t('productionRouting.bom')" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ row.bomNo || row.bomId }}</template>
         </el-table-column>
-        <el-table-column label="工序数" width="90" align="right">
+        <el-table-column :label="t('productionRouting.operationCount')" width="90" align="right">
           <template #default="{ row }">{{ row.operations?.length || 0 }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="t('productionRouting.statusLabel')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column label="操作" width="240" align="center" fixed="right">
+        <el-table-column prop="remark" :label="t('productionRouting.remark')" min-width="150" show-overflow-tooltip />
+        <el-table-column :label="t('productionRouting.actions')" width="240" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link :icon="View" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link :icon="View" @click="handleView(row)">{{ t('productionRouting.view') }}</el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
               v-permission="'production:routing:update'"
@@ -64,21 +64,21 @@
               link
               :icon="Edit"
               @click="handleEdit(row)"
-            >编辑</el-button>
+            >{{ t('productionRouting.edit') }}</el-button>
             <el-button
               v-if="row.status !== 'ACTIVE'"
               v-permission="'production:routing:enable'"
               type="success"
               link
               @click="handleEnable(row)"
-            >启用</el-button>
+            >{{ t('productionRouting.enable') }}</el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
               v-permission="'production:routing:disable'"
               type="danger"
               link
               @click="handleDisable(row)"
-            >停用</el-button>
+            >{{ t('productionRouting.disable') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -100,24 +100,24 @@
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="路线编码" prop="routingCode">
+            <el-form-item :label="t('productionRouting.routingCode')" prop="routingCode">
               <el-input
                 v-model="formData.routingCode"
-                placeholder="请输入工艺路线编码"
+                :placeholder="t('productionRouting.codePlaceholder')"
                 :disabled="isEdit"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="路线名称" prop="routingName">
-              <el-input v-model="formData.routingName" placeholder="请输入工艺路线名称" />
+            <el-form-item :label="t('productionRouting.routingName')" prop="routingName">
+              <el-input v-model="formData.routingName" :placeholder="t('productionRouting.namePlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="BOM" prop="bomId">
+        <el-form-item :label="t('productionRouting.bom')" prop="bomId">
           <el-select
             v-model="formData.bomId"
-            placeholder="请选择BOM"
+            :placeholder="t('productionRouting.selectBom')"
             filterable
             :disabled="isEdit"
             style="width: 100%"
@@ -131,24 +131,24 @@
           </el-select>
         </el-form-item>
 
-        <el-divider content-position="left">工序清单</el-divider>
+        <el-divider content-position="left">{{ t('productionRouting.operationList') }}</el-divider>
 
-        <el-form-item label="工序明细" required>
+        <el-form-item :label="t('productionRouting.operationDetails')" required>
           <el-table :data="formData.operations" border style="width: 100%">
-            <el-table-column type="index" label="序" width="50" />
-            <el-table-column label="工序编码" width="150">
+            <el-table-column type="index" :label="t('productionRouting.sequence')" width="50" />
+            <el-table-column :label="t('productionRouting.operationCode')" width="150">
               <template #default="{ row }">
-                <el-input v-model="row.operationCode" placeholder="工序编码" />
+                <el-input v-model="row.operationCode" :placeholder="t('productionRouting.operationCode')" />
               </template>
             </el-table-column>
-            <el-table-column label="工序名称" width="160">
+            <el-table-column :label="t('productionRouting.operationName')" width="160">
               <template #default="{ row }">
-                <el-input v-model="row.operationName" placeholder="工序名称" />
+                <el-input v-model="row.operationName" :placeholder="t('productionRouting.operationName')" />
               </template>
             </el-table-column>
-            <el-table-column label="工作中心" min-width="200">
+            <el-table-column :label="t('productionRouting.workCenter')" min-width="200">
               <template #default="{ row }">
-                <el-select v-model="row.workCenterId" placeholder="选择工作中心" filterable style="width: 100%">
+                <el-select v-model="row.workCenterId" :placeholder="t('productionRouting.selectWorkCenter')" filterable style="width: 100%">
                   <el-option
                     v-for="wc in workCenterOptions"
                     :key="wc.id"
@@ -158,7 +158,7 @@
                 </el-select>
               </template>
             </el-table-column>
-            <el-table-column label="标准工时(分)" width="140">
+            <el-table-column :label="t('productionRouting.standardMinutes')" width="140">
               <template #default="{ row }">
                 <el-input-number
                   v-model="row.standardMinutes"
@@ -169,58 +169,58 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="备注" min-width="120">
+            <el-table-column :label="t('productionRouting.remark')" min-width="120">
               <template #default="{ row }">
-                <el-input v-model="row.remark" placeholder="选填" />
+                <el-input v-model="row.remark" :placeholder="t('productionRouting.optional')" />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="70" align="center" fixed="right">
+            <el-table-column :label="t('productionRouting.actions')" width="70" align="center" fixed="right">
               <template #default="{ $index }">
-                <el-button type="danger" link :icon="Delete" @click="handleDeleteOperation($index)">删除</el-button>
+                <el-button type="danger" link :icon="Delete" @click="handleDeleteOperation($index)">{{ t('productionRouting.delete') }}</el-button>
               </template>
             </el-table-column>
           </el-table>
-          <el-button type="primary" :icon="Plus" style="margin-top: 10px" @click="handleAddOperation">添加工序</el-button>
+          <el-button type="primary" :icon="Plus" style="margin-top: 10px" @click="handleAddOperation">{{ t('productionRouting.addOperation') }}</el-button>
         </el-form-item>
 
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model="formData.remark" type="textarea" :rows="2" placeholder="请输入备注" />
+        <el-form-item :label="t('productionRouting.remark')" prop="remark">
+          <el-input v-model="formData.remark" type="textarea" :rows="2" :placeholder="t('productionRouting.remarkPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ t('productionRouting.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('productionRouting.save') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 查看对话框 -->
-    <el-dialog v-model="viewDialogVisible" title="工艺路线详情" width="900px">
+    <el-dialog v-model="viewDialogVisible" :title="t('productionRouting.detailTitle')" width="900px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="路线编码">{{ viewData.routingCode }}</el-descriptions-item>
-        <el-descriptions-item label="路线名称">{{ viewData.routingName }}</el-descriptions-item>
-        <el-descriptions-item label="BOM">{{ viewData.bomNo || viewData.bomId }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('productionRouting.routingCode')">{{ viewData.routingCode }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionRouting.routingName')">{{ viewData.routingName }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionRouting.bom')">{{ viewData.bomNo || viewData.bomId }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionRouting.statusLabel')">
           <el-tag :type="getStatusType(viewData.status)">{{ getStatusLabel(viewData.status) }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ viewData.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionRouting.remark')" :span="2">{{ viewData.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider />
 
-      <h4>工序清单</h4>
+      <h4>{{ t('productionRouting.operationList') }}</h4>
       <el-table :data="viewData.operations || []" border stripe style="margin-top: 10px">
-        <el-table-column prop="lineNo" label="序" width="60" />
-        <el-table-column prop="operationCode" label="工序编码" width="140" />
-        <el-table-column prop="operationName" label="工序名称" min-width="150" />
-        <el-table-column label="工作中心" min-width="180">
+        <el-table-column prop="lineNo" :label="t('productionRouting.sequence')" width="60" />
+        <el-table-column prop="operationCode" :label="t('productionRouting.operationCode')" width="140" />
+        <el-table-column prop="operationName" :label="t('productionRouting.operationName')" min-width="150" />
+        <el-table-column :label="t('productionRouting.workCenter')" min-width="180">
           <template #default="{ row }">{{ workCenterLabel(row) }}</template>
         </el-table-column>
-        <el-table-column prop="standardMinutes" label="标准工时(分)" width="130" align="right" />
-        <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="standardMinutes" :label="t('productionRouting.standardMinutes')" width="130" align="right" />
+        <el-table-column prop="remark" :label="t('productionRouting.remark')" min-width="120" show-overflow-tooltip />
       </el-table>
 
       <template #footer>
-        <el-button @click="viewDialogVisible = false">关闭</el-button>
+        <el-button @click="viewDialogVisible = false">{{ t('productionRouting.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -228,6 +228,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, Edit, View, Delete } from '@element-plus/icons-vue'
 import {
@@ -244,6 +245,8 @@ import {
   type WorkCenter,
   type BOM
 } from '@/api/production'
+
+const { t } = useI18n()
 
 const queryForm = reactive({
   keyword: '',
@@ -276,11 +279,11 @@ const formData = reactive({
 })
 const isEdit = computed(() => formData.id != null)
 
-const formRules: FormRules = {
-  routingCode: [{ required: true, message: '请输入工艺路线编码', trigger: 'blur' }],
-  routingName: [{ required: true, message: '请输入工艺路线名称', trigger: 'blur' }],
-  bomId: [{ required: true, message: '请选择BOM', trigger: 'change' }]
-}
+const formRules = computed<FormRules>(() => ({
+  routingCode: [{ required: true, message: t('productionRouting.validation.code'), trigger: 'blur' }],
+  routingName: [{ required: true, message: t('productionRouting.validation.name'), trigger: 'blur' }],
+  bomId: [{ required: true, message: t('productionRouting.validation.bom'), trigger: 'change' }]
+}))
 
 const viewDialogVisible = ref(false)
 const viewData = ref<Routing>({} as Routing)
@@ -294,7 +297,8 @@ const loadOptions = async () => {
     workCenterOptions.value = wcRes.records || []
     bomOptions.value = bomRes.records || []
   } catch (error) {
-    console.error('加载工作中心/BOM选项失败:', error)
+    console.error(t('productionRouting.message.optionsLoadFailed'), error)
+    ElMessage.error(t('productionRouting.message.optionsLoadFailed'))
   }
 }
 
@@ -309,7 +313,8 @@ const loadData = async () => {
     tableData.value = res.records || []
     pagination.total = res.total || 0
   } catch (error) {
-    console.error('加载工艺路线失败:', error)
+    console.error(t('productionRouting.message.loadFailed'), error)
+    ElMessage.error(t('productionRouting.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -328,12 +333,12 @@ const handleReset = () => {
 }
 
 const handleAdd = () => {
-  dialogTitle.value = '新增工艺路线'
+  dialogTitle.value = t('productionRouting.dialog.create')
   dialogVisible.value = true
 }
 
 const handleEdit = async (row: Routing) => {
-  dialogTitle.value = '编辑工艺路线'
+  dialogTitle.value = t('productionRouting.dialog.edit')
   try {
     const res = await getRouting(row.id)
     Object.assign(formData, {
@@ -346,7 +351,7 @@ const handleEdit = async (row: Routing) => {
     })
     dialogVisible.value = true
   } catch {
-    // 拦截器已提示
+    ElMessage.error(t('productionRouting.message.detailLoadFailed'))
   }
 }
 
@@ -355,7 +360,7 @@ const handleView = async (row: Routing) => {
     viewData.value = await getRouting(row.id)
     viewDialogVisible.value = true
   } catch {
-    // 拦截器已提示
+    ElMessage.error(t('productionRouting.message.detailLoadFailed'))
   }
 }
 
@@ -375,13 +380,13 @@ const handleDeleteOperation = (index: number) => {
 
 const handleEnable = async (row: Routing) => {
   try {
-    await ElMessageBox.confirm(`确认启用工艺路线「${row.routingName}」吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('productionRouting.message.enableConfirm', { name: row.routingName }), t('productionRouting.message.prompt'), { type: 'warning' })
   } catch {
     return
   }
   try {
     await enableRouting(row.id)
-    ElMessage.success('已启用')
+    ElMessage.success(t('productionRouting.message.enabled'))
     loadData()
   } catch {
     // 拦截器已提示
@@ -390,13 +395,13 @@ const handleEnable = async (row: Routing) => {
 
 const handleDisable = async (row: Routing) => {
   try {
-    await ElMessageBox.confirm(`确认停用工艺路线「${row.routingName}」吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('productionRouting.message.disableConfirm', { name: row.routingName }), t('productionRouting.message.prompt'), { type: 'warning' })
   } catch {
     return
   }
   try {
     await disableRouting(row.id)
-    ElMessage.success('已停用')
+    ElMessage.success(t('productionRouting.message.disabled'))
     loadData()
   } catch {
     // 拦截器已提示
@@ -406,12 +411,12 @@ const handleDisable = async (row: Routing) => {
 const handleSubmit = async () => {
   if (!formRef.value) return
   if (formData.operations.length === 0) {
-    ElMessage.warning('请至少添加一道工序')
+    ElMessage.warning(t('productionRouting.validation.operations'))
     return
   }
   for (const [i, op] of formData.operations.entries()) {
     if (!op.operationCode || !op.operationName || !op.workCenterId || !op.standardMinutes) {
-      ElMessage.warning(`第 ${i + 1} 道工序：编码、名称、工作中心和标准工时均必填`)
+      ElMessage.warning(t('productionRouting.validation.operationRequired', { line: i + 1 }))
       return
     }
   }
@@ -432,7 +437,7 @@ const handleSubmit = async () => {
           remark: formData.remark,
           operations
         })
-        ElMessage.success('更新成功')
+        ElMessage.success(t('productionRouting.message.updated'))
       } else {
         await createRouting({
           routingCode: formData.routingCode,
@@ -441,7 +446,7 @@ const handleSubmit = async () => {
           remark: formData.remark,
           operations
         })
-        ElMessage.success('创建成功')
+        ElMessage.success(t('productionRouting.message.created'))
       }
       dialogVisible.value = false
       loadData()
@@ -479,7 +484,10 @@ const workCenterLabel = (op: RoutingOperation) => {
   return wc ? `${wc.workCenterCode} - ${wc.workCenterName}` : op.workCenterId || '-'
 }
 
-const getStatusLabel = (status: string) => ({ ACTIVE: '启用', DISABLED: '已停用' }[status] || status)
+const getStatusLabel = (status: string) => ({
+  ACTIVE: t('productionRouting.status.active'),
+  DISABLED: t('productionRouting.status.disabled')
+}[status] || status)
 const getStatusType = (status: string) =>
   (({ ACTIVE: 'success', DISABLED: 'danger' } as Record<string, string>)[status] || 'info') as
     'primary' | 'success' | 'warning' | 'info' | 'danger'

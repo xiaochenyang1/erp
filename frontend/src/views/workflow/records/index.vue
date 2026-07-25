@@ -2,31 +2,31 @@
   <div class="workflow-container">
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="业务类型">
-          <el-select v-model="queryParams.businessType" placeholder="请选择业务类型" clearable style="width: 170px">
-            <el-option label="采购订单" value="PURCHASE_ORDER" />
-            <el-option label="销售订单" value="SALES_ORDER" />
-            <el-option label="费用单" value="EXPENSE" />
+        <el-form-item :label="$t('workflowRecord.businessType')">
+          <el-select v-model="queryParams.businessType" :placeholder="$t('workflowRecord.selectBusinessType')" clearable style="width: 170px">
+            <el-option :label="$t('workflowRecord.businessTypes.purchaseOrder')" value="PURCHASE_ORDER" />
+            <el-option :label="$t('workflowRecord.businessTypes.salesOrder')" value="SALES_ORDER" />
+            <el-option :label="$t('workflowRecord.businessTypes.expense')" value="EXPENSE" />
           </el-select>
         </el-form-item>
-        <el-form-item label="业务单号">
-          <el-input v-model="queryParams.businessNo" placeholder="请输入业务单号" clearable style="width: 180px" />
+        <el-form-item :label="$t('workflowRecord.businessNo')">
+          <el-input v-model="queryParams.businessNo" :placeholder="$t('workflowRecord.businessNoPlaceholder')" clearable style="width: 180px" />
         </el-form-item>
-        <el-form-item label="业务ID">
-          <el-input v-model="queryParams.businessId" placeholder="请输入业务ID" clearable style="width: 180px" />
+        <el-form-item :label="$t('workflowRecord.businessId')">
+          <el-input v-model="queryParams.businessId" :placeholder="$t('workflowRecord.businessIdPlaceholder')" clearable style="width: 180px" />
         </el-form-item>
-        <el-form-item label="动作">
-          <el-select v-model="queryParams.action" placeholder="请选择动作" clearable style="width: 140px">
-            <el-option label="提交" value="SUBMIT" />
-            <el-option label="通过" value="APPROVE" />
-            <el-option label="驳回" value="REJECT" />
-            <el-option label="撤回" value="WITHDRAW" />
-            <el-option label="取消" value="CANCEL" />
+        <el-form-item :label="$t('workflowRecord.action')">
+          <el-select v-model="queryParams.action" :placeholder="$t('workflowRecord.selectAction')" clearable style="width: 140px">
+            <el-option :label="$t('workflowRecord.actions.submit')" value="SUBMIT" />
+            <el-option :label="$t('workflowRecord.actions.approve')" value="APPROVE" />
+            <el-option :label="$t('workflowRecord.actions.reject')" value="REJECT" />
+            <el-option :label="$t('workflowRecord.actions.withdraw')" value="WITHDRAW" />
+            <el-option :label="$t('workflowRecord.actions.cancel')" value="CANCEL" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('workflowRecord.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('workflowRecord.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -34,32 +34,32 @@
     <el-card class="table-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>审批记录</span>
-          <el-button :icon="Refresh" @click="loadData">刷新</el-button>
+          <span>{{ $t('workflowRecord.title') }}</span>
+          <el-button :icon="Refresh" @click="loadData">{{ $t('workflowRecord.refresh') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="businessType" label="业务类型" width="130">
+        <el-table-column prop="businessType" :label="$t('workflowRecord.businessType')" width="130">
           <template #default="{ row }">{{ businessTypeLabel(row.businessType) }}</template>
         </el-table-column>
-        <el-table-column prop="businessNo" label="业务单号" min-width="170" show-overflow-tooltip />
-        <el-table-column prop="businessId" label="业务ID" width="110" />
-        <el-table-column prop="action" label="动作" width="110">
+        <el-table-column prop="businessNo" :label="$t('workflowRecord.businessNo')" min-width="170" show-overflow-tooltip />
+        <el-table-column prop="businessId" :label="$t('workflowRecord.businessId')" width="110" />
+        <el-table-column prop="action" :label="$t('workflowRecord.action')" width="110">
           <template #default="{ row }">
             <el-tag :type="actionType(row.action)">{{ actionLabel(row.action) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="operatorUserId" label="操作人ID" width="120" />
-        <el-table-column prop="comment" label="意见" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="operatorUserId" :label="$t('workflowRecord.operatorId')" width="120" />
+        <el-table-column prop="comment" :label="$t('workflowRecord.comment')" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">{{ row.comment || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="actionTime" label="操作时间" width="180">
+        <el-table-column prop="actionTime" :label="$t('workflowRecord.actionTime')" width="180">
           <template #default="{ row }">{{ formatTime(row.actionTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right" align="center">
+        <el-table-column :label="$t('workflowRecord.operations')" width="100" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button link type="warning" @click="openWithdraw(row)">撤回</el-button>
+            <el-button link type="warning" @click="openWithdraw(row)">{{ $t('workflowRecord.withdraw') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -75,30 +75,30 @@
       />
     </el-card>
 
-    <el-dialog v-model="withdrawVisible" title="撤回审批" width="520px" @close="resetWithdraw">
+    <el-dialog v-model="withdrawVisible" :title="$t('workflowRecord.withdrawDialog')" width="520px" @close="resetWithdraw">
       <el-alert
         v-if="currentRecord"
-        :title="`${businessTypeLabel(currentRecord.businessType)}：${currentRecord.businessNo || currentRecord.businessId}`"
+        :title="$t('workflowRecord.recordSummary', { type: businessTypeLabel(currentRecord.businessType), no: currentRecord.businessNo || currentRecord.businessId })"
         type="warning"
         show-icon
         :closable="false"
         style="margin-bottom: 16px"
       />
       <el-form :model="withdrawForm" label-width="90px">
-        <el-form-item label="撤回说明">
+        <el-form-item :label="$t('workflowRecord.withdrawComment')">
           <el-input
             v-model="withdrawForm.comment"
             type="textarea"
             :rows="4"
             maxlength="255"
             show-word-limit
-            placeholder="请输入撤回说明"
+            :placeholder="$t('workflowRecord.withdrawCommentPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="withdrawVisible = false">取消</el-button>
-        <el-button type="warning" :loading="withdrawSubmitting" @click="submitWithdraw">确认撤回</el-button>
+        <el-button @click="withdrawVisible = false">{{ $t('workflowRecord.cancel') }}</el-button>
+        <el-button type="warning" :loading="withdrawSubmitting" @click="submitWithdraw">{{ $t('workflowRecord.confirmWithdraw') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -107,6 +107,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { formatLocalizedDateTime } from '@/utils/locale'
@@ -119,6 +120,7 @@ import {
 } from '@/api/workflow'
 
 const route = useRoute()
+const { t } = useI18n()
 const loading = ref(false)
 const tableData = ref<WorkflowRecord[]>([])
 const total = ref(0)
@@ -188,11 +190,11 @@ const submitWithdraw = async () => {
       businessId: currentRecord.value.businessId,
       comment: withdrawForm.comment.trim() || undefined
     })
-    ElMessage.success('撤回成功')
+    ElMessage.success(t('workflowRecord.message.withdrawSuccess'))
     withdrawVisible.value = false
     await loadData()
   } catch (error) {
-    ElMessage.error('撤回失败，请确认当前用户是提交人且审批尚未处理')
+    ElMessage.error(t('workflowRecord.message.withdrawFailed'))
   } finally {
     withdrawSubmitting.value = false
   }
@@ -229,20 +231,20 @@ const paginateRecords = (records: WorkflowRecord[]) => {
 
 const businessTypeLabel = (type?: string) => {
   const map: Record<string, string> = {
-    PURCHASE_ORDER: '采购订单',
-    SALES_ORDER: '销售订单',
-    EXPENSE: '费用单'
+    PURCHASE_ORDER: t('workflowRecord.businessTypes.purchaseOrder'),
+    SALES_ORDER: t('workflowRecord.businessTypes.salesOrder'),
+    EXPENSE: t('workflowRecord.businessTypes.expense')
   }
   return type ? map[type] || type : '-'
 }
 
 const actionLabel = (action: string) => {
   const map: Record<string, string> = {
-    SUBMIT: '提交',
-    APPROVE: '通过',
-    REJECT: '驳回',
-    WITHDRAW: '撤回',
-    CANCEL: '取消'
+    SUBMIT: t('workflowRecord.actions.submit'),
+    APPROVE: t('workflowRecord.actions.approve'),
+    REJECT: t('workflowRecord.actions.reject'),
+    WITHDRAW: t('workflowRecord.actions.withdraw'),
+    CANCEL: t('workflowRecord.actions.cancel')
   }
   return map[action] || action
 }

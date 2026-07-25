@@ -2,12 +2,12 @@
   <div class="exception-ticket-page">
     <el-card shadow="never" class="filter-panel">
       <el-form :model="queryForm" inline @submit.prevent>
-        <el-form-item label="关键字">
+        <el-form-item :label="t('exceptionTicket.keyword')">
           <el-input
             v-model="queryForm.keyword"
             class="keyword-input"
             clearable
-            placeholder="标题、工单号、描述"
+            :placeholder="t('exceptionTicket.keywordPlaceholder')"
             @keyup.enter="handleQuery"
           >
             <template #prefix>
@@ -15,40 +15,40 @@
             </template>
           </el-input>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" clearable placeholder="全部" class="small-select">
+        <el-form-item :label="t('exceptionTicket.status')">
+          <el-select v-model="queryForm.status" clearable :placeholder="t('exceptionTicket.all')" class="small-select">
             <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="优先级">
-          <el-select v-model="queryForm.priority" clearable placeholder="全部" class="small-select">
+        <el-form-item :label="t('exceptionTicket.priority')">
+          <el-select v-model="queryForm.priority" clearable :placeholder="t('exceptionTicket.all')" class="small-select">
             <el-option v-for="item in priorityOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="分类">
-          <el-select v-model="queryForm.category" clearable filterable placeholder="全部" class="category-select">
+        <el-form-item :label="t('exceptionTicket.category')">
+          <el-select v-model="queryForm.category" clearable filterable :placeholder="t('exceptionTicket.all')" class="category-select">
             <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="处理人">
+        <el-form-item :label="t('exceptionTicket.assignee')">
           <el-input
             v-model="queryForm.assigneeUserId"
             clearable
             class="user-input"
-            placeholder="用户ID"
+            :placeholder="t('exceptionTicket.userIdPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="来源单号">
-          <el-input v-model="queryForm.sourceNo" clearable placeholder="来源单据" class="source-input" />
+        <el-form-item :label="t('exceptionTicket.sourceNo')">
+          <el-input v-model="queryForm.sourceNo" clearable :placeholder="t('exceptionTicket.sourceDocumentPlaceholder')" class="source-input" />
         </el-form-item>
         <el-form-item>
-          <el-checkbox v-model="queryForm.overdueOnly">仅逾期</el-checkbox>
+          <el-checkbox v-model="queryForm.overdueOnly">{{ t('exceptionTicket.overdueOnly') }}</el-checkbox>
         </el-form-item>
         <el-form-item class="filter-actions">
-          <el-button type="primary" :icon="Search" :loading="loading" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" :loading="loading" @click="handleQuery">{{ t('exceptionTicket.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ t('exceptionTicket.reset') }}</el-button>
           <el-button v-permission="'exception-ticket:manage'" type="success" :icon="Plus" @click="openCreateDialog">
-            新建
+            {{ t('exceptionTicket.create') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -69,8 +69,8 @@
     <el-card shadow="never" class="table-panel">
       <template #header>
         <div class="panel-header">
-          <span>异常工单</span>
-          <el-text type="info" size="small">本页 {{ tableData.length }} 条 / 共 {{ pagination.total }} 条</el-text>
+          <span>{{ t('exceptionTicket.title') }}</span>
+          <el-text type="info" size="small">{{ t('exceptionTicket.pageSummary', { current: tableData.length, total: pagination.total }) }}</el-text>
         </div>
       </template>
 
@@ -78,7 +78,7 @@
         <el-table-column type="expand" width="42">
           <template #default="{ row }">
             <div class="event-panel">
-              <el-empty v-if="!row.events?.length" description="暂无处理记录" :image-size="88" />
+              <el-empty v-if="!row.events?.length" :description="t('exceptionTicket.noEvents')" :image-size="88" />
               <el-timeline v-else>
                 <el-timeline-item
                   v-for="event in row.events"
@@ -90,7 +90,7 @@
                   <div class="event-row">
                     <strong>{{ actionLabel(event.action) }}</strong>
                     <span>{{ event.fromStatus ? statusLabel(event.fromStatus) : '-' }} -> {{ statusLabel(event.toStatus) }}</span>
-                    <el-text type="info" size="small">操作人 {{ event.operatorUserId || '-' }}</el-text>
+                    <el-text type="info" size="small">{{ t('exceptionTicket.operator', { id: event.operatorUserId || '-' }) }}</el-text>
                   </div>
                   <p>{{ event.comment || '-' }}</p>
                 </el-timeline-item>
@@ -98,8 +98,8 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="ticketNo" label="工单号" width="170" fixed="left" />
-        <el-table-column label="异常事项" min-width="260" show-overflow-tooltip>
+        <el-table-column prop="ticketNo" :label="t('exceptionTicket.ticketNo')" width="170" fixed="left" />
+        <el-table-column :label="t('exceptionTicket.issue')" min-width="260" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="ticket-title">
               <strong>{{ row.title }}</strong>
@@ -107,24 +107,24 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="category" label="分类" width="130">
+        <el-table-column prop="category" :label="t('exceptionTicket.category')" width="130">
           <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
         </el-table-column>
-        <el-table-column prop="priority" label="优先级" width="96" align="center">
+        <el-table-column prop="priority" :label="t('exceptionTicket.priority')" width="96" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="priorityType(row.priority)" effect="plain">
               {{ priorityLabel(row.priority) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="104" align="center">
+        <el-table-column prop="status" :label="t('exceptionTicket.status')" width="104" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="statusType(row.status)">
               {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="来源" min-width="170" show-overflow-tooltip>
+        <el-table-column :label="t('exceptionTicket.source')" min-width="170" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="source-cell">
               <span>{{ row.sourceNo || '-' }}</span>
@@ -132,20 +132,20 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="assigneeUserId" label="处理人" width="100" align="center">
+        <el-table-column prop="assigneeUserId" :label="t('exceptionTicket.assignee')" width="100" align="center">
           <template #default="{ row }">{{ row.assigneeUserId || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="dueTime" label="截止时间" width="160">
+        <el-table-column prop="dueTime" :label="t('exceptionTicket.dueTime')" width="160">
           <template #default="{ row }">
             <el-text :type="isOverdue(row) ? 'danger' : 'info'">
               {{ formatDateTime(row.dueTime) || '-' }}
             </el-text>
           </template>
         </el-table-column>
-        <el-table-column prop="updatedTime" label="更新时间" width="160">
+        <el-table-column prop="updatedTime" :label="t('exceptionTicket.updatedAt')" width="160">
           <template #default="{ row }">{{ formatDateTime(row.updatedTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="280" align="center" fixed="right">
+        <el-table-column :label="t('exceptionTicket.operations')" width="280" align="center" fixed="right">
           <template #default="{ row }">
             <div class="row-actions">
               <el-button
@@ -157,7 +157,7 @@
                 :icon="Search"
                 @click="goBusinessTrace(row)"
               >
-                追踪
+                {{ t('exceptionTicket.trace') }}
               </el-button>
               <el-button
                 v-if="row.status !== 'CLOSED'"
@@ -168,7 +168,7 @@
                 :icon="User"
                 @click="openActionDialog('assign', row)"
               >
-                分派
+                {{ t('exceptionTicket.assign') }}
               </el-button>
               <el-button
                 v-if="row.status === 'OPEN' || row.status === 'PROCESSING'"
@@ -179,7 +179,7 @@
                 :icon="Clock"
                 @click="openActionDialog('start', row)"
               >
-                开始
+                {{ t('exceptionTicket.start') }}
               </el-button>
               <el-button
                 v-if="row.status === 'OPEN' || row.status === 'PROCESSING' || row.status === 'RESOLVED'"
@@ -190,7 +190,7 @@
                 :icon="Finished"
                 @click="openActionDialog('resolve', row)"
               >
-                解决
+                {{ t('exceptionTicket.resolve') }}
               </el-button>
               <el-button
                 v-if="row.status === 'RESOLVED'"
@@ -201,7 +201,7 @@
                 :icon="Close"
                 @click="openActionDialog('close', row)"
               >
-                关闭
+                {{ t('exceptionTicket.close') }}
               </el-button>
             </div>
           </template>
@@ -220,80 +220,80 @@
       />
     </el-card>
 
-    <el-dialog v-model="createDialogVisible" title="新建异常工单" width="720px" destroy-on-close>
+    <el-dialog v-model="createDialogVisible" :title="t('exceptionTicket.createDialog')" width="720px" destroy-on-close>
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="92px">
-        <el-form-item label="标题" prop="title">
-          <el-input v-model="createForm.title" maxlength="128" show-word-limit placeholder="说明异常事项" />
+        <el-form-item :label="t('exceptionTicket.subjectTitle')" prop="title">
+          <el-input v-model="createForm.title" maxlength="128" show-word-limit :placeholder="t('exceptionTicket.titlePlaceholder')" />
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item :label="t('exceptionTicket.description')">
           <el-input
             v-model="createForm.description"
             type="textarea"
             :rows="3"
             maxlength="1024"
             show-word-limit
-            placeholder="补充异常背景、影响范围或排查线索"
+            :placeholder="t('exceptionTicket.descriptionPlaceholder')"
           />
         </el-form-item>
         <div class="form-grid">
-          <el-form-item label="分类" prop="category">
+          <el-form-item :label="t('exceptionTicket.category')" prop="category">
             <el-select v-model="createForm.category" filterable class="form-control">
               <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
-          <el-form-item label="优先级" prop="priority">
+          <el-form-item :label="t('exceptionTicket.priority')" prop="priority">
             <el-select v-model="createForm.priority" class="form-control">
               <el-option v-for="item in priorityOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
-          <el-form-item label="处理人">
+          <el-form-item :label="t('exceptionTicket.assignee')">
             <el-input
               v-model="createForm.assigneeUserId"
               clearable
               class="form-control"
-              placeholder="用户ID"
+              :placeholder="t('exceptionTicket.userIdPlaceholder')"
             />
           </el-form-item>
-          <el-form-item label="截止时间">
+          <el-form-item :label="t('exceptionTicket.dueTime')">
             <el-date-picker
               v-model="createForm.dueTime"
               type="datetime"
               value-format="YYYY-MM-DD HH:mm:ss"
-              placeholder="选择时间"
+              :placeholder="t('exceptionTicket.selectTime')"
               class="form-control"
             />
           </el-form-item>
-          <el-form-item label="来源类型">
+          <el-form-item :label="t('exceptionTicket.sourceType')">
             <el-input v-model="createForm.sourceType" placeholder="LOW_STOCK / ORDER" />
           </el-form-item>
-          <el-form-item label="来源ID">
-            <el-input v-model="createForm.sourceId" clearable class="form-control" placeholder="请输入来源ID" />
+          <el-form-item :label="t('exceptionTicket.sourceId')">
+            <el-input v-model="createForm.sourceId" clearable class="form-control" :placeholder="t('exceptionTicket.sourceIdPlaceholder')" />
           </el-form-item>
         </div>
-        <el-form-item label="来源单号">
-          <el-input v-model="createForm.sourceNo" maxlength="128" placeholder="业务单据编号" />
+        <el-form-item :label="t('exceptionTicket.sourceNo')">
+          <el-input v-model="createForm.sourceNo" maxlength="128" :placeholder="t('exceptionTicket.businessNoPlaceholder')" />
         </el-form-item>
-        <el-form-item label="来源路由">
+        <el-form-item :label="t('exceptionTicket.sourceRoute')">
           <el-input v-model="createForm.sourceRoute" maxlength="512" placeholder="/reports/traces?keyword=..." />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleCreate">创建</el-button>
+        <el-button @click="createDialogVisible = false">{{ t('exceptionTicket.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleCreate">{{ t('exceptionTicket.createAction') }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog v-model="actionDialogVisible" :title="actionDialogTitle" width="520px" destroy-on-close>
       <el-form :model="actionForm" label-width="86px">
-        <el-form-item v-if="actionMode === 'assign'" label="处理人">
+        <el-form-item v-if="actionMode === 'assign'" :label="t('exceptionTicket.assignee')">
           <el-input
             v-model="actionForm.assigneeUserId"
             clearable
             class="form-control"
-            placeholder="用户ID"
+            :placeholder="t('exceptionTicket.userIdPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="处理说明">
+        <el-form-item :label="t('exceptionTicket.actionComment')">
           <el-input
             v-model="actionForm.comment"
             type="textarea"
@@ -305,8 +305,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="actionDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleAction">确认</el-button>
+        <el-button @click="actionDialogVisible = false">{{ t('exceptionTicket.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleAction">{{ t('exceptionTicket.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -314,6 +314,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
@@ -337,29 +338,30 @@ type Option = { label: string; value: string }
 type ActionMode = 'assign' | 'start' | 'resolve' | 'close'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const statusOptions: Option[] = [
-  { label: '待处理', value: 'OPEN' },
-  { label: '处理中', value: 'PROCESSING' },
-  { label: '已解决', value: 'RESOLVED' },
-  { label: '已关闭', value: 'CLOSED' }
-]
+const statusOptions = computed<Option[]>(() => [
+  { label: t('exceptionTicket.statuses.open'), value: 'OPEN' },
+  { label: t('exceptionTicket.statuses.processing'), value: 'PROCESSING' },
+  { label: t('exceptionTicket.statuses.resolved'), value: 'RESOLVED' },
+  { label: t('exceptionTicket.statuses.closed'), value: 'CLOSED' }
+])
 
-const priorityOptions: Option[] = [
-  { label: '低', value: 'LOW' },
-  { label: '中', value: 'MEDIUM' },
-  { label: '高', value: 'HIGH' },
-  { label: '紧急', value: 'URGENT' }
-]
+const priorityOptions = computed<Option[]>(() => [
+  { label: t('exceptionTicket.priorities.low'), value: 'LOW' },
+  { label: t('exceptionTicket.priorities.medium'), value: 'MEDIUM' },
+  { label: t('exceptionTicket.priorities.high'), value: 'HIGH' },
+  { label: t('exceptionTicket.priorities.urgent'), value: 'URGENT' }
+])
 
-const categoryOptions: Option[] = [
-  { label: '通用异常', value: 'GENERAL' },
-  { label: '低库存', value: 'LOW_STOCK' },
-  { label: '逾期收付', value: 'PAYMENT_OVERDUE' },
-  { label: '交付延迟', value: 'DELIVERY_DELAY' },
-  { label: '质量问题', value: 'QUALITY_ISSUE' },
-  { label: '系统失败', value: 'SYSTEM_ERROR' }
-]
+const categoryOptions = computed<Option[]>(() => [
+  { label: t('exceptionTicket.categories.general'), value: 'GENERAL' },
+  { label: t('exceptionTicket.categories.lowStock'), value: 'LOW_STOCK' },
+  { label: t('exceptionTicket.categories.paymentOverdue'), value: 'PAYMENT_OVERDUE' },
+  { label: t('exceptionTicket.categories.deliveryDelay'), value: 'DELIVERY_DELAY' },
+  { label: t('exceptionTicket.categories.qualityIssue'), value: 'QUALITY_ISSUE' },
+  { label: t('exceptionTicket.categories.systemError'), value: 'SYSTEM_ERROR' }
+])
 
 const queryForm = reactive<ExceptionTicketQuery>({
   keyword: '',
@@ -396,11 +398,11 @@ const createForm = reactive<ExceptionTicketCreateRequest>({
   dueTime: ''
 })
 
-const createRules: FormRules = {
-  title: [{ required: true, message: '请输入异常标题', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
-  priority: [{ required: true, message: '请选择优先级', trigger: 'change' }]
-}
+const createRules = computed<FormRules>(() => ({
+  title: [{ required: true, message: t('exceptionTicket.validation.title'), trigger: 'blur' }],
+  category: [{ required: true, message: t('exceptionTicket.validation.category'), trigger: 'change' }],
+  priority: [{ required: true, message: t('exceptionTicket.validation.priority'), trigger: 'change' }]
+}))
 
 const actionDialogVisible = ref(false)
 const actionMode = ref<ActionMode>('assign')
@@ -412,31 +414,31 @@ const actionForm = reactive({
 
 const summaryItems = computed(() => [
   {
-    label: '待处理',
+    label: t('exceptionTicket.summary.open'),
     value: countByStatus('OPEN'),
     icon: Warning,
     tone: 'orange'
   },
   {
-    label: '处理中',
+    label: t('exceptionTicket.summary.processing'),
     value: countByStatus('PROCESSING'),
     icon: Clock,
     tone: 'blue'
   },
   {
-    label: '已解决',
+    label: t('exceptionTicket.summary.resolved'),
     value: countByStatus('RESOLVED'),
     icon: Finished,
     tone: 'green'
   },
   {
-    label: '已逾期',
+    label: t('exceptionTicket.summary.overdue'),
     value: tableData.value.filter(isOverdue).length,
     icon: Warning,
     tone: 'red'
   },
   {
-    label: '高优先级',
+    label: t('exceptionTicket.summary.highPriority'),
     value: tableData.value.filter((item) => item.priority === 'HIGH' || item.priority === 'URGENT').length,
     icon: Warning,
     tone: 'purple'
@@ -445,10 +447,10 @@ const summaryItems = computed(() => [
 
 const actionDialogTitle = computed(() => {
   const titleMap: Record<ActionMode, string> = {
-    assign: '分派异常工单',
-    start: '开始处理',
-    resolve: '解决异常工单',
-    close: '关闭异常工单'
+    assign: t('exceptionTicket.dialog.assign'),
+    start: t('exceptionTicket.dialog.start'),
+    resolve: t('exceptionTicket.dialog.resolve'),
+    close: t('exceptionTicket.dialog.close')
   }
   const ticketNo = actionTarget.value?.ticketNo ? ` - ${actionTarget.value.ticketNo}` : ''
   return `${titleMap[actionMode.value]}${ticketNo}`
@@ -456,10 +458,10 @@ const actionDialogTitle = computed(() => {
 
 const actionPlaceholder = computed(() => {
   const placeholderMap: Record<ActionMode, string> = {
-    assign: '说明分派原因或处理要求',
-    start: '记录开始处理的排查方向',
-    resolve: '填写解决方案或处理结果',
-    close: '填写关闭确认意见'
+    assign: t('exceptionTicket.actionPlaceholders.assign'),
+    start: t('exceptionTicket.actionPlaceholders.start'),
+    resolve: t('exceptionTicket.actionPlaceholders.resolve'),
+    close: t('exceptionTicket.actionPlaceholders.close')
   }
   return placeholderMap[actionMode.value]
 })
@@ -542,7 +544,7 @@ const handleCreate = async () => {
       assigneeUserId: normalizeOptionalId(createForm.assigneeUserId),
       description: createForm.description?.trim() || undefined
     })
-    ElMessage.success('异常工单已创建')
+    ElMessage.success(t('exceptionTicket.message.created'))
     createDialogVisible.value = false
     loadData()
   } finally {
@@ -573,7 +575,7 @@ const handleAction = async () => {
     } else {
       await closeExceptionTicket(id, { comment })
     }
-    ElMessage.success('处理已提交')
+    ElMessage.success(t('exceptionTicket.message.actionSubmitted'))
     actionDialogVisible.value = false
     loadData()
   } finally {
@@ -596,24 +598,24 @@ const countByStatus = (status: ExceptionTicketStatus) => {
 }
 
 const statusLabel = (status?: string) => {
-  return statusOptions.find((item) => item.value === status)?.label || status || '-'
+  return statusOptions.value.find((item) => item.value === status)?.label || status || '-'
 }
 
 const priorityLabel = (priority?: string) => {
-  return priorityOptions.find((item) => item.value === priority)?.label || priority || '-'
+  return priorityOptions.value.find((item) => item.value === priority)?.label || priority || '-'
 }
 
 const categoryLabel = (category?: string) => {
-  return categoryOptions.find((item) => item.value === category)?.label || category || '-'
+  return categoryOptions.value.find((item) => item.value === category)?.label || category || '-'
 }
 
 const actionLabel = (action?: string) => {
   const labelMap: Record<string, string> = {
-    CREATE: '创建',
-    ASSIGN: '分派',
-    START: '开始',
-    RESOLVE: '解决',
-    CLOSE: '关闭'
+    CREATE: t('exceptionTicket.eventActions.create'),
+    ASSIGN: t('exceptionTicket.eventActions.assign'),
+    START: t('exceptionTicket.eventActions.start'),
+    RESOLVE: t('exceptionTicket.eventActions.resolve'),
+    CLOSE: t('exceptionTicket.eventActions.close')
   }
   return action ? labelMap[action] || action : '-'
 }

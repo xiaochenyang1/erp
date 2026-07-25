@@ -2,25 +2,25 @@
   <div class="exception-sla-policy-page">
     <el-card shadow="never" class="filter-panel">
       <el-form :model="queryForm" inline @submit.prevent>
-        <el-form-item label="分类">
-          <el-select v-model="queryForm.category" clearable filterable placeholder="全部" class="category-select">
+        <el-form-item :label="$t('exceptionSlaPolicy.category')">
+          <el-select v-model="queryForm.category" clearable filterable :placeholder="$t('exceptionSlaPolicy.all')" class="category-select">
             <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="优先级">
-          <el-select v-model="queryForm.priority" clearable placeholder="全部" class="priority-select">
+        <el-form-item :label="$t('exceptionSlaPolicy.priority')">
+          <el-select v-model="queryForm.priority" clearable :placeholder="$t('exceptionSlaPolicy.all')" class="priority-select">
             <el-option v-for="item in priorityOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.enabled" clearable placeholder="全部" class="state-select">
-            <el-option label="启用" value="true" />
-            <el-option label="停用" value="false" />
+        <el-form-item :label="$t('exceptionSlaPolicy.status')">
+          <el-select v-model="queryForm.enabled" clearable :placeholder="$t('exceptionSlaPolicy.all')" class="state-select">
+            <el-option :label="$t('exceptionSlaPolicy.enabled')" value="true" />
+            <el-option :label="$t('exceptionSlaPolicy.disabled')" value="false" />
           </el-select>
         </el-form-item>
         <el-form-item class="filter-actions">
-          <el-button type="primary" :icon="Search" :loading="loading" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" :loading="loading" @click="handleQuery">{{ $t('exceptionSlaPolicy.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('exceptionSlaPolicy.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -40,13 +40,13 @@
     <el-card shadow="never" class="table-panel">
       <template #header>
         <div class="panel-header">
-          <span>SLA策略</span>
-          <el-text type="info" size="small">本页 {{ tableData.length }} 条 / 共 {{ pagination.total }} 条</el-text>
+          <span>{{ $t('exceptionSlaPolicy.title') }}</span>
+          <el-text type="info" size="small">{{ $t('exceptionSlaPolicy.pageSummary', { current: tableData.length, total: pagination.total }) }}</el-text>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe row-key="id">
-        <el-table-column prop="category" label="分类" min-width="180" fixed="left">
+        <el-table-column prop="category" :label="$t('exceptionSlaPolicy.category')" min-width="180" fixed="left">
           <template #default="{ row }">
             <div class="policy-title">
               <strong>{{ categoryLabel(row.category) }}</strong>
@@ -54,26 +54,26 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="priority" label="优先级" width="104" align="center">
+        <el-table-column prop="priority" :label="$t('exceptionSlaPolicy.priority')" width="104" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="priorityType(row.priority)" effect="plain">
               {{ priorityLabel(row.priority) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="dueHours" label="SLA时限" width="118" align="right">
+        <el-table-column prop="dueHours" :label="$t('exceptionSlaPolicy.slaLimit')" width="118" align="right">
           <template #default="{ row }">
-            <span class="numeric">{{ row.dueHours }} 小时</span>
+            <span class="numeric">{{ $t('exceptionSlaPolicy.hours', { count: row.dueHours }) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="escalationEnabled" label="超时升级" width="108" align="center">
+        <el-table-column prop="escalationEnabled" :label="$t('exceptionSlaPolicy.overdueEscalation')" width="108" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.escalationEnabled ? 'success' : 'info'">
-              {{ row.escalationEnabled ? '启用' : '停用' }}
+              {{ row.escalationEnabled ? $t('exceptionSlaPolicy.enabled') : $t('exceptionSlaPolicy.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="escalateToPriority" label="升级到" width="110" align="center">
+        <el-table-column prop="escalateToPriority" :label="$t('exceptionSlaPolicy.escalateTo')" width="110" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.escalationEnabled" size="small" :type="priorityType(row.escalateToPriority)">
               {{ priorityLabel(row.escalateToPriority) }}
@@ -81,20 +81,20 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="enabled" label="策略状态" width="104" align="center">
+        <el-table-column prop="enabled" :label="$t('exceptionSlaPolicy.policyStatus')" width="104" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.enabled ? 'success' : 'info'">
-              {{ row.enabled ? '启用' : '停用' }}
+              {{ row.enabled ? $t('exceptionSlaPolicy.enabled') : $t('exceptionSlaPolicy.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="说明" min-width="220" show-overflow-tooltip>
+        <el-table-column :label="$t('exceptionSlaPolicy.description')" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">{{ row.remark || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="updatedTime" label="更新时间" width="160">
+        <el-table-column prop="updatedTime" :label="$t('exceptionSlaPolicy.updatedAt')" width="160">
           <template #default="{ row }">{{ formatDateTime(row.updatedTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="110" align="center" fixed="right">
+        <el-table-column :label="$t('exceptionSlaPolicy.operations')" width="110" align="center" fixed="right">
           <template #default="{ row }">
             <el-button
               v-permission="'exception-sla-policy:manage'"
@@ -104,7 +104,7 @@
               :icon="EditPen"
               @click="openEditDialog(row)"
             >
-              配置
+              {{ $t('exceptionSlaPolicy.configure') }}
             </el-button>
           </template>
         </el-table-column>
@@ -122,48 +122,48 @@
       />
     </el-card>
 
-    <el-dialog v-model="editDialogVisible" title="配置SLA策略" width="620px" destroy-on-close>
+    <el-dialog v-model="editDialogVisible" :title="$t('exceptionSlaPolicy.dialogTitle')" width="620px" destroy-on-close>
       <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="104px">
-        <el-form-item label="策略">
+        <el-form-item :label="$t('exceptionSlaPolicy.policy')">
           <el-input :model-value="editTargetLabel" disabled />
         </el-form-item>
         <div class="form-grid">
-          <el-form-item label="SLA时限" prop="dueHours">
+          <el-form-item :label="$t('exceptionSlaPolicy.slaLimit')" prop="dueHours">
             <el-input-number
               v-model="editForm.dueHours"
               :min="1"
               :max="8760"
               :step="1"
               class="form-control"
-              placeholder="小时"
+              :placeholder="$t('exceptionSlaPolicy.hourUnit')"
             />
           </el-form-item>
-          <el-form-item label="策略状态">
-            <el-switch v-model="editForm.enabled" active-text="启用" inactive-text="停用" />
+          <el-form-item :label="$t('exceptionSlaPolicy.policyStatus')">
+            <el-switch v-model="editForm.enabled" :active-text="$t('exceptionSlaPolicy.enabled')" :inactive-text="$t('exceptionSlaPolicy.disabled')" />
           </el-form-item>
-          <el-form-item label="超时升级">
-            <el-switch v-model="editForm.escalationEnabled" active-text="启用" inactive-text="停用" />
+          <el-form-item :label="$t('exceptionSlaPolicy.overdueEscalation')">
+            <el-switch v-model="editForm.escalationEnabled" :active-text="$t('exceptionSlaPolicy.enabled')" :inactive-text="$t('exceptionSlaPolicy.disabled')" />
           </el-form-item>
-          <el-form-item label="升级优先级" prop="escalateToPriority">
+          <el-form-item :label="$t('exceptionSlaPolicy.escalationPriority')" prop="escalateToPriority">
             <el-select v-model="editForm.escalateToPriority" class="form-control">
               <el-option v-for="item in priorityOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
         </div>
-        <el-form-item label="说明">
+        <el-form-item :label="$t('exceptionSlaPolicy.description')">
           <el-input
             v-model="editForm.remark"
             type="textarea"
             :rows="3"
             maxlength="512"
             show-word-limit
-            placeholder="说明 SLA 口径或升级要求"
+            :placeholder="$t('exceptionSlaPolicy.descriptionPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editSubmitting" @click="handleSaveEdit">保存</el-button>
+        <el-button @click="editDialogVisible = false">{{ $t('exceptionSlaPolicy.cancel') }}</el-button>
+        <el-button type="primary" :loading="editSubmitting" @click="handleSaveEdit">{{ $t('exceptionSlaPolicy.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -171,6 +171,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { AlarmClock, CircleCheck, CircleClose, EditPen, Refresh, Search, TrendCharts, Warning } from '@element-plus/icons-vue'
@@ -186,21 +187,23 @@ import {
 type Option = { label: string; value: string }
 type EnabledFilter = '' | 'true' | 'false'
 
-const categoryOptions: Option[] = [
-  { label: '通用异常', value: 'GENERAL' },
-  { label: '低库存', value: 'LOW_STOCK' },
-  { label: '逾期收付', value: 'PAYMENT_OVERDUE' },
-  { label: '交付延迟', value: 'DELIVERY_DELAY' },
-  { label: '质量问题', value: 'QUALITY_ISSUE' },
-  { label: '系统失败', value: 'SYSTEM_ERROR' }
-]
+const { t } = useI18n()
 
-const priorityOptions: Option[] = [
-  { label: '低', value: 'LOW' },
-  { label: '中', value: 'MEDIUM' },
-  { label: '高', value: 'HIGH' },
-  { label: '紧急', value: 'URGENT' }
-]
+const categoryOptions = computed<Option[]>(() => [
+  { label: t('exceptionSlaPolicy.categories.general'), value: 'GENERAL' },
+  { label: t('exceptionSlaPolicy.categories.lowStock'), value: 'LOW_STOCK' },
+  { label: t('exceptionSlaPolicy.categories.paymentOverdue'), value: 'PAYMENT_OVERDUE' },
+  { label: t('exceptionSlaPolicy.categories.deliveryDelay'), value: 'DELIVERY_DELAY' },
+  { label: t('exceptionSlaPolicy.categories.qualityIssue'), value: 'QUALITY_ISSUE' },
+  { label: t('exceptionSlaPolicy.categories.systemError'), value: 'SYSTEM_ERROR' }
+])
+
+const priorityOptions = computed<Option[]>(() => [
+  { label: t('exceptionSlaPolicy.priorities.low'), value: 'LOW' },
+  { label: t('exceptionSlaPolicy.priorities.medium'), value: 'MEDIUM' },
+  { label: t('exceptionSlaPolicy.priorities.high'), value: 'HIGH' },
+  { label: t('exceptionSlaPolicy.priorities.urgent'), value: 'URGENT' }
+])
 
 const queryForm = reactive({
   category: '',
@@ -228,38 +231,38 @@ const editForm = reactive<ExceptionSlaPolicyUpdateRequest>({
   remark: ''
 })
 
-const editRules: FormRules = {
-  dueHours: [{ required: true, message: '请输入SLA时限', trigger: 'blur' }],
-  escalateToPriority: [{ required: true, message: '请选择升级优先级', trigger: 'change' }]
-}
+const editRules = computed<FormRules>(() => ({
+  dueHours: [{ required: true, message: t('exceptionSlaPolicy.validation.dueHours'), trigger: 'blur' }],
+  escalateToPriority: [{ required: true, message: t('exceptionSlaPolicy.validation.escalationPriority'), trigger: 'change' }]
+}))
 
 const summaryItems = computed(() => [
   {
-    label: '启用策略',
+    label: t('exceptionSlaPolicy.summary.enabledPolicies'),
     value: tableData.value.filter((item) => item.enabled).length,
     icon: CircleCheck,
     tone: 'green'
   },
   {
-    label: '停用策略',
+    label: t('exceptionSlaPolicy.summary.disabledPolicies'),
     value: tableData.value.filter((item) => !item.enabled).length,
     icon: CircleClose,
     tone: 'gray'
   },
   {
-    label: '启用升级',
+    label: t('exceptionSlaPolicy.summary.escalationEnabled'),
     value: tableData.value.filter((item) => item.escalationEnabled).length,
     icon: TrendCharts,
     tone: 'blue'
   },
   {
-    label: '平均时限',
+    label: t('exceptionSlaPolicy.summary.averageLimit'),
     value: averageDueHours.value,
     icon: AlarmClock,
     tone: 'orange'
   },
   {
-    label: '紧急策略',
+    label: t('exceptionSlaPolicy.summary.urgentPolicies'),
     value: tableData.value.filter((item) => item.priority === 'URGENT').length,
     icon: Warning,
     tone: 'red'
@@ -269,7 +272,7 @@ const summaryItems = computed(() => [
 const averageDueHours = computed(() => {
   if (!tableData.value.length) return '-'
   const total = tableData.value.reduce((sum, item) => sum + (item.dueHours || 0), 0)
-  return `${Math.round(total / tableData.value.length)} 小时`
+  return t('exceptionSlaPolicy.hours', { count: Math.round(total / tableData.value.length) })
 })
 
 const editTargetLabel = computed(() => {
@@ -336,7 +339,7 @@ const handleSaveEdit = async () => {
       enabled: editForm.enabled,
       remark: editForm.remark?.trim() || undefined
     })
-    ElMessage.success('SLA策略已保存')
+    ElMessage.success(t('exceptionSlaPolicy.message.saved'))
     editDialogVisible.value = false
     await loadData()
   } finally {
@@ -345,11 +348,11 @@ const handleSaveEdit = async () => {
 }
 
 const categoryLabel = (value?: string) => {
-  return categoryOptions.find((item) => item.value === value)?.label || value || '-'
+  return categoryOptions.value.find((item) => item.value === value)?.label || value || '-'
 }
 
 const priorityLabel = (value?: string) => {
-  return priorityOptions.find((item) => item.value === value)?.label || value || '-'
+  return priorityOptions.value.find((item) => item.value === value)?.label || value || '-'
 }
 
 const priorityType = (value?: string) => {

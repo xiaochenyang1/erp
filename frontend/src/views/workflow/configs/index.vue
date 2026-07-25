@@ -3,10 +3,10 @@
     <el-card class="toolbar-card" shadow="never">
       <div class="toolbar">
         <el-form :model="configForm" inline>
-          <el-form-item label="业务类型">
+          <el-form-item :label="$t('workflowConfig.businessType')">
             <el-select
               v-model="activeBusinessType"
-              placeholder="请选择业务类型"
+              :placeholder="$t('workflowConfig.selectBusinessType')"
               style="width: 180px"
               @change="loadConfig"
             >
@@ -18,23 +18,23 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="配置名称">
-            <el-input v-model="configForm.configName" placeholder="请输入配置名称" style="width: 240px" />
+          <el-form-item :label="$t('workflowConfig.configName')">
+            <el-input v-model="configForm.configName" :placeholder="$t('workflowConfig.configNamePlaceholder')" style="width: 240px" />
           </el-form-item>
-          <el-form-item label="状态">
+          <el-form-item :label="$t('workflowConfig.status')">
             <el-select v-model="configForm.status" style="width: 130px">
-              <el-option label="启用" value="ACTIVE" />
-              <el-option label="停用" value="DISABLED" />
+              <el-option :label="$t('workflowConfig.active')" value="ACTIVE" />
+              <el-option :label="$t('workflowConfig.disabled')" value="DISABLED" />
             </el-select>
           </el-form-item>
-          <el-form-item label="审批时限">
+          <el-form-item :label="$t('workflowConfig.approvalTimeout')">
             <el-input v-model.number="configForm.taskTimeoutHours" type="number" min="1" max="720" step="1" style="width: 110px" />
-            <span class="timeout-unit">小时</span>
+            <span class="timeout-unit">{{ $t('workflowConfig.hours') }}</span>
           </el-form-item>
         </el-form>
         <div class="toolbar-actions">
-          <el-button :icon="Refresh" @click="loadConfig">刷新</el-button>
-          <el-button v-permission="'workflow:config:update'" type="primary" :icon="Check" :loading="saving" @click="submitConfig">保存配置</el-button>
+          <el-button :icon="Refresh" @click="loadConfig">{{ $t('workflowConfig.refresh') }}</el-button>
+          <el-button v-permission="'workflow:config:update'" type="primary" :icon="Check" :loading="saving" @click="submitConfig">{{ $t('workflowConfig.saveConfig') }}</el-button>
         </div>
       </div>
     </el-card>
@@ -42,20 +42,20 @@
     <el-card class="config-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>审批配置</span>
-          <el-button type="primary" plain :icon="Plus" @click="addNode">新增节点</el-button>
+          <span>{{ $t('workflowConfig.title') }}</span>
+          <el-button type="primary" plain :icon="Plus" @click="addNode">{{ $t('workflowConfig.addNode') }}</el-button>
         </div>
       </template>
 
       <el-form v-loading="loading" label-width="92px">
-        <el-form-item label="备注">
+        <el-form-item :label="$t('workflowConfig.remark')">
           <el-input
             v-model="configForm.remark"
             type="textarea"
             :rows="2"
             maxlength="255"
             show-word-limit
-            placeholder="请输入备注"
+            :placeholder="$t('workflowConfig.remarkPlaceholder')"
           />
         </el-form-item>
 
@@ -64,7 +64,7 @@
             <div class="node-header">
               <div class="node-title">
                 <span class="node-index">{{ nodeIndex + 1 }}</span>
-                <span>{{ node.nodeName || `审批节点 ${nodeIndex + 1}` }}</span>
+                <span>{{ node.nodeName || $t('workflowConfig.defaultNode', { order: nodeIndex + 1 }) }}</span>
               </div>
               <el-button
                 link
@@ -73,45 +73,45 @@
                 :disabled="configForm.nodes.length === 1"
                 @click="removeNode(nodeIndex)"
               >
-                删除节点
+                {{ $t('workflowConfig.deleteNode') }}
               </el-button>
             </div>
 
             <el-row :gutter="16">
               <el-col :span="10">
-                <el-form-item label="节点名称" required>
-                  <el-input v-model="node.nodeName" placeholder="请输入节点名称" />
+                <el-form-item :label="$t('workflowConfig.nodeName')" required>
+                  <el-input v-model="node.nodeName" :placeholder="$t('workflowConfig.nodeNamePlaceholder')" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="审批方式">
+                <el-form-item :label="$t('workflowConfig.approvalMode')">
                   <el-select v-model="node.approvalMode" style="width: 100%">
-                    <el-option label="任一审批人通过" value="ANY" />
-                    <el-option label="全部审批人通过" value="ALL" />
+                    <el-option :label="$t('workflowConfig.anyApprover')" value="ANY" />
+                    <el-option :label="$t('workflowConfig.allApprovers')" value="ALL" />
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="节点顺序">
+                <el-form-item :label="$t('workflowConfig.nodeOrder')">
                   <el-input :model-value="String(nodeIndex + 1)" disabled />
                 </el-form-item>
               </el-col>
             </el-row>
 
             <div class="approver-header">
-              <span>审批人</span>
-              <el-button link type="primary" :icon="Plus" @click="addApprover(nodeIndex)">新增审批人</el-button>
+              <span>{{ $t('workflowConfig.approvers') }}</span>
+              <el-button link type="primary" :icon="Plus" @click="addApprover(nodeIndex)">{{ $t('workflowConfig.addApprover') }}</el-button>
             </div>
             <div class="approver-list">
               <div v-for="(approver, approverIndex) in node.approvers" :key="approver.localKey" class="approver-row">
                 <el-select v-model="approver.approverType" style="width: 140px" @change="approver.approverId = ''">
-                  <el-option label="指定用户" value="USER" />
-                  <el-option label="指定角色" value="ROLE" />
+                  <el-option :label="$t('workflowConfig.userApprover')" value="USER" />
+                  <el-option :label="$t('workflowConfig.roleApprover')" value="ROLE" />
                 </el-select>
                 <el-select
                   v-if="approver.approverType === 'USER'"
                   v-model="approver.approverId"
-                  placeholder="请选择用户"
+                  :placeholder="$t('workflowConfig.selectUser')"
                   filterable
                   style="width: 260px"
                 >
@@ -125,7 +125,7 @@
                 <el-select
                   v-else
                   v-model="approver.approverId"
-                  placeholder="请选择角色"
+                  :placeholder="$t('workflowConfig.selectRole')"
                   filterable
                   style="width: 260px"
                 >
@@ -143,7 +143,7 @@
                   :disabled="node.approvers.length === 1"
                   @click="removeApprover(nodeIndex, approverIndex)"
                 >
-                  删除
+                  {{ $t('workflowConfig.delete') }}
                 </el-button>
               </div>
             </div>
@@ -155,7 +155,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Check, Delete, Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -186,11 +187,13 @@ type NodeForm = {
   approvers: ApproverForm[]
 }
 
-const businessTypes: BusinessTypeOption[] = [
-  { label: '采购订单', value: 'PURCHASE_ORDER' },
-  { label: '销售订单', value: 'SALES_ORDER' },
-  { label: '费用单', value: 'EXPENSE' }
-]
+const { t } = useI18n()
+
+const businessTypes = computed<BusinessTypeOption[]>(() => [
+  { label: t('workflowConfig.businessTypes.purchaseOrder'), value: 'PURCHASE_ORDER' },
+  { label: t('workflowConfig.businessTypes.salesOrder'), value: 'SALES_ORDER' },
+  { label: t('workflowConfig.businessTypes.expense'), value: 'EXPENSE' }
+])
 
 const activeBusinessType = ref('PURCHASE_ORDER')
 const loading = ref(false)
@@ -217,18 +220,20 @@ const createApprover = (): ApproverForm => ({
 
 const createNode = (order: number): NodeForm => ({
   localKey: newLocalKey(),
-  nodeName: `审批节点 ${order}`,
+  nodeName: t('workflowConfig.defaultNode', { order }),
   approvalMode: 'ANY',
   approvers: [createApprover()]
 })
 
 const currentBusinessTypeLabel = () => {
-  return businessTypes.find((item) => item.value === activeBusinessType.value)?.label || activeBusinessType.value
+  return businessTypes.value.find((item) => item.value === activeBusinessType.value)?.label || activeBusinessType.value
 }
 
 const applyConfig = (config: WorkflowApprovalConfig) => {
   configForm.id = config.id
-  configForm.configName = config.configName || `${currentBusinessTypeLabel()}审批配置`
+  configForm.configName = config.configName || t('workflowConfig.defaultConfigName', {
+    businessType: currentBusinessTypeLabel()
+  })
   configForm.status = config.status || 'ACTIVE'
   configForm.taskTimeoutHours = config.taskTimeoutHours || 24
   configForm.remark = config.remark || ''
@@ -236,7 +241,7 @@ const applyConfig = (config: WorkflowApprovalConfig) => {
     ? config.nodes.map((node, index) => ({
       localKey: newLocalKey(),
       id: node.id,
-      nodeName: node.nodeName || `审批节点 ${index + 1}`,
+      nodeName: node.nodeName || t('workflowConfig.defaultNode', { order: index + 1 }),
       approvalMode: node.approvalMode === 'ALL' ? 'ALL' : 'ANY',
       approvers: node.approvers.length
         ? node.approvers.map((approver) => ({
@@ -291,29 +296,32 @@ const removeApprover = (nodeIndex: number, approverIndex: number) => {
 
 const validateConfig = () => {
   if (!configForm.configName.trim()) {
-    ElMessage.warning('请输入配置名称')
+    ElMessage.warning(t('workflowConfig.validation.configName'))
     return false
   }
   if (!configForm.nodes.length) {
-    ElMessage.warning('至少保留一个审批节点')
+    ElMessage.warning(t('workflowConfig.validation.nodeRequired'))
     return false
   }
   if (configForm.taskTimeoutHours < 1 || configForm.taskTimeoutHours > 720) {
-    ElMessage.warning('审批时限必须在1到720小时之间')
+    ElMessage.warning(t('workflowConfig.validation.timeoutRange'))
     return false
   }
   for (const [nodeIndex, node] of configForm.nodes.entries()) {
     if (!node.nodeName.trim()) {
-      ElMessage.warning(`请输入第 ${nodeIndex + 1} 个节点名称`)
+      ElMessage.warning(t('workflowConfig.validation.nodeName', { node: nodeIndex + 1 }))
       return false
     }
     if (!node.approvers.length) {
-      ElMessage.warning(`第 ${nodeIndex + 1} 个节点至少需要一个审批人`)
+      ElMessage.warning(t('workflowConfig.validation.approverRequired', { node: nodeIndex + 1 }))
       return false
     }
     for (const [approverIndex, approver] of node.approvers.entries()) {
       if (!approver.approverId) {
-        ElMessage.warning(`请选择第 ${nodeIndex + 1} 个节点的第 ${approverIndex + 1} 个审批人`)
+        ElMessage.warning(t('workflowConfig.validation.selectApprover', {
+          node: nodeIndex + 1,
+          approver: approverIndex + 1
+        }))
         return false
       }
     }
@@ -344,14 +352,20 @@ const submitConfig = async () => {
   try {
     const config = await saveWorkflowApprovalConfig(activeBusinessType.value, toPayload())
     applyConfig(config)
-    ElMessage.success('审批配置已保存')
+    ElMessage.success(t('workflowConfig.message.saved'))
   } finally {
     saving.value = false
   }
 }
 
-const userLabel = (user: User) => `${user.realName || user.username}（${user.username}）`
-const roleLabel = (role: Role) => `${role.name || role.roleName || role.code}（${role.code || role.roleCode}）`
+const userLabel = (user: User) => t('workflowConfig.userOption', {
+  name: user.realName || user.username,
+  username: user.username
+})
+const roleLabel = (role: Role) => t('workflowConfig.roleOption', {
+  name: role.name || role.roleName || role.code,
+  code: role.code || role.roleCode
+})
 
 onMounted(async () => {
   await loadOptions()

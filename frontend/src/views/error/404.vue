@@ -2,10 +2,10 @@
   <div class="error-page">
     <div class="error-content">
       <div class="error-code">404</div>
-      <div class="error-message">抱歉，您访问的页面不存在</div>
-      <div class="error-description">请检查您输入的网址是否正确，或者点击下面的按钮返回首页</div>
+      <div class="error-message">{{ $t('notFoundPage.message') }}</div>
+      <div class="error-description">{{ $t('notFoundPage.description') }}</div>
       <el-button type="primary" size="large" @click="goHome">
-        返回首页
+        {{ $t('notFoundPage.backHome') }}
       </el-button>
     </div>
   </div>
@@ -35,7 +35,7 @@ const goHome = () => {
 }
 
 .error-code {
-  font-pageSize: 20px;
+  font-size: 72px;
   font-weight: bold;
   color: #409eff;
   line-height: 1;

@@ -2,30 +2,30 @@
   <div class="app-container">
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable style="width: 140px">
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="待审批" value="PENDING" />
-            <el-option label="已批准" value="APPROVED" />
-            <el-option label="已过账" value="POSTED" />
-            <el-option label="已驳回" value="REJECTED" />
-            <el-option label="已作废" value="CANCELLED" />
+        <el-form-item :label="$t('financeReportPages.common.status')">
+          <el-select v-model="queryForm.status" :placeholder="$t('financeReportPages.common.selectPlaceholder')" clearable style="width: 140px">
+            <el-option :label="$t('financeReportPages.expenses.status.draft')" value="DRAFT" />
+            <el-option :label="$t('financeReportPages.expenses.status.pending')" value="PENDING" />
+            <el-option :label="$t('financeReportPages.expenses.status.approved')" value="APPROVED" />
+            <el-option :label="$t('financeReportPages.expenses.status.posted')" value="POSTED" />
+            <el-option :label="$t('financeReportPages.expenses.status.rejected')" value="REJECTED" />
+            <el-option :label="$t('financeReportPages.expenses.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期范围">
+        <el-form-item :label="$t('financeReportPages.common.dateRange')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="$t('financeReportPages.common.rangeSeparator')"
+            :start-placeholder="$t('financeReportPages.common.startDate')"
+            :end-placeholder="$t('financeReportPages.common.endDate')"
             value-format="YYYY-MM-DD"
             style="width: 280px"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -33,45 +33,45 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>费用管理</span>
-          <el-button type="primary" :icon="Plus" @click="handleAdd">新增费用</el-button>
+          <span>{{ $t('financeReportPages.expenses.title') }}</span>
+          <el-button type="primary" :icon="Plus" @click="handleAdd">{{ $t('financeReportPages.expenses.newExpense') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="expenseNo" label="费用单号" width="170" />
-        <el-table-column prop="expenseDate" label="费用日期" width="120" />
-        <el-table-column prop="subjectId" label="费用科目" min-width="180">
+        <el-table-column prop="expenseNo" :label="$t('financeReportPages.expenses.expenseNo')" width="170" />
+        <el-table-column prop="expenseDate" :label="$t('financeReportPages.expenses.expenseDate')" width="120" />
+        <el-table-column prop="subjectId" :label="$t('financeReportPages.expenses.expenseSubject')" min-width="180">
           <template #default="{ row }">{{ subjectName(row.subjectId) }}</template>
         </el-table-column>
-        <el-table-column prop="paymentSubjectId" label="支付科目" min-width="180">
+        <el-table-column prop="paymentSubjectId" :label="$t('financeReportPages.expenses.paymentSubject')" min-width="180">
           <template #default="{ row }">{{ subjectName(row.paymentSubjectId) }}</template>
         </el-table-column>
-        <el-table-column prop="amount" label="费用金额" width="130" align="right">
+        <el-table-column prop="amount" :label="$t('financeReportPages.expenses.expenseAmount')" width="130" align="right">
           <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="voucherNo" label="凭证" width="180" show-overflow-tooltip>
+        <el-table-column prop="voucherNo" :label="$t('financeReportPages.expenses.voucher')" width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ row.voucherNo || '-' }}</template>
         </el-table-column>
-        <el-table-column label="凭证校验" width="110" align="center">
+        <el-table-column :label="$t('financeReportPages.expenses.voucherValidation')" width="110" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.voucherNo" :type="row.voucherBalanced && row.amountMatched ? 'success' : 'danger'" size="small">
-              {{ row.voucherBalanced && row.amountMatched ? '平衡' : '异常' }}
+              {{ row.voucherBalanced && row.amountMatched ? $t('financeReportPages.expenses.balanced') : $t('financeReportPages.common.abnormal') }}
             </el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-        <el-table-column label="操作" width="380" align="center" fixed="right">
+        <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="380" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="'finance:expense:manage'" type="primary" link :icon="View" @click="handleView(row)">查看</el-button>
+            <el-button v-permission="'finance:expense:manage'" type="primary" link :icon="View" @click="handleView(row)">{{ $t('financeReportPages.common.view') }}</el-button>
             <el-button
               v-permission="'finance:expense:manage'"
               type="primary"
@@ -79,7 +79,7 @@
               :icon="DataAnalysis"
               @click="handleReconciliation(row)"
             >
-              对账
+              {{ $t('financeReportPages.expenses.reconciliation') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT' || row.status === 'REJECTED'"
@@ -89,7 +89,7 @@
               :icon="Edit"
               @click="handleEdit(row)"
             >
-              编辑
+              {{ $t('financeReportPages.common.edit') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT' || row.status === 'REJECTED'"
@@ -99,7 +99,7 @@
               :icon="Promotion"
               @click="handleSubmit(row)"
             >
-              提交
+              {{ $t('financeReportPages.common.submit') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT' || row.status === 'REJECTED'"
@@ -109,7 +109,7 @@
               :icon="CircleClose"
               @click="handleCancel(row)"
             >
-              作废
+              {{ $t('financeReportPages.common.void') }}
             </el-button>
             <el-button
               v-if="row.status === 'PENDING'"
@@ -119,7 +119,7 @@
               :icon="CircleCheck"
               @click="handleApprove(row)"
             >
-              审批
+              {{ $t('financeReportPages.common.approve') }}
             </el-button>
             <el-button
               v-if="row.status === 'PENDING'"
@@ -129,7 +129,7 @@
               :icon="CircleClose"
               @click="handleReject(row)"
             >
-              驳回
+              {{ $t('financeReportPages.common.reject') }}
             </el-button>
             <el-button
               v-if="row.status === 'APPROVED'"
@@ -139,7 +139,7 @@
               :icon="Money"
               @click="handlePost(row)"
             >
-              过账
+              {{ $t('financeReportPages.common.post') }}
             </el-button>
             <el-button
               v-if="row.status === 'POSTED' && !row.reversed"
@@ -149,7 +149,7 @@
               :icon="RefreshLeft"
               @click="handleReverse(row)"
             >
-              红冲
+              {{ $t('financeReportPages.expenses.reverse') }}
             </el-button>
           </template>
         </el-table-column>
@@ -169,8 +169,8 @@
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="640px" @close="handleDialogClose">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
-        <el-form-item label="费用科目" prop="subjectId">
-          <el-select v-model="formData.subjectId" placeholder="请选择费用科目" filterable style="width: 100%">
+        <el-form-item :label="$t('financeReportPages.expenses.expenseSubject')" prop="subjectId">
+          <el-select v-model="formData.subjectId" :placeholder="$t('financeReportPages.expenses.selectExpenseSubject')" filterable style="width: 100%">
             <el-option
               v-for="subject in expenseSubjects"
               :key="subject.id"
@@ -179,8 +179,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="支付科目" prop="paymentSubjectId">
-          <el-select v-model="formData.paymentSubjectId" placeholder="请选择支付科目" filterable style="width: 100%">
+        <el-form-item :label="$t('financeReportPages.expenses.paymentSubject')" prop="paymentSubjectId">
+          <el-select v-model="formData.paymentSubjectId" :placeholder="$t('financeReportPages.expenses.selectPaymentSubject')" filterable style="width: 100%">
             <el-option
               v-for="subject in paymentSubjects"
               :key="subject.id"
@@ -189,149 +189,149 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="费用日期" prop="expenseDate">
+        <el-form-item :label="$t('financeReportPages.expenses.expenseDate')" prop="expenseDate">
           <el-date-picker
             v-model="formData.expenseDate"
             type="date"
-            placeholder="请选择日期"
+            :placeholder="$t('financeReportPages.expenses.selectDate')"
             value-format="YYYY-MM-DD"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="费用金额" prop="amount">
+        <el-form-item :label="$t('financeReportPages.expenses.expenseAmount')" prop="amount">
           <el-input-number v-model="formData.amount" :min="0.01" :precision="2" :controls="false" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model="formData.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+        <el-form-item :label="$t('financeReportPages.common.remark')" prop="remark">
+          <el-input v-model="formData.remark" type="textarea" :rows="3" :placeholder="$t('financeReportPages.expenses.remarkPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSave">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSave">{{ $t('financeReportPages.common.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="viewDialogVisible" title="费用详情" width="760px">
+    <el-dialog v-model="viewDialogVisible" :title="$t('financeReportPages.expenses.detailTitle')" width="760px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="费用单号">{{ viewData.expenseNo }}</el-descriptions-item>
-        <el-descriptions-item label="费用日期">{{ viewData.expenseDate }}</el-descriptions-item>
-        <el-descriptions-item label="费用科目">{{ subjectName(viewData.subjectId) }}</el-descriptions-item>
-        <el-descriptions-item label="支付科目">{{ subjectName(viewData.paymentSubjectId) }}</el-descriptions-item>
-        <el-descriptions-item label="费用金额">{{ formatAmount(viewData.amount) }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="$t('financeReportPages.expenses.expenseNo')">{{ viewData.expenseNo }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.expenseDate')">{{ viewData.expenseDate }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.expenseSubject')">{{ subjectName(viewData.subjectId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.paymentSubject')">{{ subjectName(viewData.paymentSubjectId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.expenseAmount')">{{ formatAmount(viewData.amount) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.common.status')">
           <el-tag :type="getStatusType(viewData.status)">
             {{ getStatusLabel(viewData.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="凭证号">{{ viewData.voucherNo || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="凭证状态">{{ viewData.voucherStatus || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="凭证分录">{{ viewData.voucherEntryCount ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="凭证金额">{{ viewData.voucherAmount == null ? '-' : formatAmount(viewData.voucherAmount) }}</el-descriptions-item>
-        <el-descriptions-item label="红冲凭证">{{ viewData.reversalVoucherNo || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="红冲状态">{{ viewData.reversed ? '已红冲' : '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ viewData.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.voucherNo')">{{ viewData.voucherNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.voucherStatus')">{{ viewData.voucherStatus ? getStatusLabel(viewData.voucherStatus) : '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.voucherEntries')">{{ viewData.voucherEntryCount ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.voucherAmount')">{{ viewData.voucherAmount == null ? '-' : formatAmount(viewData.voucherAmount) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.reversalVoucher')">{{ viewData.reversalVoucherNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.reversalStatus')">{{ viewData.reversed ? $t('financeReportPages.expenses.reversed') : '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.common.remark')" :span="2">{{ viewData.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
-        <el-button @click="viewDialogVisible = false">关闭</el-button>
+        <el-button @click="viewDialogVisible = false">{{ $t('financeReportPages.common.close') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="reconciliationDialogVisible" title="费用对账" width="980px" destroy-on-close>
+    <el-dialog v-model="reconciliationDialogVisible" :title="$t('financeReportPages.expenses.reconciliationTitle')" width="980px" destroy-on-close>
       <div v-loading="reconciliationLoading">
         <template v-if="reconciliationData">
           <el-alert
             class="reconciliation-alert"
-            :title="reconciliationPassed ? '费用、凭证与分录核对一致' : '费用对账存在异常，请核查凭证和分录'"
+            :title="reconciliationPassed ? $t('financeReportPages.expenses.reconciliationPassed') : $t('financeReportPages.expenses.reconciliationFailed')"
             :type="reconciliationPassed ? 'success' : 'warning'"
             show-icon
             :closable="false"
           />
           <el-descriptions :column="3" border>
-            <el-descriptions-item label="费用单号">{{ reconciliationData.expense.expenseNo }}</el-descriptions-item>
-            <el-descriptions-item label="费用金额">{{ formatAmount(reconciliationData.expense.amount) }}</el-descriptions-item>
-            <el-descriptions-item label="原凭证">{{ reconciliationData.voucher?.voucherNo || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="借方合计">{{ formatAmount(reconciliationData.debitTotal) }}</el-descriptions-item>
-            <el-descriptions-item label="贷方合计">{{ formatAmount(reconciliationData.creditTotal) }}</el-descriptions-item>
-            <el-descriptions-item label="红冲凭证">{{ reconciliationData.reversalVoucher?.voucherNo || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="凭证存在">
+            <el-descriptions-item :label="$t('financeReportPages.expenses.expenseNo')">{{ reconciliationData.expense.expenseNo }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.expenses.expenseAmount')">{{ formatAmount(reconciliationData.expense.amount) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.expenses.originalVoucher')">{{ reconciliationData.voucher?.voucherNo || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.expenses.debitTotal')">{{ formatAmount(reconciliationData.debitTotal) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.expenses.creditTotal')">{{ formatAmount(reconciliationData.creditTotal) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.expenses.reversalVoucher')">{{ reconciliationData.reversalVoucher?.voucherNo || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.expenses.voucherExists')">
               <el-tag :type="reconciliationData.voucherMissing ? 'danger' : 'success'">
-                {{ reconciliationData.voucherMissing ? '缺失' : '正常' }}
+                {{ reconciliationData.voucherMissing ? $t('financeReportPages.expenses.missing') : $t('financeReportPages.common.normal') }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="分录平衡">
+            <el-descriptions-item :label="$t('financeReportPages.expenses.entryBalanced')">
               <el-tag :type="checkTagType(reconciliationData.voucherBalanced)">
                 {{ checkLabel(reconciliationData.voucherBalanced) }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="金额匹配">
+            <el-descriptions-item :label="$t('financeReportPages.expenses.amountMatched')">
               <el-tag :type="checkTagType(reconciliationData.amountMatched)">
                 {{ checkLabel(reconciliationData.amountMatched) }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="凭证关联">
+            <el-descriptions-item :label="$t('financeReportPages.expenses.voucherLinked')">
               <el-tag :type="checkTagType(reconciliationData.voucherLinkedToExpense)">
                 {{ checkLabel(reconciliationData.voucherLinkedToExpense) }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="红冲平衡">
+            <el-descriptions-item :label="$t('financeReportPages.expenses.reversalBalanced')">
               <el-tag :type="checkTagType(!reconciliationData.reversed || reconciliationData.reversalVoucherBalanced)">
-                {{ reconciliationData.reversed ? checkLabel(reconciliationData.reversalVoucherBalanced) : '未红冲' }}
+                {{ reconciliationData.reversed ? checkLabel(reconciliationData.reversalVoucherBalanced) : $t('financeReportPages.expenses.notReversed') }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="红冲金额">
+            <el-descriptions-item :label="$t('financeReportPages.expenses.reversalAmount')">
               <el-tag :type="checkTagType(!reconciliationData.reversed || reconciliationData.reversalAmountMatched)">
-                {{ reconciliationData.reversed ? checkLabel(reconciliationData.reversalAmountMatched) : '未红冲' }}
+                {{ reconciliationData.reversed ? checkLabel(reconciliationData.reversalAmountMatched) : $t('financeReportPages.expenses.notReversed') }}
               </el-tag>
             </el-descriptions-item>
           </el-descriptions>
 
-          <section class="entry-section" aria-label="原凭证分录">
-            <div class="section-title">原凭证分录</div>
+          <section class="entry-section" :aria-label="$t('financeReportPages.expenses.originalEntries')">
+            <div class="section-title">{{ $t('financeReportPages.expenses.originalEntries') }}</div>
             <el-table :data="reconciliationData.entries" border stripe>
-              <el-table-column prop="lineNo" label="行号" width="80" />
-              <el-table-column prop="subjectCode" label="科目编码" width="140" />
-              <el-table-column prop="subjectName" label="科目名称" min-width="180" show-overflow-tooltip />
-              <el-table-column prop="debitAmount" label="借方金额" width="130" align="right">
+              <el-table-column prop="lineNo" :label="$t('financeReportPages.common.lineNo')" width="80" />
+              <el-table-column prop="subjectCode" :label="$t('financeReportPages.common.subjectCode')" width="140" />
+              <el-table-column prop="subjectName" :label="$t('financeReportPages.common.subjectName')" min-width="180" show-overflow-tooltip />
+              <el-table-column prop="debitAmount" :label="$t('financeReportPages.common.debitAmount')" width="130" align="right">
                 <template #default="{ row }">{{ formatAmount(row.debitAmount) }}</template>
               </el-table-column>
-              <el-table-column prop="creditAmount" label="贷方金额" width="130" align="right">
+              <el-table-column prop="creditAmount" :label="$t('financeReportPages.common.creditAmount')" width="130" align="right">
                 <template #default="{ row }">{{ formatAmount(row.creditAmount) }}</template>
               </el-table-column>
-              <el-table-column prop="summary" label="摘要" min-width="180" show-overflow-tooltip />
+              <el-table-column prop="summary" :label="$t('financeReportPages.common.summary')" min-width="180" show-overflow-tooltip />
             </el-table>
           </section>
 
-          <section class="entry-section" aria-label="红冲分录">
-            <div class="section-title">红冲分录</div>
+          <section class="entry-section" :aria-label="$t('financeReportPages.expenses.reversalEntries')">
+            <div class="section-title">{{ $t('financeReportPages.expenses.reversalEntries') }}</div>
             <el-table :data="reconciliationData.reversalEntries" border stripe>
-              <el-table-column prop="lineNo" label="行号" width="80" />
-              <el-table-column prop="subjectCode" label="科目编码" width="140" />
-              <el-table-column prop="subjectName" label="科目名称" min-width="180" show-overflow-tooltip />
-              <el-table-column prop="debitAmount" label="借方金额" width="130" align="right">
+              <el-table-column prop="lineNo" :label="$t('financeReportPages.common.lineNo')" width="80" />
+              <el-table-column prop="subjectCode" :label="$t('financeReportPages.common.subjectCode')" width="140" />
+              <el-table-column prop="subjectName" :label="$t('financeReportPages.common.subjectName')" min-width="180" show-overflow-tooltip />
+              <el-table-column prop="debitAmount" :label="$t('financeReportPages.common.debitAmount')" width="130" align="right">
                 <template #default="{ row }">{{ formatAmount(row.debitAmount) }}</template>
               </el-table-column>
-              <el-table-column prop="creditAmount" label="贷方金额" width="130" align="right">
+              <el-table-column prop="creditAmount" :label="$t('financeReportPages.common.creditAmount')" width="130" align="right">
                 <template #default="{ row }">{{ formatAmount(row.creditAmount) }}</template>
               </el-table-column>
-              <el-table-column prop="summary" label="摘要" min-width="180" show-overflow-tooltip />
+              <el-table-column prop="summary" :label="$t('financeReportPages.common.summary')" min-width="180" show-overflow-tooltip />
             </el-table>
           </section>
         </template>
       </div>
       <template #footer>
-        <el-button @click="reconciliationDialogVisible = false">关闭</el-button>
+        <el-button @click="reconciliationDialogVisible = false">{{ $t('financeReportPages.common.close') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="rejectDialogVisible" title="驳回费用" width="500px">
+    <el-dialog v-model="rejectDialogVisible" :title="$t('financeReportPages.expenses.rejectTitle')" width="500px">
       <el-form :model="rejectForm" label-width="80px">
-        <el-form-item label="驳回原因" required>
-          <el-input v-model="rejectForm.reason" type="textarea" :rows="4" placeholder="请输入驳回原因" />
+        <el-form-item :label="$t('financeReportPages.expenses.rejectReason')" required>
+          <el-input v-model="rejectForm.reason" type="textarea" :rows="4" :placeholder="$t('financeReportPages.expenses.rejectReasonPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="rejectDialogVisible = false">取消</el-button>
-        <el-button type="danger" :loading="submitLoading" @click="handleConfirmReject">确定驳回</el-button>
+        <el-button @click="rejectDialogVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button>
+        <el-button type="danger" :loading="submitLoading" @click="handleConfirmReject">{{ $t('financeReportPages.expenses.confirmReject') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -340,7 +340,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { formatLocalizedNumber } from '@/utils/locale'
+import { useI18n } from 'vue-i18n'
+import { formatBusinessDate, formatLocalizedNumber } from '@/utils/locale'
 import {
   CircleCheck,
   CircleClose,
@@ -372,6 +373,7 @@ import {
   type ExpenseReconciliation
 } from '@/api/finance'
 
+const { t } = useI18n()
 let queryForm = reactive({
   status: '',
   dateFrom: '',
@@ -382,7 +384,6 @@ const loading = ref(false)
 const tableData = ref<Expense[]>([])
 const subjectOptions = ref<AccountSubject[]>([])
 const dialogVisible = ref(false)
-const dialogTitle = ref('')
 const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
 const viewDialogVisible = ref(false)
@@ -406,18 +407,21 @@ const formData = reactive({
   amount: 0,
   remark: ''
 })
+const dialogTitle = computed(() => formData.id
+  ? t('financeReportPages.expenses.editTitle')
+  : t('financeReportPages.expenses.createTitle'))
 
 const rejectForm = reactive({
   id: '' as string | number,
   reason: ''
 })
 
-const formRules: FormRules = {
-  subjectId: [{ required: true, message: '请选择费用科目', trigger: 'change' }],
-  paymentSubjectId: [{ required: true, message: '请选择支付科目', trigger: 'change' }],
-  expenseDate: [{ required: true, message: '请选择费用日期', trigger: 'change' }],
-  amount: [{ required: true, message: '请输入费用金额', trigger: 'blur' }]
-}
+const formRules = computed<FormRules>(() => ({
+  subjectId: [{ required: true, message: t('financeReportPages.expenses.validation.expenseSubject'), trigger: 'change' }],
+  paymentSubjectId: [{ required: true, message: t('financeReportPages.expenses.validation.paymentSubject'), trigger: 'change' }],
+  expenseDate: [{ required: true, message: t('financeReportPages.expenses.validation.expenseDate'), trigger: 'change' }],
+  amount: [{ required: true, message: t('financeReportPages.expenses.validation.amount'), trigger: 'blur' }]
+}))
 
 const subjectMap = computed(() => new Map(subjectOptions.value.map((subject) => [String(subject.id), subject])))
 const expenseSubjects = computed(() => subjectOptions.value.filter((subject) => subject.status === 'ACTIVE' && subject.category === 'EXPENSE'))
@@ -444,7 +448,7 @@ const loadData = async () => {
     tableData.value = res.records || []
     pagination.total = res.total || 0
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('financeReportPages.expenses.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -455,7 +459,7 @@ const loadSubjects = async () => {
     const subjects = await getAccountSubjectTree()
     subjectOptions.value = flattenSubjects(subjects || [])
   } catch (error) {
-    ElMessage.error('加载会计科目失败')
+    ElMessage.error(t('financeReportPages.expenses.message.subjectsLoadFailed'))
   }
 }
 
@@ -480,7 +484,6 @@ const handleReset = () => {
 
 const handleAdd = () => {
   resetForm()
-  dialogTitle.value = '新增费用'
   formData.expenseDate = today()
   dialogVisible.value = true
 }
@@ -496,10 +499,9 @@ const handleEdit = async (row: Expense) => {
       amount: Number(expense.amount || 0),
       remark: expense.remark || ''
     })
-    dialogTitle.value = '编辑费用'
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载费用详情失败')
+    ElMessage.error(t('financeReportPages.expenses.message.detailLoadFailed'))
   }
 }
 
@@ -508,7 +510,7 @@ const handleView = async (row: Expense) => {
     viewData.value = await getExpense(row.id)
     viewDialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载费用详情失败')
+    ElMessage.error(t('financeReportPages.expenses.message.detailLoadFailed'))
   }
 }
 
@@ -519,7 +521,7 @@ const handleReconciliation = async (row: Expense) => {
   try {
     reconciliationData.value = await getExpenseReconciliation(row.id)
   } catch (error) {
-    ElMessage.error('加载费用对账失败')
+    ElMessage.error(t('financeReportPages.expenses.message.reconciliationLoadFailed'))
   } finally {
     reconciliationLoading.value = false
   }
@@ -527,56 +529,76 @@ const handleReconciliation = async (row: Expense) => {
 
 const handleSubmit = async (row: Expense) => {
   try {
-    await ElMessageBox.confirm(`确定要提交费用单"${row.expenseNo}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('financeReportPages.expenses.message.submitConfirm', { no: row.expenseNo }),
+      t('financeReportPages.common.prompt'),
+      { type: 'warning' }
+    )
     await submitExpense(row.id)
-    ElMessage.success('提交成功')
+    ElMessage.success(t('financeReportPages.expenses.message.submitted'))
     loadData()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('提交失败')
+    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.submitFailed'))
   }
 }
 
 const handleApprove = async (row: Expense) => {
   try {
-    await ElMessageBox.confirm(`确定要批准费用单"${row.expenseNo}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('financeReportPages.expenses.message.approveConfirm', { no: row.expenseNo }),
+      t('financeReportPages.common.prompt'),
+      { type: 'warning' }
+    )
     await approveExpense(row.id)
-    ElMessage.success('审批通过')
+    ElMessage.success(t('financeReportPages.expenses.message.approved'))
     loadData()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('审批失败')
+    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.approveFailed'))
   }
 }
 
 const handlePost = async (row: Expense) => {
   try {
-    await ElMessageBox.confirm(`确定要将费用单"${row.expenseNo}"过账吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('financeReportPages.expenses.message.postConfirm', { no: row.expenseNo }),
+      t('financeReportPages.common.prompt'),
+      { type: 'warning' }
+    )
     await postExpense(row.id)
-    ElMessage.success('过账成功')
+    ElMessage.success(t('financeReportPages.expenses.message.posted'))
     loadData()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('过账失败')
+    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.postFailed'))
   }
 }
 
 const handleReverse = async (row: Expense) => {
   try {
-    await ElMessageBox.confirm(`确定要红冲费用单"${row.expenseNo}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('financeReportPages.expenses.message.reverseConfirm', { no: row.expenseNo }),
+      t('financeReportPages.common.prompt'),
+      { type: 'warning' }
+    )
     await reverseExpense(row.id)
-    ElMessage.success('红冲成功')
+    ElMessage.success(t('financeReportPages.expenses.message.reversed'))
     loadData()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('红冲失败')
+    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.reverseFailed'))
   }
 }
 
 const handleCancel = async (row: Expense) => {
   try {
-    await ElMessageBox.confirm(`确定要作废费用单"${row.expenseNo}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('financeReportPages.expenses.message.cancelConfirm', { no: row.expenseNo }),
+      t('financeReportPages.common.prompt'),
+      { type: 'warning' }
+    )
     await cancelExpense(row.id)
-    ElMessage.success('作废成功')
+    ElMessage.success(t('financeReportPages.expenses.message.cancelled'))
     loadData()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('作废失败')
+    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.cancelFailed'))
   }
 }
 
@@ -588,17 +610,17 @@ const handleReject = (row: Expense) => {
 
 const handleConfirmReject = async () => {
   if (!rejectForm.reason.trim()) {
-    ElMessage.warning('请输入驳回原因')
+    ElMessage.warning(t('financeReportPages.expenses.message.rejectReasonRequired'))
     return
   }
   submitLoading.value = true
   try {
     await rejectExpense(rejectForm.id, rejectForm.reason)
-    ElMessage.success('驳回成功')
+    ElMessage.success(t('financeReportPages.expenses.message.rejected'))
     rejectDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error('驳回失败')
+    ElMessage.error(t('financeReportPages.expenses.message.rejectFailed'))
   } finally {
     submitLoading.value = false
   }
@@ -622,11 +644,11 @@ const handleSave = async () => {
       } else {
         await createExpense(payload)
       }
-      ElMessage.success('保存成功')
+      ElMessage.success(t('financeReportPages.expenses.message.saved'))
       dialogVisible.value = false
       loadData()
     } catch (error) {
-      ElMessage.error('保存失败')
+      ElMessage.error(t('financeReportPages.expenses.message.saveFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -657,24 +679,26 @@ const subjectLabel = (subject: AccountSubject) => `${subject.code || subject.sub
 const subjectName = (id?: string | number) => {
   if (id == null) return '-'
   const subject = subjectMap.value.get(String(id))
-  return subject ? subjectLabel(subject) : `科目 ${id}`
+  return subject ? subjectLabel(subject) : t('financeReportPages.expenses.subjectFallback', { id })
 }
 
 const formatAmount = (amount?: number) =>
   formatLocalizedNumber(Number(amount || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const checkLabel = (passed: boolean) => (passed ? '正常' : '异常')
+const checkLabel = (passed: boolean) => passed
+  ? t('financeReportPages.common.normal')
+  : t('financeReportPages.common.abnormal')
 
 const checkTagType = (passed: boolean): 'success' | 'danger' => (passed ? 'success' : 'danger')
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    DRAFT: '草稿',
-    PENDING: '待审批',
-    APPROVED: '已批准',
-    REJECTED: '已驳回',
-    POSTED: '已过账',
-    CANCELLED: '已作废'
+    DRAFT: t('financeReportPages.expenses.status.draft'),
+    PENDING: t('financeReportPages.expenses.status.pending'),
+    APPROVED: t('financeReportPages.expenses.status.approved'),
+    REJECTED: t('financeReportPages.expenses.status.rejected'),
+    POSTED: t('financeReportPages.expenses.status.posted'),
+    CANCELLED: t('financeReportPages.expenses.status.cancelled')
   }
   return map[status] || status
 }
@@ -691,7 +715,7 @@ const getStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => formatBusinessDate()
 
 onMounted(() => {
   loadSubjects()

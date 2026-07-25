@@ -2,12 +2,12 @@
   <div class="exception-rule-page">
     <el-card shadow="never" class="filter-panel">
       <el-form :model="ruleQueryForm" inline @submit.prevent>
-        <el-form-item label="关键字">
+        <el-form-item :label="t('exceptionRule.keyword')">
           <el-input
             v-model="ruleQueryForm.keyword"
             class="keyword-input"
             clearable
-            placeholder="规则名称、编码、说明"
+            :placeholder="t('exceptionRule.keywordPlaceholder')"
             @keyup.enter="handleRuleQuery"
           >
             <template #prefix>
@@ -15,20 +15,20 @@
             </template>
           </el-input>
         </el-form-item>
-        <el-form-item label="类型">
-          <el-select v-model="ruleQueryForm.ruleType" clearable placeholder="全部" class="type-select">
+        <el-form-item :label="t('exceptionRule.type')">
+          <el-select v-model="ruleQueryForm.ruleType" clearable :placeholder="t('exceptionRule.all')" class="type-select">
             <el-option v-for="item in ruleTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="ruleQueryForm.enabled" clearable placeholder="全部" class="state-select">
-            <el-option label="启用" value="true" />
-            <el-option label="停用" value="false" />
+        <el-form-item :label="t('exceptionRule.status')">
+          <el-select v-model="ruleQueryForm.enabled" clearable :placeholder="t('exceptionRule.all')" class="state-select">
+            <el-option :label="t('exceptionRule.enabled')" value="true" />
+            <el-option :label="t('exceptionRule.disabled')" value="false" />
           </el-select>
         </el-form-item>
         <el-form-item class="filter-actions">
-          <el-button type="primary" :icon="Search" :loading="ruleLoading" @click="handleRuleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleRuleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" :loading="ruleLoading" @click="handleRuleQuery">{{ t('exceptionRule.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleRuleReset">{{ t('exceptionRule.reset') }}</el-button>
           <el-button
             v-permission="'exception-rule:execute'"
             type="success"
@@ -36,7 +36,7 @@
             :loading="scanAllLoading"
             @click="handleScanAll"
           >
-            扫描全部
+            {{ t('exceptionRule.scanAll') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -64,7 +64,7 @@
     >
       <template #title>
         <span>
-          扫描完成：命中 {{ totalScanHits }} 条，新建工单 {{ totalScanTickets }} 张，复用工单 {{ totalScanDuplicates }} 张
+          {{ t('exceptionRule.scanSummary', { hits: totalScanHits, tickets: totalScanTickets, duplicates: totalScanDuplicates }) }}
         </span>
       </template>
     </el-alert>
@@ -72,13 +72,13 @@
     <el-card shadow="never" class="table-panel">
       <template #header>
         <div class="panel-header">
-          <span>异常规则</span>
-          <el-text type="info" size="small">本页 {{ ruleData.length }} 条 / 共 {{ rulePagination.total }} 条</el-text>
+          <span>{{ t('exceptionRule.title') }}</span>
+          <el-text type="info" size="small">{{ t('exceptionRule.pageSummary', { current: ruleData.length, total: rulePagination.total }) }}</el-text>
         </div>
       </template>
 
       <el-table v-loading="ruleLoading" :data="ruleData" border stripe row-key="id">
-        <el-table-column prop="ruleName" label="规则" min-width="220" fixed="left" show-overflow-tooltip>
+        <el-table-column prop="ruleName" :label="t('exceptionRule.rule')" min-width="220" fixed="left" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="rule-title">
               <strong>{{ row.ruleName }}</strong>
@@ -86,35 +86,35 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="ruleType" label="类型" width="150">
+        <el-table-column prop="ruleType" :label="t('exceptionRule.type')" width="150">
           <template #default="{ row }">
             <el-tag size="small" effect="plain">{{ ruleTypeLabel(row.ruleType) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="阈值" width="128" align="center">
+        <el-table-column :label="t('exceptionRule.threshold')" width="128" align="center">
           <template #default="{ row }">{{ thresholdLabel(row) }}</template>
         </el-table-column>
-        <el-table-column prop="priority" label="优先级" width="96" align="center">
+        <el-table-column prop="priority" :label="t('exceptionRule.priority')" width="96" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="priorityType(row.priority)">
               {{ priorityLabel(row.priority) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="enabled" label="状态" width="92" align="center">
+        <el-table-column prop="enabled" :label="t('exceptionRule.status')" width="92" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.enabled ? 'success' : 'info'">
-              {{ row.enabled ? '启用' : '停用' }}
+              {{ row.enabled ? t('exceptionRule.enabled') : t('exceptionRule.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="assigneeUserId" label="处理人" width="96" align="center">
+        <el-table-column prop="assigneeUserId" :label="t('exceptionRule.assignee')" width="96" align="center">
           <template #default="{ row }">{{ row.assigneeUserId || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="scheduleIntervalMinutes" label="间隔" width="92" align="right">
-          <template #default="{ row }">{{ row.scheduleIntervalMinutes || 60 }} 分钟</template>
+        <el-table-column prop="scheduleIntervalMinutes" :label="t('exceptionRule.interval')" width="92" align="right">
+          <template #default="{ row }">{{ t('exceptionRule.minutes', { count: row.scheduleIntervalMinutes || 60 }) }}</template>
         </el-table-column>
-        <el-table-column prop="lastScanStatus" label="扫描状态" width="110" align="center">
+        <el-table-column prop="lastScanStatus" :label="t('exceptionRule.scanStatus')" width="110" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.lastScanStatus" size="small" :type="scanStatusType(row.lastScanStatus)">
               {{ scanStatusLabel(row.lastScanStatus) }}
@@ -122,22 +122,22 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="lastHitCount" label="命中" width="80" align="right">
+        <el-table-column prop="lastHitCount" :label="t('exceptionRule.hits')" width="80" align="right">
           <template #default="{ row }">{{ row.lastHitCount ?? 0 }}</template>
         </el-table-column>
-        <el-table-column prop="lastTicketCreatedCount" label="新工单" width="90" align="right">
+        <el-table-column prop="lastTicketCreatedCount" :label="t('exceptionRule.newTickets')" width="90" align="right">
           <template #default="{ row }">{{ row.lastTicketCreatedCount ?? 0 }}</template>
         </el-table-column>
-        <el-table-column prop="lastScanTime" label="最近扫描" width="160">
+        <el-table-column prop="lastScanTime" :label="t('exceptionRule.recentScan')" width="160">
           <template #default="{ row }">{{ formatDateTime(row.lastScanTime) }}</template>
         </el-table-column>
-        <el-table-column prop="nextScanTime" label="下次扫描" width="160">
+        <el-table-column prop="nextScanTime" :label="t('exceptionRule.nextScan')" width="160">
           <template #default="{ row }">{{ formatDateTime(row.nextScanTime) }}</template>
         </el-table-column>
-        <el-table-column label="说明" min-width="190" show-overflow-tooltip>
+        <el-table-column :label="t('exceptionRule.description')" min-width="190" show-overflow-tooltip>
           <template #default="{ row }">{{ row.lastErrorMessage || row.remark || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="238" align="center" fixed="right">
+        <el-table-column :label="t('exceptionRule.operations')" width="238" align="center" fixed="right">
           <template #default="{ row }">
             <div class="row-actions">
               <el-button
@@ -150,7 +150,7 @@
                 :loading="scanRuleLoadingId === row.id"
                 @click="handleScanRule(row)"
               >
-                扫描
+                {{ t('exceptionRule.scan') }}
               </el-button>
               <el-button
                 v-permission="'exception-rule:manage'"
@@ -160,7 +160,7 @@
                 :icon="EditPen"
                 @click="openEditDialog(row)"
               >
-                配置
+                {{ t('exceptionRule.configure') }}
               </el-button>
               <el-button
                 v-permission="'exception-rule:manage'"
@@ -171,7 +171,7 @@
                 :loading="toggleLoadingId === row.id"
                 @click="handleToggleRule(row)"
               >
-                {{ row.enabled ? '停用' : '启用' }}
+                {{ row.enabled ? t('exceptionRule.disable') : t('exceptionRule.enable') }}
               </el-button>
             </div>
           </template>
@@ -194,42 +194,42 @@
       <template #header>
         <div class="hit-header">
           <div class="panel-header-title">
-            <span>规则命中</span>
-            <el-text type="info" size="small">最近命中 {{ hitPagination.total }} 条</el-text>
+            <span>{{ t('exceptionRule.hitTitle') }}</span>
+            <el-text type="info" size="small">{{ t('exceptionRule.hitSummary', { total: hitPagination.total }) }}</el-text>
           </div>
           <el-form :model="hitQueryForm" inline class="hit-filter" @submit.prevent>
-            <el-form-item label="类型">
-              <el-select v-model="hitQueryForm.ruleType" clearable placeholder="全部" class="hit-type-select">
+            <el-form-item :label="t('exceptionRule.type')">
+              <el-select v-model="hitQueryForm.ruleType" clearable :placeholder="t('exceptionRule.all')" class="hit-type-select">
                 <el-option v-for="item in ruleTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
-            <el-form-item label="来源">
+            <el-form-item :label="t('exceptionRule.source')">
               <el-input
                 v-model="hitQueryForm.sourceNo"
                 clearable
-                placeholder="来源编号"
+                :placeholder="t('exceptionRule.sourceNoPlaceholder')"
                 class="hit-source-input"
                 @keyup.enter="handleHitQuery"
               />
             </el-form-item>
-            <el-form-item label="工单">
+            <el-form-item :label="t('exceptionRule.ticket')">
               <el-input
                 v-model="hitQueryForm.ticketId"
                 clearable
                 class="hit-ticket-input"
-                placeholder="工单ID"
+                :placeholder="t('exceptionRule.ticketIdPlaceholder')"
               />
             </el-form-item>
             <el-form-item>
-              <el-button :icon="Search" :loading="hitLoading" @click="handleHitQuery">筛选</el-button>
-              <el-button :icon="Refresh" @click="handleHitReset">重置</el-button>
+              <el-button :icon="Search" :loading="hitLoading" @click="handleHitQuery">{{ t('exceptionRule.filter') }}</el-button>
+              <el-button :icon="Refresh" @click="handleHitReset">{{ t('exceptionRule.reset') }}</el-button>
             </el-form-item>
           </el-form>
         </div>
       </template>
 
       <el-table v-loading="hitLoading" :data="hitData" border stripe row-key="id">
-        <el-table-column prop="title" label="命中事项" min-width="260" fixed="left" show-overflow-tooltip>
+        <el-table-column prop="title" :label="t('exceptionRule.hitSubject')" min-width="260" fixed="left" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="hit-title">
               <strong>{{ row.title }}</strong>
@@ -237,10 +237,10 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="ruleType" label="类型" width="150">
+        <el-table-column prop="ruleType" :label="t('exceptionRule.type')" width="150">
           <template #default="{ row }">{{ ruleTypeLabel(row.ruleType) }}</template>
         </el-table-column>
-        <el-table-column label="来源" min-width="170" show-overflow-tooltip>
+        <el-table-column :label="t('exceptionRule.source')" min-width="170" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="source-cell">
               <span>{{ row.sourceNo || row.sourceId || '-' }}</span>
@@ -248,13 +248,13 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="triggerValue" label="触发值" width="110" align="right">
+        <el-table-column prop="triggerValue" :label="t('exceptionRule.triggerValue')" width="110" align="right">
           <template #default="{ row }">{{ row.triggerValue || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="thresholdValue" label="阈值" width="100" align="right">
+        <el-table-column prop="thresholdValue" :label="t('exceptionRule.threshold')" width="100" align="right">
           <template #default="{ row }">{{ row.thresholdValue || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="ticketId" label="工单" width="110" align="center">
+        <el-table-column prop="ticketId" :label="t('exceptionRule.ticket')" width="110" align="center">
           <template #default="{ row }">
             <el-button v-if="row.ticketId" link type="primary" size="small" :icon="Tickets" @click="openTicket(row)">
               {{ row.ticketId }}
@@ -262,13 +262,13 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="hitCount" label="次数" width="76" align="right">
+        <el-table-column prop="hitCount" :label="t('exceptionRule.count')" width="76" align="right">
           <template #default="{ row }">{{ row.hitCount || 1 }}</template>
         </el-table-column>
-        <el-table-column prop="firstHitTime" label="首次命中" width="160">
+        <el-table-column prop="firstHitTime" :label="t('exceptionRule.firstHit')" width="160">
           <template #default="{ row }">{{ formatDateTime(row.firstHitTime) }}</template>
         </el-table-column>
-        <el-table-column prop="lastHitTime" label="最近命中" width="160">
+        <el-table-column prop="lastHitTime" :label="t('exceptionRule.recentHit')" width="160">
           <template #default="{ row }">{{ formatDateTime(row.lastHitTime) }}</template>
         </el-table-column>
       </el-table>
@@ -285,64 +285,64 @@
       />
     </el-card>
 
-    <el-dialog v-model="editDialogVisible" title="配置异常规则" width="620px" destroy-on-close>
+    <el-dialog v-model="editDialogVisible" :title="t('exceptionRule.dialogTitle')" width="620px" destroy-on-close>
       <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="96px">
-        <el-form-item label="规则">
+        <el-form-item :label="t('exceptionRule.rule')">
           <el-input :model-value="editTarget?.ruleName || ''" disabled />
         </el-form-item>
         <div class="form-grid">
-          <el-form-item label="阈值" prop="thresholdValue">
+          <el-form-item :label="t('exceptionRule.threshold')" prop="thresholdValue">
             <el-input-number
               v-model="editForm.thresholdValue"
               :min="0"
               :controls="false"
               class="form-control"
-              placeholder="阈值"
+              :placeholder="t('exceptionRule.threshold')"
             />
           </el-form-item>
-          <el-form-item label="单位" prop="thresholdUnit">
+          <el-form-item :label="t('exceptionRule.unit')" prop="thresholdUnit">
             <el-select v-model="editForm.thresholdUnit" class="form-control">
               <el-option v-for="item in thresholdUnitOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
-          <el-form-item label="优先级" prop="priority">
+          <el-form-item :label="t('exceptionRule.priority')" prop="priority">
             <el-select v-model="editForm.priority" class="form-control">
               <el-option v-for="item in priorityOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
-          <el-form-item label="处理人">
+          <el-form-item :label="t('exceptionRule.assignee')">
             <el-input
               v-model="editForm.assigneeUserId"
               clearable
               class="form-control"
-              placeholder="用户ID"
+              :placeholder="t('exceptionRule.userIdPlaceholder')"
             />
           </el-form-item>
-          <el-form-item label="扫描间隔" prop="scheduleIntervalMinutes">
+          <el-form-item :label="t('exceptionRule.scanInterval')" prop="scheduleIntervalMinutes">
             <el-input-number
               v-model="editForm.scheduleIntervalMinutes"
               :min="5"
               :max="10080"
               :step="5"
               class="form-control"
-              placeholder="分钟"
+              :placeholder="t('exceptionRule.minuteUnit')"
             />
           </el-form-item>
         </div>
-        <el-form-item label="说明">
+        <el-form-item :label="t('exceptionRule.description')">
           <el-input
             v-model="editForm.remark"
             type="textarea"
             :rows="3"
             maxlength="512"
             show-word-limit
-            placeholder="说明扫描口径或处理要求"
+            :placeholder="t('exceptionRule.descriptionPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editSubmitting" @click="handleSaveEdit">保存</el-button>
+        <el-button @click="editDialogVisible = false">{{ t('exceptionRule.cancel') }}</el-button>
+        <el-button type="primary" :loading="editSubmitting" @click="handleSaveEdit">{{ t('exceptionRule.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -350,6 +350,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
@@ -386,27 +387,28 @@ type Option = { label: string; value: string }
 type EnabledFilter = '' | 'true' | 'false'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const ruleTypeOptions: Option[] = [
-  { label: '低库存', value: 'LOW_STOCK' },
-  { label: '应收逾期', value: 'RECEIVABLE_OVERDUE' },
-  { label: '应付逾期', value: 'PAYABLE_OVERDUE' },
-  { label: '失败操作', value: 'OPERATION_FAILURE' }
-]
+const ruleTypeOptions = computed<Option[]>(() => [
+  { label: t('exceptionRule.ruleTypes.lowStock'), value: 'LOW_STOCK' },
+  { label: t('exceptionRule.ruleTypes.receivableOverdue'), value: 'RECEIVABLE_OVERDUE' },
+  { label: t('exceptionRule.ruleTypes.payableOverdue'), value: 'PAYABLE_OVERDUE' },
+  { label: t('exceptionRule.ruleTypes.operationFailure'), value: 'OPERATION_FAILURE' }
+])
 
-const thresholdUnitOptions: Option[] = [
-  { label: '数量', value: 'QTY' },
-  { label: '天', value: 'DAYS' },
-  { label: '分钟', value: 'MINUTES' },
-  { label: '次数', value: 'COUNT' }
-]
+const thresholdUnitOptions = computed<Option[]>(() => [
+  { label: t('exceptionRule.units.quantity'), value: 'QTY' },
+  { label: t('exceptionRule.units.days'), value: 'DAYS' },
+  { label: t('exceptionRule.units.minutes'), value: 'MINUTES' },
+  { label: t('exceptionRule.units.count'), value: 'COUNT' }
+])
 
-const priorityOptions: Option[] = [
-  { label: '低', value: 'LOW' },
-  { label: '中', value: 'MEDIUM' },
-  { label: '高', value: 'HIGH' },
-  { label: '紧急', value: 'URGENT' }
-]
+const priorityOptions = computed<Option[]>(() => [
+  { label: t('exceptionRule.priorities.low'), value: 'LOW' },
+  { label: t('exceptionRule.priorities.medium'), value: 'MEDIUM' },
+  { label: t('exceptionRule.priorities.high'), value: 'HIGH' },
+  { label: t('exceptionRule.priorities.urgent'), value: 'URGENT' }
+])
 
 const ruleQueryForm = reactive({
   keyword: '',
@@ -455,40 +457,40 @@ const editForm = reactive<ExceptionRuleUpdateRequest>({
   remark: ''
 })
 
-const editRules: FormRules = {
-  thresholdValue: [{ required: true, message: '请输入阈值', trigger: 'blur' }],
-  thresholdUnit: [{ required: true, message: '请选择单位', trigger: 'change' }],
-  priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
-  scheduleIntervalMinutes: [{ required: true, message: '请输入扫描间隔', trigger: 'blur' }]
-}
+const editRules = computed<FormRules>(() => ({
+  thresholdValue: [{ required: true, message: t('exceptionRule.validation.threshold'), trigger: 'blur' }],
+  thresholdUnit: [{ required: true, message: t('exceptionRule.validation.unit'), trigger: 'change' }],
+  priority: [{ required: true, message: t('exceptionRule.validation.priority'), trigger: 'change' }],
+  scheduleIntervalMinutes: [{ required: true, message: t('exceptionRule.validation.scanInterval'), trigger: 'blur' }]
+}))
 
 const summaryItems = computed(() => [
   {
-    label: '启用规则',
+    label: t('exceptionRule.summary.enabledRules'),
     value: ruleData.value.filter((item) => item.enabled).length,
     icon: CircleCheck,
     tone: 'green'
   },
   {
-    label: '停用规则',
+    label: t('exceptionRule.summary.disabledRules'),
     value: ruleData.value.filter((item) => !item.enabled).length,
     icon: CircleClose,
     tone: 'gray'
   },
   {
-    label: '最近命中',
+    label: t('exceptionRule.summary.recentHits'),
     value: ruleData.value.reduce((sum, item) => sum + (item.lastHitCount || 0), 0),
     icon: Warning,
     tone: 'orange'
   },
   {
-    label: '新建工单',
+    label: t('exceptionRule.summary.newTickets'),
     value: ruleData.value.reduce((sum, item) => sum + (item.lastTicketCreatedCount || 0), 0),
     icon: Tickets,
     tone: 'blue'
   },
   {
-    label: '扫描失败',
+    label: t('exceptionRule.summary.scanFailures'),
     value: ruleData.value.filter((item) => item.lastScanStatus === 'FAILED').length,
     icon: Finished,
     tone: 'red'
@@ -573,14 +575,14 @@ const handleHitPageChange = () => {
 
 const handleScanRule = async (row: ExceptionRule) => {
   if (!row.enabled) {
-    ElMessage.warning('规则已停用')
+    ElMessage.warning(t('exceptionRule.message.ruleDisabled'))
     return
   }
   scanRuleLoadingId.value = row.id
   try {
     const result = await scanExceptionRule(row.id)
     scanResults.value = [result]
-    ElMessage.success(`扫描完成，命中 ${result.hitCount} 条`)
+    ElMessage.success(t('exceptionRule.message.scanComplete', { count: result.hitCount }))
     await Promise.all([loadRules(), loadHits()])
   } finally {
     scanRuleLoadingId.value = undefined
@@ -591,7 +593,7 @@ const handleScanAll = async () => {
   scanAllLoading.value = true
   try {
     scanResults.value = await scanAllExceptionRules()
-    ElMessage.success(`扫描完成，命中 ${totalScanHits.value} 条`)
+    ElMessage.success(t('exceptionRule.message.scanComplete', { count: totalScanHits.value }))
     await Promise.all([loadRules(), loadHits()])
   } finally {
     scanAllLoading.value = false
@@ -603,10 +605,10 @@ const handleToggleRule = async (row: ExceptionRule) => {
   try {
     if (row.enabled) {
       await disableExceptionRule(row.id)
-      ElMessage.success('规则已停用')
+      ElMessage.success(t('exceptionRule.message.disabled'))
     } else {
       await enableExceptionRule(row.id)
-      ElMessage.success('规则已启用')
+      ElMessage.success(t('exceptionRule.message.enabled'))
     }
     await loadRules()
   } finally {
@@ -639,7 +641,7 @@ const handleSaveEdit = async () => {
       scheduleIntervalMinutes: editForm.scheduleIntervalMinutes,
       remark: editForm.remark?.trim() || undefined
     })
-    ElMessage.success('规则配置已保存')
+    ElMessage.success(t('exceptionRule.message.saved'))
     editDialogVisible.value = false
     await loadRules()
   } finally {
@@ -655,15 +657,15 @@ const openTicket = (row: ExceptionRuleHit) => {
 }
 
 const ruleTypeLabel = (value?: string) => {
-  return ruleTypeOptions.find((item) => item.value === value)?.label || value || '-'
+  return ruleTypeOptions.value.find((item) => item.value === value)?.label || value || '-'
 }
 
 const priorityLabel = (value?: string) => {
-  return priorityOptions.find((item) => item.value === value)?.label || value || '-'
+  return priorityOptions.value.find((item) => item.value === value)?.label || value || '-'
 }
 
 const thresholdUnitLabel = (value?: string) => {
-  return thresholdUnitOptions.find((item) => item.value === value)?.label || value || '-'
+  return thresholdUnitOptions.value.find((item) => item.value === value)?.label || value || '-'
 }
 
 const thresholdLabel = (row: ExceptionRule) => {
@@ -682,9 +684,9 @@ const priorityType = (value?: string) => {
 
 const scanStatusLabel = (value?: string) => {
   const labels: Record<string, string> = {
-    SUCCESS: '成功',
-    FAILED: '失败',
-    SKIPPED: '跳过'
+    SUCCESS: t('exceptionRule.scanStatuses.success'),
+    FAILED: t('exceptionRule.scanStatuses.failed'),
+    SKIPPED: t('exceptionRule.scanStatuses.skipped')
   }
   return value ? labels[value] || value : '-'
 }

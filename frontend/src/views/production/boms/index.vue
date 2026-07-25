@@ -3,13 +3,13 @@
     <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="BOM编码">
-          <el-input v-model="queryForm.bomCode" placeholder="请输入BOM编码" clearable style="width: 200px" />
+        <el-form-item :label="t('productionBom.bomCode')">
+          <el-input v-model="queryForm.bomCode" :placeholder="t('productionBom.bomCodePlaceholder')" clearable style="width: 200px" />
         </el-form-item>
-        <el-form-item label="产品">
+        <el-form-item :label="t('productionBom.product')">
           <el-select
             v-model="queryForm.productId"
-            placeholder="请选择产品"
+            :placeholder="t('productionBom.selectProduct')"
             clearable
             filterable
             style="width: 200px"
@@ -22,15 +22,15 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable style="width: 120px">
-            <el-option label="启用" value="ACTIVE" />
-            <el-option label="已停用" value="DISABLED" />
+        <el-form-item :label="t('productionBom.statusLabel')">
+          <el-select v-model="queryForm.status" :placeholder="t('productionBom.select')" clearable style="width: 120px">
+            <el-option :label="t('productionBom.status.active')" value="ACTIVE" />
+            <el-option :label="t('productionBom.status.disabled')" value="DISABLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ t('productionBom.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ t('productionBom.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -39,35 +39,37 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>BOM管理</span>
-          <el-button v-permission="'production:bom:manage'" type="primary" :icon="Plus" @click="handleAdd">新增BOM</el-button>
+          <span>{{ t('productionBom.title') }}</span>
+          <el-button v-permission="'production:bom:manage'" type="primary" :icon="Plus" @click="handleAdd">{{ t('productionBom.create') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="bomCode" label="BOM编码" width="150" />
-        <el-table-column label="产品" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="bomCode" :label="t('productionBom.bomCode')" width="150" />
+        <el-table-column :label="t('productionBom.product')" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
             {{ productLabelById(row.productId) }}
           </template>
         </el-table-column>
-        <el-table-column prop="baseQty" label="基准数量" width="120" align="right">
+        <el-table-column prop="baseQty" :label="t('productionBom.baseQuantity')" width="120" align="right">
           <template #default="{ row }">
             {{ row.baseQty }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="t('productionBom.statusLabel')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="200" align="center" fixed="right">
+        <el-table-column prop="remark" :label="t('productionBom.remark')" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="createdAt" :label="t('productionBom.createdAt')" width="180">
+          <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionBom.actions')" width="200" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link :icon="View" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link :icon="View" @click="handleView(row)">{{ t('productionBom.view') }}</el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
               v-permission="'production:bom:manage'"
@@ -76,7 +78,7 @@
               :icon="Edit"
               @click="handleEdit(row)"
             >
-              编辑
+              {{ t('productionBom.edit') }}
             </el-button>
           </template>
         </el-table-column>
@@ -110,10 +112,10 @@
       >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="产品" prop="productId">
+            <el-form-item :label="t('productionBom.product')" prop="productId">
               <el-select
                 v-model="formData.productId"
-                placeholder="请选择产品"
+                :placeholder="t('productionBom.selectProduct')"
                 filterable
                 style="width: 100%"
               >
@@ -127,7 +129,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="基准数量" prop="baseQty">
+            <el-form-item :label="t('productionBom.baseQuantity')" prop="baseQty">
               <el-input-number
                 v-model="formData.baseQty"
                 :min="1"
@@ -139,15 +141,15 @@
           </el-col>
         </el-row>
 
-        <el-divider content-position="left">物料清单</el-divider>
+        <el-divider content-position="left">{{ t('productionBom.materialList') }}</el-divider>
 
-        <el-form-item label="物料明细" required>
+        <el-form-item :label="t('productionBom.materialDetails')" required>
           <el-table :data="formData.items" border style="width: 100%">
-            <el-table-column prop="materialId" label="物料" width="250">
+            <el-table-column prop="materialId" :label="t('productionBom.material')" width="250">
               <template #default="{ row }">
                 <el-select
                   v-model="row.materialId"
-                  placeholder="请选择物料"
+                  :placeholder="t('productionBom.selectMaterial')"
                   filterable
                   style="width: 100%"
                   @change="(val) => handleMaterialChange(val, row)"
@@ -161,7 +163,7 @@
                 </el-select>
               </template>
             </el-table-column>
-            <el-table-column prop="quantity" label="用量" width="150">
+            <el-table-column prop="quantity" :label="t('productionBom.quantity')" width="150">
               <template #default="{ row }">
                 <el-input-number
                   v-model="row.quantity"
@@ -172,7 +174,7 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column prop="scrapRate" label="损耗率(%)" width="120">
+            <el-table-column prop="scrapRate" :label="t('productionBom.scrapRatePercent')" width="120">
               <template #default="{ row }">
                 <el-input-number
                   v-model="row.scrapRate"
@@ -184,12 +186,12 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column prop="remark" label="备注" min-width="150">
+            <el-table-column prop="remark" :label="t('productionBom.remark')" min-width="150">
               <template #default="{ row }">
-                <el-input v-model="row.remark" placeholder="备注" />
+                <el-input v-model="row.remark" :placeholder="t('productionBom.remark')" />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80" align="center" fixed="right">
+            <el-table-column :label="t('productionBom.actions')" width="80" align="center" fixed="right">
               <template #default="{ $index }">
                 <el-button
                   type="danger"
@@ -197,7 +199,7 @@
                   :icon="Delete"
                   @click="handleDeleteItem($index)"
                 >
-                  删除
+                  {{ t('productionBom.delete') }}
                 </el-button>
               </template>
             </el-table-column>
@@ -208,74 +210,75 @@
             style="margin-top: 10px"
             @click="handleAddItem"
           >
-            添加物料
+            {{ t('productionBom.addMaterial') }}
           </el-button>
         </el-form-item>
 
-        <el-form-item label="备注" prop="remark">
+        <el-form-item :label="t('productionBom.remark')" prop="remark">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注"
+            :placeholder="t('productionBom.remarkPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ t('productionBom.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
-          保存
+          {{ t('productionBom.save') }}
         </el-button>
       </template>
     </el-dialog>
 
     <!-- 查看对话框 -->
-    <el-dialog v-model="viewDialogVisible" title="BOM详情" width="900px">
+    <el-dialog v-model="viewDialogVisible" :title="t('productionBom.detailTitle')" width="900px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="BOM编码">{{ viewData.bomCode }}</el-descriptions-item>
-        <el-descriptions-item label="产品">{{ productLabelById(viewData.productId) }}</el-descriptions-item>
-        <el-descriptions-item label="基准数量">{{ viewData.baseQty }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('productionBom.bomCode')">{{ viewData.bomCode }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionBom.product')">{{ productLabelById(viewData.productId) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionBom.baseQuantity')">{{ viewData.baseQty }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionBom.statusLabel')">
           <el-tag :type="getStatusType(viewData.status)">
             {{ getStatusLabel(viewData.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ viewData.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ viewData.createdAt }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ viewData.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionBom.createdBy')">{{ viewData.createdBy }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionBom.createdAt')">{{ formatLocalizedDateTime(viewData.createdAt) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionBom.remark')" :span="2">{{ viewData.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider />
 
-      <h4>物料清单</h4>
+      <h4>{{ t('productionBom.materialList') }}</h4>
       <el-table :data="viewData.items" border stripe style="margin-top: 10px">
-        <el-table-column label="物料" min-width="240" show-overflow-tooltip>
+        <el-table-column :label="t('productionBom.material')" min-width="240" show-overflow-tooltip>
           <template #default="{ row }">
             {{ materialLabel(row) }}
           </template>
         </el-table-column>
-        <el-table-column prop="quantity" label="用量" width="120" align="right">
+        <el-table-column prop="quantity" :label="t('productionBom.quantity')" width="120" align="right">
           <template #default="{ row }">
             {{ row.quantity }} {{ materialUnit(row) }}
           </template>
         </el-table-column>
-        <el-table-column prop="scrapRate" label="损耗率" width="100" align="right">
+        <el-table-column prop="scrapRate" :label="t('productionBom.scrapRate')" width="100" align="right">
           <template #default="{ row }">
             {{ row.scrapRate || 0 }}%
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="remark" :label="t('productionBom.remark')" min-width="150" show-overflow-tooltip />
       </el-table>
 
       <template #footer>
-        <el-button @click="viewDialogVisible = false">关闭</el-button>
+        <el-button @click="viewDialogVisible = false">{{ t('productionBom.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, Edit, View, Delete } from '@element-plus/icons-vue'
 import {
@@ -287,6 +290,9 @@ import {
   type BOMItem
 } from '@/api/production'
 import { getProducts, type Product } from '@/api/masterdata'
+import { formatLocalizedDateTime } from '@/utils/locale'
+
+const { t } = useI18n()
 
 // 查询表单
 const queryForm = reactive({
@@ -323,10 +329,10 @@ const formData = reactive({
 })
 
 // 表单验证规则
-const formRules: FormRules = {
-  productId: [{ required: true, message: '请选择产品', trigger: 'change' }],
-  baseQty: [{ required: true, message: '请输入基准数量', trigger: 'blur' }]
-}
+const formRules = computed<FormRules>(() => ({
+  productId: [{ required: true, message: t('productionBom.validation.product'), trigger: 'change' }],
+  baseQty: [{ required: true, message: t('productionBom.validation.baseQuantity'), trigger: 'blur' }]
+}))
 
 // 查看对话框
 const viewDialogVisible = ref(false)
@@ -339,7 +345,7 @@ const loadProducts = async () => {
     const res = await getProducts(optionPageQuery)
     productOptions.value = res.records || []
   } catch (error) {
-    console.error('加载产品列表失败:', error)
+    console.error(t('productionBom.message.productsLoadFailed'), error)
   }
 }
 
@@ -356,8 +362,8 @@ const loadData = async () => {
     tableData.value = res.records || []
     pagination.total = res.total || 0
   } catch (error) {
-    console.error('加载BOM列表失败:', error)
-    ElMessage.error('加载数据失败')
+    console.error(t('productionBom.message.listLoadFailed'), error)
+    ElMessage.error(t('productionBom.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -380,13 +386,13 @@ const handleReset = () => {
 
 // 新增
 const handleAdd = () => {
-  dialogTitle.value = '新增BOM'
+  dialogTitle.value = t('productionBom.dialog.create')
   dialogVisible.value = true
 }
 
 // 编辑
 const handleEdit = async (row: BOM) => {
-  dialogTitle.value = '编辑BOM'
+  dialogTitle.value = t('productionBom.dialog.edit')
   try {
     const res = await getBOM(row.id)
     Object.assign(formData, {
@@ -398,7 +404,7 @@ const handleEdit = async (row: BOM) => {
     })
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载BOM详情失败')
+    ElMessage.error(t('productionBom.message.detailLoadFailed'))
   }
 }
 
@@ -409,7 +415,7 @@ const handleView = async (row: BOM) => {
     viewData.value = res
     viewDialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载BOM详情失败')
+    ElMessage.error(t('productionBom.message.detailLoadFailed'))
   }
 }
 
@@ -446,7 +452,7 @@ const handleSubmit = async () => {
   if (!formRef.value) return
 
   if (formData.items.length === 0) {
-    ElMessage.warning('请添加物料明细')
+    ElMessage.warning(t('productionBom.validation.materials'))
     return
   }
 
@@ -457,15 +463,15 @@ const handleSubmit = async () => {
     try {
       if (formData.id) {
         await updateBOM(formData.id, formData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('productionBom.message.updated'))
       } else {
         await createBOM(formData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('productionBom.message.created'))
       }
       dialogVisible.value = false
       loadData()
     } catch (error) {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('productionBom.message.actionFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -487,7 +493,7 @@ const handleDialogClose = () => {
 const productLabel = (product: Product) => {
   const code = product.productCode || product.code || ''
   const name = product.productName || product.name || ''
-  return code && name ? `${code} - ${name}` : name || code || `产品${product.id}`
+  return code && name ? `${code} - ${name}` : name || code || t('productionBom.productFallback', { id: product.id })
 }
 
 const productById = (id?: string | number) => {
@@ -516,8 +522,8 @@ const materialUnit = (row: BOMItem) => {
 // 获取状态标签
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    ACTIVE: '启用',
-    DISABLED: '已停用'
+    ACTIVE: t('productionBom.status.active'),
+    DISABLED: t('productionBom.status.disabled')
   }
   return map[status] || status
 }

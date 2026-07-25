@@ -3,10 +3,10 @@
     <!-- 查询表单 -->
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="仓库">
+        <el-form-item :label="$t('inventoryAlerts.warehouse')">
           <el-select
             v-model="queryParams.warehouseId"
-            placeholder="请选择仓库"
+            :placeholder="$t('inventoryAlerts.placeholder.warehouse')"
             clearable
             style="width: 200px"
           >
@@ -18,10 +18,10 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="产品">
+        <el-form-item :label="$t('inventoryAlerts.product')">
           <el-select
             v-model="queryParams.productId"
-            placeholder="请选择产品"
+            :placeholder="$t('inventoryAlerts.placeholder.product')"
             clearable
             filterable
             style="width: 250px"
@@ -34,41 +34,41 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="预警类型">
+        <el-form-item :label="$t('inventoryAlerts.alertType')">
           <el-select
             v-model="queryParams.alertType"
-            placeholder="请选择预警类型"
+            :placeholder="$t('inventoryAlerts.placeholder.alertType')"
             clearable
             style="width: 150px"
           >
-            <el-option label="库存不足" value="LOW_STOCK" />
-            <el-option label="缺货" value="OUT_OF_STOCK" />
+            <el-option :label="$t('inventoryAlerts.type.lowStock')" value="LOW_STOCK" />
+            <el-option :label="$t('inventoryAlerts.type.outOfStock')" value="OUT_OF_STOCK" />
           </el-select>
         </el-form-item>
-        <el-form-item label="处置状态">
+        <el-form-item :label="$t('inventoryAlerts.dispositionStatus')">
           <el-select
             v-model="queryParams.status"
-            placeholder="全部"
+            :placeholder="$t('inventoryAlerts.placeholder.all')"
             clearable
             style="width: 150px"
           >
-            <el-option label="待处置" value="ACTIVE" />
-            <el-option label="已忽略" value="IGNORED" />
-            <el-option label="已处理" value="RESOLVED" />
+            <el-option :label="$t('inventoryAlerts.status.active')" value="ACTIVE" />
+            <el-option :label="$t('inventoryAlerts.status.ignored')" value="IGNORED" />
+            <el-option :label="$t('inventoryAlerts.status.resolved')" value="RESOLVED" />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ $t('inventoryAlerts.action.search') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ $t('inventoryAlerts.action.reset') }}
           </el-button>
-          <el-button type="success" @click="handleCreateRule">
+          <el-button v-permission="'inventory:alert:create'" type="success" @click="handleCreateRule">
             <el-icon><Plus /></el-icon>
-            新增规则
+            {{ $t('inventoryAlerts.action.createRule') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -84,7 +84,7 @@
             </el-icon>
             <div class="stat-content">
               <div class="stat-value">{{ statistics.total }}</div>
-              <div class="stat-label">总预警数</div>
+              <div class="stat-label">{{ $t('inventoryAlerts.statistics.total') }}</div>
             </div>
           </div>
         </el-card>
@@ -97,7 +97,7 @@
             </el-icon>
             <div class="stat-content">
               <div class="stat-value">{{ statistics.outOfStock }}</div>
-              <div class="stat-label">缺货</div>
+              <div class="stat-label">{{ $t('inventoryAlerts.statistics.outOfStock') }}</div>
             </div>
           </div>
         </el-card>
@@ -110,7 +110,7 @@
             </el-icon>
             <div class="stat-content">
               <div class="stat-value">{{ statistics.lowStock }}</div>
-              <div class="stat-label">低于安全库存</div>
+              <div class="stat-label">{{ $t('inventoryAlerts.statistics.belowSafetyStock') }}</div>
             </div>
           </div>
         </el-card>
@@ -123,7 +123,7 @@
             </el-icon>
             <div class="stat-content">
               <div class="stat-value">{{ formatNumber(statistics.shortageQty) }}</div>
-              <div class="stat-label">缺口合计</div>
+              <div class="stat-label">{{ $t('inventoryAlerts.statistics.shortageTotal') }}</div>
             </div>
           </div>
         </el-card>
@@ -138,39 +138,39 @@
         border
         stripe
       >
-        <el-table-column prop="warehouseName" label="仓库" width="150" />
-        <el-table-column prop="productCode" label="产品编码" width="150" />
-        <el-table-column prop="productName" label="产品名称" width="180" />
-        <el-table-column prop="currentQuantity" label="当前库存" width="120" align="right">
+        <el-table-column prop="warehouseName" :label="$t('inventoryAlerts.warehouse')" width="150" />
+        <el-table-column prop="productCode" :label="$t('inventoryAlerts.productCode')" width="150" />
+        <el-table-column prop="productName" :label="$t('inventoryAlerts.productName')" width="180" />
+        <el-table-column prop="currentQuantity" :label="$t('inventoryAlerts.currentStock')" width="120" align="right">
           <template #default="{ row }">
             <span :class="{ 'text-danger': row.currentQuantity <= 0 }">
               {{ row.currentQuantity }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="minQuantity" label="最小库存" width="120" align="right" />
-        <el-table-column prop="alertType" label="预警类型" width="120">
+        <el-table-column prop="minQuantity" :label="$t('inventoryAlerts.minimumStock')" width="120" align="right" />
+        <el-table-column prop="alertType" :label="$t('inventoryAlerts.alertType')" width="120">
           <template #default="{ row }">
-            <el-tag v-if="row.alertType === 'LOW_STOCK'" type="warning">库存不足</el-tag>
-            <el-tag v-else-if="row.alertType === 'OUT_OF_STOCK'" type="danger">缺货</el-tag>
+            <el-tag v-if="row.alertType === 'LOW_STOCK'" type="warning">{{ $t('inventoryAlerts.type.lowStock') }}</el-tag>
+            <el-tag v-else-if="row.alertType === 'OUT_OF_STOCK'" type="danger">{{ $t('inventoryAlerts.type.outOfStock') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="alertDate" label="预警时间" width="160" />
-        <el-table-column prop="status" label="处置状态" width="110">
+        <el-table-column prop="alertDate" :label="$t('inventoryAlerts.alertTime')" width="160" />
+        <el-table-column prop="status" :label="$t('inventoryAlerts.dispositionStatus')" width="110">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'ACTIVE'" type="danger">待处置</el-tag>
-            <el-tag v-else-if="row.status === 'IGNORED'" type="info">已忽略</el-tag>
-            <el-tag v-else-if="row.status === 'RESOLVED'" type="success">已处理</el-tag>
+            <el-tag v-if="row.status === 'ACTIVE'" type="danger">{{ $t('inventoryAlerts.status.active') }}</el-tag>
+            <el-tag v-else-if="row.status === 'IGNORED'" type="info">{{ $t('inventoryAlerts.status.ignored') }}</el-tag>
+            <el-tag v-else-if="row.status === 'RESOLVED'" type="success">{{ $t('inventoryAlerts.status.resolved') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="340" fixed="right">
+        <el-table-column :label="$t('inventoryAlerts.actions')" width="340" fixed="right">
           <template #default="{ row }">
             <el-button
               link
               type="primary"
               @click="handleViewStock(row)"
             >
-              查看库存
+              {{ $t('inventoryAlerts.action.viewStock') }}
             </el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
@@ -179,7 +179,7 @@
               type="warning"
               @click="handleCreateSuggestion(row)"
             >
-              生成补货建议
+              {{ $t('inventoryAlerts.action.createSuggestion') }}
             </el-button>
             <el-button
               v-if="row.status !== 'RESOLVED'"
@@ -188,7 +188,7 @@
               type="success"
               @click="handleDispose(row, 'RESOLVED')"
             >
-              标记已处理
+              {{ $t('inventoryAlerts.action.resolve') }}
             </el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
@@ -197,7 +197,7 @@
               type="info"
               @click="handleDispose(row, 'IGNORED')"
             >
-              忽略
+              {{ $t('inventoryAlerts.action.ignore') }}
             </el-button>
             <el-button
               v-if="row.status !== 'ACTIVE'"
@@ -206,7 +206,7 @@
               type="primary"
               @click="handleReactivate(row)"
             >
-              重新激活
+              {{ $t('inventoryAlerts.action.reactivate') }}
             </el-button>
           </template>
         </el-table-column>
@@ -224,10 +224,10 @@
       />
     </el-card>
 
-    <el-dialog v-model="ruleDialogVisible" title="新增低库存规则" width="560px" @close="resetRuleForm">
+    <el-dialog v-model="ruleDialogVisible" :title="$t('inventoryAlerts.dialog.createRule')" width="560px" @close="resetRuleForm">
       <el-form ref="ruleFormRef" :model="ruleForm" :rules="ruleRules" label-width="100px">
-        <el-form-item label="仓库" prop="warehouseId">
-          <el-select v-model="ruleForm.warehouseId" placeholder="请选择仓库" filterable style="width: 100%">
+        <el-form-item :label="$t('inventoryAlerts.warehouse')" prop="warehouseId">
+          <el-select v-model="ruleForm.warehouseId" :placeholder="$t('inventoryAlerts.placeholder.warehouse')" filterable style="width: 100%">
             <el-option
               v-for="warehouse in warehouses"
               :key="warehouse.id"
@@ -236,8 +236,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="产品" prop="productId">
-          <el-select v-model="ruleForm.productId" placeholder="请选择产品" filterable style="width: 100%">
+        <el-form-item :label="$t('inventoryAlerts.product')" prop="productId">
+          <el-select v-model="ruleForm.productId" :placeholder="$t('inventoryAlerts.placeholder.product')" filterable style="width: 100%">
             <el-option
               v-for="product in products"
               :key="product.id"
@@ -246,22 +246,22 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="最小库存" prop="minQty">
+        <el-form-item :label="$t('inventoryAlerts.minimumStock')" prop="minQty">
           <el-input-number v-model="ruleForm.minQty" :min="0" :precision="4" :controls="false" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="ruleForm.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+        <el-form-item :label="$t('inventoryAlerts.remark')">
+          <el-input v-model="ruleForm.remark" type="textarea" :rows="3" :placeholder="$t('inventoryAlerts.placeholder.remark')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="ruleDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="ruleSubmitLoading" @click="submitRule">保存</el-button>
+        <el-button @click="ruleDialogVisible = false">{{ $t('inventoryAlerts.action.cancel') }}</el-button>
+        <el-button type="primary" :loading="ruleSubmitLoading" @click="submitRule">{{ $t('inventoryAlerts.action.save') }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="suggestionDialogVisible"
-      title="生成补货建议"
+      :title="$t('inventoryAlerts.dialog.createSuggestion')"
       width="620px"
       @close="resetSuggestionForm"
     >
@@ -272,12 +272,12 @@
         label-width="110px"
       >
         <el-descriptions v-if="currentAlert" :column="2" border class="suggestion-alert-summary">
-          <el-descriptions-item label="仓库">{{ currentAlert.warehouseName }}</el-descriptions-item>
-          <el-descriptions-item label="商品">{{ currentAlert.productCode }} - {{ currentAlert.productName }}</el-descriptions-item>
-          <el-descriptions-item label="当前库存">{{ formatNumber(currentAlert.currentQuantity) }}</el-descriptions-item>
-          <el-descriptions-item label="安全库存">{{ formatNumber(currentAlert.minQuantity) }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('inventoryAlerts.warehouse')">{{ currentAlert.warehouseName }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('inventoryAlerts.product')">{{ currentAlert.productCode }} - {{ currentAlert.productName }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('inventoryAlerts.currentStock')">{{ formatNumber(currentAlert.currentQuantity) }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('inventoryAlerts.safetyStock')">{{ formatNumber(currentAlert.minQuantity) }}</el-descriptions-item>
         </el-descriptions>
-        <el-form-item label="建议数量" prop="suggestedQty">
+        <el-form-item :label="$t('inventoryAlerts.suggestedQuantity')" prop="suggestedQty">
           <el-input-number
             v-model="suggestionForm.suggestedQty"
             :min="0.0001"
@@ -286,10 +286,10 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="供应商">
+        <el-form-item :label="$t('inventoryAlerts.supplier')">
           <el-select
             v-model="suggestionForm.supplierId"
-            placeholder="请选择供应商"
+            :placeholder="$t('inventoryAlerts.placeholder.supplier')"
             clearable
             filterable
             style="width: 100%"
@@ -302,29 +302,29 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="预计到货">
+        <el-form-item :label="$t('inventoryAlerts.expectedArrival')">
           <el-date-picker
             v-model="suggestionForm.expectedArrivalDate"
             type="date"
             value-format="YYYY-MM-DD"
-            placeholder="选择日期"
+            :placeholder="$t('inventoryAlerts.placeholder.date')"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('inventoryAlerts.remark')">
           <el-input
             v-model="suggestionForm.remark"
             type="textarea"
             :rows="3"
             maxlength="500"
             show-word-limit
-            placeholder="补货说明（选填）"
+            :placeholder="$t('inventoryAlerts.placeholder.suggestionRemark')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="suggestionDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="suggestionSubmitLoading" @click="submitSuggestion">保存</el-button>
+        <el-button @click="suggestionDialogVisible = false">{{ $t('inventoryAlerts.action.cancel') }}</el-button>
+        <el-button type="primary" :loading="suggestionSubmitLoading" @click="submitSuggestion">{{ $t('inventoryAlerts.action.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -332,6 +332,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useRouter } from 'vue-router'
 import {
@@ -351,6 +352,7 @@ import { getSuppliers, type Supplier } from '@/api/masterdata'
 import { formatLocalizedNumber } from '@/utils/locale'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // 查询参数
 const queryParams = reactive<InventoryAlertQuery>({
@@ -393,9 +395,9 @@ const ruleForm = reactive<InventoryAlertRuleCreateRequest>({
   remark: ''
 })
 const ruleRules: FormRules = {
-  warehouseId: [{ required: true, message: '请选择仓库', trigger: 'change' }],
-  productId: [{ required: true, message: '请选择产品', trigger: 'change' }],
-  minQty: [{ required: true, message: '请输入最小库存', trigger: 'blur' }]
+  warehouseId: [{ required: true, message: t('inventoryAlerts.validation.warehouse'), trigger: 'change' }],
+  productId: [{ required: true, message: t('inventoryAlerts.validation.product'), trigger: 'change' }],
+  minQty: [{ required: true, message: t('inventoryAlerts.validation.minimumStock'), trigger: 'blur' }]
 }
 const suggestionDialogVisible = ref(false)
 const suggestionSubmitLoading = ref(false)
@@ -411,7 +413,7 @@ const suggestionForm = reactive({
   remark: ''
 })
 const suggestionRules: FormRules = {
-  suggestedQty: [{ required: true, message: '请输入建议数量', trigger: 'blur' }]
+  suggestedQty: [{ required: true, message: t('inventoryAlerts.validation.suggestedQuantity'), trigger: 'blur' }]
 }
 
 // 加载数据
@@ -425,7 +427,7 @@ const loadData = async () => {
     // 更新统计数据
     await loadStatistics()
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('inventoryAlerts.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -452,7 +454,7 @@ const loadStatistics = async () => {
       0
     )
   } catch {
-    ElMessage.warning('加载预警统计失败')
+    ElMessage.warning(t('inventoryAlerts.message.statisticsLoadFailed'))
   }
 }
 
@@ -462,7 +464,7 @@ const loadWarehouses = async () => {
     const response = await getWarehouses({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
     warehouses.value = response.records
   } catch (error) {
-    ElMessage.error('加载仓库列表失败')
+    ElMessage.error(t('inventoryAlerts.message.warehousesLoadFailed'))
   }
 }
 
@@ -472,7 +474,7 @@ const loadProducts = async () => {
     const response = await getProducts({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
     products.value = response.records
   } catch (error) {
-    ElMessage.error('加载产品列表失败')
+    ElMessage.error(t('inventoryAlerts.message.productsLoadFailed'))
   }
 }
 
@@ -482,7 +484,7 @@ const loadSuppliers = async () => {
     const response = await getSuppliers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
     suppliers.value = response.records
   } catch (error) {
-    ElMessage.error('加载供应商列表失败')
+    ElMessage.error(t('inventoryAlerts.message.suppliersLoadFailed'))
   }
 }
 
@@ -519,11 +521,11 @@ const submitRule = async () => {
     ruleSubmitLoading.value = true
     try {
       await createInventoryAlertRule(ruleForm)
-      ElMessage.success('低库存规则已创建')
+      ElMessage.success(t('inventoryAlerts.message.ruleCreated'))
       ruleDialogVisible.value = false
       loadData()
     } catch (error) {
-      ElMessage.error('创建低库存规则失败')
+      ElMessage.error(t('inventoryAlerts.message.ruleCreateFailed'))
     } finally {
       ruleSubmitLoading.value = false
     }
@@ -572,11 +574,11 @@ const submitSuggestion = async () => {
         expectedArrivalDate: suggestionForm.expectedArrivalDate || undefined,
         remark: suggestionForm.remark || undefined
       })
-      ElMessage.success('补货建议已生成')
+      ElMessage.success(t('inventoryAlerts.message.suggestionCreated'))
       suggestionDialogVisible.value = false
       loadData()
     } catch (error) {
-      ElMessage.error('生成补货建议失败')
+      ElMessage.error(t('inventoryAlerts.message.suggestionCreateFailed'))
     } finally {
       suggestionSubmitLoading.value = false
     }
@@ -610,16 +612,19 @@ const handleViewStock = (row: InventoryAlert) => {
 
 // 处置预警：忽略 / 标记已处理
 const handleDispose = async (row: InventoryAlert, status: 'IGNORED' | 'RESOLVED') => {
-  const actionLabel = status === 'IGNORED' ? '忽略' : '标记已处理'
+  const isIgnore = status === 'IGNORED'
   try {
     const { value } = await ElMessageBox.prompt(
-      `确定${actionLabel}【${row.warehouseName} / ${row.productName}】的低库存预警吗？可填写处置说明。`,
-      `${actionLabel}预警`,
+      t(isIgnore ? 'inventoryAlerts.message.ignoreConfirm' : 'inventoryAlerts.message.resolveConfirm', {
+        warehouse: row.warehouseName,
+        product: row.productName
+      }),
+      t(isIgnore ? 'inventoryAlerts.dialog.ignore' : 'inventoryAlerts.dialog.resolve'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('inventoryAlerts.action.confirm'),
+        cancelButtonText: t('inventoryAlerts.action.cancel'),
         inputType: 'textarea',
-        inputPlaceholder: '处置说明（选填）',
+        inputPlaceholder: t('inventoryAlerts.placeholder.dispositionRemark'),
         inputValue: ''
       }
     )
@@ -633,11 +638,11 @@ const handleDispose = async (row: InventoryAlert, status: 'IGNORED' | 'RESOLVED'
     } else {
       await resolveInventoryAlert(payload)
     }
-    ElMessage.success(`已${actionLabel}`)
+    ElMessage.success(t(isIgnore ? 'inventoryAlerts.message.ignored' : 'inventoryAlerts.message.resolved'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(`${actionLabel}失败`)
+      ElMessage.error(t(isIgnore ? 'inventoryAlerts.message.ignoreFailed' : 'inventoryAlerts.message.resolveFailed'))
     }
   }
 }
@@ -645,19 +650,26 @@ const handleDispose = async (row: InventoryAlert, status: 'IGNORED' | 'RESOLVED'
 const handleReactivate = async (row: InventoryAlert) => {
   try {
     await ElMessageBox.confirm(
-      `确定重新激活【${row.warehouseName} / ${row.productName}】的低库存预警吗？`,
-      '重新激活预警',
-      { type: 'warning', confirmButtonText: '重新激活', cancelButtonText: '取消' }
+      t('inventoryAlerts.message.reactivateConfirm', {
+        warehouse: row.warehouseName,
+        product: row.productName
+      }),
+      t('inventoryAlerts.dialog.reactivate'),
+      {
+        type: 'warning',
+        confirmButtonText: t('inventoryAlerts.action.reactivate'),
+        cancelButtonText: t('inventoryAlerts.action.cancel')
+      }
     )
     await reactivateInventoryAlert({
       warehouseId: row.warehouseId,
       productId: row.productId
     })
-    ElMessage.success('预警已重新激活')
+    ElMessage.success(t('inventoryAlerts.message.reactivated'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('重新激活失败')
+      ElMessage.error(t('inventoryAlerts.message.reactivateFailed'))
     }
   }
 }

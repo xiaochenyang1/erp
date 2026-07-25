@@ -3,18 +3,18 @@
     <!-- 查询表单 -->
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="退货单号">
+        <el-form-item :label="$t('salesReturnOps.returnNo')">
           <el-input
             v-model="queryParams.returnNo"
-            placeholder="请输入退货单号"
+            :placeholder="$t('salesReturnOps.placeholder.returnNo')"
             clearable
             style="width: 200px"
           />
         </el-form-item>
-        <el-form-item label="销售发货单">
+        <el-form-item :label="$t('salesReturnOps.salesDelivery')">
           <el-select
             v-model="queryParams.deliveryId"
-            placeholder="请选择销售发货单"
+            :placeholder="$t('salesReturnOps.placeholder.salesDelivery')"
             clearable
             filterable
             style="width: 200px"
@@ -27,26 +27,26 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="$t('salesReturnOps.statusLabel')">
           <el-select
             v-model="queryParams.status"
-            placeholder="请选择状态"
+            :placeholder="$t('salesReturnOps.placeholder.status')"
             clearable
             style="width: 150px"
           >
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="已过账" value="POSTED" />
-            <el-option label="已完成" value="COMPLETED" />
-            <el-option label="已取消" value="CANCELLED" />
+            <el-option :label="$t('salesReturnOps.status.draft')" value="DRAFT" />
+            <el-option :label="$t('salesReturnOps.status.posted')" value="POSTED" />
+            <el-option :label="$t('salesReturnOps.status.completed')" value="COMPLETED" />
+            <el-option :label="$t('salesReturnOps.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期范围">
+        <el-form-item :label="$t('salesReturnOps.dateRange')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="$t('salesReturnOps.rangeSeparator')"
+            :start-placeholder="$t('salesReturnOps.placeholder.startDate')"
+            :end-placeholder="$t('salesReturnOps.placeholder.endDate')"
             value-format="YYYY-MM-DD"
             style="width: 240px"
           />
@@ -54,11 +54,11 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ $t('salesReturnOps.action.search') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ $t('salesReturnOps.action.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -68,7 +68,7 @@
     <el-card class="toolbar-card" shadow="never">
       <el-button v-permission="'sales:return:create'" type="primary" @click="handleCreate">
         <el-icon><Plus /></el-icon>
-        新增退货
+        {{ $t('salesReturnOps.action.create') }}
       </el-button>
     </el-card>
 
@@ -80,35 +80,35 @@
         border
         stripe
       >
-        <el-table-column prop="returnNo" label="退货单号" width="180" />
-        <el-table-column prop="deliveryId" label="销售发货单" width="180">
+        <el-table-column prop="returnNo" :label="$t('salesReturnOps.returnNo')" width="180" />
+        <el-table-column prop="deliveryId" :label="$t('salesReturnOps.salesDelivery')" width="180">
           <template #default="{ row }">
             {{ deliveryLabelById(row.deliveryId) || row.deliveryId }}
           </template>
         </el-table-column>
-        <el-table-column prop="customerName" label="客户" width="150" />
-        <el-table-column prop="warehouseName" label="退货仓库" width="140" />
-        <el-table-column prop="returnDate" label="退货日期" width="120" />
-        <el-table-column prop="totalAmount" label="退货金额" width="120" align="right">
+        <el-table-column prop="customerName" :label="$t('salesReturnOps.customer')" width="150" />
+        <el-table-column prop="warehouseName" :label="$t('salesReturnOps.returnWarehouse')" width="140" />
+        <el-table-column prop="returnDate" :label="$t('salesReturnOps.returnDate')" width="120" />
+        <el-table-column prop="totalAmount" :label="$t('salesReturnOps.returnAmount')" width="140" align="right">
           <template #default="{ row }">
-            ¥{{ row.totalAmount?.toFixed(2) }}
+            {{ formatMoney(row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="$t('salesReturnOps.statusLabel')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'DRAFT'" type="info">草稿</el-tag>
-            <el-tag v-else-if="row.status === 'POSTED' || row.status === 'COMPLETED'" type="success">已过账</el-tag>
-            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">已取消</el-tag>
+            <el-tag v-if="row.status === 'DRAFT'" type="info">{{ $t('salesReturnOps.status.draft') }}</el-tag>
+            <el-tag v-else-if="row.status === 'POSTED' || row.status === 'COMPLETED'" type="success">{{ $t('salesReturnOps.status.posted') }}</el-tag>
+            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">{{ $t('salesReturnOps.status.cancelled') }}</el-tag>
             <el-tag v-else type="info">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" show-overflow-tooltip />
-        <el-table-column prop="createdBy" label="创建人" width="120" />
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column prop="remark" :label="$t('salesReturnOps.remark')" show-overflow-tooltip />
+        <el-table-column prop="createdBy" :label="$t('salesReturnOps.createdBy')" width="120" />
+        <el-table-column prop="createdAt" :label="$t('salesReturnOps.createdTime')" width="160" />
+        <el-table-column :label="$t('salesReturnOps.actions')" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
-              查看
+              {{ $t('salesReturnOps.action.view') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -117,7 +117,7 @@
               type="primary"
               @click="handleEdit(row)"
             >
-              编辑
+              {{ $t('salesReturnOps.action.edit') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -126,7 +126,7 @@
               type="success"
               @click="handlePost(row)"
             >
-              过账
+              {{ $t('salesReturnOps.action.post') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -135,7 +135,7 @@
               type="danger"
               @click="handleCancel(row)"
             >
-              取消
+              {{ $t('salesReturnOps.action.cancel') }}
             </el-button>
           </template>
         </el-table-column>
@@ -168,10 +168,10 @@
       >
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="销售发货单" prop="deliveryId">
+            <el-form-item :label="$t('salesReturnOps.salesDelivery')" prop="deliveryId">
               <el-select
                 v-model="formData.deliveryId"
-                placeholder="请选择销售发货单"
+                :placeholder="$t('salesReturnOps.placeholder.salesDelivery')"
                 style="width: 100%"
                 :disabled="isView || !!editingId"
                 @change="handleDeliveryChange"
@@ -187,23 +187,23 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="客户">
+            <el-form-item :label="$t('salesReturnOps.customer')">
               <el-input :model-value="selectedDelivery?.customerName || '-'" disabled />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="退货仓库">
+            <el-form-item :label="$t('salesReturnOps.returnWarehouse')">
               <el-input :model-value="selectedDelivery?.warehouseName || '-'" disabled />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="退货日期" prop="returnDate">
+            <el-form-item :label="$t('salesReturnOps.returnDate')" prop="returnDate">
               <el-date-picker
                 v-model="formData.returnDate"
                 type="date"
-                placeholder="请选择退货日期"
+                :placeholder="$t('salesReturnOps.placeholder.returnDate')"
                 style="width: 100%"
                 value-format="YYYY-MM-DD"
                 :disabled="isView"
@@ -211,23 +211,23 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('salesReturnOps.remark')">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="2"
-            placeholder="请输入备注"
+            :placeholder="$t('salesReturnOps.placeholder.remark')"
             :disabled="isView"
           />
         </el-form-item>
 
         <!-- 退货明细 -->
-        <el-divider content-position="left">退货明细</el-divider>
+        <el-divider content-position="left">{{ $t('salesReturnOps.details') }}</el-divider>
         <el-table :data="formData.items" border max-height="400">
-          <el-table-column label="产品" prop="productName" width="250" />
-          <el-table-column label="产品编码" prop="productCode" width="140" />
-          <el-table-column label="产品名称" prop="productName" width="150" />
-          <el-table-column label="退货数量" prop="quantity" width="130">
+          <el-table-column :label="$t('salesReturnOps.product')" prop="productName" width="250" />
+          <el-table-column :label="$t('salesReturnOps.productCode')" prop="productCode" width="140" />
+          <el-table-column :label="$t('salesReturnOps.productName')" prop="productName" width="150" />
+          <el-table-column :label="$t('salesReturnOps.returnQuantity')" prop="quantity" width="130">
             <template #default="{ row, $index }">
               <el-input-number
                 v-model="row.quantity"
@@ -239,7 +239,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="退货单价" prop="price" width="130">
+          <el-table-column :label="$t('salesReturnOps.returnUnitPrice')" prop="price" width="130">
             <template #default="{ row, $index }">
               <el-input-number
                 v-model="row.price"
@@ -251,28 +251,28 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="退货金额" prop="amount" width="130" align="right">
+          <el-table-column :label="$t('salesReturnOps.returnAmount')" prop="amount" width="140" align="right">
             <template #default="{ row }">
-              ¥{{ row.amount?.toFixed(2) || '0.00' }}
+              {{ formatMoney(row.amount) }}
             </template>
           </el-table-column>
-          <el-table-column label="原因" prop="reason">
+          <el-table-column :label="$t('salesReturnOps.reason')" prop="reason">
             <template #default="{ row }">
               <el-input
                 v-model="row.reason"
-                placeholder="请输入退货原因"
+                :placeholder="$t('salesReturnOps.placeholder.reason')"
                 :disabled="isView"
               />
             </template>
           </el-table-column>
-          <el-table-column v-if="!isView" label="操作" width="80" fixed="right">
+          <el-table-column v-if="!isView" :label="$t('salesReturnOps.actions')" width="80" fixed="right">
             <template #default="{ $index }">
               <el-button
                 link
                 type="danger"
                 @click="handleDeleteItem($index)"
               >
-                删除
+                {{ $t('salesReturnOps.action.delete') }}
               </el-button>
             </template>
           </el-table-column>
@@ -281,18 +281,18 @@
         <!-- 汇总信息 -->
         <div style="margin-top: 20px; text-align: right; font-size: 16px">
           <span style="margin-right: 20px">
-            总数量: <strong>{{ totalQuantity }}</strong>
+            {{ $t('salesReturnOps.totalQuantity') }}: <strong>{{ totalQuantity }}</strong>
           </span>
           <span>
-            总金额: <strong style="color: #f56c6c">¥{{ totalAmount.toFixed(2) }}</strong>
+            {{ $t('salesReturnOps.totalAmount') }}: <strong style="color: #f56c6c">{{ formatMoney(totalAmount) }}</strong>
           </span>
         </div>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('salesReturnOps.action.cancel') }}</el-button>
         <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSubmit">
-          确定
+          {{ $t('salesReturnOps.action.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -301,6 +301,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
@@ -318,6 +319,9 @@ import {
   type SalesDelivery
 } from '@/api/sales'
 import { getProducts, type Product } from '@/api/masterdata'
+import { formatBusinessDate, formatLocalizedCurrency } from '@/utils/locale'
+
+const { t } = useI18n()
 
 // 查询参数
 const queryParams = reactive<SalesReturnQuery>({
@@ -362,8 +366,8 @@ const formData = reactive<SalesReturnCreateRequest>({
 
 // 表单验证规则
 const formRules: FormRules = {
-  deliveryId: [{ required: true, message: '请选择销售发货单', trigger: 'change' }],
-  returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }]
+  deliveryId: [{ required: true, message: t('salesReturnOps.validation.salesDelivery'), trigger: 'change' }],
+  returnDate: [{ required: true, message: t('salesReturnOps.validation.returnDate'), trigger: 'change' }]
 }
 
 const selectedDelivery = computed(() => {
@@ -393,7 +397,7 @@ const loadData = async () => {
     }))
     total.value = response.total
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('salesReturnOps.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -406,7 +410,7 @@ const loadDeliveries = async () => {
     const response = await getSalesDeliveries(deliveryPageQuery)
     deliveries.value = response.records
   } catch (error) {
-    ElMessage.error('加载销售发货单失败')
+    ElMessage.error(t('salesReturnOps.message.deliveriesLoadFailed'))
   }
 }
 
@@ -416,7 +420,7 @@ const loadProducts = async () => {
     const response = await getProducts(optionPageQuery)
     products.value = response.records
   } catch (error) {
-    ElMessage.error('加载产品列表失败')
+    ElMessage.error(t('salesReturnOps.message.productsLoadFailed'))
   }
 }
 
@@ -447,7 +451,7 @@ const handleReset = () => {
 // 新增
 const handleCreate = () => {
   resetForm()
-  dialogTitle.value = '新增销售退货'
+  dialogTitle.value = t('salesReturnOps.dialog.create')
   dialogVisible.value = true
 }
 
@@ -455,13 +459,13 @@ const handleCreate = () => {
 const handleView = async (row: SalesReturn) => {
   try {
     const data = await getSalesReturn(row.id)
-    dialogTitle.value = '查看销售退货'
+    dialogTitle.value = t('salesReturnOps.dialog.view')
     isView.value = true
     editingId.value = ''
     Object.assign(formData, data)
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载详情失败')
+    ElMessage.error(t('salesReturnOps.message.detailLoadFailed'))
   }
 }
 
@@ -469,7 +473,7 @@ const handleView = async (row: SalesReturn) => {
 const handleEdit = async (row: SalesReturn) => {
   try {
     const detail = await getSalesReturn(row.id)
-    dialogTitle.value = '编辑销售退货'
+    dialogTitle.value = t('salesReturnOps.dialog.edit')
     isView.value = false
     editingId.value = detail.id
     // 载入所属发货单，供只读展示（草稿不允许改发货单）
@@ -500,24 +504,24 @@ const handleEdit = async (row: SalesReturn) => {
     }))
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载退货单失败')
+    ElMessage.error(t('salesReturnOps.message.returnLoadFailed'))
   }
 }
 
 // 取消
 const handleCancel = async (row: SalesReturn) => {
   try {
-    await ElMessageBox.confirm('确认取消此退货单吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('salesReturnOps.message.cancelConfirm'), t('salesReturnOps.prompt'), {
+      confirmButtonText: t('salesReturnOps.action.confirm'),
+      cancelButtonText: t('salesReturnOps.action.cancel'),
       type: 'warning'
     })
     await cancelSalesReturn(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('salesReturnOps.message.success'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('salesReturnOps.message.failed'))
     }
   }
 }
@@ -525,17 +529,17 @@ const handleCancel = async (row: SalesReturn) => {
 // 过账
 const handlePost = async (row: SalesReturn) => {
   try {
-    await ElMessageBox.confirm('确认过账此销售退货单吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('salesReturnOps.message.postConfirm'), t('salesReturnOps.prompt'), {
+      confirmButtonText: t('salesReturnOps.action.confirm'),
+      cancelButtonText: t('salesReturnOps.action.cancel'),
       type: 'warning'
     })
     await postSalesReturn(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('salesReturnOps.message.success'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('salesReturnOps.message.failed'))
     }
   }
 }
@@ -564,7 +568,7 @@ const handleDeliveryChange = async () => {
       reason: ''
     })).filter(item => item.quantity > 0)
   } catch (error) {
-    ElMessage.error('加载销售发货详情失败')
+    ElMessage.error(t('salesReturnOps.message.deliveryDetailLoadFailed'))
   }
 }
 
@@ -580,7 +584,8 @@ const handleQuantityChange = (index: number) => {
 }
 
 const deliveryLabel = (delivery: SalesDelivery) => {
-  return [delivery.deliveryNo, delivery.customerName, delivery.warehouseName].filter(Boolean).join(' - ') || `发货单${delivery.id}`
+  return [delivery.deliveryNo, delivery.customerName, delivery.warehouseName].filter(Boolean).join(' - ')
+    || t('salesReturnOps.deliveryFallback', { id: delivery.id })
 }
 
 const deliveryById = (deliveryId: string | number | undefined) => {
@@ -619,14 +624,14 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       if (formData.items.length === 0) {
-        ElMessage.warning('请至少添加一条退货明细')
+        ElMessage.warning(t('salesReturnOps.validation.itemRequired'))
         return
       }
 
       // 检查退货数量
       const hasQuantity = formData.items.some(item => item.quantity > 0)
       if (!hasQuantity) {
-        ElMessage.warning('请输入退货数量')
+        ElMessage.warning(t('salesReturnOps.validation.quantityRequired'))
         return
       }
 
@@ -637,11 +642,11 @@ const handleSubmit = async () => {
         } else {
           await createSalesReturn(formData)
         }
-        ElMessage.success('操作成功')
+        ElMessage.success(t('salesReturnOps.message.success'))
         dialogVisible.value = false
         loadData()
       } catch (error) {
-        ElMessage.error(editingId.value ? '更新失败' : '操作失败')
+        ElMessage.error(t(editingId.value ? 'salesReturnOps.message.updateFailed' : 'salesReturnOps.message.failed'))
       } finally {
         submitLoading.value = false
       }
@@ -654,11 +659,13 @@ const resetForm = () => {
   editingId.value = ''
   isView.value = false
   formData.deliveryId = ''
-  formData.returnDate = new Date().toISOString().split('T')[0]
+  formData.returnDate = formatBusinessDate()
   formData.items = []
   formData.remark = ''
   formRef.value?.clearValidate()
 }
+
+const formatMoney = (value?: number) => formatLocalizedCurrency(Number(value ?? 0))
 
 onMounted(async () => {
   await Promise.all([

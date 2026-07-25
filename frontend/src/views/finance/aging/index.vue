@@ -2,32 +2,32 @@
   <div class="aging-page">
     <el-card shadow="never" class="toolbar-card">
       <el-form inline>
-        <el-form-item label="基准日">
+        <el-form-item :label="t('financeAging.asOfDate')">
           <el-date-picker
             v-model="asOfDate"
             type="date"
             value-format="YYYY-MM-DD"
-            placeholder="默认今天"
+            :placeholder="t('financeAging.todayPlaceholder')"
             style="width: 180px"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" :loading="loading" @click="loadData">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" :loading="loading" @click="loadData">{{ t('financeAging.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ t('financeAging.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <div class="summary-row">
       <div class="summary-card ar">
-        <div class="label">应收未结总额</div>
+        <div class="label">{{ t('financeAging.receivableTotal') }}</div>
         <div class="value">{{ formatMoney(summary?.receivableTotal) }}</div>
-        <div class="sub">基准日 {{ summary?.asOfDate || asOfDate || today }}</div>
+        <div class="sub">{{ t('financeAging.asOfDateValue', { date: formatDate(summary?.asOfDate || asOfDate || today) }) }}</div>
       </div>
       <div class="summary-card ap">
-        <div class="label">应付未结总额</div>
+        <div class="label">{{ t('financeAging.payableTotal') }}</div>
         <div class="value">{{ formatMoney(summary?.payableTotal) }}</div>
-        <div class="sub">仅统计剩余金额 &gt; 0 的未结单据</div>
+        <div class="sub">{{ t('financeAging.outstandingOnly') }}</div>
       </div>
     </div>
 
@@ -36,13 +36,17 @@
         <el-card shadow="never" class="table-card">
           <template #header>
             <div class="card-header">
-              <span>应收账龄分段</span>
+              <span>{{ t('financeAging.receivableBuckets') }}</span>
             </div>
           </template>
           <el-table v-loading="loading" :data="summary?.receivableBuckets || []" border stripe>
-            <el-table-column prop="label" label="账龄段" min-width="120" />
-            <el-table-column prop="count" label="笔数" width="90" align="right" />
-            <el-table-column prop="amount" label="金额" min-width="140" align="right">
+            <el-table-column prop="label" :label="t('financeAging.bucket')" min-width="120">
+              <template #default="{ row }">{{ agingBucketLabel(row.code, row.label) }}</template>
+            </el-table-column>
+            <el-table-column prop="count" :label="t('financeAging.count')" width="90" align="right">
+              <template #default="{ row }">{{ formatNumber(row.count) }}</template>
+            </el-table-column>
+            <el-table-column prop="amount" :label="t('financeAging.amount')" min-width="140" align="right">
               <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
             </el-table-column>
           </el-table>
@@ -52,13 +56,17 @@
         <el-card shadow="never" class="table-card">
           <template #header>
             <div class="card-header">
-              <span>应付账龄分段</span>
+              <span>{{ t('financeAging.payableBuckets') }}</span>
             </div>
           </template>
           <el-table v-loading="loading" :data="summary?.payableBuckets || []" border stripe>
-            <el-table-column prop="label" label="账龄段" min-width="120" />
-            <el-table-column prop="count" label="笔数" width="90" align="right" />
-            <el-table-column prop="amount" label="金额" min-width="140" align="right">
+            <el-table-column prop="label" :label="t('financeAging.bucket')" min-width="120">
+              <template #default="{ row }">{{ agingBucketLabel(row.code, row.label) }}</template>
+            </el-table-column>
+            <el-table-column prop="count" :label="t('financeAging.count')" width="90" align="right">
+              <template #default="{ row }">{{ formatNumber(row.count) }}</template>
+            </el-table-column>
+            <el-table-column prop="amount" :label="t('financeAging.amount')" min-width="140" align="right">
               <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
             </el-table-column>
           </el-table>
@@ -71,16 +79,20 @@
         <el-card shadow="never" class="table-card">
           <template #header>
             <div class="card-header">
-              <span>应收逾期 TOP20</span>
-              <el-button text type="primary" @click="goReceivables">去应收台账</el-button>
+              <span>{{ t('financeAging.overdueReceivables') }}</span>
+              <el-button text type="primary" @click="goReceivables">{{ t('financeAging.receivablesLedger') }}</el-button>
             </div>
           </template>
           <el-table v-loading="loading" :data="summary?.overdueReceivables || []" border stripe max-height="420">
-            <el-table-column prop="docNo" label="应收单号" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="partnerName" label="客户" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="bizDate" label="业务日" width="110" />
-            <el-table-column prop="agingDays" label="账龄天" width="80" align="right" />
-            <el-table-column prop="remainingAmount" label="未结金额" width="120" align="right">
+            <el-table-column prop="docNo" :label="t('financeAging.receivableNo')" min-width="140" show-overflow-tooltip />
+            <el-table-column prop="partnerName" :label="t('financeAging.customer')" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="bizDate" :label="t('financeAging.bizDate')" width="120">
+              <template #default="{ row }">{{ formatDate(row.bizDate) }}</template>
+            </el-table-column>
+            <el-table-column prop="agingDays" :label="t('financeAging.agingDays')" width="90" align="right">
+              <template #default="{ row }">{{ formatNumber(row.agingDays) }}</template>
+            </el-table-column>
+            <el-table-column prop="remainingAmount" :label="t('financeAging.outstandingAmount')" width="140" align="right">
               <template #default="{ row }">{{ formatMoney(row.remainingAmount) }}</template>
             </el-table-column>
           </el-table>
@@ -90,16 +102,20 @@
         <el-card shadow="never" class="table-card">
           <template #header>
             <div class="card-header">
-              <span>应付逾期 TOP20</span>
-              <el-button text type="primary" @click="goPayables">去应付台账</el-button>
+              <span>{{ t('financeAging.overduePayables') }}</span>
+              <el-button text type="primary" @click="goPayables">{{ t('financeAging.payablesLedger') }}</el-button>
             </div>
           </template>
           <el-table v-loading="loading" :data="summary?.overduePayables || []" border stripe max-height="420">
-            <el-table-column prop="docNo" label="应付单号" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="partnerName" label="供应商" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="bizDate" label="业务日" width="110" />
-            <el-table-column prop="agingDays" label="账龄天" width="80" align="right" />
-            <el-table-column prop="remainingAmount" label="未结金额" width="120" align="right">
+            <el-table-column prop="docNo" :label="t('financeAging.payableNo')" min-width="140" show-overflow-tooltip />
+            <el-table-column prop="partnerName" :label="t('financeAging.supplier')" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="bizDate" :label="t('financeAging.bizDate')" width="120">
+              <template #default="{ row }">{{ formatDate(row.bizDate) }}</template>
+            </el-table-column>
+            <el-table-column prop="agingDays" :label="t('financeAging.agingDays')" width="90" align="right">
+              <template #default="{ row }">{{ formatNumber(row.agingDays) }}</template>
+            </el-table-column>
+            <el-table-column prop="remainingAmount" :label="t('financeAging.outstandingAmount')" width="140" align="right">
               <template #default="{ row }">{{ formatMoney(row.remainingAmount) }}</template>
             </el-table-column>
           </el-table>
@@ -111,27 +127,44 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { getFinanceAgingSummary, type FinanceAgingSummary } from '@/api/finance'
-import { formatLocalizedNumber } from '@/utils/locale'
+import {
+  formatBusinessDate,
+  formatLocalizedCurrency,
+  formatLocalizedDate,
+  formatLocalizedNumber
+} from '@/utils/locale'
 
 const router = useRouter()
+const { t } = useI18n()
 const loading = ref(false)
 const summary = ref<FinanceAgingSummary>()
-const today = new Date().toISOString().slice(0, 10)
+const today = formatBusinessDate()
 const asOfDate = ref(today)
 
-const formatMoney = (value?: number) =>
-  formatLocalizedNumber(Number(value || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const formatMoney = (value?: number) => formatLocalizedCurrency(Number(value ?? 0))
+const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0))
+const formatDate = (value?: string) => formatLocalizedDate(value) || '-'
+const agingBucketLabel = (code: string, fallback: string) => {
+  const keyMap: Record<string, string> = {
+    D0_30: 'financeAging.bucketLabel.d0_30',
+    D31_60: 'financeAging.bucketLabel.d31_60',
+    D61_90: 'financeAging.bucketLabel.d61_90',
+    D90_PLUS: 'financeAging.bucketLabel.d90Plus'
+  }
+  return keyMap[code] ? t(keyMap[code]) : fallback
+}
 
 const loadData = async () => {
   loading.value = true
   try {
     summary.value = await getFinanceAgingSummary(asOfDate.value || undefined)
   } catch {
-    ElMessage.error('加载账龄分析失败')
+    ElMessage.error(t('financeAging.message.loadFailed'))
   } finally {
     loading.value = false
   }

@@ -3,18 +3,18 @@
     <!-- 查询表单 -->
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="调整单号">
+        <el-form-item :label="$t('inventoryAdjustments.adjustmentNo')">
           <el-input
             v-model="queryParams.adjustmentNo"
-            placeholder="请输入调整单号"
+            :placeholder="$t('inventoryAdjustments.placeholder.adjustmentNo')"
             clearable
             style="width: 200px"
           />
         </el-form-item>
-        <el-form-item label="仓库">
+        <el-form-item :label="$t('inventoryAdjustments.warehouse')">
           <el-select
             v-model="queryParams.warehouseId"
-            placeholder="请选择仓库"
+            :placeholder="$t('inventoryAdjustments.placeholder.warehouse')"
             clearable
             style="width: 200px"
           >
@@ -26,36 +26,36 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="调整类型">
+        <el-form-item :label="$t('inventoryAdjustments.adjustmentType')">
           <el-select
             v-model="queryParams.type"
-            placeholder="请选择调整类型"
+            :placeholder="$t('inventoryAdjustments.placeholder.adjustmentType')"
             clearable
             style="width: 150px"
           >
-            <el-option label="盘盈" value="GAIN" />
-            <el-option label="盘亏" value="LOSS" />
+            <el-option :label="$t('inventoryAdjustments.type.gain')" value="GAIN" />
+            <el-option :label="$t('inventoryAdjustments.type.loss')" value="LOSS" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="$t('inventoryAdjustments.statusLabel')">
           <el-select
             v-model="queryParams.status"
-            placeholder="请选择状态"
+            :placeholder="$t('inventoryAdjustments.placeholder.status')"
             clearable
             style="width: 150px"
           >
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="已完成" value="POSTED" />
-            <el-option label="已取消" value="CANCELLED" />
+            <el-option :label="$t('inventoryAdjustments.status.draft')" value="DRAFT" />
+            <el-option :label="$t('inventoryAdjustments.status.completed')" value="POSTED" />
+            <el-option :label="$t('inventoryAdjustments.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期范围">
+        <el-form-item :label="$t('inventoryAdjustments.dateRange')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="$t('inventoryAdjustments.rangeSeparator')"
+            :start-placeholder="$t('inventoryAdjustments.placeholder.startDate')"
+            :end-placeholder="$t('inventoryAdjustments.placeholder.endDate')"
             value-format="YYYY-MM-DD"
             style="width: 240px"
           />
@@ -63,11 +63,11 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ $t('inventoryAdjustments.action.search') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ $t('inventoryAdjustments.action.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -78,7 +78,7 @@
       <div class="btn-group">
         <el-button v-permission="'inventory:adjustment:create'" type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
-          新增调整
+          {{ $t('inventoryAdjustments.action.create') }}
         </el-button>
       </div>
     </el-card>
@@ -98,30 +98,30 @@
         border
         stripe
       >
-        <el-table-column prop="adjustmentNo" label="调整单号" width="180" />
-        <el-table-column prop="warehouseName" label="仓库" width="150" />
-        <el-table-column prop="adjustmentDate" label="调整日期" width="120" />
-        <el-table-column prop="type" label="调整类型" width="100">
+        <el-table-column prop="adjustmentNo" :label="$t('inventoryAdjustments.adjustmentNo')" width="180" />
+        <el-table-column prop="warehouseName" :label="$t('inventoryAdjustments.warehouse')" width="150" />
+        <el-table-column prop="adjustmentDate" :label="$t('inventoryAdjustments.adjustmentDate')" width="120" />
+        <el-table-column prop="type" :label="$t('inventoryAdjustments.adjustmentType')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.type === 'GAIN'" type="success">盘盈</el-tag>
-            <el-tag v-else-if="row.type === 'LOSS'" type="danger">盘亏</el-tag>
-            <el-tag v-else type="info">其他</el-tag>
+            <el-tag v-if="row.type === 'GAIN'" type="success">{{ $t('inventoryAdjustments.type.gain') }}</el-tag>
+            <el-tag v-else-if="row.type === 'LOSS'" type="danger">{{ $t('inventoryAdjustments.type.loss') }}</el-tag>
+            <el-tag v-else type="info">{{ $t('inventoryAdjustments.type.other') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="$t('inventoryAdjustments.statusLabel')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'DRAFT'" type="info">草稿</el-tag>
-            <el-tag v-else-if="row.status === 'COMPLETED'" type="success">已完成</el-tag>
-            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">已取消</el-tag>
+            <el-tag v-if="row.status === 'DRAFT'" type="info">{{ $t('inventoryAdjustments.status.draft') }}</el-tag>
+            <el-tag v-else-if="row.status === 'COMPLETED'" type="success">{{ $t('inventoryAdjustments.status.completed') }}</el-tag>
+            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">{{ $t('inventoryAdjustments.status.cancelled') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" show-overflow-tooltip />
-        <el-table-column prop="createdBy" label="创建人" width="120" />
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column prop="remark" :label="$t('inventoryAdjustments.remark')" show-overflow-tooltip />
+        <el-table-column prop="createdBy" :label="$t('inventoryAdjustments.createdBy')" width="120" />
+        <el-table-column prop="createdAt" :label="$t('inventoryAdjustments.createdTime')" width="160" />
+        <el-table-column :label="$t('inventoryAdjustments.actions')" width="200" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
-              查看
+              {{ $t('inventoryAdjustments.action.view') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -130,7 +130,7 @@
               type="success"
               @click="handleComplete(row)"
             >
-              过账
+              {{ $t('inventoryAdjustments.action.post') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -139,7 +139,7 @@
               type="danger"
               @click="handleCancel(row)"
             >
-              取消
+              {{ $t('inventoryAdjustments.action.cancel') }}
             </el-button>
           </template>
         </el-table-column>
@@ -148,7 +148,7 @@
       <!-- 空状态 -->
       <el-empty
         v-if="!loading && tableData.length === 0"
-        description="暂无数据"
+        :description="$t('inventoryAdjustments.empty')"
         :image-size="120"
       />
 
@@ -180,10 +180,10 @@
       >
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="仓库" prop="warehouseId">
+            <el-form-item :label="$t('inventoryAdjustments.warehouse')" prop="warehouseId">
               <el-select
                 v-model="formData.warehouseId"
-                placeholder="请选择仓库"
+                :placeholder="$t('inventoryAdjustments.placeholder.warehouse')"
                 style="width: 100%"
                 :disabled="isView"
               >
@@ -197,11 +197,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="调整日期" prop="adjustmentDate">
+            <el-form-item :label="$t('inventoryAdjustments.adjustmentDate')" prop="adjustmentDate">
               <el-date-picker
                 v-model="formData.adjustmentDate"
                 type="date"
-                placeholder="请选择调整日期"
+                :placeholder="$t('inventoryAdjustments.placeholder.adjustmentDate')"
                 style="width: 100%"
                 value-format="YYYY-MM-DD"
                 :disabled="isView"
@@ -209,31 +209,31 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="调整类型" prop="type">
+            <el-form-item :label="$t('inventoryAdjustments.adjustmentType')" prop="type">
               <el-select
                 v-model="formData.type"
-                placeholder="请选择调整类型"
+                :placeholder="$t('inventoryAdjustments.placeholder.adjustmentType')"
                 style="width: 100%"
                 :disabled="isView"
               >
-                <el-option label="盘盈" value="GAIN" />
-                <el-option label="盘亏" value="LOSS" />
+                <el-option :label="$t('inventoryAdjustments.type.gain')" value="GAIN" />
+                <el-option :label="$t('inventoryAdjustments.type.loss')" value="LOSS" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('inventoryAdjustments.remark')">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="2"
-            placeholder="请输入备注"
+            :placeholder="$t('inventoryAdjustments.placeholder.remark')"
             :disabled="isView"
           />
         </el-form-item>
 
         <!-- 调整明细 -->
-        <el-divider content-position="left">调整明细</el-divider>
+        <el-divider content-position="left">{{ $t('inventoryAdjustments.details') }}</el-divider>
         <el-button
           v-if="!isView"
           type="primary"
@@ -242,14 +242,14 @@
           class="mb-sm"
         >
           <el-icon><Plus /></el-icon>
-          添加产品
+          {{ $t('inventoryAdjustments.action.addProduct') }}
         </el-button>
         <el-table :data="formData.items" border>
-          <el-table-column label="产品" prop="productId" width="250">
+          <el-table-column :label="$t('inventoryAdjustments.product')" prop="productId" width="250">
             <template #default="{ row, $index }">
               <el-select
                 v-model="row.productId"
-                placeholder="请选择产品"
+                :placeholder="$t('inventoryAdjustments.placeholder.product')"
                 filterable
                 style="width: 100%"
                 :disabled="isView"
@@ -264,9 +264,9 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="产品编码" prop="productCode" width="150" />
-          <el-table-column label="产品名称" prop="productName" width="150" />
-          <el-table-column label="调整数量" prop="quantity" width="150">
+          <el-table-column :label="$t('inventoryAdjustments.productCode')" prop="productCode" width="150" />
+          <el-table-column :label="$t('inventoryAdjustments.productName')" prop="productName" width="150" />
+          <el-table-column :label="$t('inventoryAdjustments.adjustmentQuantity')" prop="quantity" width="150">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.quantity"
@@ -277,23 +277,23 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="原因" prop="reason">
+          <el-table-column :label="$t('inventoryAdjustments.reason')" prop="reason">
             <template #default="{ row }">
               <el-input
                 v-model="row.reason"
-                placeholder="请输入原因"
+                :placeholder="$t('inventoryAdjustments.placeholder.reason')"
                 :disabled="isView"
               />
             </template>
           </el-table-column>
-          <el-table-column v-if="!isView" label="操作" width="80" fixed="right">
+          <el-table-column v-if="!isView" :label="$t('inventoryAdjustments.actions')" width="80" fixed="right">
             <template #default="{ $index }">
               <el-button
                 link
                 type="danger"
                 @click="handleDeleteItem($index)"
               >
-                删除
+                {{ $t('inventoryAdjustments.action.delete') }}
               </el-button>
             </template>
           </el-table-column>
@@ -302,9 +302,9 @@
 
       <template #footer>
         <div class="btn-group">
-          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button @click="dialogVisible = false">{{ $t('inventoryAdjustments.action.cancel') }}</el-button>
           <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSubmit">
-            确定
+            {{ $t('inventoryAdjustments.action.confirm') }}
           </el-button>
         </div>
       </template>
@@ -314,6 +314,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
@@ -328,6 +329,9 @@ import {
 } from '@/api/inventory'
 import { getWarehouses, type Warehouse } from '@/api/masterdata'
 import { getProducts, type Product } from '@/api/masterdata'
+import { formatBusinessDate } from '@/utils/locale'
+
+const { t } = useI18n()
 
 // 查询参数
 const queryParams = reactive<InventoryAdjustmentQuery>({
@@ -373,9 +377,9 @@ const formData = reactive<InventoryAdjustmentCreateRequest>({
 
 // 表单验证规则
 const formRules: FormRules = {
-  warehouseId: [{ required: true, message: '请选择仓库', trigger: 'change' }],
-  adjustmentDate: [{ required: true, message: '请选择调整日期', trigger: 'change' }],
-  type: [{ required: true, message: '请选择调整类型', trigger: 'change' }]
+  warehouseId: [{ required: true, message: t('inventoryAdjustments.validation.warehouse'), trigger: 'change' }],
+  adjustmentDate: [{ required: true, message: t('inventoryAdjustments.validation.adjustmentDate'), trigger: 'change' }],
+  type: [{ required: true, message: t('inventoryAdjustments.validation.adjustmentType'), trigger: 'change' }]
 }
 
 // 加载数据
@@ -386,7 +390,7 @@ const loadData = async () => {
     tableData.value = response.records
     total.value = response.total
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('inventoryAdjustments.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -399,7 +403,7 @@ const loadWarehouses = async () => {
     const response = await getWarehouses(optionPageQuery)
     warehouses.value = response.records
   } catch (error) {
-    ElMessage.error('加载仓库列表失败')
+    ElMessage.error(t('inventoryAdjustments.message.warehousesLoadFailed'))
   }
 }
 
@@ -410,7 +414,7 @@ const loadProducts = async () => {
     const response = await getProducts(optionPageQuery)
     products.value = response.records
   } catch (error) {
-    ElMessage.error('加载产品列表失败')
+    ElMessage.error(t('inventoryAdjustments.message.productsLoadFailed'))
   }
 }
 
@@ -441,7 +445,7 @@ const handleReset = () => {
 
 // 新增
 const handleCreate = () => {
-  dialogTitle.value = '新增库存调整'
+  dialogTitle.value = t('inventoryAdjustments.dialog.create')
   isView.value = false
   resetForm()
   dialogVisible.value = true
@@ -449,31 +453,31 @@ const handleCreate = () => {
 
 // 查看
 const handleView = async (row: InventoryAdjustment) => {
-  dialogTitle.value = '查看库存调整'
+  dialogTitle.value = t('inventoryAdjustments.dialog.view')
   isView.value = true
   try {
     const data = await getInventoryAdjustment(row.id)
     Object.assign(formData, data)
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载详情失败')
+    ElMessage.error(t('inventoryAdjustments.message.detailLoadFailed'))
   }
 }
 
 // 过账
 const handleComplete = async (row: InventoryAdjustment) => {
   try {
-    await ElMessageBox.confirm('确认过账此库存调整吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('inventoryAdjustments.message.postConfirm'), t('inventoryAdjustments.prompt'), {
+      confirmButtonText: t('inventoryAdjustments.action.confirm'),
+      cancelButtonText: t('inventoryAdjustments.action.cancel'),
       type: 'warning'
     })
     await completeInventoryAdjustment(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('inventoryAdjustments.message.success'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('inventoryAdjustments.message.failed'))
     }
   }
 }
@@ -481,17 +485,17 @@ const handleComplete = async (row: InventoryAdjustment) => {
 // 取消
 const handleCancel = async (row: InventoryAdjustment) => {
   try {
-    await ElMessageBox.confirm('确认取消此库存调整吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('inventoryAdjustments.message.cancelConfirm'), t('inventoryAdjustments.prompt'), {
+      confirmButtonText: t('inventoryAdjustments.action.confirm'),
+      cancelButtonText: t('inventoryAdjustments.action.cancel'),
       type: 'warning'
     })
     await cancelInventoryAdjustment(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('inventoryAdjustments.message.success'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('inventoryAdjustments.message.failed'))
     }
   }
 }
@@ -527,7 +531,7 @@ const handleProductChange = (index: number) => {
 const productLabel = (product: Product) => {
   const code = product.code || product.productCode || ''
   const name = product.name || product.productName || ''
-  return code && name ? `${code} - ${name}` : name || code || `产品${product.id}`
+  return code && name ? `${code} - ${name}` : name || code || t('inventoryAdjustments.productFallback', { id: product.id })
 }
 
 // 提交表单
@@ -537,18 +541,18 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       if (formData.items.length === 0) {
-        ElMessage.warning('请至少添加一条调整明细')
+        ElMessage.warning(t('inventoryAdjustments.validation.itemRequired'))
         return
       }
 
       submitLoading.value = true
       try {
         await createInventoryAdjustment(formData)
-        ElMessage.success('操作成功')
+        ElMessage.success(t('inventoryAdjustments.message.success'))
         dialogVisible.value = false
         loadData()
       } catch (error) {
-        ElMessage.error('操作失败')
+        ElMessage.error(t('inventoryAdjustments.message.failed'))
       } finally {
         submitLoading.value = false
       }
@@ -559,7 +563,7 @@ const handleSubmit = async () => {
 // 重置表单
 const resetForm = () => {
   formData.warehouseId = 0
-  formData.adjustmentDate = new Date().toISOString().split('T')[0]
+  formData.adjustmentDate = formatBusinessDate()
   formData.type = 'GAIN'
   formData.items = []
   formData.remark = ''

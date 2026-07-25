@@ -2,23 +2,23 @@
   <div class="manual-voucher-page">
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="凭证号">
-          <el-input v-model="queryForm.voucherNo" placeholder="请输入凭证号" clearable style="width: 200px" />
+        <el-form-item :label="$t('financeReportPages.manualVouchers.voucherNo')">
+          <el-input v-model="queryForm.voucherNo" :placeholder="$t('financeReportPages.manualVouchers.voucherNoPlaceholder')" clearable style="width: 200px" />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 150px">
+        <el-form-item :label="$t('financeReportPages.common.status')">
+          <el-select v-model="queryForm.status" :placeholder="$t('financeReportPages.manualVouchers.allStatuses')" clearable style="width: 150px">
             <el-option v-for="opt in statusOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期从">
-          <el-date-picker v-model="queryForm.dateFrom" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" style="width: 160px" />
+        <el-form-item :label="$t('financeReportPages.manualVouchers.dateFrom')">
+          <el-date-picker v-model="queryForm.dateFrom" type="date" value-format="YYYY-MM-DD" :placeholder="$t('financeReportPages.common.startDate')" style="width: 160px" />
         </el-form-item>
-        <el-form-item label="日期至">
-          <el-date-picker v-model="queryForm.dateTo" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" style="width: 160px" />
+        <el-form-item :label="$t('financeReportPages.manualVouchers.dateTo')">
+          <el-date-picker v-model="queryForm.dateTo" type="date" value-format="YYYY-MM-DD" :placeholder="$t('financeReportPages.common.endDate')" style="width: 160px" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -26,82 +26,82 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>手工凭证</span>
+          <span>{{ $t('financeReportPages.manualVouchers.title') }}</span>
           <el-button
             v-permission="'finance:voucher:manage'"
             type="primary"
             :icon="Plus"
             @click="openCreate"
           >
-            录入凭证
+            {{ $t('financeReportPages.manualVouchers.create') }}
           </el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="voucherNo" label="凭证号" width="200" />
-        <el-table-column prop="bizDate" label="凭证日期" width="120" />
-        <el-table-column prop="amount" label="金额" width="150" align="right">
+        <el-table-column prop="voucherNo" :label="$t('financeReportPages.manualVouchers.voucherNo')" width="200" />
+        <el-table-column prop="bizDate" :label="$t('financeReportPages.manualVouchers.voucherDate')" width="120" />
+        <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="150" align="right">
           <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="110" align="center">
+        <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="摘要" min-width="180" show-overflow-tooltip />
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column prop="remark" :label="$t('financeReportPages.common.summary')" min-width="180" show-overflow-tooltip />
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="320" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">查看</el-button>
+            <el-button link type="primary" @click="openDetail(row)">{{ $t('financeReportPages.common.view') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'finance:voucher:manage'"
               link
               type="primary"
               @click="openEdit(row)"
-            >编辑</el-button>
+            >{{ $t('financeReportPages.common.edit') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'finance:voucher:manage'"
               link
               type="primary"
               @click="handleSubmit(row)"
-            >提交</el-button>
+            >{{ $t('financeReportPages.common.submit') }}</el-button>
             <el-button
               v-if="row.status === 'PENDING'"
               v-permission="'finance:voucher:approve'"
               link
               type="success"
               @click="handleApprove(row)"
-            >审批</el-button>
+            >{{ $t('financeReportPages.common.approve') }}</el-button>
             <el-button
               v-if="row.status === 'PENDING'"
               v-permission="'finance:voucher:approve'"
               link
               type="warning"
               @click="openReject(row)"
-            >驳回</el-button>
+            >{{ $t('financeReportPages.common.reject') }}</el-button>
             <el-button
               v-if="row.status === 'APPROVED'"
               v-permission="'finance:voucher:post'"
               link
               type="success"
               @click="handlePost(row)"
-            >过账</el-button>
+            >{{ $t('financeReportPages.common.post') }}</el-button>
             <el-button
               v-if="row.status === 'POSTED'"
               v-permission="'finance:voucher:post'"
               link
               type="danger"
               @click="openCancel(row)"
-            >作废</el-button>
+            >{{ $t('financeReportPages.common.void') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'finance:voucher:manage'"
               link
               type="danger"
               @click="handleDelete(row)"
-            >删除</el-button>
+            >{{ $t('financeReportPages.common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -120,27 +120,27 @@
     <!-- 录入/编辑弹窗 -->
     <el-dialog
       v-model="editVisible"
-      :title="editMode === 'create' ? '录入手工凭证' : '编辑手工凭证'"
+      :title="editMode === 'create' ? $t('financeReportPages.manualVouchers.createTitle') : $t('financeReportPages.manualVouchers.editTitle')"
       width="900px"
       @close="resetEditForm"
     >
       <el-form ref="editFormRef" :model="editForm" label-width="90px">
-        <el-form-item label="凭证日期" prop="bizDate" required>
-          <el-date-picker v-model="editForm.bizDate" type="date" value-format="YYYY-MM-DD" placeholder="选择凭证日期" style="width: 220px" />
+        <el-form-item :label="$t('financeReportPages.manualVouchers.voucherDate')" prop="bizDate" required>
+          <el-date-picker v-model="editForm.bizDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('financeReportPages.manualVouchers.selectVoucherDate')" style="width: 220px" />
         </el-form-item>
-        <el-form-item label="摘要">
-          <el-input v-model="editForm.remark" placeholder="整张凭证的摘要" style="width: 100%" />
+        <el-form-item :label="$t('financeReportPages.common.summary')">
+          <el-input v-model="editForm.remark" :placeholder="$t('financeReportPages.manualVouchers.wholeVoucherSummary')" style="width: 100%" />
         </el-form-item>
       </el-form>
 
       <el-table :data="editForm.lines" border size="small" class="entry-table">
-        <el-table-column type="index" label="行" width="50" />
-        <el-table-column label="会计科目" min-width="220">
+        <el-table-column type="index" :label="$t('financeReportPages.manualVouchers.line')" width="50" />
+        <el-table-column :label="$t('financeReportPages.manualVouchers.accountSubject')" min-width="220">
           <template #default="{ row }">
             <el-select
               v-model="row.subjectId"
               filterable
-              placeholder="选择科目"
+              :placeholder="$t('financeReportPages.manualVouchers.selectSubject')"
               style="width: 100%"
             >
               <el-option
@@ -152,7 +152,7 @@
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column label="借方金额" width="150">
+        <el-table-column :label="$t('financeReportPages.common.debitAmount')" width="150">
           <template #default="{ row }">
             <el-input-number
               v-model="row.debitAmount"
@@ -164,7 +164,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="贷方金额" width="150">
+        <el-table-column :label="$t('financeReportPages.common.creditAmount')" width="150">
           <template #default="{ row }">
             <el-input-number
               v-model="row.creditAmount"
@@ -176,57 +176,57 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="行摘要" min-width="160">
+        <el-table-column :label="$t('financeReportPages.manualVouchers.lineSummary')" min-width="160">
           <template #default="{ row }">
-            <el-input v-model="row.summary" placeholder="行摘要" />
+            <el-input v-model="row.summary" :placeholder="$t('financeReportPages.manualVouchers.lineSummary')" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="70" align="center">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="70" align="center">
           <template #default="{ $index }">
             <el-button
               link
               type="danger"
               :disabled="editForm.lines.length <= 2"
               @click="removeLine($index)"
-            >删除</el-button>
+            >{{ $t('financeReportPages.common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <div class="entry-toolbar">
-        <el-button link type="primary" :icon="Plus" @click="addLine">增加分录行</el-button>
+        <el-button link type="primary" :icon="Plus" @click="addLine">{{ $t('financeReportPages.manualVouchers.addLine') }}</el-button>
         <div class="balance-summary">
-          <span>借方合计：<strong>{{ formatAmount(debitTotal) }}</strong></span>
-          <span>贷方合计：<strong>{{ formatAmount(creditTotal) }}</strong></span>
+          <span>{{ $t('financeReportPages.manualVouchers.debitTotal') }}<strong>{{ formatAmount(debitTotal) }}</strong></span>
+          <span>{{ $t('financeReportPages.manualVouchers.creditTotal') }}<strong>{{ formatAmount(creditTotal) }}</strong></span>
           <el-tag :type="balanced ? 'success' : 'danger'" size="small">
-            {{ balanced ? '借贷平衡' : '借贷不平' }}
+            {{ balanced ? $t('financeReportPages.manualVouchers.balanced') : $t('financeReportPages.manualVouchers.unbalanced') }}
           </el-tag>
         </div>
       </div>
 
       <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" :disabled="!canSave" @click="handleSave">保存草稿</el-button>
+        <el-button @click="editVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" :disabled="!canSave" @click="handleSave">{{ $t('financeReportPages.manualVouchers.saveDraft') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 驳回原因弹窗 -->
-    <el-dialog v-model="rejectVisible" title="驳回凭证" width="480px">
+    <el-dialog v-model="rejectVisible" :title="$t('financeReportPages.manualVouchers.rejectTitle')" width="480px">
       <el-form label-width="80px">
-        <el-form-item label="驳回原因" required>
-          <el-input v-model="rejectReason" type="textarea" :rows="3" placeholder="请填写驳回原因" />
+        <el-form-item :label="$t('financeReportPages.manualVouchers.rejectReason')" required>
+          <el-input v-model="rejectReason" type="textarea" :rows="3" :placeholder="$t('financeReportPages.manualVouchers.rejectReasonPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="rejectVisible = false">取消</el-button>
-        <el-button type="warning" :loading="rejecting" :disabled="!rejectReason.trim()" @click="handleReject">确定驳回</el-button>
+        <el-button @click="rejectVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button>
+        <el-button type="warning" :loading="rejecting" :disabled="!rejectReason.trim()" @click="handleReject">{{ $t('financeReportPages.manualVouchers.confirmReject') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 作废原因弹窗 -->
     <el-dialog
       v-model="cancelVisible"
-      title="作废凭证"
+      :title="$t('financeReportPages.manualVouchers.cancelTitle')"
       width="520px"
       :close-on-click-modal="!cancelling"
       :close-on-press-escape="!cancelling"
@@ -240,70 +240,70 @@
         class="cancel-alert"
       >
         <template #title>
-          作废已过账凭证 {{ cancellingRow.voucherNo }} 后将生成红冲凭证，请填写作废原因。
+          {{ $t('financeReportPages.manualVouchers.cancelWarning', { no: cancellingRow.voucherNo }) }}
         </template>
       </el-alert>
       <el-form label-width="90px" class="cancel-form">
-        <el-form-item label="作废原因" required>
+        <el-form-item :label="$t('financeReportPages.manualVouchers.cancelReason')" required>
           <el-input
             v-model="cancelReason"
             type="textarea"
             :rows="4"
             maxlength="512"
             show-word-limit
-            placeholder="请填写作废原因"
+            :placeholder="$t('financeReportPages.manualVouchers.cancelReasonPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button :disabled="cancelling" @click="cancelVisible = false">取消</el-button>
+        <el-button :disabled="cancelling" @click="cancelVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button>
         <el-button
           type="danger"
           :loading="cancelling"
           :disabled="cancelling || !cancelReason.trim()"
           @click="handleCancel"
         >
-          确定作废
+          {{ $t('financeReportPages.manualVouchers.confirmCancel') }}
         </el-button>
       </template>
     </el-dialog>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="凭证详情" width="820px">
+    <el-dialog v-model="detailVisible" :title="$t('financeReportPages.manualVouchers.detailTitle')" width="820px">
       <div v-if="currentVoucher">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="凭证号">{{ currentVoucher.voucherNo }}</el-descriptions-item>
-          <el-descriptions-item label="凭证日期">{{ currentVoucher.bizDate }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
+          <el-descriptions-item :label="$t('financeReportPages.manualVouchers.voucherNo')">{{ currentVoucher.voucherNo }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.manualVouchers.voucherDate')">{{ currentVoucher.bizDate }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.common.status')">
             <el-tag :type="statusTagType(currentVoucher.status)">{{ statusLabel(currentVoucher.status) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="金额">{{ formatAmount(currentVoucher.amount) }}</el-descriptions-item>
-          <el-descriptions-item label="摘要" :span="2">{{ currentVoucher.remark || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="原过账凭证ID">{{ currentVoucher.postedVoucherId || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="红冲凭证ID">{{ currentVoucher.reversalVoucherId || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="提交时间">{{ currentVoucher.submittedTime || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="审批时间">{{ currentVoucher.approvedTime || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="过账时间">{{ currentVoucher.postedTime || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="作废时间">{{ currentVoucher.cancelledTime || '-' }}</el-descriptions-item>
-          <el-descriptions-item v-if="currentVoucher.cancelReason" label="作废原因" :span="2">
+          <el-descriptions-item :label="$t('financeReportPages.common.amount')">{{ formatAmount(currentVoucher.amount) }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.common.summary')" :span="2">{{ currentVoucher.remark || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.manualVouchers.originalPostedVoucherId')">{{ currentVoucher.postedVoucherId || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.manualVouchers.reversalVoucherId')">{{ currentVoucher.reversalVoucherId || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.manualVouchers.submittedTime')">{{ currentVoucher.submittedTime || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.manualVouchers.approvedTime')">{{ currentVoucher.approvedTime || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.manualVouchers.postedTime')">{{ currentVoucher.postedTime || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.manualVouchers.cancelledTime')">{{ currentVoucher.cancelledTime || '-' }}</el-descriptions-item>
+          <el-descriptions-item v-if="currentVoucher.cancelReason" :label="$t('financeReportPages.manualVouchers.cancelReason')" :span="2">
             {{ currentVoucher.cancelReason }}
           </el-descriptions-item>
-          <el-descriptions-item v-if="currentVoucher.rejectReason" label="驳回原因" :span="2">
+          <el-descriptions-item v-if="currentVoucher.rejectReason" :label="$t('financeReportPages.manualVouchers.rejectReason')" :span="2">
             {{ currentVoucher.rejectReason }}
           </el-descriptions-item>
         </el-descriptions>
 
         <el-table :data="currentVoucher.lines" border style="margin-top: 16px">
-          <el-table-column type="index" label="行" width="50" />
-          <el-table-column prop="subjectCode" label="科目编码" width="110" />
-          <el-table-column prop="subjectName" label="科目名称" min-width="150" />
-          <el-table-column prop="debitAmount" label="借方金额" width="140" align="right">
+          <el-table-column type="index" :label="$t('financeReportPages.manualVouchers.line')" width="50" />
+          <el-table-column prop="subjectCode" :label="$t('financeReportPages.common.subjectCode')" width="110" />
+          <el-table-column prop="subjectName" :label="$t('financeReportPages.common.subjectName')" min-width="150" />
+          <el-table-column prop="debitAmount" :label="$t('financeReportPages.common.debitAmount')" width="140" align="right">
             <template #default="{ row }">{{ formatAmount(row.debitAmount) }}</template>
           </el-table-column>
-          <el-table-column prop="creditAmount" label="贷方金额" width="140" align="right">
+          <el-table-column prop="creditAmount" :label="$t('financeReportPages.common.creditAmount')" width="140" align="right">
             <template #default="{ row }">{{ formatAmount(row.creditAmount) }}</template>
           </el-table-column>
-          <el-table-column prop="summary" label="行摘要" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="summary" :label="$t('financeReportPages.manualVouchers.lineSummary')" min-width="140" show-overflow-tooltip />
         </el-table>
       </div>
     </el-dialog>
@@ -313,6 +313,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { formatLocalizedNumber } from '@/utils/locale'
 import {
@@ -333,13 +334,14 @@ import {
   type ManualVoucherStatus
 } from '@/api/finance'
 
-const statusOptions: Array<{ label: string; value: ManualVoucherStatus }> = [
-  { label: '草稿', value: 'DRAFT' },
-  { label: '待审批', value: 'PENDING' },
-  { label: '已审批', value: 'APPROVED' },
-  { label: '已过账', value: 'POSTED' },
-  { label: '已作废', value: 'CANCELLED' }
-]
+const { t } = useI18n()
+const statusOptions = computed<Array<{ label: string; value: ManualVoucherStatus }>>(() => [
+  { label: t('financeReportPages.manualVouchers.status.draft'), value: 'DRAFT' },
+  { label: t('financeReportPages.manualVouchers.status.pending'), value: 'PENDING' },
+  { label: t('financeReportPages.manualVouchers.status.approved'), value: 'APPROVED' },
+  { label: t('financeReportPages.manualVouchers.status.posted'), value: 'POSTED' },
+  { label: t('financeReportPages.manualVouchers.status.cancelled'), value: 'CANCELLED' }
+])
 
 const queryForm = reactive<ManualVoucherQuery>({
   pageNo: 1,
@@ -362,7 +364,7 @@ const loadData = async () => {
     tableData.value = res.records
     total.value = res.total
   } catch {
-    ElMessage.error('加载手工凭证失败')
+    ElMessage.error(t('financeReportPages.manualVouchers.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -373,7 +375,7 @@ const loadSubjects = async () => {
     const res = await getAccountSubjects({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
     subjects.value = res.records
   } catch {
-    ElMessage.warning('加载会计科目失败，无法选择分录科目')
+    ElMessage.warning(t('financeReportPages.manualVouchers.message.subjectsLoadFailed'))
   }
 }
 
@@ -486,7 +488,7 @@ const openEdit = async (row: ManualVoucher) => {
 
 const handleSave = async () => {
   if (!canSave.value) {
-    ElMessage.warning('请检查分录：每行需选科目、借贷二选一，且借贷合计相等')
+    ElMessage.warning(t('financeReportPages.manualVouchers.message.invalidEntries'))
     return
   }
   saving.value = true
@@ -503,15 +505,15 @@ const handleSave = async () => {
     }
     if (editMode.value === 'create') {
       await createManualVoucher(payload)
-      ElMessage.success('凭证草稿已创建')
+      ElMessage.success(t('financeReportPages.manualVouchers.message.created'))
     } else {
       await updateManualVoucher(editingId.value, payload)
-      ElMessage.success('凭证草稿已更新')
+      ElMessage.success(t('financeReportPages.manualVouchers.message.updated'))
     }
     editVisible.value = false
     loadData()
   } catch {
-    ElMessage.error('保存凭证失败')
+    ElMessage.error(t('financeReportPages.manualVouchers.message.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -520,52 +522,64 @@ const handleSave = async () => {
 // ---- 状态机操作 ----
 const handleSubmit = async (row: ManualVoucher) => {
   try {
-    await ElMessageBox.confirm(`确定提交凭证 ${row.voucherNo} 进入审批吗？`, '提交审批', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('financeReportPages.manualVouchers.message.submitConfirm', { no: row.voucherNo }),
+      t('financeReportPages.manualVouchers.message.submitTitle'),
+      { type: 'warning' }
+    )
     await submitManualVoucher(row.id)
-    ElMessage.success('已提交审批')
+    ElMessage.success(t('financeReportPages.manualVouchers.message.submitted'))
     loadData()
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('提交失败')
+    if (e !== 'cancel') ElMessage.error(t('financeReportPages.manualVouchers.message.submitFailed'))
   }
 }
 
 const handleApprove = async (row: ManualVoucher) => {
   try {
-    await ElMessageBox.confirm(`确定审批通过凭证 ${row.voucherNo} 吗？`, '审批凭证', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('financeReportPages.manualVouchers.message.approveConfirm', { no: row.voucherNo }),
+      t('financeReportPages.manualVouchers.message.approveTitle'),
+      { type: 'warning' }
+    )
     await approveManualVoucher(row.id)
-    ElMessage.success('审批通过')
+    ElMessage.success(t('financeReportPages.manualVouchers.message.approved'))
     loadData()
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('审批失败')
+    if (e !== 'cancel') ElMessage.error(t('financeReportPages.manualVouchers.message.approveFailed'))
   }
 }
 
 const handlePost = async (row: ManualVoucher) => {
   try {
     await ElMessageBox.confirm(
-      `确定过账凭证 ${row.voucherNo} 吗？过账后分录将计入总账，且需作废才能撤销。`,
-      '过账凭证',
+      t('financeReportPages.manualVouchers.message.postConfirm', { no: row.voucherNo }),
+      t('financeReportPages.manualVouchers.message.postTitle'),
       { type: 'warning' }
     )
     await postManualVoucher(row.id)
-    ElMessage.success('已过账')
+    ElMessage.success(t('financeReportPages.manualVouchers.message.posted'))
     loadData()
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('过账失败')
+    if (e !== 'cancel') ElMessage.error(t('financeReportPages.manualVouchers.message.postFailed'))
   }
 }
 
 const handleDelete = async (row: ManualVoucher) => {
   try {
-    await ElMessageBox.confirm(`确定删除草稿凭证 ${row.voucherNo} 吗？`, '删除草稿', {
-      type: 'warning',
-      confirmButtonClass: 'el-button--danger'
-    })
+    await ElMessageBox.confirm(
+      t('financeReportPages.manualVouchers.message.deleteConfirm', { no: row.voucherNo }),
+      t('financeReportPages.manualVouchers.message.deleteTitle'),
+      {
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
     await deleteManualVoucher(row.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('financeReportPages.manualVouchers.message.deleted'))
     loadData()
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败')
+    if (e !== 'cancel') ElMessage.error(t('financeReportPages.manualVouchers.message.deleteFailed'))
   }
 }
 
@@ -588,11 +602,11 @@ const handleCancel = async () => {
   cancelling.value = true
   try {
     await cancelManualVoucher(cancellingRow.value.id, reason)
-    ElMessage.success('已作废并生成红冲凭证')
+    ElMessage.success(t('financeReportPages.manualVouchers.message.cancelled'))
     cancelVisible.value = false
     loadData()
   } catch {
-    ElMessage.error('作废失败')
+    ElMessage.error(t('financeReportPages.manualVouchers.message.cancelFailed'))
   } finally {
     cancelling.value = false
   }
@@ -615,11 +629,11 @@ const handleReject = async () => {
   rejecting.value = true
   try {
     await rejectManualVoucher(rejectingRow.value.id, rejectReason.value.trim())
-    ElMessage.success('已驳回')
+    ElMessage.success(t('financeReportPages.manualVouchers.message.rejected'))
     rejectVisible.value = false
     loadData()
   } catch {
-    ElMessage.error('驳回失败')
+    ElMessage.error(t('financeReportPages.manualVouchers.message.rejectFailed'))
   } finally {
     rejecting.value = false
   }
@@ -634,13 +648,13 @@ const openDetail = async (row: ManualVoucher) => {
     currentVoucher.value = await getManualVoucher(row.id)
     detailVisible.value = true
   } catch {
-    ElMessage.error('加载凭证详情失败')
+    ElMessage.error(t('financeReportPages.manualVouchers.message.detailLoadFailed'))
   }
 }
 
 // ---- 展示辅助 ----
 const statusLabel = (status: string) =>
-  statusOptions.find((o) => o.value === status)?.label || status
+  statusOptions.value.find((o) => o.value === status)?.label || status
 
 const statusTagType = (status: string) => {
   switch (status) {

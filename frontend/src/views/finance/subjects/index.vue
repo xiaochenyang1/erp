@@ -2,31 +2,31 @@
   <div class="app-container">
     <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
-        <el-form :model="queryForm" inline>
-          <el-form-item label="科目编码">
-          <el-input v-model="queryForm.subjectCode" placeholder="请输入科目编码" clearable style="width: 200px" />
+      <el-form :model="queryForm" inline>
+        <el-form-item :label="$t('financeReportPages.subjects.code')">
+          <el-input v-model="queryForm.subjectCode" :placeholder="$t('financeReportPages.subjects.codePlaceholder')" clearable style="width: 200px" />
         </el-form-item>
-        <el-form-item label="科目名称">
-          <el-input v-model="queryForm.subjectName" placeholder="请输入科目名称" clearable style="width: 200px" />
+        <el-form-item :label="$t('financeReportPages.subjects.name')">
+          <el-input v-model="queryForm.subjectName" :placeholder="$t('financeReportPages.subjects.namePlaceholder')" clearable style="width: 200px" />
         </el-form-item>
-        <el-form-item label="科目类别">
-          <el-select v-model="queryForm.subjectType" placeholder="请选择" clearable style="width: 150px">
-            <el-option label="资产" value="ASSET" />
-            <el-option label="负债" value="LIABILITY" />
-            <el-option label="权益" value="EQUITY" />
-            <el-option label="收入" value="REVENUE" />
-            <el-option label="费用" value="EXPENSE" />
+        <el-form-item :label="$t('financeReportPages.subjects.category')">
+          <el-select v-model="queryForm.subjectType" :placeholder="$t('financeReportPages.common.selectPlaceholder')" clearable style="width: 150px">
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.asset')" value="ASSET" />
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.liability')" value="LIABILITY" />
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.equity')" value="EQUITY" />
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.revenue')" value="REVENUE" />
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.expense')" value="EXPENSE" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable style="width: 120px">
-            <el-option label="启用" value="ACTIVE" />
-            <el-option label="停用" value="DISABLED" />
+        <el-form-item :label="$t('financeReportPages.common.status')">
+          <el-select v-model="queryForm.status" :placeholder="$t('financeReportPages.common.selectPlaceholder')" clearable style="width: 120px">
+            <el-option :label="$t('financeReportPages.subjects.status.active')" value="ACTIVE" />
+            <el-option :label="$t('financeReportPages.subjects.status.disabled')" value="DISABLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -35,8 +35,8 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>会计科目管理</span>
-          <el-button v-permission="'finance:subject:manage'" type="primary" :icon="Plus" @click="handleAdd">新增科目</el-button>
+          <span>{{ $t('financeReportPages.subjects.management') }}</span>
+          <el-button v-permission="'finance:subject:manage'" type="primary" :icon="Plus" @click="handleAdd">{{ $t('financeReportPages.subjects.create') }}</el-button>
         </div>
       </template>
 
@@ -49,36 +49,36 @@
         default-expand-all
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       >
-        <el-table-column prop="code" label="科目编码" width="180" />
-        <el-table-column prop="name" label="科目名称" width="200" />
-        <el-table-column prop="category" label="科目类别" width="120">
+        <el-table-column prop="code" :label="$t('financeReportPages.subjects.code')" width="180" />
+        <el-table-column prop="name" :label="$t('financeReportPages.subjects.name')" width="200" />
+        <el-table-column prop="category" :label="$t('financeReportPages.subjects.category')" width="120">
           <template #default="{ row }">
             <el-tag :type="getCategoryType(row.category)">
               {{ getCategoryLabel(row.category) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="level" label="级次" width="80" align="center" />
-        <el-table-column prop="isLeaf" label="末级科目" width="100" align="center">
+        <el-table-column prop="level" :label="$t('financeReportPages.subjects.level')" width="80" align="center" />
+        <el-table-column prop="isLeaf" :label="$t('financeReportPages.subjects.leaf')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.isLeaf ? 'success' : 'info'" size="small">
-              {{ row.isLeaf ? '是' : '否' }}
+              {{ row.isLeaf ? $t('financeReportPages.subjects.yes') : $t('financeReportPages.subjects.no') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+              {{ row.status === 'ACTIVE' ? $t('financeReportPages.subjects.status.active') : $t('financeReportPages.subjects.status.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" align="center" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="280" align="center" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'finance:subject:manage'" type="primary" link :icon="Plus" @click="handleAddChild(row)">
-              新增下级
+              {{ $t('financeReportPages.subjects.addChild') }}
             </el-button>
-            <el-button v-permission="'finance:subject:manage'" type="primary" link :icon="Edit" @click="handleEdit(row)">编辑</el-button>
+            <el-button v-permission="'finance:subject:manage'" type="primary" link :icon="Edit" @click="handleEdit(row)">{{ $t('financeReportPages.common.edit') }}</el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
               v-permission="'finance:subject:manage'"
@@ -87,7 +87,7 @@
               :icon="CircleClose"
               @click="handleDisable(row)"
             >
-              停用
+              {{ $t('financeReportPages.subjects.status.disabled') }}
             </el-button>
             <el-button
               v-else
@@ -97,7 +97,7 @@
               :icon="CircleCheck"
               @click="handleEnable(row)"
             >
-              启用
+              {{ $t('financeReportPages.subjects.status.active') }}
             </el-button>
           </template>
         </el-table-column>
@@ -117,46 +117,46 @@
         :rules="formRules"
         label-width="100px"
       >
-        <el-form-item label="上级科目" prop="parentId">
+        <el-form-item :label="$t('financeReportPages.subjects.parent')" prop="parentId">
           <el-tree-select
             v-model="formData.parentId"
             :data="subjectTreeOptions"
             :props="{ label: 'name', value: 'id' }"
-            placeholder="请选择上级科目（不选则为一级科目）"
+            :placeholder="$t('financeReportPages.subjects.parentPlaceholder')"
             clearable
             check-strictly
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="科目编码" prop="subjectCode">
-          <el-input v-model="formData.subjectCode" placeholder="请输入科目编码" :disabled="Boolean(formData.id)" />
+        <el-form-item :label="$t('financeReportPages.subjects.code')" prop="subjectCode">
+          <el-input v-model="formData.subjectCode" :placeholder="$t('financeReportPages.subjects.codePlaceholder')" :disabled="Boolean(formData.id)" />
         </el-form-item>
-        <el-form-item label="科目名称" prop="subjectName">
-          <el-input v-model="formData.subjectName" placeholder="请输入科目名称" />
+        <el-form-item :label="$t('financeReportPages.subjects.name')" prop="subjectName">
+          <el-input v-model="formData.subjectName" :placeholder="$t('financeReportPages.subjects.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="科目类别" prop="subjectType">
-          <el-select v-model="formData.subjectType" placeholder="请选择科目类别" style="width: 100%">
-            <el-option label="资产" value="ASSET" />
-            <el-option label="负债" value="LIABILITY" />
-            <el-option label="权益" value="EQUITY" />
-            <el-option label="收入" value="REVENUE" />
-            <el-option label="费用" value="EXPENSE" />
+        <el-form-item :label="$t('financeReportPages.subjects.category')" prop="subjectType">
+          <el-select v-model="formData.subjectType" :placeholder="$t('financeReportPages.subjects.categoryPlaceholder')" style="width: 100%">
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.asset')" value="ASSET" />
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.liability')" value="LIABILITY" />
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.equity')" value="EQUITY" />
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.revenue')" value="REVENUE" />
+            <el-option :label="$t('financeReportPages.subjects.categoryValue.expense')" value="EXPENSE" />
           </el-select>
         </el-form-item>
-        <el-form-item label="余额方向" prop="balanceDirection">
+        <el-form-item :label="$t('financeReportPages.subjects.balanceDirection')" prop="balanceDirection">
           <el-radio-group v-model="formData.balanceDirection">
-            <el-radio value="DEBIT">借方</el-radio>
-            <el-radio value="CREDIT">贷方</el-radio>
+            <el-radio value="DEBIT">{{ $t('financeReportPages.subjects.direction.debit') }}</el-radio>
+            <el-radio value="CREDIT">{{ $t('financeReportPages.subjects.direction.credit') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('financeReportPages.common.remark')">
           <el-input v-model="formData.remark" type="textarea" :rows="2" maxlength="255" show-word-limit />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
-          确定
+          {{ $t('financeReportPages.common.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -164,7 +164,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, Edit, CircleClose, CircleCheck } from '@element-plus/icons-vue'
 import {
@@ -177,6 +178,8 @@ import {
   disableAccountSubject,
   type AccountSubject
 } from '@/api/finance'
+
+const { t } = useI18n()
 
 // 查询表单
 const queryForm = reactive({
@@ -192,7 +195,12 @@ const subjectTree = ref<AccountSubject[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
-const dialogTitle = ref('')
+const dialogMode = ref<'create' | 'createChild' | 'edit'>('create')
+const dialogTitle = computed(() => ({
+  create: t('financeReportPages.subjects.dialog.create'),
+  createChild: t('financeReportPages.subjects.dialog.createChild'),
+  edit: t('financeReportPages.subjects.dialog.edit')
+})[dialogMode.value])
 const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
 const formData = reactive({
@@ -209,12 +217,12 @@ const formData = reactive({
 const subjectTreeOptions = ref<AccountSubject[]>([])
 
 // 表单验证规则
-const formRules: FormRules = {
-  subjectCode: [{ required: true, message: '请输入科目编码', trigger: 'blur' }],
-  subjectName: [{ required: true, message: '请输入科目名称', trigger: 'blur' }],
-  subjectType: [{ required: true, message: '请选择科目类别', trigger: 'change' }],
-  balanceDirection: [{ required: true, message: '请选择余额方向', trigger: 'change' }]
-}
+const formRules = computed<FormRules>(() => ({
+  subjectCode: [{ required: true, message: t('financeReportPages.subjects.validation.code'), trigger: 'blur' }],
+  subjectName: [{ required: true, message: t('financeReportPages.subjects.validation.name'), trigger: 'blur' }],
+  subjectType: [{ required: true, message: t('financeReportPages.subjects.validation.category'), trigger: 'change' }],
+  balanceDirection: [{ required: true, message: t('financeReportPages.subjects.validation.direction'), trigger: 'change' }]
+}))
 
 const hasSubjectQuery = () => {
   return Boolean(queryForm.subjectCode || queryForm.subjectName || queryForm.subjectType || queryForm.status)
@@ -237,8 +245,8 @@ const loadData = async () => {
       subjectTree.value = subjects || []
     }
   } catch (error) {
-    console.error('加载科目树失败:', error)
-    ElMessage.error('加载数据失败')
+    console.error('Failed to load account subjects:', error)
+    ElMessage.error(t('financeReportPages.subjects.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -260,20 +268,20 @@ const handleReset = () => {
 
 // 新增
 const handleAdd = () => {
-  dialogTitle.value = '新增科目'
+  dialogMode.value = 'create'
   dialogVisible.value = true
 }
 
 // 新增下级
 const handleAddChild = (row: AccountSubject) => {
-  dialogTitle.value = '新增下级科目'
+  dialogMode.value = 'createChild'
   formData.parentId = row.id
   dialogVisible.value = true
 }
 
 // 编辑
 const handleEdit = async (row: AccountSubject) => {
-  dialogTitle.value = '编辑科目'
+  dialogMode.value = 'edit'
   try {
     const subject = await getAccountSubject(row.id)
     Object.assign(formData, {
@@ -286,8 +294,8 @@ const handleEdit = async (row: AccountSubject) => {
       remark: subject.remark || ''
     })
     dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error('加载科目详情失败')
+  } catch {
+    ElMessage.error(t('financeReportPages.subjects.message.detailLoadFailed'))
   }
 }
 
@@ -302,15 +310,15 @@ const handleSubmit = async () => {
     try {
       if (formData.id) {
         await updateAccountSubject(formData.id, formData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('financeReportPages.subjects.message.updated'))
       } else {
         await createAccountSubject(formData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('financeReportPages.subjects.message.created'))
       }
       dialogVisible.value = false
       loadData()
-    } catch (error) {
-      ElMessage.error('操作失败')
+    } catch {
+      ElMessage.error(t('financeReportPages.subjects.message.actionFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -320,15 +328,17 @@ const handleSubmit = async () => {
 // 启用
 const handleEnable = async (row: AccountSubject) => {
   try {
-    await ElMessageBox.confirm(`确定要启用科目"${row.name}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('financeReportPages.subjects.message.enableConfirm', {
+      name: row.name || row.subjectName || row.id
+    }), t('financeReportPages.common.prompt'), {
       type: 'warning'
     })
     await enableAccountSubject(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(t('financeReportPages.subjects.message.enabled'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(t('financeReportPages.subjects.message.enableFailed'))
     }
   }
 }
@@ -336,15 +346,17 @@ const handleEnable = async (row: AccountSubject) => {
 // 停用
 const handleDisable = async (row: AccountSubject) => {
   try {
-    await ElMessageBox.confirm(`确定要停用科目"${row.name}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('financeReportPages.subjects.message.disableConfirm', {
+      name: row.name || row.subjectName || row.id
+    }), t('financeReportPages.common.prompt'), {
       type: 'warning'
     })
     await disableAccountSubject(row.id)
-    ElMessage.success('停用成功')
+    ElMessage.success(t('financeReportPages.subjects.message.disabled'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('停用失败')
+      ElMessage.error(t('financeReportPages.subjects.message.disableFailed'))
     }
   }
 }
@@ -370,11 +382,11 @@ const defaultBalanceDirection = (subjectType?: string) => {
 // 获取类别标签
 const getCategoryLabel = (category: string) => {
   const map: Record<string, string> = {
-    ASSET: '资产',
-    LIABILITY: '负债',
-    EQUITY: '权益',
-    REVENUE: '收入',
-    EXPENSE: '费用'
+    ASSET: t('financeReportPages.subjects.categoryValue.asset'),
+    LIABILITY: t('financeReportPages.subjects.categoryValue.liability'),
+    EQUITY: t('financeReportPages.subjects.categoryValue.equity'),
+    REVENUE: t('financeReportPages.subjects.categoryValue.revenue'),
+    EXPENSE: t('financeReportPages.subjects.categoryValue.expense')
   }
   return map[category] || category
 }

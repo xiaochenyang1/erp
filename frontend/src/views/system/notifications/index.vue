@@ -3,8 +3,8 @@
     <el-card shadow="never" class="summary-card">
       <div class="summary-row">
         <div>
-          <div class="summary-title">通知中心</div>
-          <div class="summary-subtitle">未读通知 {{ unreadCount }} 条</div>
+          <div class="summary-title">{{ $t('systemNotifications.title') }}</div>
+          <div class="summary-subtitle">{{ $t('systemNotifications.unreadSummary', { count: formatLocalizedNumber(unreadCount) }) }}</div>
         </div>
         <div class="summary-actions">
           <el-button
@@ -12,10 +12,10 @@
             :disabled="!selectedRows.length"
             @click="handleMarkSelectedRead"
           >
-            批量已读（{{ selectedRows.length }}）
+            {{ $t('systemNotifications.markSelectedRead', { count: formatLocalizedNumber(selectedRows.length) }) }}
           </el-button>
           <el-button v-permission="'system:notification:manage'" type="primary" :icon="Check" @click="handleMarkAllRead">
-            全部已读
+            {{ $t('systemNotifications.markAllRead') }}
           </el-button>
         </div>
       </div>
@@ -23,21 +23,21 @@
 
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="分类">
-          <el-input v-model="queryForm.category" placeholder="请输入分类" clearable style="width: 160px" />
+        <el-form-item :label="$t('systemNotifications.category')">
+          <el-input v-model="queryForm.category" :placeholder="$t('systemNotifications.categoryPlaceholder')" clearable style="width: 160px" />
         </el-form-item>
-        <el-form-item label="类型">
-          <el-input v-model="queryForm.notificationType" placeholder="请输入类型" clearable style="width: 160px" />
+        <el-form-item :label="$t('systemNotifications.type')">
+          <el-input v-model="queryForm.notificationType" :placeholder="$t('systemNotifications.typePlaceholder')" clearable style="width: 160px" />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="readStatus" placeholder="请选择" clearable style="width: 140px">
-            <el-option label="未读" value="UNREAD" />
-            <el-option label="全部" value="ALL" />
+        <el-form-item :label="$t('systemNotifications.status')">
+          <el-select v-model="readStatus" :placeholder="$t('systemNotifications.selectStatus')" clearable style="width: 140px">
+            <el-option :label="$t('systemNotifications.unread')" value="UNREAD" />
+            <el-option :label="$t('systemNotifications.all')" value="ALL" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('systemNotifications.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('systemNotifications.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -45,36 +45,36 @@
     <el-card shadow="never" class="table-card">
       <el-table v-loading="loading" :data="tableData" border stripe @selection-change="onSelectionChange">
         <el-table-column type="selection" width="48" :selectable="(row: Notification) => !row.readFlag" />
-        <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="title" :label="$t('systemNotifications.notificationTitle')" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
             <el-badge is-dot :hidden="row.readFlag" class="notice-badge">
               <span>{{ row.title }}</span>
             </el-badge>
           </template>
         </el-table-column>
-        <el-table-column prop="category" label="分类" width="130">
+        <el-table-column prop="category" :label="$t('systemNotifications.category')" width="130">
           <template #default="{ row }">{{ row.category || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="notificationType" label="类型" width="150">
+        <el-table-column prop="notificationType" :label="$t('systemNotifications.type')" width="150">
           <template #default="{ row }">{{ row.notificationType || row.type || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="bizNo" label="业务编号" width="180" show-overflow-tooltip>
+        <el-table-column prop="bizNo" :label="$t('systemNotifications.businessNo')" width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ row.bizNo || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="readFlag" label="状态" width="90" align="center">
+        <el-table-column prop="readFlag" :label="$t('systemNotifications.status')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="row.readFlag ? 'info' : 'warning'">
-              {{ row.readFlag ? '已读' : '未读' }}
+              {{ row.readFlag ? $t('systemNotifications.read') : $t('systemNotifications.unread') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="创建时间" width="190">
+        <el-table-column prop="createdTime" :label="$t('systemNotifications.createdAt')" width="190">
           <template #default="{ row }">{{ formatLocalizedDateTime(row.createdTime) || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="center" fixed="right">
+        <el-table-column :label="$t('systemNotifications.actions')" width="170" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link :icon="View" @click="handleView(row)">查看</el-button>
-            <el-button v-if="!row.readFlag" v-permission="'system:notification:manage'" type="success" link @click="handleMarkRead(row)">已读</el-button>
+            <el-button type="primary" link :icon="View" @click="handleView(row)">{{ $t('systemNotifications.view') }}</el-button>
+            <el-button v-if="!row.readFlag" v-permission="'system:notification:manage'" type="success" link @click="handleMarkRead(row)">{{ $t('systemNotifications.markRead') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -91,17 +91,17 @@
       />
     </el-card>
 
-    <el-dialog v-model="detailVisible" title="通知详情" width="720px">
+    <el-dialog v-model="detailVisible" :title="$t('systemNotifications.detailTitle')" width="720px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="标题" :span="2">{{ detailData.title }}</el-descriptions-item>
-        <el-descriptions-item label="分类">{{ detailData.category || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="类型">{{ detailData.notificationType || detailData.type || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="业务类型">{{ detailData.bizType || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="业务编号">{{ detailData.bizNo || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ detailData.readFlag ? '已读' : '未读' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ formatLocalizedDateTime(detailData.createdTime) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="内容" :span="2">{{ detailData.content }}</el-descriptions-item>
-        <el-descriptions-item v-if="detailData.targetUrl" label="目标地址" :span="2">
+        <el-descriptions-item :label="$t('systemNotifications.notificationTitle')" :span="2">{{ detailData.title }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemNotifications.category')">{{ detailData.category || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemNotifications.type')">{{ detailData.notificationType || detailData.type || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemNotifications.businessType')">{{ detailData.bizType || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemNotifications.businessNo')">{{ detailData.bizNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemNotifications.status')">{{ detailData.readFlag ? $t('systemNotifications.read') : $t('systemNotifications.unread') }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemNotifications.createdAt')">{{ formatLocalizedDateTime(detailData.createdTime) || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemNotifications.content')" :span="2">{{ detailData.content }}</el-descriptions-item>
+        <el-descriptions-item v-if="detailData.targetUrl" :label="$t('systemNotifications.targetUrl')" :span="2">
           {{ detailData.targetUrl }}
         </el-descriptions-item>
       </el-descriptions>
@@ -111,9 +111,10 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Check, Refresh, Search, View } from '@element-plus/icons-vue'
-import { formatLocalizedDateTime } from '@/utils/locale'
+import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 import {
   getNotifications,
   getUnreadCount,
@@ -123,6 +124,8 @@ import {
   type Notification,
   type NotificationQuery
 } from '@/api/notification'
+
+const { t } = useI18n()
 
 const queryForm = reactive<NotificationQuery>({
   category: '',
@@ -167,8 +170,8 @@ const loadData = async () => {
     pagination.total = res.total || 0
     await loadUnreadCount()
   } catch (error) {
-    console.error('加载通知失败:', error)
-    ElMessage.error('加载通知失败')
+    console.error('Failed to load notifications:', error)
+    ElMessage.error(t('systemNotifications.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -202,37 +205,39 @@ const handleView = async (row: Notification) => {
 const handleMarkRead = async (row: Notification, showMessage = true) => {
   try {
     await markNotificationRead(row.recipientId)
-    if (showMessage) ElMessage.success('已标记为已读')
+    if (showMessage) ElMessage.success(t('systemNotifications.message.markedRead'))
     loadData()
   } catch (error) {
-    ElMessage.error('标记已读失败')
+    ElMessage.error(t('systemNotifications.message.markReadFailed'))
   }
 }
 
 const handleMarkAllRead = async () => {
   try {
     await markAllNotificationsRead()
-    ElMessage.success('全部通知已标记为已读')
+    ElMessage.success(t('systemNotifications.message.allMarkedRead'))
     selectedRows.value = []
     loadData()
   } catch (error) {
-    ElMessage.error('标记全部已读失败')
+    ElMessage.error(t('systemNotifications.message.markAllReadFailed'))
   }
 }
 
 const handleMarkSelectedRead = async () => {
   const ids = selectedRows.value.filter((r) => !r.readFlag).map((r) => r.recipientId)
   if (!ids.length) {
-    ElMessage.warning('请先勾选未读通知')
+    ElMessage.warning(t('systemNotifications.message.selectUnread'))
     return
   }
   try {
     const res = await markNotificationsReadBatch(ids)
-    ElMessage.success(`已标记 ${res?.updated ?? ids.length} 条为已读`)
+    ElMessage.success(t('systemNotifications.message.batchMarkedRead', {
+      count: formatLocalizedNumber(res?.updated ?? ids.length)
+    }))
     selectedRows.value = []
     loadData()
   } catch (error) {
-    ElMessage.error('批量已读失败')
+    ElMessage.error(t('systemNotifications.message.batchMarkReadFailed'))
   }
 }
 

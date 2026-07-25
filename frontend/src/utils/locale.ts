@@ -52,6 +52,62 @@ export const formatLocalizedDateTime = (
   }).format(date)
 }
 
+/**
+ * Format a calendar date without interpreting a backend LocalDate as an
+ * instant. Date-only strings stay on the same calendar day in every zone.
+ */
+export const formatLocalizedDate = (
+  value?: string | number | Date | null,
+  options: Intl.DateTimeFormatOptions = {},
+  preferences?: DisplayPreferences
+): string => {
+  if (value === undefined || value === null || value === '') return ''
+  const isLocalDate = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+  const date = isLocalDate ? new Date(`${value}T00:00:00.000Z`) : parseApiDateTime(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  const { locale, timeZone } = resolveDisplayPreferences(preferences)
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    ...options,
+    timeZone: isLocalDate ? 'UTC' : timeZone
+  }).format(date)
+}
+
+/**
+ * Return the calendar date for a specific instant in the user's configured
+ * business/display time zone. This must be used for LocalDate form defaults;
+ * slicing Date#toISOString() would silently use UTC and can select yesterday.
+ */
+export const formatBusinessDate = (
+  value: Date | number = new Date(),
+  preferences?: DisplayPreferences
+): string => {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const { timeZone } = resolveDisplayPreferences(preferences)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) => (
+    parts.find((item) => item.type === type)?.value || ''
+  )
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+export const getBusinessMonthDateRange = (
+  value: Date | number = new Date(),
+  preferences?: DisplayPreferences
+): [string, string] => {
+  const endDate = formatBusinessDate(value, preferences)
+  if (!endDate) return ['', '']
+  return [`${endDate.slice(0, 7)}-01`, endDate]
+}
+
 export const formatLocalizedNumber = (
   value: number,
   options: Intl.NumberFormatOptions = {},

@@ -2,42 +2,42 @@
   <div class="reports-container">
     <el-card class="filter-card" shadow="never">
       <el-form :model="queryForm" inline>
-        <el-form-item label="日期范围">
+        <el-form-item :label="$t('financeReportPages.common.dateRange')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="$t('financeReportPages.common.rangeSeparator')"
+            :start-placeholder="$t('financeReportPages.common.startDate')"
+            :end-placeholder="$t('financeReportPages.common.endDate')"
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
-        <el-form-item label="关键字">
-          <el-input v-model="queryForm.keyword" placeholder="单号关键字" clearable style="width: 180px" />
+        <el-form-item :label="$t('financeReportPages.common.keyword')">
+          <el-input v-model="queryForm.keyword" :placeholder="$t('financeReportPages.reports.keywordPlaceholder')" clearable style="width: 180px" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button v-permission="'report:view'" :icon="Download" @click="handleExport">导出</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
+          <el-button v-permission="'report:view'" :icon="Download" @click="handleExport">{{ $t('financeReportPages.reports.export') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <div class="summary-grid">
       <el-card shadow="never" class="summary-item">
-        <span>当前报表</span>
+        <span>{{ $t('financeReportPages.reports.currentReport') }}</span>
         <strong>{{ activeReport.label }}</strong>
       </el-card>
       <el-card shadow="never" class="summary-item">
-        <span>记录数</span>
+        <span>{{ $t('financeReportPages.reports.recordCount') }}</span>
         <strong>{{ activeState.total }}</strong>
       </el-card>
       <el-card shadow="never" class="summary-item">
-        <span>金额合计</span>
+        <span>{{ $t('financeReportPages.reports.amountTotal') }}</span>
         <strong>{{ formatMoney(summaryAmount) }}</strong>
       </el-card>
       <el-card shadow="never" class="summary-item">
-        <span>当前页</span>
+        <span>{{ $t('financeReportPages.reports.currentPage') }}</span>
         <strong>{{ activeState.pageNo }} / {{ pageCount }}</strong>
       </el-card>
     </div>
@@ -53,90 +53,100 @@
       </el-tabs>
 
       <el-table v-if="activeKey === 'purchase' || activeKey === 'sales'" v-loading="activeState.loading" :data="activeState.records" border stripe>
-        <el-table-column prop="bizNo" label="单据编号" min-width="170" />
-        <el-table-column prop="partnerId" :label="activeKey === 'purchase' ? '供应商ID' : '客户ID'" width="120" />
-        <el-table-column prop="bizDate" label="业务日期" width="120" />
-        <el-table-column prop="status" label="单据状态" width="120">
+        <el-table-column prop="bizNo" :label="$t('financeReportPages.reports.documentNo')" min-width="170" />
+        <el-table-column prop="partnerId" :label="activeKey === 'purchase' ? $t('financeReportPages.reports.supplierId') : $t('financeReportPages.reports.customerId')" width="120" />
+        <el-table-column prop="bizDate" :label="$t('financeReportPages.common.bizDate')" width="120" />
+        <el-table-column prop="status" :label="$t('financeReportPages.reports.documentStatus')" width="120">
           <template #default="{ row }">
-            <el-tag>{{ row.status }}</el-tag>
+            <el-tag>{{ reportStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="approvalStatus" label="审批状态" width="120" />
-        <el-table-column prop="fulfillmentStatus" :label="activeKey === 'purchase' ? '收货状态' : '发货状态'" width="120" />
-        <el-table-column prop="totalQuantity" label="数量" width="120" align="right">
+        <el-table-column prop="approvalStatus" :label="$t('financeReportPages.reports.approvalStatus')" width="120">
+          <template #default="{ row }">{{ reportStatusLabel(row.approvalStatus) }}</template>
+        </el-table-column>
+        <el-table-column prop="fulfillmentStatus" :label="activeKey === 'purchase' ? $t('financeReportPages.reports.receiptStatus') : $t('financeReportPages.reports.deliveryStatus')" width="120">
+          <template #default="{ row }">{{ reportStatusLabel(row.fulfillmentStatus) }}</template>
+        </el-table-column>
+        <el-table-column prop="totalQuantity" :label="$t('financeReportPages.reports.quantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.totalQuantity) }}</template>
         </el-table-column>
-        <el-table-column prop="totalAmount" label="金额" width="140" align="right">
+        <el-table-column prop="totalAmount" :label="$t('financeReportPages.common.amount')" width="140" align="right">
           <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="totalTaxAmount" label="税额" width="140" align="right">
+        <el-table-column prop="totalTaxAmount" :label="$t('financeReportPages.reports.taxAmount')" width="140" align="right">
           <template #default="{ row }">{{ formatMoney(row.totalTaxAmount) }}</template>
         </el-table-column>
       </el-table>
 
       <el-table v-else-if="activeKey === 'inventoryBalance'" v-loading="activeState.loading" :data="activeState.records" border stripe>
-        <el-table-column prop="warehouseId" label="仓库ID" width="120" />
-        <el-table-column prop="productId" label="产品ID" width="120" />
-        <el-table-column prop="qtyOnHand" label="现存量" width="130" align="right">
+        <el-table-column prop="warehouseId" :label="$t('financeReportPages.reports.warehouseId')" width="120" />
+        <el-table-column prop="productId" :label="$t('financeReportPages.reports.productId')" width="120" />
+        <el-table-column prop="qtyOnHand" :label="$t('financeReportPages.reports.quantityOnHand')" width="130" align="right">
           <template #default="{ row }">{{ formatNumber(row.qtyOnHand) }}</template>
         </el-table-column>
-        <el-table-column prop="qtyReserved" label="预留量" width="130" align="right">
+        <el-table-column prop="qtyReserved" :label="$t('financeReportPages.reports.quantityReserved')" width="130" align="right">
           <template #default="{ row }">{{ formatNumber(row.qtyReserved) }}</template>
         </el-table-column>
-        <el-table-column prop="qtyAvailable" label="可用量" width="130" align="right">
+        <el-table-column prop="qtyAvailable" :label="$t('financeReportPages.reports.quantityAvailable')" width="130" align="right">
           <template #default="{ row }">{{ formatNumber(row.qtyAvailable) }}</template>
         </el-table-column>
-        <el-table-column prop="amountOnHand" label="库存金额" width="150" align="right">
+        <el-table-column prop="amountOnHand" :label="$t('financeReportPages.reports.inventoryAmount')" width="150" align="right">
           <template #default="{ row }">{{ formatMoney(row.amountOnHand) }}</template>
         </el-table-column>
-        <el-table-column prop="updatedTime" label="更新时间" min-width="180" />
+        <el-table-column prop="updatedTime" :label="$t('financeReportPages.reports.updatedTime')" min-width="180" />
       </el-table>
 
       <el-table v-else-if="activeKey === 'inventoryTransaction'" v-loading="activeState.loading" :data="activeState.records" border stripe>
-        <el-table-column prop="bizNo" label="业务单号" min-width="160" />
-        <el-table-column prop="bizType" label="业务类型" width="140" />
-        <el-table-column prop="direction" label="方向" width="100">
+        <el-table-column prop="bizNo" :label="$t('financeReportPages.reports.businessNo')" min-width="160" />
+        <el-table-column prop="bizType" :label="$t('financeReportPages.reports.businessType')" width="140">
+          <template #default="{ row }">{{ reportBusinessTypeLabel(row.bizType) }}</template>
+        </el-table-column>
+        <el-table-column prop="direction" :label="$t('financeReportPages.reports.direction')" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.direction === 'IN' ? 'success' : 'warning'">{{ row.direction }}</el-tag>
+            <el-tag :type="row.direction === 'IN' ? 'success' : 'warning'">{{ reportDirectionLabel(row.direction) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="warehouseId" label="仓库ID" width="110" />
-        <el-table-column prop="productId" label="产品ID" width="110" />
-        <el-table-column prop="qty" label="数量" width="120" align="right">
+        <el-table-column prop="warehouseId" :label="$t('financeReportPages.reports.warehouseId')" width="110" />
+        <el-table-column prop="productId" :label="$t('financeReportPages.reports.productId')" width="110" />
+        <el-table-column prop="qty" :label="$t('financeReportPages.reports.quantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.qty) }}</template>
         </el-table-column>
-        <el-table-column prop="unitCost" label="单位成本" width="130" align="right">
+        <el-table-column prop="unitCost" :label="$t('financeReportPages.reports.unitCost')" width="130" align="right">
           <template #default="{ row }">{{ formatMoney(row.unitCost) }}</template>
         </el-table-column>
-        <el-table-column prop="amount" label="金额" width="140" align="right">
+        <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="140" align="right">
           <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
         </el-table-column>
-        <el-table-column prop="occurredTime" label="发生时间" min-width="180" />
+        <el-table-column prop="occurredTime" :label="$t('financeReportPages.reports.occurredTime')" min-width="180" />
       </el-table>
 
       <el-table v-else v-loading="activeState.loading" :data="activeState.records" border stripe>
-        <el-table-column prop="direction" label="方向" width="110">
+        <el-table-column prop="direction" :label="$t('financeReportPages.reports.direction')" width="110">
           <template #default="{ row }">
             <el-tag :type="row.direction === 'RECEIVABLE' ? 'success' : 'warning'">
-              {{ row.direction === 'RECEIVABLE' ? '应收' : '应付' }}
+              {{ row.direction === 'RECEIVABLE' ? $t('financeReportPages.reports.receivable') : $t('financeReportPages.reports.payable') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="bizNo" label="结算单号" min-width="160" />
-        <el-table-column prop="partnerId" label="往来方ID" width="120" />
-        <el-table-column prop="bizDate" label="业务日期" width="120" />
-        <el-table-column prop="sourceType" label="来源类型" width="130" />
-        <el-table-column prop="sourceNo" label="来源单号" min-width="160" />
-        <el-table-column prop="originalAmount" label="原始金额" width="140" align="right">
+        <el-table-column prop="bizNo" :label="$t('financeReportPages.reports.settlementNo')" min-width="160" />
+        <el-table-column prop="partnerId" :label="$t('financeReportPages.reports.partnerId')" width="120" />
+        <el-table-column prop="bizDate" :label="$t('financeReportPages.common.bizDate')" width="120" />
+        <el-table-column prop="sourceType" :label="$t('financeReportPages.reports.sourceType')" width="130">
+          <template #default="{ row }">{{ reportBusinessTypeLabel(row.sourceType) }}</template>
+        </el-table-column>
+        <el-table-column prop="sourceNo" :label="$t('financeReportPages.reports.sourceNo')" min-width="160" />
+        <el-table-column prop="originalAmount" :label="$t('financeReportPages.reports.originalAmount')" width="140" align="right">
           <template #default="{ row }">{{ formatMoney(row.originalAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="settledAmount" label="已结金额" width="140" align="right">
+        <el-table-column prop="settledAmount" :label="$t('financeReportPages.reports.settledAmount')" width="140" align="right">
           <template #default="{ row }">{{ formatMoney(row.settledAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="remainingAmount" label="未结金额" width="140" align="right">
+        <el-table-column prop="remainingAmount" :label="$t('financeReportPages.reports.remainingAmount')" width="140" align="right">
           <template #default="{ row }">{{ formatMoney(row.remainingAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="120" />
+        <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="120">
+          <template #default="{ row }">{{ reportStatusLabel(row.status) }}</template>
+        </el-table-column>
       </el-table>
 
       <el-pagination
@@ -155,10 +165,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
-import { formatLocalizedNumber } from '@/utils/locale'
+import { formatLocalizedCurrency, formatLocalizedNumber } from '@/utils/locale'
 import {
   exportFinanceSettlementReport,
   exportInventoryBalanceReport,
@@ -188,13 +199,15 @@ interface ReportState {
   records: ReportRecord[]
 }
 
-const reportTabs: Array<{ key: ReportKey; label: string }> = [
-  { key: 'purchase', label: '采购订单' },
-  { key: 'sales', label: '销售订单' },
-  { key: 'inventoryBalance', label: '库存余额' },
-  { key: 'inventoryTransaction', label: '库存流水' },
-  { key: 'financeSettlement', label: '应收应付' }
-]
+const { t } = useI18n()
+
+const reportTabs = computed<Array<{ key: ReportKey; label: string }>>(() => [
+  { key: 'purchase', label: t('financeReportPages.reports.tabs.purchase') },
+  { key: 'sales', label: t('financeReportPages.reports.tabs.sales') },
+  { key: 'inventoryBalance', label: t('financeReportPages.reports.tabs.inventoryBalance') },
+  { key: 'inventoryTransaction', label: t('financeReportPages.reports.tabs.inventoryTransaction') },
+  { key: 'financeSettlement', label: t('financeReportPages.reports.tabs.financeSettlement') }
+])
 
 const route = useRoute()
 const activeKey = ref<ReportKey>('purchase')
@@ -209,7 +222,7 @@ const reportStates = reactive<Record<ReportKey, ReportState>>({
 })
 
 const activeState = computed(() => reportStates[activeKey.value])
-const activeReport = computed(() => reportTabs.find((item) => item.key === activeKey.value) || reportTabs[0])
+const activeReport = computed(() => reportTabs.value.find((item) => item.key === activeKey.value) || reportTabs.value[0])
 const pageCount = computed(() => Math.max(1, Math.ceil(activeState.value.total / activeState.value.pageSize)))
 const summaryAmount = computed(() => {
   return activeState.value.records.reduce((sum, row) => {
@@ -305,18 +318,18 @@ const handleExport = async () => {
       financeSettlement: exportFinanceSettlementReport
     }
     const blob = await exporters[activeKey.value](params)
-    downloadBlob(blob, `${activeKey.value}-${Date.now()}.csv`)
-    ElMessage.success('导出成功')
+    downloadBlob(blob, t('financeReportPages.reports.fileName', {
+      report: activeReport.value.label,
+      timestamp: Date.now()
+    }))
+    ElMessage.success(t('financeReportPages.reports.message.exported'))
   } catch (error) {
-    ElMessage.error('导出失败')
+    ElMessage.error(t('financeReportPages.reports.message.exportFailed'))
   }
 }
 
 const formatMoney = (amount?: number) => {
-  return `¥${formatLocalizedNumber(Number(amount || 0), {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`
+  return formatLocalizedCurrency(Number(amount || 0))
 }
 
 const formatNumber = (value?: number) => {
@@ -326,8 +339,55 @@ const formatNumber = (value?: number) => {
   })
 }
 
+const reportStatusLabel = (status?: string) => {
+  const labels: Record<string, string> = {
+    DRAFT: t('financeReportPages.reports.status.draft'),
+    SUBMITTED: t('financeReportPages.reports.status.submitted'),
+    APPROVED: t('financeReportPages.reports.status.approved'),
+    REJECTED: t('financeReportPages.reports.status.rejected'),
+    CONFIRMED: t('financeReportPages.reports.status.confirmed'),
+    CLOSED: t('financeReportPages.reports.status.closed'),
+    CANCELLED: t('financeReportPages.reports.status.cancelled'),
+    NOT_SUBMITTED: t('financeReportPages.reports.status.notSubmitted'),
+    PENDING: t('financeReportPages.reports.status.pending'),
+    NOT_RECEIVED: t('financeReportPages.reports.status.notReceived'),
+    PARTIALLY_RECEIVED: t('financeReportPages.reports.status.partiallyReceived'),
+    PARTIAL_RECEIVED: t('financeReportPages.reports.status.partiallyReceived'),
+    RECEIVED: t('financeReportPages.reports.status.received'),
+    NOT_DELIVERED: t('financeReportPages.reports.status.notDelivered'),
+    PARTIALLY_DELIVERED: t('financeReportPages.reports.status.partiallyDelivered'),
+    PARTIAL_DELIVERED: t('financeReportPages.reports.status.partiallyDelivered'),
+    DELIVERED: t('financeReportPages.reports.status.delivered'),
+    UNSETTLED: t('financeReportPages.reports.status.unsettled'),
+    PARTIALLY_SETTLED: t('financeReportPages.reports.status.partiallySettled'),
+    SETTLED: t('financeReportPages.reports.status.settled'),
+    OFFSET: t('financeReportPages.reports.status.offset')
+  }
+  return status ? labels[status] || status : '-'
+}
+
+const reportDirectionLabel = (direction?: string) => {
+  if (direction === 'IN') return t('financeReportPages.reports.directionValue.inbound')
+  if (direction === 'OUT') return t('financeReportPages.reports.directionValue.outbound')
+  return direction || '-'
+}
+
+const reportBusinessTypeLabel = (type?: string) => {
+  const labels: Record<string, string> = {
+    PURCHASE_RECEIPT: t('financeReportPages.reports.businessTypeValue.purchaseReceipt'),
+    PURCHASE_RETURN: t('financeReportPages.reports.businessTypeValue.purchaseReturn'),
+    SALES_DELIVERY: t('financeReportPages.reports.businessTypeValue.salesDelivery'),
+    SALES_RETURN: t('financeReportPages.reports.businessTypeValue.salesReturn'),
+    INVENTORY_ADJUSTMENT: t('financeReportPages.reports.businessTypeValue.inventoryAdjustment'),
+    INVENTORY_TRANSFER: t('financeReportPages.reports.businessTypeValue.inventoryTransfer'),
+    PRODUCTION_ISSUE: t('financeReportPages.reports.businessTypeValue.productionIssue'),
+    PRODUCTION_COMPLETION: t('financeReportPages.reports.businessTypeValue.productionCompletion')
+  }
+  return type ? labels[type] || type : '-'
+}
+
 const isReportKey = (value: unknown): value is ReportKey => {
-  return typeof value === 'string' && reportTabs.some((item) => item.key === value)
+  return typeof value === 'string' && reportTabs.value.some((item) => item.key === value)
 }
 
 onMounted(() => {

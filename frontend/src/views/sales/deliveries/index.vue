@@ -3,26 +3,26 @@
     <!-- 查询表单 -->
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="发货单号">
+        <el-form-item :label="t('salesDelivery.deliveryNo')">
           <el-input
             v-model="queryParams.deliveryNo"
-            placeholder="请输入发货单号"
+            :placeholder="t('salesDelivery.deliveryNoPlaceholder')"
             clearable
             style="width: 200px"
           />
         </el-form-item>
-        <el-form-item label="销售订单">
+        <el-form-item :label="t('salesDelivery.salesOrder')">
           <el-input
             v-model="queryParams.orderId"
-            placeholder="请输入订单ID"
+            :placeholder="t('salesDelivery.orderIdPlaceholder')"
             clearable
             style="width: 180px"
           />
         </el-form-item>
-        <el-form-item label="客户">
+        <el-form-item :label="t('salesDelivery.customer')">
           <el-select
             v-model="queryParams.customerId"
-            placeholder="请选择客户"
+            :placeholder="t('salesDelivery.selectCustomer')"
             clearable
             filterable
             style="width: 200px"
@@ -35,25 +35,25 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="t('salesDelivery.statusLabel')">
           <el-select
             v-model="queryParams.status"
-            placeholder="请选择状态"
+            :placeholder="t('salesDelivery.selectStatus')"
             clearable
             style="width: 150px"
           >
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="已过账" value="POSTED" />
-            <el-option label="已取消" value="CANCELLED" />
+            <el-option :label="t('salesDelivery.status.draft')" value="DRAFT" />
+            <el-option :label="t('salesDelivery.status.posted')" value="POSTED" />
+            <el-option :label="t('salesDelivery.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期范围">
+        <el-form-item :label="t('salesDelivery.dateRange')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="t('salesDelivery.rangeSeparator')"
+            :start-placeholder="t('salesDelivery.startDate')"
+            :end-placeholder="t('salesDelivery.endDate')"
             value-format="YYYY-MM-DD"
             style="width: 240px"
           />
@@ -61,11 +61,11 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ t('salesDelivery.search') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ t('salesDelivery.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -75,7 +75,7 @@
     <el-card class="toolbar-card" shadow="never">
       <el-button v-permission="'sales:delivery:create'" type="primary" @click="handleCreate">
         <el-icon><Plus /></el-icon>
-        新增发货
+        {{ t('salesDelivery.create') }}
       </el-button>
     </el-card>
 
@@ -87,28 +87,30 @@
         border
         stripe
       >
-        <el-table-column prop="deliveryNo" label="发货单号" width="180" />
-        <el-table-column prop="orderNo" label="销售订单号" width="180" />
-        <el-table-column prop="customerName" label="客户" width="150" />
-        <el-table-column prop="warehouseName" label="发货仓库" width="140" />
-        <el-table-column prop="deliveryDate" label="发货日期" width="120" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="deliveryNo" :label="t('salesDelivery.deliveryNo')" width="180" />
+        <el-table-column prop="orderNo" :label="t('salesDelivery.salesOrderNo')" width="180" />
+        <el-table-column prop="customerName" :label="t('salesDelivery.customer')" width="150" />
+        <el-table-column prop="warehouseName" :label="t('salesDelivery.warehouse')" width="140" />
+        <el-table-column prop="deliveryDate" :label="t('salesDelivery.deliveryDate')" width="120" />
+        <el-table-column prop="status" :label="t('salesDelivery.statusLabel')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'DRAFT'" type="info">草稿</el-tag>
-            <el-tag v-else-if="row.status === 'POSTED' || row.status === 'COMPLETED'" type="success">已过账</el-tag>
-            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">已取消</el-tag>
+            <el-tag v-if="row.status === 'DRAFT'" type="info">{{ t('salesDelivery.status.draft') }}</el-tag>
+            <el-tag v-else-if="row.status === 'POSTED' || row.status === 'COMPLETED'" type="success">{{ t('salesDelivery.status.posted') }}</el-tag>
+            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">{{ t('salesDelivery.status.cancelled') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" show-overflow-tooltip />
-        <el-table-column prop="createdBy" label="创建人" width="120" />
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column prop="remark" :label="t('salesDelivery.remark')" show-overflow-tooltip />
+        <el-table-column prop="createdBy" :label="t('salesDelivery.createdBy')" width="120" />
+        <el-table-column prop="createdAt" :label="t('salesDelivery.createdAt')" width="190">
+          <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('salesDelivery.actions')" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
-              查看
+              {{ t('salesDelivery.view') }}
             </el-button>
             <el-button link type="primary" @click="handlePrint(row)">
-              打印
+              {{ t('salesDelivery.print') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -117,7 +119,7 @@
               type="primary"
               @click="handleEdit(row)"
             >
-              编辑
+              {{ t('salesDelivery.edit') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -126,7 +128,7 @@
               type="success"
               @click="handlePost(row)"
             >
-              过账
+              {{ t('salesDelivery.post') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -135,7 +137,7 @@
               type="danger"
               @click="handleCancel(row)"
             >
-              取消
+              {{ t('salesDelivery.cancel') }}
             </el-button>
           </template>
         </el-table-column>
@@ -168,10 +170,10 @@
       >
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="销售订单" prop="orderId">
+            <el-form-item :label="t('salesDelivery.salesOrder')" prop="orderId">
               <el-select
                 v-model="formData.orderId"
-                placeholder="请选择销售订单"
+                :placeholder="t('salesDelivery.selectOrder')"
                 style="width: 100%"
                 :disabled="isView || !!editingId"
                 @change="handleOrderChange"
@@ -187,10 +189,10 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="发货仓库" prop="warehouseId">
+            <el-form-item :label="t('salesDelivery.warehouse')" prop="warehouseId">
               <el-select
                 v-model="formData.warehouseId"
-                placeholder="请选择发货仓库"
+                :placeholder="t('salesDelivery.selectWarehouse')"
                 style="width: 100%"
                 :disabled="isView"
               >
@@ -204,11 +206,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="发货日期" prop="deliveryDate">
+            <el-form-item :label="t('salesDelivery.deliveryDate')" prop="deliveryDate">
               <el-date-picker
                 v-model="formData.deliveryDate"
                 type="date"
-                placeholder="请选择发货日期"
+                :placeholder="t('salesDelivery.selectDeliveryDate')"
                 style="width: 100%"
                 value-format="YYYY-MM-DD"
                 :disabled="isView"
@@ -216,43 +218,43 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="备注">
+        <el-form-item :label="t('salesDelivery.remark')">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="2"
-            placeholder="请输入备注"
+            :placeholder="t('salesDelivery.remarkPlaceholder')"
             :disabled="isView"
           />
         </el-form-item>
 
         <!-- 发货明细 -->
-        <el-divider content-position="left">发货明细</el-divider>
+        <el-divider content-position="left">{{ t('salesDelivery.details') }}</el-divider>
         <div v-if="!isView && formData.items.length > 0" class="scan-toolbar">
           <BarcodeScanField :disabled="scanLoading" @scan="handleBarcodeScan" />
           <el-button class="scan-toolbar__reset" :disabled="scanLoading" @click="resetScanQuantities">
             <el-icon><RefreshLeft /></el-icon>
-            清零数量
+            {{ t('salesDelivery.clearQuantity') }}
           </el-button>
           <div class="scan-toolbar__summary" aria-live="polite">
-            <span>本次数量 <strong>{{ deliveryQuantityTotal }}</strong></span>
+            <span>{{ t('salesDelivery.currentQuantity') }} <strong>{{ deliveryQuantityTotal }}</strong></span>
             <span v-if="scanFeedback" class="scan-toolbar__feedback">{{ scanFeedback }}</span>
           </div>
         </div>
         <el-table :data="formData.items" border max-height="400">
-          <el-table-column label="产品编码" prop="productCode" width="150" />
-          <el-table-column label="产品名称" prop="productName" width="180" />
-          <el-table-column label="订单数量" prop="orderedQuantity" width="120" align="right">
+          <el-table-column :label="t('salesDelivery.productCode')" prop="productCode" width="150" />
+          <el-table-column :label="t('salesDelivery.productName')" prop="productName" width="180" />
+          <el-table-column :label="t('salesDelivery.orderedQuantity')" prop="orderedQuantity" width="120" align="right">
             <template #default="{ row }">
               {{ row.orderedQuantity || 0 }}
             </template>
           </el-table-column>
-          <el-table-column label="已发货数量" prop="deliveredQuantity" width="130" align="right">
+          <el-table-column :label="t('salesDelivery.deliveredQuantity')" prop="deliveredQuantity" width="130" align="right">
             <template #default="{ row }">
               {{ row.deliveredQuantity || 0 }}
             </template>
           </el-table-column>
-          <el-table-column label="本次发货数量" prop="quantity" width="150">
+          <el-table-column :label="t('salesDelivery.currentDeliveryQuantity')" prop="quantity" width="150">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.quantity"
@@ -264,11 +266,11 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="备注" prop="remark">
+          <el-table-column :label="t('salesDelivery.remark')" prop="remark">
             <template #default="{ row }">
               <el-input
                 v-model="row.remark"
-                placeholder="请输入备注"
+                :placeholder="t('salesDelivery.remarkPlaceholder')"
                 :disabled="isView"
               />
             </template>
@@ -277,9 +279,9 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ t('salesDelivery.cancel') }}</el-button>
         <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSubmit">
-          确定
+          {{ t('salesDelivery.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -289,6 +291,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { RefreshLeft } from '@element-plus/icons-vue'
@@ -311,8 +314,10 @@ import { getWarehouses, type Warehouse } from '@/api/masterdata'
 import { BarcodeScanField } from '@/components/common'
 import { incrementScannedLine } from '@/utils/barcode'
 import { hydrateProductLineLabels } from '@/utils/productLines'
+import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
 
 const route = useRoute()
+const { t } = useI18n()
 const readQueryString = (key: string) => {
   const value = route.query[key]
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
@@ -372,11 +377,11 @@ const deliveryQuantityTotal = computed(() => formData.items.reduce(
 ))
 
 // 表单验证规则
-const formRules: FormRules = {
-  orderId: [{ required: true, message: '请选择销售订单', trigger: 'change' }],
-  warehouseId: [{ required: true, message: '请选择发货仓库', trigger: 'change' }],
-  deliveryDate: [{ required: true, message: '请选择发货日期', trigger: 'change' }]
-}
+const formRules = computed<FormRules>(() => ({
+  orderId: [{ required: true, message: t('salesDelivery.validation.order'), trigger: 'change' }],
+  warehouseId: [{ required: true, message: t('salesDelivery.validation.warehouse'), trigger: 'change' }],
+  deliveryDate: [{ required: true, message: t('salesDelivery.validation.date'), trigger: 'change' }]
+}))
 
 // 加载数据
 const loadData = async () => {
@@ -386,7 +391,7 @@ const loadData = async () => {
     tableData.value = response.records
     total.value = response.total
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('salesDelivery.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -398,7 +403,7 @@ const loadCustomers = async () => {
     const response = await getCustomers({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
     customers.value = response.records
   } catch (error) {
-    ElMessage.error('加载客户列表失败')
+    ElMessage.error(t('salesDelivery.message.customersLoadFailed'))
   }
 }
 
@@ -408,7 +413,7 @@ const loadWarehouses = async () => {
     const response = await getWarehouses({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
     warehouses.value = response.records
   } catch (error) {
-    ElMessage.error('加载仓库列表失败')
+    ElMessage.error(t('salesDelivery.message.warehousesLoadFailed'))
   }
 }
 
@@ -418,7 +423,7 @@ const loadOrders = async () => {
     const response = await getSalesOrders({ pageNo: 1, pageSize: 1000, status: 'APPROVED' })
     orders.value = response.records
   } catch (error) {
-    ElMessage.error('加载订单列表失败')
+    ElMessage.error(t('salesDelivery.message.ordersLoadFailed'))
   }
 }
 
@@ -450,7 +455,7 @@ const handleReset = () => {
 // 新增
 const handleCreate = () => {
   resetForm()
-  dialogTitle.value = '新增销售发货'
+  dialogTitle.value = t('salesDelivery.dialog.create')
   dialogVisible.value = true
 }
 
@@ -460,20 +465,20 @@ const handlePrint = async (row: any) => {
     const detail = await getSalesDelivery(row.id)
     printSalesDelivery(detail)
   } catch {
-    ElMessage.error('加载打印数据失败')
+    ElMessage.error(t('salesDelivery.message.printLoadFailed'))
   }
 }
 
 const handleView = async (row: SalesDelivery) => {
   try {
     const data = await getSalesDelivery(row.id)
-    dialogTitle.value = '查看销售发货'
+    dialogTitle.value = t('salesDelivery.dialog.view')
     isView.value = true
     editingId.value = ''
     Object.assign(formData, data)
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载详情失败')
+    ElMessage.error(t('salesDelivery.message.detailLoadFailed'))
   }
 }
 
@@ -481,7 +486,7 @@ const handleView = async (row: SalesDelivery) => {
 const handleEdit = async (row: SalesDelivery) => {
   try {
     const detail = await getSalesDelivery(row.id)
-    dialogTitle.value = '编辑销售发货'
+    dialogTitle.value = t('salesDelivery.dialog.edit')
     isView.value = false
     editingId.value = detail.id
     // 载入所属订单，供只读展示（草稿不允许改订单）
@@ -534,24 +539,24 @@ const handleEdit = async (row: SalesDelivery) => {
     formData.items = await hydrateProductLineLabels(deliveryItems, getProduct)
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载发货单失败')
+    ElMessage.error(t('salesDelivery.message.deliveryLoadFailed'))
   }
 }
 
 // 取消
 const handleCancel = async (row: SalesDelivery) => {
   try {
-    await ElMessageBox.confirm('确认取消此发货单吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('salesDelivery.message.cancelConfirm'), t('salesDelivery.message.prompt'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
     await cancelSalesDelivery(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('salesDelivery.message.cancelled'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('salesDelivery.message.cancelFailed'))
     }
   }
 }
@@ -559,17 +564,17 @@ const handleCancel = async (row: SalesDelivery) => {
 // 过账
 const handlePost = async (row: SalesDelivery) => {
   try {
-    await ElMessageBox.confirm('确定过账该销售发货单吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('salesDelivery.message.postConfirm'), t('salesDelivery.message.prompt'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
     await postSalesDelivery(row.id)
-    ElMessage.success('过账成功')
+    ElMessage.success(t('salesDelivery.message.posted'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('过账失败')
+      ElMessage.error(t('salesDelivery.message.postFailed'))
     }
   }
 }
@@ -594,7 +599,7 @@ const handleOrderChange = async () => {
     }))
     formData.items = await hydrateProductLineLabels(orderItems, getProduct)
   } catch (error) {
-    ElMessage.error('加载订单详情失败')
+    ElMessage.error(t('salesDelivery.message.orderDetailLoadFailed'))
   }
 }
 
@@ -606,26 +611,26 @@ const getDeliveryMaximum = (item: SalesDeliveryItem) => Math.max(
 
 const resetScanQuantities = async () => {
   try {
-    await ElMessageBox.confirm('确认清零当前发货数量吗？', '扫码计数', {
-      confirmButtonText: '清零',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('salesDelivery.scan.resetConfirm'), t('salesDelivery.scan.title'), {
+      confirmButtonText: t('salesDelivery.scan.reset'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
     formData.items.forEach((item) => {
       item.quantity = 0
       item.qty = 0
     })
-    scanFeedback.value = '数量已清零'
+    scanFeedback.value = t('salesDelivery.scan.resetDone')
   } catch (error: any) {
     if (error !== 'cancel' && error?.action !== 'cancel') {
-      ElMessage.error('清零数量失败')
+      ElMessage.error(t('salesDelivery.scan.resetFailed'))
     }
   }
 }
 
 const handleBarcodeScan = async (barcode: string) => {
   if (!formData.orderId || formData.items.length === 0) {
-    ElMessage.warning('请先选择销售订单')
+    ElMessage.warning(t('salesDelivery.scan.selectOrderFirst'))
     return
   }
 
@@ -634,17 +639,17 @@ const handleBarcodeScan = async (barcode: string) => {
     const product = await getProductByBarcode(barcode)
     const result = incrementScannedLine(formData.items, product.id, getDeliveryMaximum)
     if (result.status === 'not-found') {
-      ElMessage.warning(`商品 ${product.productCode} 不在当前销售订单中`)
+      ElMessage.warning(t('salesDelivery.scan.notInOrder', { code: product.productCode }))
       return
     }
     if (result.status === 'at-maximum') {
-      ElMessage.warning(`商品 ${product.productCode} 已达到可发货数量`)
+      ElMessage.warning(t('salesDelivery.scan.atMaximum', { code: product.productCode }))
       return
     }
     formData.items[result.index].qty = result.quantity
     scanFeedback.value = `${product.productCode} · ${result.quantity}`
   } catch (error) {
-    ElMessage.warning(error instanceof Error ? error.message : '条码查询失败')
+    ElMessage.warning(error instanceof Error ? error.message : t('salesDelivery.scan.lookupFailed'))
   } finally {
     scanLoading.value = false
   }
@@ -657,14 +662,14 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       if (formData.items.length === 0) {
-        ElMessage.warning('请至少添加一条发货明细')
+        ElMessage.warning(t('salesDelivery.validation.lineRequired'))
         return
       }
 
       // 检查发货数量
       const hasQuantity = formData.items.some(item => item.quantity > 0)
       if (!hasQuantity) {
-        ElMessage.warning('请输入发货数量')
+        ElMessage.warning(t('salesDelivery.validation.quantityRequired'))
         return
       }
 
@@ -672,15 +677,15 @@ const handleSubmit = async () => {
       try {
         if (editingId.value) {
           await updateSalesDelivery(editingId.value, formData)
-          ElMessage.success('更新成功')
+          ElMessage.success(t('salesDelivery.message.updated'))
         } else {
           await createSalesDelivery(formData)
-          ElMessage.success('操作成功')
+          ElMessage.success(t('salesDelivery.message.created'))
         }
         dialogVisible.value = false
         loadData()
       } catch (error) {
-        ElMessage.error(editingId.value ? '更新失败' : '操作失败')
+        ElMessage.error(editingId.value ? t('salesDelivery.message.updateFailed') : t('salesDelivery.message.createFailed'))
       } finally {
         submitLoading.value = false
       }
@@ -694,7 +699,7 @@ const resetForm = () => {
   isView.value = false
   formData.orderId = 0
   formData.warehouseId = 0
-  formData.deliveryDate = new Date().toISOString().split('T')[0]
+  formData.deliveryDate = formatBusinessDate()
   formData.items = []
   formData.remark = ''
   scanFeedback.value = ''

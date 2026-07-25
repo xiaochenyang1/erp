@@ -2,40 +2,40 @@
   <div class="sales-orders-container">
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="关键词">
+        <el-form-item :label="t('salesOrder.keyword')">
           <el-input
             v-model="queryParams.keyword"
-            placeholder="订单号"
+            :placeholder="t('salesOrder.orderNo')"
             clearable
             style="width: 220px"
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="客户">
-          <el-select v-model="queryParams.customerId" placeholder="请选择客户" clearable filterable style="width: 220px">
+        <el-form-item :label="t('salesOrder.customer')">
+          <el-select v-model="queryParams.customerId" :placeholder="t('salesOrder.selectCustomer')" clearable filterable style="width: 220px">
             <el-option v-for="customer in customers" :key="customer.id" :label="customer.name" :value="customer.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="订单状态">
-          <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 150px">
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="审批中" value="SUBMITTED" />
-            <el-option label="已通过" value="APPROVED" />
-            <el-option label="已驳回" value="REJECTED" />
-            <el-option label="已取消" value="CANCELLED" />
+        <el-form-item :label="t('salesOrder.orderStatus')">
+          <el-select v-model="queryParams.status" :placeholder="t('salesOrder.selectStatus')" clearable style="width: 150px">
+            <el-option :label="t('salesOrder.status.draft')" value="DRAFT" />
+            <el-option :label="t('salesOrder.status.submitted')" value="SUBMITTED" />
+            <el-option :label="t('salesOrder.status.approved')" value="APPROVED" />
+            <el-option :label="t('salesOrder.status.rejected')" value="REJECTED" />
+            <el-option :label="t('salesOrder.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="审批状态">
-          <el-select v-model="queryParams.approvalStatus" placeholder="请选择审批状态" clearable style="width: 150px">
-            <el-option label="未提交" value="NOT_SUBMITTED" />
-            <el-option label="审批中" value="IN_APPROVAL" />
-            <el-option label="已通过" value="APPROVED" />
-            <el-option label="已驳回" value="REJECTED" />
+        <el-form-item :label="t('salesOrder.approvalStatus')">
+          <el-select v-model="queryParams.approvalStatus" :placeholder="t('salesOrder.selectApprovalStatus')" clearable style="width: 150px">
+            <el-option :label="t('salesOrder.status.notSubmitted')" value="NOT_SUBMITTED" />
+            <el-option :label="t('salesOrder.status.submitted')" value="IN_APPROVAL" />
+            <el-option :label="t('salesOrder.status.approved')" value="APPROVED" />
+            <el-option :label="t('salesOrder.status.rejected')" value="REJECTED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ t('salesOrder.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ t('salesOrder.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -43,47 +43,47 @@
     <el-card class="table-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>销售订单</span>
-          <el-button v-permission="'sales:order:create'" type="primary" :icon="Plus" @click="handleCreate">新增订单</el-button>
+          <span>{{ t('salesOrder.title') }}</span>
+          <el-button v-permission="'sales:order:create'" type="primary" :icon="Plus" @click="handleCreate">{{ t('salesOrder.create') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="orderNo" label="订单号" min-width="170" fixed />
-        <el-table-column prop="customerName" label="客户" min-width="160" />
-        <el-table-column prop="orderDate" label="订单日期" width="120" />
-        <el-table-column prop="deliveryDate" label="交付日期" width="120" />
-        <el-table-column prop="totalQuantity" label="数量" width="110" align="right">
+        <el-table-column prop="orderNo" :label="t('salesOrder.orderNo')" min-width="170" fixed />
+        <el-table-column prop="customerName" :label="t('salesOrder.customer')" min-width="160" />
+        <el-table-column prop="orderDate" :label="t('salesOrder.orderDate')" width="120" />
+        <el-table-column prop="deliveryDate" :label="t('salesOrder.deliveryDate')" width="120" />
+        <el-table-column prop="totalQuantity" :label="t('salesOrder.quantity')" width="110" align="right">
           <template #default="{ row }">{{ formatNumber(row.totalQuantity) }}</template>
         </el-table-column>
-        <el-table-column prop="totalAmount" label="金额" width="130" align="right">
+        <el-table-column prop="totalAmount" :label="t('salesOrder.amount')" width="130" align="right">
           <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="订单状态" width="110">
+        <el-table-column prop="status" :label="t('salesOrder.orderStatus')" width="110">
           <template #default="{ row }">
             <el-tag>{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="approvalStatus" label="审批状态" width="110">
+        <el-table-column prop="approvalStatus" :label="t('salesOrder.approvalStatus')" width="110">
           <template #default="{ row }">
             <el-tag :type="approvalTagType(row.approvalStatus)">{{ approvalText(row.approvalStatus) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="deliveryStatus" label="发货状态" width="110">
+        <el-table-column prop="deliveryStatus" :label="t('salesOrder.deliveryStatus')" width="110">
           <template #default="{ row }">{{ deliveryText(row.deliveryStatus) }}</template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-        <el-table-column label="操作" width="310" fixed="right" align="center">
+        <el-table-column prop="remark" :label="t('salesOrder.remark')" min-width="160" show-overflow-tooltip />
+        <el-table-column :label="t('salesOrder.actions')" width="310" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button link type="primary" :icon="View" @click="handleView(row)">查看</el-button>
-            <el-button link type="primary" @click="handlePrint(row)">打印</el-button>
-            <el-button v-permission="'sales:order:create'" link type="primary" @click="handleCopy(row)">复制</el-button>
-            <el-button v-if="canEdit(row)" v-permission="'sales:order:update'" link type="primary" :icon="Edit" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-if="canSubmit(row)" v-permission="'sales:order:submit'" link type="success" @click="handleSubmitOrder(row)">提交</el-button>
-            <el-button v-if="canApprove(row)" v-permission="'sales:order:approve'" link type="success" @click="handleApprove(row)">通过</el-button>
-            <el-button v-if="canApprove(row)" v-permission="'sales:order:reject'" link type="warning" @click="handleReject(row)">驳回</el-button>
-            <el-button v-if="canUnapprove(row)" v-permission="'sales:order:unapprove'" link type="warning" @click="handleUnapprove(row)">反审核</el-button>
-            <el-button v-if="canCancel(row)" v-permission="'sales:order:cancel'" link type="danger" @click="handleCancel(row)">取消</el-button>
+            <el-button link type="primary" :icon="View" @click="handleView(row)">{{ t('salesOrder.view') }}</el-button>
+            <el-button link type="primary" @click="handlePrint(row)">{{ t('salesOrder.print') }}</el-button>
+            <el-button v-permission="'sales:order:create'" link type="primary" @click="handleCopy(row)">{{ t('salesOrder.copy') }}</el-button>
+            <el-button v-if="canEdit(row)" v-permission="'sales:order:update'" link type="primary" :icon="Edit" @click="handleEdit(row)">{{ t('salesOrder.edit') }}</el-button>
+            <el-button v-if="canSubmit(row)" v-permission="'sales:order:submit'" link type="success" @click="handleSubmitOrder(row)">{{ t('salesOrder.submit') }}</el-button>
+            <el-button v-if="canApprove(row)" v-permission="'sales:order:approve'" link type="success" @click="handleApprove(row)">{{ t('salesOrder.approve') }}</el-button>
+            <el-button v-if="canApprove(row)" v-permission="'sales:order:reject'" link type="warning" @click="handleReject(row)">{{ t('salesOrder.reject') }}</el-button>
+            <el-button v-if="canUnapprove(row)" v-permission="'sales:order:unapprove'" link type="warning" @click="handleUnapprove(row)">{{ t('salesOrder.unapprove') }}</el-button>
+            <el-button v-if="canCancel(row)" v-permission="'sales:order:cancel'" link type="danger" @click="handleCancel(row)">{{ t('salesOrder.cancel') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -103,10 +103,10 @@
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="16">
           <el-col :span="8">
-            <el-form-item label="客户" prop="customerId">
+            <el-form-item :label="t('salesOrder.customer')" prop="customerId">
               <el-select
                 v-model="formData.customerId"
-                placeholder="请选择客户"
+                :placeholder="t('salesOrder.selectCustomer')"
                 filterable
                 style="width: 100%"
                 :disabled="isView"
@@ -117,14 +117,14 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="发货仓库" prop="warehouseId">
-              <el-select v-model="formData.warehouseId" placeholder="请选择仓库" filterable style="width: 100%" :disabled="isView">
+            <el-form-item :label="t('salesOrder.warehouse')" prop="warehouseId">
+              <el-select v-model="formData.warehouseId" :placeholder="t('salesOrder.selectWarehouse')" filterable style="width: 100%" :disabled="isView">
                 <el-option v-for="warehouse in warehouses" :key="warehouse.id" :label="warehouse.name" :value="warehouse.id" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="4">
-            <el-form-item label="订单日期" prop="orderDate">
+            <el-form-item :label="t('salesOrder.orderDate')" prop="orderDate">
               <el-date-picker
                 v-model="formData.orderDate"
                 type="date"
@@ -136,55 +136,55 @@
             </el-form-item>
           </el-col>
           <el-col :span="4">
-            <el-form-item label="交付日期">
+            <el-form-item :label="t('salesOrder.deliveryDate')">
               <el-date-picker v-model="formData.deliveryDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" :disabled="isView" />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-form-item label="备注">
-          <el-input v-model="formData.remark" type="textarea" :rows="2" placeholder="请输入备注" :disabled="isView" />
+        <el-form-item :label="t('salesOrder.remark')">
+          <el-input v-model="formData.remark" type="textarea" :rows="2" :placeholder="t('salesOrder.remarkPlaceholder')" :disabled="isView" />
         </el-form-item>
 
         <div v-if="formData.customerId && !isView" v-loading="creditPreviewLoading" class="credit-preview-card">
           <div class="credit-preview-header">
             <div>
-              <div class="credit-preview-title">客户授信预览</div>
-              <div class="credit-preview-subtitle">未结应收 + 已审批未发货订单 + 本单含税金额</div>
+              <div class="credit-preview-title">{{ t('salesOrder.creditPreview') }}</div>
+              <div class="credit-preview-subtitle">{{ t('salesOrder.creditFormula') }}</div>
             </div>
             <el-tag v-if="creditPreview" :type="creditPreview.exceeded ? 'danger' : 'success'">
-              {{ creditPreview.unlimited ? '不限额客户' : creditPreview.exceeded ? '提交后超限' : '额度充足' }}
+              {{ creditPreview.unlimited ? t('salesOrder.unlimitedCustomer') : creditPreview.exceeded ? t('salesOrder.exceededAfterSubmit') : t('salesOrder.sufficientCredit') }}
             </el-tag>
           </div>
 
           <template v-if="creditPreview">
             <div class="credit-preview-grid">
               <div class="credit-preview-item">
-                <div class="preview-label">信用额度</div>
+                <div class="preview-label">{{ t('salesOrder.creditLimit') }}</div>
                 <div class="preview-value" :class="{ quiet: creditPreview.unlimited }">
-                  {{ creditPreview.unlimited ? '不限额' : formatMoney(creditPreview.creditLimit) }}
+                  {{ creditPreview.unlimited ? t('salesOrder.unlimited') : formatMoney(creditPreview.creditLimit) }}
                 </div>
               </div>
               <div class="credit-preview-item">
-                <div class="preview-label">未结应收</div>
+                <div class="preview-label">{{ t('salesOrder.outstandingReceivable') }}</div>
                 <div class="preview-value">{{ formatMoney(creditPreview.outstandingReceivable) }}</div>
               </div>
               <div class="credit-preview-item">
-                <div class="preview-label">在途订单敞口</div>
+                <div class="preview-label">{{ t('salesOrder.openOrderExposure') }}</div>
                 <div class="preview-value">{{ formatMoney(creditPreview.openOrderExposure) }}</div>
               </div>
               <div class="credit-preview-item">
-                <div class="preview-label">当前敞口</div>
+                <div class="preview-label">{{ t('salesOrder.currentExposure') }}</div>
                 <div class="preview-value">{{ formatMoney(creditPreview.currentExposure) }}</div>
               </div>
               <div class="credit-preview-item">
-                <div class="preview-label">本单含税金额</div>
+                <div class="preview-label">{{ t('salesOrder.orderTaxAmount') }}</div>
                 <div class="preview-value">{{ formatMoney(creditPreview.orderAmount) }}</div>
               </div>
               <div class="credit-preview-item">
-                <div class="preview-label">提交后可用额度</div>
+                <div class="preview-label">{{ t('salesOrder.availableAfterSubmit') }}</div>
                 <div class="preview-value" :class="{ danger: !creditPreview.unlimited && Number(creditPreview.projectedAvailableCredit ?? 0) < 0 }">
-                  {{ creditPreview.unlimited ? '不限额' : formatMoney(creditPreview.projectedAvailableCredit) }}
+                  {{ creditPreview.unlimited ? t('salesOrder.unlimited') : formatMoney(creditPreview.projectedAvailableCredit) }}
                 </div>
               </div>
             </div>
@@ -194,37 +194,37 @@
               type="error"
               :closable="false"
               show-icon
-              :title="`预计超限 ${formatMoney(creditExceededAmount)}`"
-              :description="`当前敞口 ${formatMoney(creditPreview.currentExposure)} + 本单 ${formatMoney(creditPreview.orderAmount)} = ${formatMoney(creditPreview.projectedExposure)}，已超过信用额度 ${formatMoney(creditPreview.creditLimit)}`"
+              :title="t('salesOrder.expectedExceeded', { amount: formatMoney(creditExceededAmount) })"
+              :description="t('salesOrder.exceededDescription', { current: formatMoney(creditPreview.currentExposure), order: formatMoney(creditPreview.orderAmount), projected: formatMoney(creditPreview.projectedExposure), limit: formatMoney(creditPreview.creditLimit) })"
             />
             <el-alert
               v-else-if="creditPreview.unlimited"
               type="info"
               :closable="false"
               show-icon
-              title="该客户未设置授信额度"
-              :description="`当前敞口 ${formatMoney(creditPreview.currentExposure)}，本单可继续提交审批`"
+              :title="t('salesOrder.noCreditLimit')"
+              :description="t('salesOrder.unlimitedDescription', { current: formatMoney(creditPreview.currentExposure) })"
             />
             <el-alert
               v-else
               type="success"
               :closable="false"
               show-icon
-              :title="`提交后敞口 ${formatMoney(creditPreview.projectedExposure)}`"
-              :description="`提交后仍有可用额度 ${formatMoney(creditPreview.projectedAvailableCredit)}`"
+              :title="t('salesOrder.projectedExposure', { amount: formatMoney(creditPreview.projectedExposure) })"
+              :description="t('salesOrder.availableDescription', { amount: formatMoney(creditPreview.projectedAvailableCredit) })"
             />
           </template>
         </div>
 
         <div class="line-toolbar">
-          <span>订单明细</span>
-          <el-button v-if="!isView" type="primary" :icon="Plus" @click="addLine">添加明细</el-button>
+          <span>{{ t('salesOrder.details') }}</span>
+          <el-button v-if="!isView" type="primary" :icon="Plus" @click="addLine">{{ t('salesOrder.addLine') }}</el-button>
         </div>
 
         <el-table :data="formData.items" border>
-          <el-table-column label="产品" min-width="240">
+          <el-table-column :label="t('salesOrder.product')" min-width="240">
             <template #default="{ row }">
-              <el-select v-model="row.productId" placeholder="请选择产品" filterable style="width: 100%" :disabled="isView" @change="onProductChange(row)">
+              <el-select v-model="row.productId" :placeholder="t('salesOrder.selectProduct')" filterable style="width: 100%" :disabled="isView" @change="onProductChange(row)">
                 <el-option
                   v-for="product in products"
                   :key="product.id"
@@ -234,43 +234,43 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="数量" width="150">
+          <el-table-column :label="t('salesOrder.quantity')" width="150">
             <template #default="{ row }">
               <el-input-number v-model="row.quantity" :min="0" :precision="2" :disabled="isView" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column label="单价" width="150">
+          <el-table-column :label="t('salesOrder.unitPrice')" width="150">
             <template #default="{ row }">
               <el-input-number v-model="row.price" :min="0" :precision="2" :disabled="isView" style="width: 100%" />
               <div v-if="row.minPrice != null" class="price-hint">
-                最低 {{ formatMoney(row.minPrice) }}
-                <span v-if="row.priceLevel">· {{ row.priceLevel === 'CUSTOMER' ? '客户价' : '通用价' }}</span>
+                {{ t('salesOrder.minimumPrice', { amount: formatMoney(row.minPrice) }) }}
+                <span v-if="row.priceLevel">· {{ row.priceLevel === 'CUSTOMER' ? t('salesOrder.customerPrice') : t('salesOrder.generalPrice') }}</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="税率" width="130">
+          <el-table-column :label="t('salesOrder.taxRate')" width="130">
             <template #default="{ row }">
               <el-input-number v-model="row.taxRate" :min="0" :max="1" :step="0.01" :precision="4" :disabled="isView" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="130" align="right">
+          <el-table-column :label="t('salesOrder.amount')" width="130" align="right">
             <template #default="{ row }">{{ formatMoney(lineAmount(row)) }}</template>
           </el-table-column>
-          <el-table-column label="备注" min-width="150">
+          <el-table-column :label="t('salesOrder.remark')" min-width="150">
             <template #default="{ row }">
-              <el-input v-model="row.remark" placeholder="备注" :disabled="isView" />
+              <el-input v-model="row.remark" :placeholder="t('salesOrder.remark')" :disabled="isView" />
             </template>
           </el-table-column>
-          <el-table-column v-if="!isView" label="操作" width="90" align="center">
+          <el-table-column v-if="!isView" :label="t('salesOrder.actions')" width="90" align="center">
             <template #default="{ $index }">
-              <el-button link type="danger" :icon="Delete" @click="removeLine($index)">删除</el-button>
+              <el-button link type="danger" :icon="Delete" @click="removeLine($index)">{{ t('salesOrder.delete') }}</el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">关闭</el-button>
-        <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSave">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ t('salesOrder.close') }}</el-button>
+        <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSave">{{ t('salesOrder.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -279,6 +279,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Delete, Edit, Plus, Refresh, Search, View } from '@element-plus/icons-vue'
 import {
@@ -301,7 +302,7 @@ import {
 } from '@/api/sales'
 import { getCustomers, getProducts, getWarehouses, type Customer, type Product, type Warehouse } from '@/api/masterdata'
 import { printSalesOrder } from '@/utils/bizPrint'
-import { formatLocalizedNumber } from '@/utils/locale'
+import { formatBusinessDate, formatLocalizedNumber } from '@/utils/locale'
 
 type PricedSalesOrderItem = SalesOrderItem & {
   minPrice?: number | null
@@ -314,6 +315,7 @@ type SalesOrderForm = SalesOrderSaveRequest & {
 }
 
 const route = useRoute()
+const { t } = useI18n()
 const readQueryString = (key: string) => {
   const value = route.query[key]
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
@@ -354,11 +356,11 @@ const formData = reactive<SalesOrderForm>({
   items: []
 })
 
-const formRules: FormRules = {
-  customerId: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  warehouseId: [{ required: true, message: '请选择发货仓库', trigger: 'change' }],
-  orderDate: [{ required: true, message: '请选择订单日期', trigger: 'change' }]
-}
+const formRules = computed<FormRules>(() => ({
+  customerId: [{ required: true, message: t('salesOrder.validation.customer'), trigger: 'change' }],
+  warehouseId: [{ required: true, message: t('salesOrder.validation.warehouse'), trigger: 'change' }],
+  orderDate: [{ required: true, message: t('salesOrder.validation.orderDate'), trigger: 'change' }]
+}))
 
 const loadData = async () => {
   loading.value = true
@@ -367,8 +369,8 @@ const loadData = async () => {
     tableData.value = page.records
     total.value = page.total
   } catch (error) {
-    console.error('加载销售订单失败:', error)
-    ElMessage.error('加载销售订单失败')
+    console.error(t('salesOrder.message.loadFailed'), error)
+    ElMessage.error(t('salesOrder.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -401,27 +403,27 @@ const handleReset = () => {
 
 const handleCreate = () => {
   resetForm()
-  dialogTitle.value = '新增销售订单'
+  dialogTitle.value = t('salesOrder.dialog.create')
   isView.value = false
-  formData.orderDate = new Date().toISOString().slice(0, 10)
+  formData.orderDate = formatBusinessDate()
   addLine()
   dialogVisible.value = true
 }
 
 const handleEdit = async (row: SalesOrder) => {
-  dialogTitle.value = '编辑销售订单'
+  dialogTitle.value = t('salesOrder.dialog.edit')
   isView.value = false
   await fillForm(row.id)
   dialogVisible.value = true
 }
 
 const handleCopy = async (row: SalesOrder) => {
-  dialogTitle.value = '复制销售订单'
+  dialogTitle.value = t('salesOrder.dialog.copy')
   isView.value = false
   await fillForm(row.id)
   formData.id = undefined as any
-  formData.orderDate = new Date().toISOString().slice(0, 10)
-  formData.remark = (formData.remark ? formData.remark + ' ' : '') + `(复制自 ${row.orderNo})`
+  formData.orderDate = formatBusinessDate()
+  formData.remark = (formData.remark ? formData.remark + ' ' : '') + `(${t('salesOrder.dialog.copiedFrom', { orderNo: row.orderNo })})`
   dialogVisible.value = true
 }
 
@@ -430,12 +432,12 @@ const handlePrint = async (row: SalesOrder) => {
     const order = await getSalesOrder(row.id)
     printSalesOrder(order)
   } catch {
-    ElMessage.error('加载打印数据失败')
+    ElMessage.error(t('salesOrder.message.printLoadFailed'))
   }
 }
 
 const handleView = async (row: SalesOrder) => {
-  dialogTitle.value = '销售订单详情'
+  dialogTitle.value = t('salesOrder.dialog.view')
   isView.value = true
   await fillForm(row.id)
   dialogVisible.value = true
@@ -518,13 +520,13 @@ const handleSave = async () => {
     if (!valid) return
     const validLines = formData.items.filter((item) => item.productId && item.quantity > 0)
     if (validLines.length === 0) {
-      ElMessage.warning('请至少维护一条有效订单明细')
+      ElMessage.warning(t('salesOrder.validation.lineRequired'))
       return
     }
     for (let i = 0; i < validLines.length; i++) {
       const line = validLines[i] as PricedSalesOrderItem
       if (line.minPrice != null && Number(line.price) < Number(line.minPrice)) {
-        ElMessage.warning(`第 ${i + 1} 行单价低于最低价 ${formatMoney(line.minPrice)}`)
+        ElMessage.warning(t('salesOrder.validation.belowMinimum', { line: i + 1, amount: formatMoney(line.minPrice) }))
         return
       }
     }
@@ -533,16 +535,16 @@ const handleSave = async () => {
       const payload = { ...formData, items: validLines }
       if (formData.id) {
         await updateSalesOrder(formData.id, payload)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('salesOrder.message.updated'))
       } else {
         await createSalesOrder(payload)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('salesOrder.message.created'))
       }
       dialogVisible.value = false
       loadData()
     } catch (error) {
       if (!(error instanceof Error)) {
-        ElMessage.error('保存销售订单失败')
+        ElMessage.error(t('salesOrder.message.saveFailed'))
       }
     } finally {
       submitLoading.value = false
@@ -551,36 +553,36 @@ const handleSave = async () => {
 }
 
 const handleSubmitOrder = async (row: SalesOrder) => {
-  await runOrderAction(row, '确定提交该销售订单吗？', () => submitSalesOrder(row.id), '提交成功')
+  await runOrderAction(row, t('salesOrder.message.submitConfirm'), () => submitSalesOrder(row.id), t('salesOrder.message.submitted'))
 }
 
 const handleApprove = async (row: SalesOrder) => {
-  await runOrderAction(row, '确定审批通过该销售订单吗？', () => approveSalesOrder(row.id), '审批成功')
+  await runOrderAction(row, t('salesOrder.message.approveConfirm'), () => approveSalesOrder(row.id), t('salesOrder.message.approved'))
 }
 
 const handleUnapprove = async (row: SalesOrder) => {
-  await runOrderAction(row, '确定反审核该销售订单吗？', () => unapproveSalesOrder(row.id), '反审核成功')
+  await runOrderAction(row, t('salesOrder.message.unapproveConfirm'), () => unapproveSalesOrder(row.id), t('salesOrder.message.unapproved'))
 }
 
 const handleReject = async (row: SalesOrder) => {
   try {
-    const { value } = await ElMessageBox.prompt('请输入驳回原因', '驳回销售订单', {
-      inputPlaceholder: '驳回原因',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消'
+    const { value } = await ElMessageBox.prompt(t('salesOrder.message.rejectReason'), t('salesOrder.message.rejectTitle'), {
+      inputPlaceholder: t('salesOrder.message.rejectReason'),
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel')
     })
     await rejectSalesOrder(row.id, value)
-    ElMessage.success('驳回成功')
+    ElMessage.success(t('salesOrder.message.rejected'))
     loadData()
   } catch (error) {
     if (error !== 'cancel' && !(error instanceof Error)) {
-      ElMessage.error('驳回失败')
+      ElMessage.error(t('salesOrder.message.rejectFailed'))
     }
   }
 }
 
 const handleCancel = async (row: SalesOrder) => {
-  await runOrderAction(row, '确定取消该销售订单吗？', () => cancelSalesOrder(row.id), '取消成功')
+  await runOrderAction(row, t('salesOrder.message.cancelConfirm'), () => cancelSalesOrder(row.id), t('salesOrder.message.cancelled'))
 }
 
 const runOrderAction = async (
@@ -590,13 +592,13 @@ const runOrderAction = async (
   successMessage: string
 ) => {
   try {
-    await ElMessageBox.confirm(`${message}\n${row.orderNo}`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`${message}\n${row.orderNo}`, t('salesOrder.message.prompt'), { type: 'warning' })
     await action()
     ElMessage.success(successMessage)
     loadData()
   } catch (error) {
     if (error !== 'cancel' && !(error instanceof Error)) {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('salesOrder.message.actionFailed'))
     }
   }
 }
@@ -688,26 +690,26 @@ const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0)
   maximumFractionDigits: 2
 })
 const statusText = (status?: string) => ({
-  DRAFT: '草稿',
-  SUBMITTED: '审批中',
-  APPROVED: '已通过',
-  REJECTED: '已驳回',
-  CONFIRMED: '已确认',
-  CANCELLED: '已取消',
-  CLOSED: '已关闭'
+  DRAFT: t('salesOrder.status.draft'),
+  SUBMITTED: t('salesOrder.status.submitted'),
+  APPROVED: t('salesOrder.status.approved'),
+  REJECTED: t('salesOrder.status.rejected'),
+  CONFIRMED: t('salesOrder.status.confirmed'),
+  CANCELLED: t('salesOrder.status.cancelled'),
+  CLOSED: t('salesOrder.status.closed')
 }[status || ''] || status || '-')
 const approvalText = (status?: string) => ({
-  DRAFT: '草稿',
-  NOT_SUBMITTED: '未提交',
-  IN_APPROVAL: '审批中',
-  PENDING: '审批中',
-  APPROVED: '已通过',
-  REJECTED: '已驳回'
+  DRAFT: t('salesOrder.status.draft'),
+  NOT_SUBMITTED: t('salesOrder.status.notSubmitted'),
+  IN_APPROVAL: t('salesOrder.status.submitted'),
+  PENDING: t('salesOrder.status.submitted'),
+  APPROVED: t('salesOrder.status.approved'),
+  REJECTED: t('salesOrder.status.rejected')
 }[status || ''] || status || '-')
 const deliveryText = (status?: string) => ({
-  NOT_DELIVERED: '未发货',
-  PARTIAL: '部分发货',
-  COMPLETED: '已发货'
+  NOT_DELIVERED: t('salesOrder.status.notDelivered'),
+  PARTIAL: t('salesOrder.status.partial'),
+  COMPLETED: t('salesOrder.status.delivered')
 }[status || ''] || status || '-')
 const approvalTagType = (status?: string) => {
   if (status === 'APPROVED') return 'success'
@@ -747,7 +749,7 @@ onMounted(async () => {
   try {
     await loadOptions()
   } catch (error) {
-    console.error('加载销售订单选项失败:', error)
+    console.error(t('salesOrder.message.optionsLoadFailed'), error)
   }
   loadData()
 })

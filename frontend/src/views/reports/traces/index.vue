@@ -2,12 +2,12 @@
   <div class="trace-page">
     <el-card shadow="never" class="query-panel">
       <el-form :model="queryForm" inline @submit.prevent>
-        <el-form-item label="业务关键字">
+        <el-form-item :label="$t('financeReportPages.traces.businessKeyword')">
           <el-input
             v-model="queryForm.keyword"
             class="keyword-input"
             clearable
-            placeholder="输入订单号、收发货单号、应收应付单号"
+            :placeholder="$t('financeReportPages.traces.keywordPlaceholder')"
             @keyup.enter="handleSearch"
           >
             <template #prefix>
@@ -17,9 +17,9 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" :loading="loading" @click="handleSearch">
-            查询
+            {{ $t('financeReportPages.common.search') }}
           </el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -40,44 +40,44 @@
       <el-card shadow="never" class="documents-panel">
         <template #header>
           <div class="panel-header">
-            <span>匹配单据</span>
+            <span>{{ $t('financeReportPages.traces.matchedDocuments') }}</span>
             <el-tag size="small">{{ trace.documents.length }}</el-tag>
           </div>
         </template>
 
         <el-empty
           v-if="!loading && trace.documents.length === 0"
-          description="输入业务单号后查看关联单据"
+          :description="$t('financeReportPages.traces.documentEmpty')"
           :image-size="120"
         />
         <el-table v-else v-loading="loading" :data="trace.documents" border stripe>
-          <el-table-column prop="documentLabel" label="类型" width="110">
+          <el-table-column prop="documentLabel" :label="$t('financeReportPages.traces.type')" width="110">
             <template #default="{ row }">
               <el-tag size="small" :type="documentTagType(row.documentType)">
                 {{ row.documentLabel }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="bizNo" label="单据编号" min-width="160" />
-          <el-table-column prop="title" label="摘要" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="110">
+          <el-table-column prop="bizNo" :label="$t('financeReportPages.traces.documentNo')" min-width="160" />
+          <el-table-column prop="title" :label="$t('financeReportPages.traces.title')" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="110">
             <template #default="{ row }">
-              <el-tag size="small" effect="plain">{{ row.status || '-' }}</el-tag>
+              <el-tag size="small" effect="plain">{{ traceStatusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="bizDate" label="日期" width="120" />
-          <el-table-column prop="totalAmount" label="金额" width="130" align="right">
+          <el-table-column prop="bizDate" :label="$t('financeReportPages.traces.date')" width="120" />
+          <el-table-column prop="totalAmount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
             <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="140" fixed="right">
+          <el-table-column :label="$t('financeReportPages.common.actions')" width="140" fixed="right">
             <template #default="{ row }">
-              <el-button link type="primary" :icon="Link" @click="goRoute(row.route)">跳转</el-button>
+              <el-button link type="primary" :icon="Link" @click="goRoute(row.route)">{{ $t('financeReportPages.traces.jump') }}</el-button>
               <el-button
                 link
                 type="primary"
                 @click="openBusinessTimeline(row.documentType, row.documentId, row.bizNo, row)"
               >
-                动态
+                {{ $t('financeReportPages.traces.activity') }}
               </el-button>
             </template>
           </el-table-column>
@@ -87,44 +87,44 @@
       <el-card shadow="never" class="exceptions-panel">
         <template #header>
           <div class="panel-header">
-            <span>关联异常</span>
+            <span>{{ $t('financeReportPages.traces.relatedExceptions') }}</span>
             <el-tag size="small" :type="trace.summary.openExceptionTicketCount > 0 ? 'warning' : 'info'">
-              未关 {{ trace.summary.openExceptionTicketCount }}
+              {{ $t('financeReportPages.traces.openCount', { count: trace.summary.openExceptionTicketCount }) }}
             </el-tag>
           </div>
         </template>
 
         <el-empty
           v-if="!loading && trace.exceptionTickets.length === 0"
-          description="暂无关联异常工单"
+          :description="$t('financeReportPages.traces.exceptionEmpty')"
           :image-size="96"
         />
         <el-table v-else v-loading="loading" :data="trace.exceptionTickets" border stripe>
-          <el-table-column prop="ticketNo" label="工单号" min-width="170" show-overflow-tooltip />
-          <el-table-column prop="title" label="异常事项" min-width="190" show-overflow-tooltip />
-          <el-table-column prop="priority" label="优先级" width="92" align="center">
+          <el-table-column prop="ticketNo" :label="$t('financeReportPages.traces.ticketNo')" min-width="170" show-overflow-tooltip />
+          <el-table-column prop="title" :label="$t('financeReportPages.traces.exceptionItem')" min-width="190" show-overflow-tooltip />
+          <el-table-column prop="priority" :label="$t('financeReportPages.traces.priority')" width="92" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="priorityTagType(row.priority)" effect="plain">
                 {{ priorityLabel(row.priority) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" width="96" align="center">
+          <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="96" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="ticketStatusTagType(row.status)">
                 {{ ticketStatusLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="assigneeUserId" label="处理人" width="92" align="center">
+          <el-table-column prop="assigneeUserId" :label="$t('financeReportPages.traces.assignee')" width="92" align="center">
             <template #default="{ row }">{{ row.assigneeUserId || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="dueTime" label="截止时间" width="160">
+          <el-table-column prop="dueTime" :label="$t('financeReportPages.traces.dueTime')" width="160">
             <template #default="{ row }">{{ formatDateTime(row.dueTime) || '-' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="96" fixed="right">
+          <el-table-column :label="$t('financeReportPages.common.actions')" width="96" fixed="right">
             <template #default="{ row }">
-              <el-button link type="primary" :icon="Link" @click="goRoute(row.route)">查看</el-button>
+              <el-button link type="primary" :icon="Link" @click="goRoute(row.route)">{{ $t('financeReportPages.common.view') }}</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -133,15 +133,15 @@
       <el-card shadow="never" class="timeline-panel">
         <template #header>
           <div class="panel-header">
-            <span>生命周期时间线</span>
-            <el-text type="info" size="small">{{ trace.generatedAt ? `生成于 ${formatDateTime(trace.generatedAt)}` : '' }}</el-text>
+            <span>{{ $t('financeReportPages.traces.lifecycleTimeline') }}</span>
+            <el-text type="info" size="small">{{ trace.generatedAt ? $t('financeReportPages.traces.generatedAt', { time: formatDateTime(trace.generatedAt) }) : '' }}</el-text>
           </div>
         </template>
 
         <el-skeleton v-if="loading" :rows="6" animated />
         <el-empty
           v-else-if="trace.timeline.length === 0"
-          description="暂无追踪事件"
+          :description="$t('financeReportPages.traces.timelineEmpty')"
           :image-size="120"
         />
         <el-timeline v-else>
@@ -159,7 +159,7 @@
                   <span>{{ event.title }}</span>
                 </div>
                 <el-tag size="small" :type="eventTagType(event.severity)">
-                  {{ event.status || event.eventType }}
+                  {{ traceStatusLabel(event.status || event.eventType) }}
                 </el-tag>
               </div>
               <div class="event-biz-no">{{ event.bizNo || '-' }}</div>
@@ -170,13 +170,13 @@
       </el-card>
     </div>
 
-    <el-dialog v-model="businessTimelineVisible" title="业务动态" width="760px">
+    <el-dialog v-model="businessTimelineVisible" :title="$t('financeReportPages.traces.businessActivity')" width="760px">
       <template v-if="selectedTimelineDocument">
         <el-descriptions :column="2" border class="timeline-document">
-          <el-descriptions-item label="单据类型">{{ selectedTimelineDocument.documentLabel }}</el-descriptions-item>
-          <el-descriptions-item label="单据编号">{{ selectedTimelineDocument.bizNo }}</el-descriptions-item>
-          <el-descriptions-item label="业务类型">{{ selectedTimelineDocument.documentType }}</el-descriptions-item>
-          <el-descriptions-item label="业务ID">{{ selectedTimelineDocument.documentId }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.traces.documentType')">{{ selectedTimelineDocument.documentLabel }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.traces.documentNo')">{{ selectedTimelineDocument.bizNo }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.traces.businessType')">{{ selectedTimelineDocument.documentType }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.traces.businessId')">{{ selectedTimelineDocument.documentId }}</el-descriptions-item>
         </el-descriptions>
 
         <el-form :model="timelineCommentForm" class="timeline-comment-form">
@@ -187,7 +187,7 @@
               :rows="3"
               maxlength="1024"
               show-word-limit
-              placeholder="补充业务备注"
+              :placeholder="$t('financeReportPages.traces.commentPlaceholder')"
             />
           </el-form-item>
           <el-form-item>
@@ -196,16 +196,16 @@
               :loading="timelineCommentSubmitting"
               @click="submitTimelineComment"
             >
-              提交备注
+              {{ $t('financeReportPages.traces.submitComment') }}
             </el-button>
-            <el-button :icon="Refresh" @click="loadBusinessTimeline">刷新动态</el-button>
+            <el-button :icon="Refresh" @click="loadBusinessTimeline">{{ $t('financeReportPages.traces.refreshActivity') }}</el-button>
           </el-form-item>
         </el-form>
 
         <el-skeleton v-if="businessTimelineLoading" :rows="5" animated />
         <el-empty
           v-else-if="businessTimelineEvents.length === 0"
-          description="暂无业务动态"
+          :description="$t('financeReportPages.traces.activityEmpty')"
           :image-size="100"
         />
         <el-timeline v-else>
@@ -220,11 +220,11 @@
                 <el-tag size="small" :type="businessTimelineTagType(event.eventType)">
                   {{ businessTimelineEventLabel(event.eventType) }}
                 </el-tag>
-                <span>操作人 {{ event.operatorUserId || '-' }}</span>
+                <span>{{ $t('financeReportPages.traces.operator', { id: event.operatorUserId || '-' }) }}</span>
               </div>
               <div class="business-event-content">{{ event.content }}</div>
               <div v-if="event.attachmentId" class="business-event-extra">
-                附件ID：{{ event.attachmentId }}
+                {{ $t('financeReportPages.traces.attachmentId', { id: event.attachmentId }) }}
               </div>
             </div>
           </el-timeline-item>
@@ -247,6 +247,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   Box,
   Clock,
@@ -259,7 +260,7 @@ import {
   Warning
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 import {
   getBusinessTrace,
   type BusinessTraceDocument,
@@ -290,6 +291,7 @@ const emptyTrace = (): BusinessTraceResponse => ({
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const loading = ref(false)
 const trace = ref<BusinessTraceResponse>(emptyTrace())
 const businessTimelineVisible = ref(false)
@@ -311,43 +313,43 @@ const timelineCommentForm = reactive({
 
 const summaryItems = computed(() => [
   {
-    label: '关联单据',
+    label: t('financeReportPages.traces.relatedDocuments'),
     value: trace.value.summary.documentCount,
     icon: Document,
     tone: 'blue'
   },
   {
-    label: '时间线事件',
+    label: t('financeReportPages.traces.timelineEvents'),
     value: trace.value.summary.timelineCount,
     icon: Clock,
     tone: 'green'
   },
   {
-    label: '未结应收',
+    label: t('financeReportPages.traces.openReceivables'),
     value: formatMoney(trace.value.summary.openReceivableAmount),
     icon: Money,
     tone: 'orange'
   },
   {
-    label: '未结应付',
+    label: t('financeReportPages.traces.openPayables'),
     value: formatMoney(trace.value.summary.openPayableAmount),
     icon: Money,
     tone: 'red'
   },
   {
-    label: '库存流转数量',
+    label: t('financeReportPages.traces.inventoryMovement'),
     value: formatNumber(trace.value.summary.inventoryMovementQuantity),
     icon: Box,
     tone: 'purple'
   },
   {
-    label: '失败操作',
+    label: t('financeReportPages.traces.failedOperations'),
     value: trace.value.summary.failedOperationCount,
     icon: Warning,
     tone: 'red'
   },
   {
-    label: '未关异常',
+    label: t('financeReportPages.traces.openExceptions'),
     value: trace.value.summary.openExceptionTicketCount,
     icon: Warning,
     tone: 'orange'
@@ -377,7 +379,7 @@ const handleReset = () => {
 
 const goRoute = (target?: string) => {
   if (!target) {
-    ElMessage.info('该事件暂无跳转目标')
+    ElMessage.info(t('financeReportPages.traces.message.noRoute'))
     return
   }
   router.push(normalizeTraceRoute(target))
@@ -425,7 +427,7 @@ const submitTimelineComment = async () => {
   if (!selectedTimelineDocument.value) return
   const content = timelineCommentForm.content.trim()
   if (!content) {
-    ElMessage.warning('请输入业务备注')
+    ElMessage.warning(t('financeReportPages.traces.message.commentRequired'))
     return
   }
 
@@ -438,7 +440,7 @@ const submitTimelineComment = async () => {
       content
     })
     timelineCommentForm.content = ''
-    ElMessage.success('备注已提交')
+    ElMessage.success(t('financeReportPages.traces.message.commentSubmitted'))
     businessTimelineQuery.pageNo = 1
     await loadBusinessTimeline()
   } finally {
@@ -447,10 +449,7 @@ const submitTimelineComment = async () => {
 }
 
 const formatMoney = (amount?: number) => {
-  return `¥${formatLocalizedNumber(Number(amount || 0), {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`
+  return formatLocalizedCurrency(Number(amount || 0))
 }
 
 const formatNumber = (value?: number) => {
@@ -486,10 +485,10 @@ const eventTagType = (severity?: string) => {
 
 const priorityLabel = (priority?: string) => {
   const map: Record<string, string> = {
-    LOW: '低',
-    MEDIUM: '中',
-    HIGH: '高',
-    URGENT: '紧急'
+    LOW: t('financeReportPages.traces.priorityLabel.low'),
+    MEDIUM: t('financeReportPages.traces.priorityLabel.medium'),
+    HIGH: t('financeReportPages.traces.priorityLabel.high'),
+    URGENT: t('financeReportPages.traces.priorityLabel.urgent')
   }
   return priority ? map[priority] || priority : '-'
 }
@@ -506,10 +505,10 @@ const priorityTagType = (priority?: string) => {
 
 const ticketStatusLabel = (status?: string) => {
   const map: Record<string, string> = {
-    OPEN: '待处理',
-    PROCESSING: '处理中',
-    RESOLVED: '已解决',
-    CLOSED: '已关闭'
+    OPEN: t('financeReportPages.traces.ticketStatus.open'),
+    PROCESSING: t('financeReportPages.traces.ticketStatus.processing'),
+    RESOLVED: t('financeReportPages.traces.ticketStatus.resolved'),
+    CLOSED: t('financeReportPages.traces.ticketStatus.closed')
   }
   return status ? map[status] || status : '-'
 }
@@ -522,6 +521,23 @@ const ticketStatusTagType = (status?: string) => {
     CLOSED: 'info'
   }
   return status ? map[status] || 'info' : 'info'
+}
+
+const traceStatusLabel = (status?: string) => {
+  const labels: Record<string, string> = {
+    DRAFT: t('financeReportPages.traces.status.draft'),
+    SUBMITTED: t('financeReportPages.traces.status.submitted'),
+    PENDING: t('financeReportPages.traces.status.pending'),
+    APPROVED: t('financeReportPages.traces.status.approved'),
+    REJECTED: t('financeReportPages.traces.status.rejected'),
+    POSTED: t('financeReportPages.traces.status.posted'),
+    COMPLETED: t('financeReportPages.traces.status.completed'),
+    CANCELLED: t('financeReportPages.traces.status.cancelled'),
+    CLOSED: t('financeReportPages.traces.status.closed'),
+    SUCCESS: t('financeReportPages.traces.status.success'),
+    FAILED: t('financeReportPages.traces.status.failed')
+  }
+  return status ? labels[status] || status : '-'
 }
 
 const eventIcon = (type: string) => {
@@ -538,9 +554,9 @@ const eventIcon = (type: string) => {
 
 const businessTimelineEventLabel = (type: string) => {
   const map: Record<string, string> = {
-    COMMENT: '业务备注',
-    ATTACHMENT_UPLOADED: '上传附件',
-    ATTACHMENT_DELETED: '删除附件'
+    COMMENT: t('financeReportPages.traces.event.comment'),
+    ATTACHMENT_UPLOADED: t('financeReportPages.traces.event.uploaded'),
+    ATTACHMENT_DELETED: t('financeReportPages.traces.event.deleted')
   }
   return map[type] || type
 }

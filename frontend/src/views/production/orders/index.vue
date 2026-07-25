@@ -3,13 +3,13 @@
     <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="订单号">
-          <el-input v-model="queryForm.orderNo" placeholder="请输入订单号" clearable style="width: 200px" />
+        <el-form-item :label="t('productionOrder.orderNo')">
+          <el-input v-model="queryForm.orderNo" :placeholder="t('productionOrder.orderNoPlaceholder')" clearable style="width: 200px" />
         </el-form-item>
-        <el-form-item label="产品">
+        <el-form-item :label="t('productionOrder.product')">
           <el-select
             v-model="queryForm.productId"
-            placeholder="请选择产品"
+            :placeholder="t('productionOrder.selectProduct')"
             clearable
             filterable
             style="width: 200px"
@@ -22,27 +22,27 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable style="width: 120px">
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="已下达" value="RELEASED" />
-            <el-option label="已领料" value="MATERIAL_ISSUED" />
-            <el-option label="生产中" value="IN_PROGRESS" />
-            <el-option label="已完成" value="COMPLETED" />
-            <el-option label="已取消" value="CANCELLED" />
+        <el-form-item :label="t('productionOrder.statusLabel')">
+          <el-select v-model="queryForm.status" :placeholder="t('productionOrder.select')" clearable style="width: 120px">
+            <el-option :label="t('productionOrder.status.draft')" value="DRAFT" />
+            <el-option :label="t('productionOrder.status.released')" value="RELEASED" />
+            <el-option :label="t('productionOrder.status.materialIssued')" value="MATERIAL_ISSUED" />
+            <el-option :label="t('productionOrder.status.inProgress')" value="IN_PROGRESS" />
+            <el-option :label="t('productionOrder.status.completed')" value="COMPLETED" />
+            <el-option :label="t('productionOrder.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="优先级">
-          <el-select v-model="queryForm.priority" placeholder="请选择" clearable style="width: 120px">
-            <el-option label="低" value="LOW" />
-            <el-option label="普通" value="NORMAL" />
-            <el-option label="高" value="HIGH" />
-            <el-option label="紧急" value="URGENT" />
+        <el-form-item :label="t('productionOrder.priorityLabel')">
+          <el-select v-model="queryForm.priority" :placeholder="t('productionOrder.select')" clearable style="width: 120px">
+            <el-option :label="t('productionOrder.priority.low')" value="LOW" />
+            <el-option :label="t('productionOrder.priority.normal')" value="NORMAL" />
+            <el-option :label="t('productionOrder.priority.high')" value="HIGH" />
+            <el-option :label="t('productionOrder.priority.urgent')" value="URGENT" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ t('productionOrder.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ t('productionOrder.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -51,18 +51,18 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>生产订单管理</span>
-          <el-button v-permission="'production:order:create'" type="primary" :icon="Plus" @click="handleAdd">新增订单</el-button>
+          <span>{{ t('productionOrder.title') }}</span>
+          <el-button v-permission="'production:order:create'" type="primary" :icon="Plus" @click="handleAdd">{{ t('productionOrder.create') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="orderNo" label="订单号" width="160" />
-        <el-table-column prop="productCode" label="产品编码" width="120" />
-        <el-table-column prop="productName" label="产品名称" width="180" />
-        <el-table-column prop="planQuantity" label="计划数量" width="100" align="right" />
-        <el-table-column prop="completedQuantity" label="完成数量" width="100" align="right" />
-        <el-table-column label="完成率" width="100" align="center">
+        <el-table-column prop="orderNo" :label="t('productionOrder.orderNo')" width="160" />
+        <el-table-column prop="productCode" :label="t('productionOrder.productCode')" width="120" />
+        <el-table-column prop="productName" :label="t('productionOrder.productName')" width="180" />
+        <el-table-column prop="planQuantity" :label="t('productionOrder.plannedQuantity')" width="100" align="right" />
+        <el-table-column prop="completedQuantity" :label="t('productionOrder.completedQuantity')" width="100" align="right" />
+        <el-table-column :label="t('productionOrder.completionRate')" width="100" align="center">
           <template #default="{ row }">
             <el-progress
               :percentage="Math.round((row.completedQuantity / row.planQuantity) * 100)"
@@ -70,35 +70,35 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="材料出库仓" width="140">
+        <el-table-column :label="t('productionOrder.materialWarehouse')" width="140">
           <template #default="{ row }">
             {{ warehouseLabel(row.materialWarehouseId) }}
           </template>
         </el-table-column>
-        <el-table-column label="成品入库仓" width="140">
+        <el-table-column :label="t('productionOrder.finishedWarehouse')" width="140">
           <template #default="{ row }">
             {{ warehouseLabel(row.finishedWarehouseId) }}
           </template>
         </el-table-column>
-        <el-table-column prop="priority" label="优先级" width="100" align="center">
+        <el-table-column prop="priority" :label="t('productionOrder.priorityLabel')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getPriorityType(row.priority)" size="small">
               {{ getPriorityLabel(row.priority) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="t('productionOrder.statusLabel')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="planStartDate" label="计划开始" width="120" />
-        <el-table-column prop="planEndDate" label="计划结束" width="120" />
-        <el-table-column label="操作" width="420" align="center" fixed="right">
+        <el-table-column prop="planStartDate" :label="t('productionOrder.plannedStart')" width="120" />
+        <el-table-column prop="planEndDate" :label="t('productionOrder.plannedEnd')" width="120" />
+        <el-table-column :label="t('productionOrder.actions')" width="420" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link :icon="View" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link :icon="View" @click="handleView(row)">{{ t('productionOrder.view') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'production:order:update'"
@@ -106,7 +106,7 @@
               link
               @click="handleEdit(row)"
             >
-              编辑
+              {{ t('productionOrder.edit') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -115,7 +115,7 @@
               link
               @click="handleRelease(row)"
             >
-              下达
+              {{ t('productionOrder.release') }}
             </el-button>
             <el-button
               v-if="row.status === 'RELEASED'"
@@ -124,7 +124,7 @@
               link
               @click="handleIssue(row)"
             >
-              领料
+              {{ t('productionOrder.issue') }}
             </el-button>
             <el-button
               v-if="row.status === 'RELEASED' || row.status === 'MATERIAL_ISSUED' || row.status === 'IN_PROGRESS'"
@@ -133,7 +133,7 @@
               link
               @click="openOperations(row)"
             >
-              工序报工
+              {{ t('productionOrder.operationReport') }}
             </el-button>
             <el-button
               v-if="row.status === 'MATERIAL_ISSUED' || row.status === 'IN_PROGRESS'"
@@ -142,7 +142,7 @@
               link
               @click="handleComplete(row)"
             >
-              完工
+              {{ t('productionOrder.complete') }}
             </el-button>
             <el-button
               v-if="canReverseCompletion(row)"
@@ -151,7 +151,7 @@
               link
               @click="handleReverseCompletion(row)"
             >
-              红冲
+              {{ t('productionOrder.reverse') }}
             </el-button>
             <el-button
               v-if="canReturnMaterials(row)"
@@ -160,7 +160,7 @@
               link
               @click="handleReturnMaterials(row)"
             >
-              退料
+              {{ t('productionOrder.returnMaterials') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -169,7 +169,7 @@
               link
               @click="handleCancel(row)"
             >
-              取消
+              {{ t('productionOrder.cancel') }}
             </el-button>
           </template>
         </el-table-column>
@@ -204,10 +204,10 @@
       >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="产品" prop="productId">
+            <el-form-item :label="t('productionOrder.product')" prop="productId">
               <el-select
                 v-model="formData.productId"
-                placeholder="请选择产品"
+                :placeholder="t('productionOrder.selectProduct')"
                 filterable
                 :disabled="Boolean(formData.id)"
                 style="width: 100%"
@@ -223,10 +223,10 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="BOM" prop="bomId">
+            <el-form-item :label="t('productionOrder.bom')" prop="bomId">
               <el-select
                 v-model="formData.bomId"
-                placeholder="请选择BOM"
+                :placeholder="t('productionOrder.selectBom')"
                 clearable
                 filterable
                 :disabled="Boolean(formData.id)"
@@ -245,7 +245,7 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="计划数量" prop="planQuantity">
+            <el-form-item :label="t('productionOrder.plannedQuantity')" prop="planQuantity">
               <el-input-number
                 v-model="formData.planQuantity"
                 :min="1"
@@ -256,10 +256,10 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="材料出库仓" prop="materialWarehouseId">
+            <el-form-item :label="t('productionOrder.materialWarehouse')" prop="materialWarehouseId">
               <el-select
                 v-model="formData.materialWarehouseId"
-                placeholder="请选择材料出库仓"
+                :placeholder="t('productionOrder.selectMaterialWarehouse')"
                 filterable
                 style="width: 100%"
               >
@@ -276,10 +276,10 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="成品入库仓" prop="finishedWarehouseId">
+            <el-form-item :label="t('productionOrder.finishedWarehouse')" prop="finishedWarehouseId">
               <el-select
                 v-model="formData.finishedWarehouseId"
-                placeholder="请选择成品入库仓"
+                :placeholder="t('productionOrder.selectFinishedWarehouse')"
                 filterable
                 style="width: 100%"
               >
@@ -293,11 +293,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="计划开始日期" prop="planStartDate">
+            <el-form-item :label="t('productionOrder.plannedStartDate')" prop="planStartDate">
               <el-date-picker
                 v-model="formData.planStartDate"
                 type="date"
-                placeholder="请选择日期"
+                :placeholder="t('productionOrder.selectDate')"
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
               />
@@ -307,11 +307,11 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="计划结束日期" prop="planEndDate">
+            <el-form-item :label="t('productionOrder.plannedEndDate')" prop="planEndDate">
               <el-date-picker
                 v-model="formData.planEndDate"
                 type="date"
-                placeholder="请选择日期"
+                :placeholder="t('productionOrder.selectDate')"
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
               />
@@ -319,84 +319,84 @@
           </el-col>
         </el-row>
 
-        <el-form-item label="优先级" prop="priority">
+        <el-form-item :label="t('productionOrder.priorityLabel')" prop="priority">
           <el-radio-group v-model="formData.priority">
-            <el-radio value="LOW">低</el-radio>
-            <el-radio value="NORMAL">普通</el-radio>
-            <el-radio value="HIGH">高</el-radio>
-            <el-radio value="URGENT">紧急</el-radio>
+            <el-radio value="LOW">{{ t('productionOrder.priority.low') }}</el-radio>
+            <el-radio value="NORMAL">{{ t('productionOrder.priority.normal') }}</el-radio>
+            <el-radio value="HIGH">{{ t('productionOrder.priority.high') }}</el-radio>
+            <el-radio value="URGENT">{{ t('productionOrder.priority.urgent') }}</el-radio>
           </el-radio-group>
         </el-form-item>
 
-        <el-form-item label="备注" prop="remark">
+        <el-form-item :label="t('productionOrder.remark')" prop="remark">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注"
+            :placeholder="t('productionOrder.remarkPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
-          保存
+          {{ t('productionOrder.save') }}
         </el-button>
       </template>
     </el-dialog>
 
     <!-- 查看对话框 -->
-    <el-dialog v-model="viewDialogVisible" title="生产订单详情" width="1000px">
+    <el-dialog v-model="viewDialogVisible" :title="t('productionOrder.detailTitle')" width="1000px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="订单号">{{ viewData.orderNo }}</el-descriptions-item>
-        <el-descriptions-item label="BOM编码">{{ viewData.bomCode || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="产品编码">{{ viewData.productCode }}</el-descriptions-item>
-        <el-descriptions-item label="产品名称">{{ viewData.productName }}</el-descriptions-item>
-        <el-descriptions-item label="计划数量">{{ viewData.planQuantity }}</el-descriptions-item>
-        <el-descriptions-item label="完成数量">{{ viewData.completedQuantity }}</el-descriptions-item>
-        <el-descriptions-item label="报废数量">{{ viewData.scrapQuantity }}</el-descriptions-item>
-        <el-descriptions-item label="材料出库仓">{{ warehouseLabel(viewData.materialWarehouseId) }}</el-descriptions-item>
-        <el-descriptions-item label="成品入库仓">{{ warehouseLabel(viewData.finishedWarehouseId) }}</el-descriptions-item>
-        <el-descriptions-item label="优先级">
+        <el-descriptions-item :label="t('productionOrder.orderNo')">{{ viewData.orderNo }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.bomCode')">{{ viewData.bomCode || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.productCode')">{{ viewData.productCode }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.productName')">{{ viewData.productName }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.plannedQuantity')">{{ viewData.planQuantity }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.completedQuantity')">{{ viewData.completedQuantity }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.scrapQuantity')">{{ viewData.scrapQuantity }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.materialWarehouse')">{{ warehouseLabel(viewData.materialWarehouseId) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.finishedWarehouse')">{{ warehouseLabel(viewData.finishedWarehouseId) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.priorityLabel')">
           <el-tag :type="getPriorityType(viewData.priority)">
             {{ getPriorityLabel(viewData.priority) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('productionOrder.statusLabel')">
           <el-tag :type="getStatusType(viewData.status)">
             {{ getStatusLabel(viewData.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="计划开始">{{ viewData.planStartDate }}</el-descriptions-item>
-        <el-descriptions-item label="计划结束">{{ viewData.planEndDate }}</el-descriptions-item>
-        <el-descriptions-item label="实际开始">{{ viewData.actualStartDate || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="实际结束">{{ viewData.actualEndDate || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ viewData.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ viewData.createdAt }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ viewData.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.plannedStart')">{{ viewData.planStartDate }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.plannedEnd')">{{ viewData.planEndDate }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.actualStart')">{{ viewData.actualStartDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.actualEnd')">{{ viewData.actualEndDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.createdBy')">{{ viewData.createdBy }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.createdAt')">{{ formatLocalizedDateTime(viewData.createdAt) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.remark')" :span="2">{{ viewData.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider v-if="viewData.materials && viewData.materials.length > 0" />
 
-      <h4 v-if="viewData.materials && viewData.materials.length > 0">物料使用情况</h4>
+      <h4 v-if="viewData.materials && viewData.materials.length > 0">{{ t('productionOrder.materialUsage') }}</h4>
       <el-table v-if="viewData.materials && viewData.materials.length > 0" :data="viewData.materials" border stripe style="margin-top: 10px">
-        <el-table-column prop="materialCode" label="物料编码" width="150" />
-        <el-table-column prop="materialName" label="物料名称" width="200" />
-        <el-table-column prop="requiredQuantity" label="需求数量" width="120" align="right" />
-        <el-table-column prop="issuedQuantity" label="已领数量" width="120" align="right" />
-        <el-table-column prop="returnedQuantity" label="已退数量" width="120" align="right" />
-        <el-table-column prop="unit" label="单位" width="80" />
+        <el-table-column prop="materialCode" :label="t('productionOrder.materialCode')" width="150" />
+        <el-table-column prop="materialName" :label="t('productionOrder.materialName')" width="200" />
+        <el-table-column prop="requiredQuantity" :label="t('productionOrder.requiredQuantity')" width="120" align="right" />
+        <el-table-column prop="issuedQuantity" :label="t('productionOrder.issuedQuantity')" width="120" align="right" />
+        <el-table-column prop="returnedQuantity" :label="t('productionOrder.returnedQuantity')" width="120" align="right" />
+        <el-table-column prop="unit" :label="t('productionOrder.unit')" width="80" />
       </el-table>
 
       <template #footer>
-        <el-button @click="viewDialogVisible = false">关闭</el-button>
+        <el-button @click="viewDialogVisible = false">{{ t('productionOrder.close') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 完工对话框 -->
-    <el-dialog v-model="completeDialogVisible" title="生产完工" width="600px">
+    <el-dialog v-model="completeDialogVisible" :title="t('productionOrder.completionTitle')" width="600px">
       <el-form :model="completeForm" label-width="120px">
-        <el-form-item label="完工数量" required>
+        <el-form-item :label="t('productionOrder.completionQuantity')" required>
           <el-input-number
             v-model="completeForm.completedQuantity"
             :min="1"
@@ -405,9 +405,9 @@
             controls-position="right"
             style="width: 100%"
           />
-          <el-text type="info" size="small">最大可完工: {{ completeForm.maxQuantity }}</el-text>
+          <el-text type="info" size="small">{{ t('productionOrder.maxCompletion', { quantity: completeForm.maxQuantity }) }}</el-text>
         </el-form-item>
-        <el-form-item label="报废数量">
+        <el-form-item :label="t('productionOrder.scrapQuantity')">
           <el-input-number
             v-model="completeForm.scrapQuantity"
             :min="0"
@@ -416,36 +416,36 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="完工日期">
+        <el-form-item :label="t('productionOrder.completionDate')">
           <el-date-picker
             v-model="completeForm.completionDate"
             type="date"
-            placeholder="请选择日期"
+            :placeholder="t('productionOrder.selectDate')"
             value-format="YYYY-MM-DD"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="t('productionOrder.remark')">
           <el-input
             v-model="completeForm.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注"
+            :placeholder="t('productionOrder.remarkPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="completeDialogVisible = false">取消</el-button>
+        <el-button @click="completeDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleConfirmComplete">
-          确定完工
+          {{ t('productionOrder.confirmCompletion') }}
         </el-button>
       </template>
     </el-dialog>
 
     <!-- 完工红冲对话框 -->
-    <el-dialog v-model="reverseDialogVisible" title="完工红冲" width="600px">
+    <el-dialog v-model="reverseDialogVisible" :title="t('productionOrder.reversalTitle')" width="600px">
       <el-form :model="reverseForm" label-width="120px">
-        <el-form-item label="红冲数量" required>
+        <el-form-item :label="t('productionOrder.reversalQuantity')" required>
           <el-input-number
             v-model="reverseForm.reversedQty"
             :min="1"
@@ -454,61 +454,61 @@
             controls-position="right"
             style="width: 100%"
           />
-          <el-text type="info" size="small">最大可红冲: {{ reverseForm.maxQuantity }}</el-text>
+          <el-text type="info" size="small">{{ t('productionOrder.maxReversal', { quantity: reverseForm.maxQuantity }) }}</el-text>
         </el-form-item>
-        <el-form-item label="红冲日期">
+        <el-form-item :label="t('productionOrder.reversalDate')">
           <el-date-picker
             v-model="reverseForm.reversalDate"
             type="date"
-            placeholder="请选择日期"
+            :placeholder="t('productionOrder.selectDate')"
             value-format="YYYY-MM-DD"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="t('productionOrder.remark')">
           <el-input
             v-model="reverseForm.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注"
+            :placeholder="t('productionOrder.remarkPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="reverseDialogVisible = false">取消</el-button>
+        <el-button @click="reverseDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleConfirmReverseCompletion">
-          确定红冲
+          {{ t('productionOrder.confirmReversal') }}
         </el-button>
       </template>
     </el-dialog>
 
     <!-- 生产退料对话框 -->
-    <el-dialog v-model="returnDialogVisible" title="生产退料" width="980px">
+    <el-dialog v-model="returnDialogVisible" :title="t('productionOrder.materialReturnTitle')" width="980px">
       <el-form :model="returnForm" label-width="110px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="退料日期">
+            <el-form-item :label="t('productionOrder.returnDate')">
               <el-date-picker
                 v-model="returnForm.returnDate"
                 type="date"
-                placeholder="请选择日期"
+                :placeholder="t('productionOrder.selectDate')"
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="备注">
-              <el-input v-model="returnForm.remark" placeholder="请输入备注" clearable />
+            <el-form-item :label="t('productionOrder.remark')">
+              <el-input v-model="returnForm.remark" :placeholder="t('productionOrder.remarkPlaceholder')" clearable />
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-table :data="returnForm.materials" border stripe>
-          <el-table-column prop="materialCode" label="物料编码" width="140" />
-          <el-table-column prop="materialName" label="物料名称" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="issuedQuantity" label="可退数量" width="110" align="right" />
-          <el-table-column label="本次退料" width="170">
+          <el-table-column prop="materialCode" :label="t('productionOrder.materialCode')" width="140" />
+          <el-table-column prop="materialName" :label="t('productionOrder.materialName')" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="issuedQuantity" :label="t('productionOrder.returnableQuantity')" width="110" align="right" />
+          <el-table-column :label="t('productionOrder.currentReturn')" width="170">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.returnQty"
@@ -520,12 +520,12 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="批次号" width="160">
+          <el-table-column :label="t('productionOrder.lotNo')" width="160">
             <template #default="{ row }">
               <el-input v-model="row.lotNo" clearable />
             </template>
           </el-table-column>
-          <el-table-column label="备注" min-width="180">
+          <el-table-column :label="t('productionOrder.remark')" min-width="180">
             <template #default="{ row }">
               <el-input v-model="row.remark" clearable />
             </template>
@@ -533,37 +533,37 @@
         </el-table>
       </el-form>
       <template #footer>
-        <el-button @click="returnDialogVisible = false">取消</el-button>
+        <el-button @click="returnDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleConfirmReturnMaterials">
-          确定退料
+          {{ t('productionOrder.confirmReturn') }}
         </el-button>
       </template>
     </el-dialog>
 
     <!-- 工序报工 -->
-    <el-dialog v-model="opsDialogVisible" :title="`工序报工 · ${opsOrderNo}`" width="920px" destroy-on-close>
+    <el-dialog v-model="opsDialogVisible" :title="t('productionOrder.operationsTitle', { orderNo: opsOrderNo })" width="920px" destroy-on-close>
       <el-alert
         type="info"
         :closable="false"
         show-icon
-        title="若工单 BOM 绑定了启用中的工艺路线，下达后会自动生成工序。无工序时完工不校验；有工序时须全部报工完成且合格量足够。"
+        :title="t('productionOrder.operationsHelp')"
         style="margin-bottom: 12px"
       />
       <el-table v-loading="opsLoading" :data="operations" border stripe>
-        <el-table-column prop="lineNo" label="序号" width="70" />
-        <el-table-column prop="operationCode" label="工序码" width="100" />
-        <el-table-column prop="operationName" label="工序名称" min-width="120" />
-        <el-table-column prop="workCenterName" label="工作中心" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="plannedQty" label="计划" width="90" align="right" />
-        <el-table-column prop="reportedQty" label="已报" width="90" align="right" />
-        <el-table-column prop="qualifiedQty" label="合格" width="90" align="right" />
-        <el-table-column prop="scrapQty" label="报废" width="90" align="right" />
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column prop="lineNo" :label="t('productionOrder.sequence')" width="70" />
+        <el-table-column prop="operationCode" :label="t('productionOrder.operationCode')" width="100" />
+        <el-table-column prop="operationName" :label="t('productionOrder.operationName')" min-width="120" />
+        <el-table-column prop="workCenterName" :label="t('productionOrder.workCenter')" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="plannedQty" :label="t('productionOrder.planned')" width="90" align="right" />
+        <el-table-column prop="reportedQty" :label="t('productionOrder.reported')" width="90" align="right" />
+        <el-table-column prop="qualifiedQty" :label="t('productionOrder.qualified')" width="90" align="right" />
+        <el-table-column prop="scrapQty" :label="t('productionOrder.scrap')" width="90" align="right" />
+        <el-table-column :label="t('productionOrder.statusLabel')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="opStatusType(row.status)" size="small">{{ opStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column :label="t('productionOrder.actions')" width="100" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.status !== 'DONE'"
@@ -572,46 +572,47 @@
               type="primary"
               @click="openReport(row)"
             >
-              报工
+              {{ t('productionOrder.report') }}
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!opsLoading && operations.length === 0" description="暂无工序（未绑定工艺路线或下达前无快照）" />
+      <el-empty v-if="!opsLoading && operations.length === 0" :description="t('productionOrder.noOperations')" />
       <template #footer>
-        <el-button @click="opsDialogVisible = false">关闭</el-button>
-        <el-button type="primary" :loading="opsLoading" @click="loadOperations">刷新</el-button>
+        <el-button @click="opsDialogVisible = false">{{ t('productionOrder.close') }}</el-button>
+        <el-button type="primary" :loading="opsLoading" @click="loadOperations">{{ t('productionOrder.refresh') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="reportDialogVisible" title="工序报工" width="480px">
+    <el-dialog v-model="reportDialogVisible" :title="t('productionOrder.operationReport')" width="480px">
       <el-form :model="reportForm" label-width="100px">
-        <el-form-item label="工序">
+        <el-form-item :label="t('productionOrder.operationName')">
           <el-input :model-value="reportForm.operationName" disabled />
         </el-form-item>
-        <el-form-item label="报工数量" required>
+        <el-form-item :label="t('productionOrder.reportQuantity')" required>
           <el-input-number v-model="reportForm.reportQty" :min="0.0001" :precision="4" :controls="false" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="合格数量" required>
+        <el-form-item :label="t('productionOrder.qualifiedQuantity')" required>
           <el-input-number v-model="reportForm.qualifiedQty" :min="0" :precision="4" :controls="false" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="报废数量">
+        <el-form-item :label="t('productionOrder.scrapQuantity')">
           <el-input-number v-model="reportForm.scrapQty" :min="0" :precision="4" :controls="false" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="t('productionOrder.remark')">
           <el-input v-model="reportForm.remark" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="reportDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="reportLoading" @click="submitReport">确认报工</el-button>
+        <el-button @click="reportDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
+        <el-button type="primary" :loading="reportLoading" @click="submitReport">{{ t('productionOrder.confirmReport') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, View } from '@element-plus/icons-vue'
 import {
@@ -634,6 +635,9 @@ import {
 import { getProducts, type Product } from '@/api/masterdata'
 import { getWarehouses, type Warehouse } from '@/api/masterdata'
 import { getBOMs, type BOM } from '@/api/production'
+import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
+
+const { t } = useI18n()
 
 interface ReturnMaterialRow extends ProductionOrderMaterial {
   returnQty: number
@@ -684,15 +688,15 @@ const formData = reactive({
   remark: ''
 })
 
-const formRules: FormRules = {
-  productId: [{ required: true, message: '请选择产品', trigger: 'change' }],
-  bomId: [{ required: true, message: '请选择BOM', trigger: 'change' }],
-  planQuantity: [{ required: true, message: '请输入计划数量', trigger: 'blur' }],
-  materialWarehouseId: [{ required: true, message: '请选择材料出库仓', trigger: 'change' }],
-  finishedWarehouseId: [{ required: true, message: '请选择成品入库仓', trigger: 'change' }],
-  planStartDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
-  planEndDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }]
-}
+const formRules = computed<FormRules>(() => ({
+  productId: [{ required: true, message: t('productionOrder.validation.product'), trigger: 'change' }],
+  bomId: [{ required: true, message: t('productionOrder.validation.bom'), trigger: 'change' }],
+  planQuantity: [{ required: true, message: t('productionOrder.validation.quantity'), trigger: 'blur' }],
+  materialWarehouseId: [{ required: true, message: t('productionOrder.validation.materialWarehouse'), trigger: 'change' }],
+  finishedWarehouseId: [{ required: true, message: t('productionOrder.validation.finishedWarehouse'), trigger: 'change' }],
+  planStartDate: [{ required: true, message: t('productionOrder.validation.startDate'), trigger: 'change' }],
+  planEndDate: [{ required: true, message: t('productionOrder.validation.endDate'), trigger: 'change' }]
+}))
 
 // 查看对话框
 const viewDialogVisible = ref(false)
@@ -759,7 +763,7 @@ const loadOptions = async () => {
     allBomOptions.value = boms.records || []
     bomOptions.value = allBomOptions.value
   } catch (error) {
-    console.error('加载选项数据失败:', error)
+    console.error(t('productionOrder.message.optionsLoadFailed'), error)
   }
 }
 
@@ -776,8 +780,8 @@ const loadData = async () => {
     tableData.value = res.records || []
     pagination.total = res.total || 0
   } catch (error) {
-    console.error('加载生产订单失败:', error)
-    ElMessage.error('加载数据失败')
+    console.error(t('productionOrder.message.orderLoadFailed'), error)
+    ElMessage.error(t('productionOrder.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -820,7 +824,7 @@ const resetFormData = () => {
 // 新增
 const handleAdd = () => {
   resetFormData()
-  dialogTitle.value = '新增生产订单'
+  dialogTitle.value = t('productionOrder.dialog.create')
   dialogVisible.value = true
 }
 
@@ -841,10 +845,10 @@ const handleEdit = async (row: ProductionOrder) => {
       remark: order.remark || ''
     })
     bomOptions.value = allBomOptions.value.filter(b => String(b.productId) === String(order.productId))
-    dialogTitle.value = '编辑生产订单'
+    dialogTitle.value = t('productionOrder.dialog.edit')
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载生产订单失败')
+    ElMessage.error(t('productionOrder.message.orderLoadFailed'))
   }
 }
 
@@ -855,22 +859,22 @@ const handleView = async (row: ProductionOrder) => {
     viewData.value = res
     viewDialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载订单详情失败')
+    ElMessage.error(t('productionOrder.message.detailLoadFailed'))
   }
 }
 
 // 下达
 const handleRelease = async (row: ProductionOrder) => {
   try {
-    await ElMessageBox.confirm(`确定要下达生产订单"${row.orderNo}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('productionOrder.message.releaseConfirm', { orderNo: row.orderNo }), t('productionOrder.message.prompt'), {
       type: 'warning'
     })
     await releaseProductionOrder(row.id)
-    ElMessage.success('下达成功')
+    ElMessage.success(t('productionOrder.message.released'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('下达失败')
+      ElMessage.error(t('productionOrder.message.releaseFailed'))
     }
   }
 }
@@ -878,18 +882,18 @@ const handleRelease = async (row: ProductionOrder) => {
 // 领料
 const handleIssue = async (row: ProductionOrder) => {
   try {
-    await ElMessageBox.confirm(`确定按剩余需求领料生产订单"${row.orderNo}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('productionOrder.message.issueConfirm', { orderNo: row.orderNo }), t('productionOrder.message.prompt'), {
       type: 'warning'
     })
     await issueProductionOrder(row.id, {
-      issueDate: row.planStartDate || new Date().toISOString().split('T')[0],
-      remark: '前端生产订单页确认领料'
+      issueDate: row.planStartDate || formatBusinessDate(),
+      remark: t('productionOrder.issueRemark')
     })
-    ElMessage.success('领料成功')
+    ElMessage.success(t('productionOrder.message.issued'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('领料失败')
+      ElMessage.error(t('productionOrder.message.issueFailed'))
     }
   }
 }
@@ -900,7 +904,7 @@ const handleComplete = (row: ProductionOrder) => {
   completeForm.maxQuantity = row.planQuantity - row.completedQuantity
   completeForm.completedQuantity = completeForm.maxQuantity
   completeForm.scrapQuantity = 0
-  completeForm.completionDate = new Date().toISOString().split('T')[0]
+  completeForm.completionDate = formatBusinessDate()
   completeForm.remark = ''
   completeDialogVisible.value = true
 }
@@ -918,7 +922,7 @@ const loadOperations = async () => {
   try {
     operations.value = await getProductionOrderOperations(opsOrderId.value)
   } catch {
-    ElMessage.error('加载工序失败')
+    ElMessage.error(t('productionOrder.message.operationsLoadFailed'))
   } finally {
     opsLoading.value = false
   }
@@ -937,7 +941,7 @@ const openReport = (row: ProductionOrderOperation) => {
 
 const submitReport = async () => {
   if (reportForm.qualifiedQty > reportForm.reportQty) {
-    ElMessage.warning('合格数量不能大于报工数量')
+    ElMessage.warning(t('productionOrder.validation.qualifiedExceedsReported'))
     return
   }
   reportLoading.value = true
@@ -948,7 +952,7 @@ const submitReport = async () => {
       scrapQty: reportForm.scrapQty,
       remark: reportForm.remark || undefined
     })
-    ElMessage.success('报工成功')
+    ElMessage.success(t('productionOrder.message.reported'))
     reportDialogVisible.value = false
     await loadOperations()
   } catch {
@@ -959,7 +963,11 @@ const submitReport = async () => {
 }
 
 const opStatusText = (status: string) =>
-  ({ PENDING: '待报工', IN_PROGRESS: '进行中', DONE: '已完成' }[status] || status)
+  ({
+    PENDING: t('productionOrder.operationStatus.pending'),
+    IN_PROGRESS: t('productionOrder.operationStatus.inProgress'),
+    DONE: t('productionOrder.operationStatus.done')
+  }[status] || status)
 
 const opStatusType = (status: string) =>
   ({ PENDING: 'info', IN_PROGRESS: 'warning', DONE: 'success' }[status] || 'info') as
@@ -970,7 +978,7 @@ const opStatusType = (status: string) =>
 // 确认完工
 const handleConfirmComplete = async () => {
   if (!completeForm.completedQuantity) {
-    ElMessage.warning('请输入完工数量')
+    ElMessage.warning(t('productionOrder.validation.completedQuantity'))
     return
   }
 
@@ -982,11 +990,11 @@ const handleConfirmComplete = async () => {
       completionDate: completeForm.completionDate,
       remark: completeForm.remark
     })
-    ElMessage.success('完工成功')
+    ElMessage.success(t('productionOrder.message.completed'))
     completeDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error('完工失败')
+    ElMessage.error(t('productionOrder.message.completeFailed'))
   } finally {
     submitLoading.value = false
   }
@@ -1005,14 +1013,14 @@ const handleReverseCompletion = (row: ProductionOrder) => {
   reverseForm.orderId = row.id
   reverseForm.maxQuantity = completedQuantity
   reverseForm.reversedQty = completedQuantity
-  reverseForm.reversalDate = row.actualEndDate || row.planEndDate || new Date().toISOString().split('T')[0]
+  reverseForm.reversalDate = row.actualEndDate || row.planEndDate || formatBusinessDate()
   reverseForm.remark = ''
   reverseDialogVisible.value = true
 }
 
 const handleConfirmReverseCompletion = async () => {
   if (!reverseForm.reversedQty) {
-    ElMessage.warning('请输入红冲数量')
+    ElMessage.warning(t('productionOrder.validation.reversalQuantity'))
     return
   }
 
@@ -1023,11 +1031,11 @@ const handleConfirmReverseCompletion = async () => {
       reversalDate: reverseForm.reversalDate,
       remark: reverseForm.remark
     })
-    ElMessage.success('红冲成功')
+    ElMessage.success(t('productionOrder.message.reversed'))
     reverseDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error('红冲失败')
+    ElMessage.error(t('productionOrder.message.reverseFailed'))
   } finally {
     submitLoading.value = false
   }
@@ -1046,17 +1054,17 @@ const handleReturnMaterials = async (row: ProductionOrder) => {
       }))
 
     if (returnableMaterials.length === 0) {
-      ElMessage.warning('当前工单没有可退物料')
+      ElMessage.warning(t('productionOrder.message.noReturnableMaterials'))
       return
     }
 
     returnForm.orderId = order.id
-    returnForm.returnDate = order.actualStartDate || order.planStartDate || new Date().toISOString().split('T')[0]
+    returnForm.returnDate = order.actualStartDate || order.planStartDate || formatBusinessDate()
     returnForm.remark = ''
     returnForm.materials = returnableMaterials
     returnDialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载可退物料失败')
+    ElMessage.error(t('productionOrder.message.returnableLoadFailed'))
   }
 }
 
@@ -1071,7 +1079,7 @@ const handleConfirmReturnMaterials = async () => {
     }))
 
   if (lines.length === 0) {
-    ElMessage.warning('请输入本次退料数量')
+    ElMessage.warning(t('productionOrder.validation.returnQuantity'))
     return
   }
 
@@ -1082,11 +1090,11 @@ const handleConfirmReturnMaterials = async () => {
       remark: returnForm.remark,
       lines
     })
-    ElMessage.success('退料成功')
+    ElMessage.success(t('productionOrder.message.returned'))
     returnDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error('退料失败')
+    ElMessage.error(t('productionOrder.message.returnFailed'))
   } finally {
     submitLoading.value = false
   }
@@ -1095,15 +1103,15 @@ const handleConfirmReturnMaterials = async () => {
 // 取消
 const handleCancel = async (row: ProductionOrder) => {
   try {
-    await ElMessageBox.confirm(`确定要取消生产订单"${row.orderNo}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('productionOrder.message.cancelConfirm', { orderNo: row.orderNo }), t('productionOrder.message.prompt'), {
       type: 'warning'
     })
     await cancelProductionOrder(row.id)
-    ElMessage.success('取消成功')
+    ElMessage.success(t('productionOrder.message.cancelled'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('取消失败')
+      ElMessage.error(t('productionOrder.message.cancelFailed'))
     }
   }
 }
@@ -1116,7 +1124,7 @@ const handleProductChange = (productId: string | number) => {
 
 const bomLabel = (bom: BOM) => {
   const code = bom.bomCode || bom.bomNo || `BOM${bom.id}`
-  return `${code} - 基准数量 ${bom.baseQty} - ${bom.status}`
+  return `${code} - ${t('productionOrder.baseQuantity', { quantity: bom.baseQty })} - ${bom.status}`
 }
 
 // 提交
@@ -1130,15 +1138,15 @@ const handleSubmit = async () => {
     try {
       if (formData.id) {
         await updateProductionOrder(formData.id, formData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('productionOrder.message.updated'))
       } else {
         await createProductionOrder(formData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('productionOrder.message.created'))
       }
       dialogVisible.value = false
       loadData()
     } catch (error) {
-      ElMessage.error(formData.id ? '更新失败' : '创建失败')
+      ElMessage.error(t(formData.id ? 'productionOrder.message.updateFailed' : 'productionOrder.message.createFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -1154,12 +1162,12 @@ const handleDialogClose = () => {
 // 获取状态标签
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    DRAFT: '草稿',
-    RELEASED: '已下达',
-    MATERIAL_ISSUED: '已领料',
-    IN_PROGRESS: '生产中',
-    COMPLETED: '已完成',
-    CANCELLED: '已取消'
+    DRAFT: t('productionOrder.status.draft'),
+    RELEASED: t('productionOrder.status.released'),
+    MATERIAL_ISSUED: t('productionOrder.status.materialIssued'),
+    IN_PROGRESS: t('productionOrder.status.inProgress'),
+    COMPLETED: t('productionOrder.status.completed'),
+    CANCELLED: t('productionOrder.status.cancelled')
   }
   return map[status] || status
 }
@@ -1180,10 +1188,10 @@ const getStatusType = (status: string) => {
 // 获取优先级标签
 const getPriorityLabel = (priority: string) => {
   const map: Record<string, string> = {
-    LOW: '低',
-    NORMAL: '普通',
-    HIGH: '高',
-    URGENT: '紧急'
+    LOW: t('productionOrder.priority.low'),
+    NORMAL: t('productionOrder.priority.normal'),
+    HIGH: t('productionOrder.priority.high'),
+    URGENT: t('productionOrder.priority.urgent')
   }
   return map[priority] || priority
 }
@@ -1202,7 +1210,7 @@ const getPriorityType = (priority: string) => {
 const warehouseLabel = (warehouseId?: string | number) => {
   if (warehouseId == null || warehouseId === '') return '-'
   const warehouse = warehouseOptions.value.find(item => String(item.id) === String(warehouseId))
-  return warehouse?.warehouseName || warehouse?.name || `仓库 ${warehouseId}`
+  return warehouse?.warehouseName || warehouse?.name || t('productionOrder.warehouseFallback', { id: warehouseId })
 }
 
 // 获取进度条颜色

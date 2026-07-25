@@ -2,33 +2,33 @@
   <div class="vouchers-container">
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="来源类型">
-          <el-select v-model="queryParams.sourceType" placeholder="请选择来源" clearable style="width: 150px">
-            <el-option label="费用凭证" value="EXPENSE" />
-            <el-option label="红冲凭证" value="EXPENSE_REVERSAL" />
+        <el-form-item :label="$t('financeReportPages.vouchers.sourceType')">
+          <el-select v-model="queryParams.sourceType" :placeholder="$t('financeReportPages.vouchers.sourcePlaceholder')" clearable style="width: 150px">
+            <el-option :label="$t('financeReportPages.vouchers.sourceValue.expense')" value="EXPENSE" />
+            <el-option :label="$t('financeReportPages.vouchers.sourceValue.expenseReversal')" value="EXPENSE_REVERSAL" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 150px">
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="已审批" value="APPROVED" />
-            <el-option label="已过账" value="POSTED" />
-            <el-option label="已作废" value="CANCELLED" />
+        <el-form-item :label="$t('financeReportPages.common.status')">
+          <el-select v-model="queryParams.status" :placeholder="$t('financeReportPages.common.statusPlaceholder')" clearable style="width: 150px">
+            <el-option :label="$t('financeReportPages.vouchers.status.draft')" value="DRAFT" />
+            <el-option :label="$t('financeReportPages.vouchers.status.approved')" value="APPROVED" />
+            <el-option :label="$t('financeReportPages.vouchers.status.posted')" value="POSTED" />
+            <el-option :label="$t('financeReportPages.vouchers.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="凭证日期">
+        <el-form-item :label="$t('financeReportPages.vouchers.voucherDate')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="$t('financeReportPages.common.rangeSeparator')"
+            :start-placeholder="$t('financeReportPages.common.startDate')"
+            :end-placeholder="$t('financeReportPages.common.endDate')"
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -36,33 +36,35 @@
     <el-card class="table-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>凭证查询</span>
+          <span>{{ $t('financeReportPages.vouchers.title') }}</span>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="voucherNo" label="凭证单号" min-width="180" />
-        <el-table-column prop="sourceType" label="来源" width="130">
+        <el-table-column prop="voucherNo" :label="$t('financeReportPages.vouchers.voucherNo')" min-width="180" />
+        <el-table-column prop="sourceType" :label="$t('financeReportPages.vouchers.source')" width="150">
           <template #default="{ row }">
             <el-tag :type="sourceTypeTag(row.sourceType)">
               {{ sourceTypeLabel(row.sourceType) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="bizDate" label="凭证日期" width="120" />
-        <el-table-column prop="amount" label="凭证金额" width="140" align="right">
+        <el-table-column prop="bizDate" :label="$t('financeReportPages.vouchers.voucherDate')" width="130">
+          <template #default="{ row }">{{ formatDate(row.bizDate) }}</template>
+        </el-table-column>
+        <el-table-column prop="amount" :label="$t('financeReportPages.vouchers.voucherAmount')" width="150" align="right">
           <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="110">
+        <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="110">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="sourceNo" label="来源单号" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column prop="sourceNo" :label="$t('financeReportPages.vouchers.sourceNo')" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="180" show-overflow-tooltip />
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleView(toVoucherRow(row))">查看</el-button>
+            <el-button link type="primary" @click="handleView(toVoucherRow(row))">{{ $t('financeReportPages.common.view') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -78,27 +80,27 @@
       />
     </el-card>
 
-    <el-dialog v-model="detailVisible" title="凭证详情" width="860px">
+    <el-dialog v-model="detailVisible" :title="$t('financeReportPages.vouchers.detailTitle')" width="860px">
       <el-descriptions v-if="currentVoucher" :column="2" border>
-        <el-descriptions-item label="凭证单号">{{ currentVoucher.voucherNo }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ statusLabel(currentVoucher.status) }}</el-descriptions-item>
-        <el-descriptions-item label="来源">{{ sourceTypeLabel(currentVoucher.sourceType) }}</el-descriptions-item>
-        <el-descriptions-item label="凭证日期">{{ currentVoucher.bizDate }}</el-descriptions-item>
-        <el-descriptions-item label="金额">{{ formatMoney(currentVoucher.amount) }}</el-descriptions-item>
-        <el-descriptions-item label="来源单号">{{ currentVoucher.sourceNo || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentVoucher.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.vouchers.voucherNo')">{{ currentVoucher.voucherNo }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.common.status')">{{ statusLabel(currentVoucher.status) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.vouchers.source')">{{ sourceTypeLabel(currentVoucher.sourceType) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.vouchers.voucherDate')">{{ formatDate(currentVoucher.bizDate) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.common.amount')">{{ formatMoney(currentVoucher.amount) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.vouchers.sourceNo')">{{ currentVoucher.sourceNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.common.remark')" :span="2">{{ currentVoucher.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
       <el-table v-loading="detailLoading" :data="detailEntries" border stripe class="detail-table">
-        <el-table-column prop="lineNo" label="行号" width="80" />
-        <el-table-column prop="subjectCode" label="科目编码" width="140" />
-        <el-table-column prop="subjectName" label="科目名称" min-width="180" />
-        <el-table-column prop="debitAmount" label="借方金额" width="140" align="right">
+        <el-table-column prop="lineNo" :label="$t('financeReportPages.common.lineNo')" width="80" />
+        <el-table-column prop="subjectCode" :label="$t('financeReportPages.common.subjectCode')" width="140" />
+        <el-table-column prop="subjectName" :label="$t('financeReportPages.common.subjectName')" min-width="180" />
+        <el-table-column prop="debitAmount" :label="$t('financeReportPages.common.debitAmount')" width="150" align="right">
           <template #default="{ row }">{{ formatMoney(row.debitAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="creditAmount" label="贷方金额" width="140" align="right">
+        <el-table-column prop="creditAmount" :label="$t('financeReportPages.common.creditAmount')" width="150" align="right">
           <template #default="{ row }">{{ formatMoney(row.creditAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="summary" label="摘要" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="summary" :label="$t('financeReportPages.common.summary')" min-width="180" show-overflow-tooltip />
       </el-table>
     </el-dialog>
   </div>
@@ -106,8 +108,10 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Refresh, Search } from '@element-plus/icons-vue'
-import { formatLocalizedNumber } from '@/utils/locale'
+import { ElMessage } from 'element-plus'
+import { formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
 import {
   getVoucher,
   getVoucherEntries,
@@ -116,6 +120,8 @@ import {
   type VoucherEntry,
   type VoucherQuery
 } from '@/api/finance'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const detailLoading = ref(false)
@@ -143,6 +149,8 @@ const loadData = async () => {
     })
     tableData.value = response.records
     total.value = response.total
+  } catch {
+    ElMessage.error(t('financeReportPages.vouchers.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -163,9 +171,17 @@ const handleReset = () => {
 const handleView = async (row: Voucher) => {
   detailVisible.value = true
   detailLoading.value = true
+  currentVoucher.value = null
+  detailEntries.value = []
   try {
-    currentVoucher.value = await getVoucher(row.id)
-    detailEntries.value = await getVoucherEntries(row.id)
+    const [voucher, entries] = await Promise.all([
+      getVoucher(row.id),
+      getVoucherEntries(row.id)
+    ])
+    currentVoucher.value = voucher
+    detailEntries.value = entries
+  } catch {
+    ElMessage.error(t('financeReportPages.vouchers.message.detailLoadFailed'))
   } finally {
     detailLoading.value = false
   }
@@ -174,16 +190,15 @@ const handleView = async (row: Voucher) => {
 const toVoucherRow = (row: unknown) => row as Voucher
 
 const formatMoney = (amount?: number) => {
-  return `¥${formatLocalizedNumber(Number(amount || 0), {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`
+  return formatLocalizedCurrency(Number(amount || 0))
 }
+
+const formatDate = (value?: string) => formatLocalizedDate(value)
 
 const sourceTypeLabel = (sourceType?: string) => {
   const map: Record<string, string> = {
-    EXPENSE: '费用凭证',
-    EXPENSE_REVERSAL: '红冲凭证'
+    EXPENSE: t('financeReportPages.vouchers.sourceValue.expense'),
+    EXPENSE_REVERSAL: t('financeReportPages.vouchers.sourceValue.expenseReversal')
   }
   return sourceType ? map[sourceType] || sourceType : '-'
 }
@@ -198,10 +213,10 @@ const sourceTypeTag = (sourceType?: string) => {
 
 const statusLabel = (status: string) => {
   const map: Record<string, string> = {
-    DRAFT: '草稿',
-    APPROVED: '已审批',
-    POSTED: '已过账',
-    CANCELLED: '已作废'
+    DRAFT: t('financeReportPages.vouchers.status.draft'),
+    APPROVED: t('financeReportPages.vouchers.status.approved'),
+    POSTED: t('financeReportPages.vouchers.status.posted'),
+    CANCELLED: t('financeReportPages.vouchers.status.cancelled')
   }
   return map[status] || status
 }

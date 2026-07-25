@@ -11,21 +11,21 @@
             <div class="icon-alert-pulse"></div>
           </div>
           <div class="header-text">
-            <h1 class="page-title">采购退货管理</h1>
-            <p class="page-subtitle">处理采购退货，确保质量问题及时反馈</p>
+            <h1 class="page-title">{{ t('purchaseReturn.title') }}</h1>
+            <p class="page-subtitle">{{ t('purchaseReturn.subtitle') }}</p>
           </div>
         </div>
         <div class="header-stats">
           <div class="stat-card">
-            <span class="stat-label">退货总数</span>
+            <span class="stat-label">{{ t('purchaseReturn.totalReturns') }}</span>
             <span class="stat-value">{{ total }}</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">待过账</span>
+            <span class="stat-label">{{ t('purchaseReturn.pending') }}</span>
             <span class="stat-value draft">{{ draftCount }}</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">已过账</span>
+            <span class="stat-label">{{ t('purchaseReturn.completed') }}</span>
             <span class="stat-value completed">{{ completedCount }}</span>
           </div>
         </div>
@@ -34,36 +34,36 @@
 
     <!-- 搜索栏 -->
     <search-bar v-model="queryForm" @search="handleQuery" @reset="handleReset">
-      <el-form-item label="退货单号" prop="returnNo">
+      <el-form-item :label="t('purchaseReturn.returnNo')" prop="returnNo">
         <el-input
           v-model="queryForm.returnNo"
-          placeholder="请输入退货单号"
+          :placeholder="t('purchaseReturn.returnNoPlaceholder')"
           clearable
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="采购收货单" prop="receiptId">
+      <el-form-item :label="t('purchaseReturn.receipt')" prop="receiptId">
         <el-input
           v-model="queryForm.receiptId"
-          placeholder="请输入收货ID"
+          :placeholder="t('purchaseReturn.receiptIdPlaceholder')"
           clearable
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="状态" prop="status">
-        <el-select v-model="queryForm.status" placeholder="请选择状态" clearable>
-          <el-option label="草稿" value="DRAFT" />
-          <el-option label="已过账" value="POSTED" />
-          <el-option label="已取消" value="CANCELLED" />
+      <el-form-item :label="t('purchaseReturn.statusLabel')" prop="status">
+        <el-select v-model="queryForm.status" :placeholder="t('purchaseReturn.selectStatus')" clearable>
+          <el-option :label="t('purchaseReturn.status.draft')" value="DRAFT" />
+          <el-option :label="t('purchaseReturn.status.posted')" value="POSTED" />
+          <el-option :label="t('purchaseReturn.status.cancelled')" value="CANCELLED" />
         </el-select>
       </el-form-item>
-      <el-form-item label="退货日期" prop="dateRange">
+      <el-form-item :label="t('purchaseReturn.returnDate')" prop="dateRange">
         <el-date-picker
           v-model="dateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('purchaseReturn.rangeSeparator')"
+          :start-placeholder="t('purchaseReturn.startDate')"
+          :end-placeholder="t('purchaseReturn.endDate')"
           value-format="YYYY-MM-DD"
           @change="handleDateChange"
         />
@@ -77,7 +77,7 @@
       :total="total"
       :page="queryForm.pageNo"
       :page-size="queryForm.pageSize"
-      create-text="新增退货"
+      :create-text="t('purchaseReturn.create')"
       :show-create="canCreate"
       @create="handleAdd"
       @export="handleExport"
@@ -86,44 +86,46 @@
       class="return-table"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column prop="returnNo" label="退货单号" width="160" fixed>
+      <el-table-column prop="returnNo" :label="t('purchaseReturn.returnNo')" width="160" fixed>
         <template #default="{ row }">
           <span class="return-no">{{ row.returnNo }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="receiptNo" label="采购收货单号" width="160">
+      <el-table-column prop="receiptNo" :label="t('purchaseReturn.receiptNo')" width="160">
         <template #default="{ row }">
           <el-link type="primary" @click="viewReceipt(row.receiptId)">{{ row.receiptNo }}</el-link>
         </template>
       </el-table-column>
-      <el-table-column prop="orderNo" label="来源订单号" width="160" show-overflow-tooltip />
-      <el-table-column prop="warehouseName" label="退货仓库" width="140" />
-      <el-table-column prop="returnDate" label="退货日期" width="120" align="center" />
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column prop="orderNo" :label="t('purchaseReturn.sourceOrder')" width="160" show-overflow-tooltip />
+      <el-table-column prop="warehouseName" :label="t('purchaseReturn.warehouse')" width="140" />
+      <el-table-column prop="returnDate" :label="t('purchaseReturn.returnDate')" width="120" align="center" />
+      <el-table-column prop="status" :label="t('purchaseReturn.statusLabel')" width="100" align="center">
         <template #default="{ row }">
           <status-tag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column prop="createdBy" label="创建人" width="100" />
-      <el-table-column prop="createdAt" label="创建时间" width="160" />
-      <el-table-column label="操作" width="220" fixed="right" align="center">
+      <el-table-column prop="createdBy" :label="t('purchaseReturn.createdBy')" width="100" />
+      <el-table-column prop="createdAt" :label="t('purchaseReturn.createdAt')" width="190">
+        <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
+      </el-table-column>
+      <el-table-column :label="t('purchaseReturn.actions')" width="220" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" size="small" @click="handleView(row)">
               <el-icon><View /></el-icon>
-              查看
+              {{ t('purchaseReturn.view') }}
             </el-button>
             <el-button v-if="row.status === 'DRAFT'" v-permission="'purchase:return:update'" link type="primary" size="small" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
-              编辑
+              {{ t('purchaseReturn.edit') }}
             </el-button>
             <el-button v-if="row.status === 'DRAFT'" v-permission="'purchase:return:post'" link type="success" size="small" @click="handleComplete(row)">
               <el-icon><CircleCheck /></el-icon>
-              过账
+              {{ t('purchaseReturn.post') }}
             </el-button>
             <el-button v-if="row.status === 'DRAFT'" v-permission="'purchase:return:cancel'" link type="danger" size="small" @click="handleCancel(row)">
               <el-icon><CircleClose /></el-icon>
-              取消
+              {{ t('purchaseReturn.cancel') }}
             </el-button>
           </div>
         </template>
@@ -133,20 +135,20 @@
     <!-- 新增/编辑退货对话框 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="editingId ? '编辑采购退货' : '新增采购退货'"
+      :title="editingId ? t('purchaseReturn.dialog.edit') : t('purchaseReturn.dialog.create')"
       width="1000px"
       :close-on-click-modal="false"
       class="elegant-dialog return-dialog"
     >
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px">
         <div class="form-section">
-          <div class="section-title">基本信息</div>
+          <div class="section-title">{{ t('purchaseReturn.basicInfo') }}</div>
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item label="采购收货单" prop="receiptId">
+              <el-form-item :label="t('purchaseReturn.receipt')" prop="receiptId">
                 <el-select
                   v-model="form.receiptId"
-                  placeholder="请选择采购收货单"
+                  :placeholder="t('purchaseReturn.selectReceipt')"
                   style="width: 100%"
                   :disabled="!!editingId"
                   @change="handleReceiptChange"
@@ -161,18 +163,18 @@
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="退货日期" prop="returnDate">
+              <el-form-item :label="t('purchaseReturn.returnDate')" prop="returnDate">
                 <el-date-picker
                   v-model="form.returnDate"
                   type="date"
-                  placeholder="选择日期"
+                  :placeholder="t('purchaseReturn.selectDate')"
                   style="width: 100%"
                   value-format="YYYY-MM-DD"
                 />
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="退货仓库">
+              <el-form-item :label="t('purchaseReturn.warehouse')">
                 <el-input :model-value="selectedReceipt?.warehouseName || ''" disabled />
               </el-form-item>
             </el-col>
@@ -180,13 +182,13 @@
         </div>
 
         <div class="form-section" v-if="form.items.length > 0">
-          <div class="section-title">退货明细</div>
+          <div class="section-title">{{ t('purchaseReturn.details') }}</div>
           <el-table :data="form.items" border class="items-table">
-            <el-table-column label="序号" type="index" width="60" align="center" />
-            <el-table-column label="商品名称" prop="productName" min-width="180" />
-            <el-table-column label="收货数量" prop="receiptQty" width="100" align="center" />
-            <el-table-column label="可退数量" prop="availableReturnQty" width="100" align="center" />
-            <el-table-column label="实际退货" width="140">
+            <el-table-column :label="t('purchaseReturn.sequence')" type="index" width="60" align="center" />
+            <el-table-column :label="t('purchaseReturn.productName')" prop="productName" min-width="180" />
+            <el-table-column :label="t('purchaseReturn.receiptQuantity')" prop="receiptQty" width="100" align="center" />
+            <el-table-column :label="t('purchaseReturn.availableQuantity')" prop="availableReturnQty" width="100" align="center" />
+            <el-table-column :label="t('purchaseReturn.actualReturn')" width="140">
               <template #default="{ row }">
                 <el-input-number
                   v-model="row.quantity"
@@ -197,20 +199,20 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="备注">
+            <el-table-column :label="t('purchaseReturn.remark')">
               <template #default="{ row }">
-                <el-input v-model="row.remark" placeholder="选填" />
+                <el-input v-model="row.remark" :placeholder="t('purchaseReturn.optional')" />
               </template>
             </el-table-column>
           </el-table>
         </div>
 
-        <el-form-item label="备注">
+        <el-form-item :label="t('purchaseReturn.remark')">
           <el-input
             v-model="form.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注信息（选填）"
+            :placeholder="t('purchaseReturn.remarkPlaceholder')"
             maxlength="500"
             show-word-limit
           />
@@ -218,9 +220,9 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ t('purchaseReturn.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmitForm">
-          确定
+          {{ t('purchaseReturn.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -228,7 +230,7 @@
     <!-- 详情查看对话框 -->
     <el-dialog
       v-model="detailVisible"
-      title="退货单详情"
+      :title="t('purchaseReturn.detailTitle')"
       width="850px"
       class="elegant-dialog return-dialog"
     >
@@ -236,33 +238,33 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Document /></el-icon>
-            退货信息
+            {{ t('purchaseReturn.returnInfo') }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">退货单号</div>
+              <div class="detail-label">{{ t('purchaseReturn.returnNo') }}</div>
               <div class="detail-value">{{ currentRow.returnNo }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">采购收货单</div>
+              <div class="detail-label">{{ t('purchaseReturn.receipt') }}</div>
               <div class="detail-value">
                 <el-link type="primary" @click="viewReceipt(currentRow.receiptId)">{{ currentRow.receiptNo }}</el-link>
               </div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">来源订单</div>
+              <div class="detail-label">{{ t('purchaseReturn.sourceOrder') }}</div>
               <div class="detail-value">{{ currentRow.orderNo || '-' }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">退货仓库</div>
+              <div class="detail-label">{{ t('purchaseReturn.warehouse') }}</div>
               <div class="detail-value">{{ currentRow.warehouseName }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">退货日期</div>
+              <div class="detail-label">{{ t('purchaseReturn.returnDate') }}</div>
               <div class="detail-value">{{ currentRow.returnDate }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">状态</div>
+              <div class="detail-label">{{ t('purchaseReturn.statusLabel') }}</div>
               <div class="detail-value">
                 <status-tag :status="currentRow.status" />
               </div>
@@ -273,33 +275,33 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><List /></el-icon>
-            退货明细
+            {{ t('purchaseReturn.details') }}
           </div>
           <el-table :data="currentRow.items" border class="detail-table">
-            <el-table-column label="序号" type="index" width="60" align="center" />
-            <el-table-column prop="productName" label="商品名称" min-width="180" />
-            <el-table-column prop="receiptQty" label="收货数量" width="100" align="center" />
-            <el-table-column prop="quantity" label="退货数量" width="100" align="center" />
-            <el-table-column prop="remark" label="备注" min-width="120" />
+            <el-table-column :label="t('purchaseReturn.sequence')" type="index" width="60" align="center" />
+            <el-table-column prop="productName" :label="t('purchaseReturn.productName')" min-width="180" />
+            <el-table-column prop="receiptQty" :label="t('purchaseReturn.receiptQuantity')" width="100" align="center" />
+            <el-table-column prop="quantity" :label="t('purchaseReturn.actualReturn')" width="100" align="center" />
+            <el-table-column prop="remark" :label="t('purchaseReturn.remark')" min-width="120" />
           </el-table>
         </div>
 
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Clock /></el-icon>
-            其他信息
+            {{ t('purchaseReturn.otherInfo') }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">创建人</div>
+              <div class="detail-label">{{ t('purchaseReturn.createdBy') }}</div>
               <div class="detail-value">{{ currentRow.createdBy }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">创建时间</div>
-              <div class="detail-value">{{ currentRow.createdAt }}</div>
+              <div class="detail-label">{{ t('purchaseReturn.createdAt') }}</div>
+              <div class="detail-value">{{ formatLocalizedDateTime(currentRow.createdAt) }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">备注</div>
+              <div class="detail-label">{{ t('purchaseReturn.remark') }}</div>
               <div class="detail-value">{{ currentRow.remark || '-' }}</div>
             </div>
           </div>
@@ -310,7 +312,7 @@
     <!-- 关联采购收货单详情 -->
     <el-dialog
       v-model="linkedReceiptVisible"
-      title="采购收货单详情"
+      :title="t('purchaseReturn.linkedReceiptTitle')"
       width="900px"
       class="elegant-dialog return-dialog"
     >
@@ -318,31 +320,31 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Document /></el-icon>
-            收货信息
+            {{ t('purchaseReceipt.receiptInfo') }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">收货单号</div>
+              <div class="detail-label">{{ t('purchaseReceipt.receiptNo') }}</div>
               <div class="detail-value">{{ linkedReceipt.receiptNo }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">采购订单</div>
+              <div class="detail-label">{{ t('purchaseReceipt.purchaseOrder') }}</div>
               <div class="detail-value">{{ linkedReceipt.orderNo }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">供应商</div>
+              <div class="detail-label">{{ t('purchaseReceipt.supplier') }}</div>
               <div class="detail-value">{{ linkedReceipt.supplierName || '-' }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">入库仓库</div>
+              <div class="detail-label">{{ t('purchaseReceipt.warehouse') }}</div>
               <div class="detail-value">{{ linkedReceipt.warehouseName }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">收货日期</div>
+              <div class="detail-label">{{ t('purchaseReceipt.receiptDate') }}</div>
               <div class="detail-value">{{ linkedReceipt.receiptDate }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">状态</div>
+              <div class="detail-label">{{ t('purchaseReceipt.statusLabel') }}</div>
               <div class="detail-value">
                 <status-tag :status="linkedReceipt.status" />
               </div>
@@ -353,41 +355,41 @@
         <div class="detail-section">
           <div class="section-title">
             <el-icon><List /></el-icon>
-            收货明细
+            {{ t('purchaseReceipt.details') }}
           </div>
           <el-table :data="linkedReceipt.items" border class="detail-table">
-            <el-table-column label="序号" type="index" width="60" align="center" />
-            <el-table-column prop="productName" label="商品名称" min-width="180" />
-            <el-table-column prop="orderedQuantity" label="订单数量" width="100" align="center" />
-            <el-table-column prop="quantity" label="收货数量" width="100" align="center" />
-            <el-table-column prop="returnedQty" label="已退数量" width="100" align="center" />
-            <el-table-column prop="remark" label="备注" min-width="120" />
+            <el-table-column :label="t('purchaseReceipt.sequence')" type="index" width="60" align="center" />
+            <el-table-column prop="productName" :label="t('purchaseReceipt.productName')" min-width="180" />
+            <el-table-column prop="orderedQuantity" :label="t('purchaseOrder.quantity')" width="100" align="center" />
+            <el-table-column prop="quantity" :label="t('purchaseReceipt.receivedQuantity')" width="100" align="center" />
+            <el-table-column prop="returnedQty" :label="t('purchaseReturn.actualReturn')" width="100" align="center" />
+            <el-table-column prop="remark" :label="t('purchaseReceipt.remark')" min-width="120" />
           </el-table>
         </div>
 
         <div class="detail-section">
           <div class="section-title">
             <el-icon><Clock /></el-icon>
-            其他信息
+            {{ t('purchaseReceipt.otherInfo') }}
           </div>
           <div class="detail-row">
             <div class="detail-item">
-              <div class="detail-label">创建人</div>
+              <div class="detail-label">{{ t('purchaseReceipt.createdBy') }}</div>
               <div class="detail-value">{{ linkedReceipt.createdBy }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">创建时间</div>
-              <div class="detail-value">{{ linkedReceipt.createdAt }}</div>
+              <div class="detail-label">{{ t('purchaseReceipt.createdAt') }}</div>
+              <div class="detail-value">{{ formatLocalizedDateTime(linkedReceipt.createdAt) }}</div>
             </div>
             <div class="detail-item" style="grid-column: 1 / -1">
-              <div class="detail-label">备注</div>
+              <div class="detail-label">{{ t('purchaseReceipt.remark') }}</div>
               <div class="detail-value">{{ linkedReceipt.remark || '-' }}</div>
             </div>
           </div>
         </div>
       </detail-card>
       <div v-else v-loading="linkedReceiptLoading" class="linked-detail-loading">
-        加载采购收货单详情...
+        {{ t('purchaseReturn.loadingReceipt') }}
       </div>
     </el-dialog>
   </div>
@@ -395,6 +397,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
   View,
@@ -424,8 +427,10 @@ import { getProducts, type Product } from '@/api/masterdata'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
+import { formatLocalizedDateTime } from '@/utils/locale'
 
 const userStore = useUserStore()
+const { t } = useI18n()
 const canCreate = computed(() => userStore.hasPermission('purchase:return:create'))
 
 // 查询表单
@@ -475,10 +480,10 @@ const form = reactive<PurchaseReturnCreateRequest>({
 })
 
 // 表单验证规则
-const formRules: FormRules = {
-  receiptId: [{ required: true, message: '请选择采购收货单', trigger: 'change' }],
-  returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }]
-}
+const formRules = computed<FormRules>(() => ({
+  receiptId: [{ required: true, message: t('purchaseReturn.validation.receipt'), trigger: 'change' }],
+  returnDate: [{ required: true, message: t('purchaseReturn.validation.date'), trigger: 'change' }]
+}))
 
 // 查询数据
 const handleQuery = async () => {
@@ -488,7 +493,7 @@ const handleQuery = async () => {
     tableData.value = res.records
     total.value = res.total
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('purchaseReturn.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -538,14 +543,14 @@ const handleAdd = async () => {
     products.value = productResponse.records
 
     if (availableReceipts.value.length === 0) {
-      ElMessage.warning('暂无可退货的采购收货单')
+      ElMessage.warning(t('purchaseReturn.message.noAvailableReceipts'))
       return
     }
 
     resetForm()
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载订单失败')
+    ElMessage.error(t('purchaseReturn.message.ordersLoadFailed'))
   }
 }
 
@@ -617,7 +622,7 @@ const handleEdit = async (row: PurchaseReturn) => {
     }))
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载退货单失败')
+    ElMessage.error(t('purchaseReturn.message.returnLoadFailed'))
   }
 }
 
@@ -629,7 +634,7 @@ const handleView = async (row: PurchaseReturn) => {
   try {
     currentRow.value = await getPurchaseReturn(row.id)
   } catch (error) {
-    ElMessage.error('加载采购退货详情失败')
+    ElMessage.error(t('purchaseReturn.message.detailLoadFailed'))
     detailVisible.value = false
   } finally {
     detailLoading.value = false
@@ -639,7 +644,7 @@ const handleView = async (row: PurchaseReturn) => {
 // 查看收货单
 const viewReceipt = async (receiptId: string | number) => {
   if (!receiptId) {
-    ElMessage.warning('缺少采购收货单ID')
+    ElMessage.warning(t('purchaseReturn.message.missingReceiptId'))
     return
   }
 
@@ -649,7 +654,7 @@ const viewReceipt = async (receiptId: string | number) => {
   try {
     linkedReceipt.value = await getPurchaseReceipt(receiptId)
   } catch (error) {
-    ElMessage.error('加载采购收货单详情失败')
+    ElMessage.error(t('purchaseReturn.message.receiptDetailLoadFailed'))
     linkedReceiptVisible.value = false
   } finally {
     linkedReceiptLoading.value = false
@@ -660,21 +665,21 @@ const viewReceipt = async (receiptId: string | number) => {
 const handleComplete = async (row: PurchaseReturn) => {
   try {
     await ElMessageBox.confirm(
-      `确认过账此采购退货单吗？过账后将扣减库存并冲减应付。`,
-      '提示',
+      t('purchaseReturn.message.postConfirm'),
+      t('purchaseReturn.message.prompt'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'success'
       }
     )
 
     await postPurchaseReturn(row.id)
-    ElMessage.success('退货已过账')
+    ElMessage.success(t('purchaseReturn.message.posted'))
     handleQuery()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('purchaseReturn.message.postFailed'))
     }
   }
 }
@@ -683,21 +688,21 @@ const handleComplete = async (row: PurchaseReturn) => {
 const handleCancel = async (row: PurchaseReturn) => {
   try {
     await ElMessageBox.confirm(
-      `确认取消退货单"${row.returnNo}"吗？`,
-      '提示',
+      t('purchaseReturn.message.cancelConfirm', { returnNo: row.returnNo }),
+      t('purchaseReturn.message.prompt'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
 
     await cancelPurchaseReturn(row.id)
-    ElMessage.success('已取消')
+    ElMessage.success(t('purchaseReturn.message.cancelled'))
     handleQuery()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('purchaseReturn.message.cancelFailed'))
     }
   }
 }
@@ -706,10 +711,10 @@ const handleCancel = async (row: PurchaseReturn) => {
 const handleExport = async () => {
   try {
     const blob = await exportPurchaseReturns(queryForm)
-    downloadBlob(blob, `采购退货_${Date.now()}.csv`)
-    ElMessage.success('导出成功')
+    downloadBlob(blob, t('purchaseReturn.message.exportFile', { timestamp: Date.now() }))
+    ElMessage.success(t('purchaseReturn.message.exported'))
   } catch (error) {
-    ElMessage.error('导出失败')
+    ElMessage.error(t('purchaseReturn.message.exportFailed'))
   }
 }
 
@@ -721,7 +726,7 @@ const handleSubmitForm = async () => {
     if (!valid) return
 
     if (form.items.length === 0) {
-      ElMessage.warning('请选择采购收货单')
+      ElMessage.warning(t('purchaseReturn.validation.receipt'))
       return
     }
 
@@ -729,15 +734,15 @@ const handleSubmitForm = async () => {
     try {
       if (editingId.value) {
         await updatePurchaseReturn(editingId.value, form)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('purchaseReturn.message.updated'))
       } else {
         await createPurchaseReturn(form)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('purchaseReturn.message.created'))
       }
       dialogVisible.value = false
       handleQuery()
     } catch (error) {
-      ElMessage.error(editingId.value ? '更新失败' : '创建失败')
+      ElMessage.error(editingId.value ? t('purchaseReturn.message.updateFailed') : t('purchaseReturn.message.createFailed'))
     } finally {
       submitLoading.value = false
     }

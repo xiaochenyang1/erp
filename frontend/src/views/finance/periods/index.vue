@@ -2,7 +2,7 @@
   <div class="app-container period-page">
     <el-card shadow="never" class="toolbar-card">
       <el-form inline>
-        <el-form-item label="会计年度">
+        <el-form-item :label="$t('financeReportPages.periods.accountYear')">
           <el-input-number
             v-model="queryYear"
             :min="2000"
@@ -12,8 +12,8 @@
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="loadData">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="loadData">{{ $t('financeReportPages.common.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
           <el-button
             v-permission="'finance:period:manage'"
             type="success"
@@ -21,7 +21,7 @@
             :loading="generateLoading"
             @click="handleGenerate"
           >
-            生成年期间
+            {{ $t('financeReportPages.periods.generate') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -37,47 +37,47 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>会计期间管理</span>
-          <el-button :icon="Refresh" text @click="loadData">刷新</el-button>
+          <span>{{ $t('financeReportPages.periods.management') }}</span>
+          <el-button :icon="Refresh" text @click="loadData">{{ $t('financeReportPages.common.refresh') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="periodMonth" label="期间" width="120" fixed>
+        <el-table-column prop="periodMonth" :label="$t('financeReportPages.periods.period')" width="120" fixed>
           <template #default="{ row }">
             <span class="period-month">{{ formatMonth(row.periodMonth) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="periodYear" label="年度" width="100" align="center" />
-        <el-table-column prop="startDate" label="开始日期" width="130" align="center" />
-        <el-table-column prop="endDate" label="结束日期" width="130" align="center" />
-        <el-table-column prop="status" label="状态" width="110" align="center">
+        <el-table-column prop="periodYear" :label="$t('financeReportPages.periods.year')" width="100" align="center" />
+        <el-table-column prop="startDate" :label="$t('financeReportPages.common.startDate')" width="130" align="center" />
+        <el-table-column prop="endDate" :label="$t('financeReportPages.common.endDate')" width="130" align="center" />
+        <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="lockedTime" label="锁定时间" min-width="170">
+        <el-table-column prop="lockedTime" :label="$t('financeReportPages.periods.lockTime')" min-width="170">
           <template #default="{ row }">
             {{ formatDateTime(row.lockedTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="closedTime" label="结账时间" min-width="170">
+        <el-table-column prop="closedTime" :label="$t('financeReportPages.periods.closeTime')" min-width="170">
           <template #default="{ row }">
             {{ formatDateTime(row.closedTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="reopenedTime" label="解锁时间" min-width="170">
+        <el-table-column prop="reopenedTime" :label="$t('financeReportPages.periods.unlockTime')" min-width="170">
           <template #default="{ row }">
             {{ formatDateTime(row.reopenedTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-        <el-table-column label="操作" width="380" align="center" fixed="right">
+        <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="380" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleCheck(row)">
-              检查
+              {{ $t('financeReportPages.periods.check') }}
             </el-button>
             <el-button
               v-if="row.status === 'OPEN' || row.status === 'LOCKED'"
@@ -87,10 +87,10 @@
               :icon="Guide"
               @click="openWizard(row)"
             >
-              结账向导
+              {{ $t('financeReportPages.periods.closeWizard') }}
             </el-button>
             <el-button type="primary" link :icon="DataAnalysis" @click="openReconciliation(row)">
-              对账
+              {{ $t('financeReportPages.periods.reconcile') }}
             </el-button>
             <el-button
               v-if="row.status === 'OPEN'"
@@ -100,7 +100,7 @@
               :icon="Lock"
               @click="handleLock(row)"
             >
-              锁定
+              {{ $t('financeReportPages.periods.lock') }}
             </el-button>
             <el-button
               v-if="row.status === 'LOCKED'"
@@ -110,7 +110,7 @@
               :icon="CircleCheck"
               @click="handleClose(row)"
             >
-              结账
+              {{ $t('financeReportPages.periods.closePeriod') }}
             </el-button>
             <el-button
               v-if="row.status === 'LOCKED'"
@@ -120,7 +120,7 @@
               :icon="RefreshLeft"
               @click="handleUnlock(row)"
             >
-              解锁
+              {{ $t('financeReportPages.periods.unlock') }}
             </el-button>
           </template>
         </el-table-column>
@@ -129,14 +129,14 @@
 
     <el-dialog
       v-model="closeCheckVisible"
-      title="月结检查"
+      :title="$t('financeReportPages.periods.monthCloseCheck')"
       width="820px"
       class="period-dialog"
     >
       <div v-loading="closeCheckLoading">
         <el-alert
           v-if="closeCheckResult"
-          :title="closeCheckResult.passed ? '检查通过，可以继续锁定或结账' : '检查未通过，请先处理以下问题'"
+          :title="closeCheckResult.passed ? $t('financeReportPages.periods.checkPassedTitle') : $t('financeReportPages.periods.checkFailedTitle')"
           :type="closeCheckResult.passed ? 'success' : 'error'"
           :closable="false"
           show-icon
@@ -149,17 +149,17 @@
           stripe
           class="dialog-table"
         >
-          <el-table-column prop="category" label="分类" width="90" />
-          <el-table-column prop="title" label="检查项" width="160" />
-          <el-table-column label="结果" width="90" align="center">
+          <el-table-column prop="category" :label="$t('financeReportPages.periods.category')" width="90" />
+          <el-table-column prop="title" :label="$t('financeReportPages.periods.checkItem')" width="160" />
+          <el-table-column :label="$t('financeReportPages.periods.result')" width="90" align="center">
             <template #default="{ row }">
               <el-tag :type="row.passed ? 'success' : 'danger'" size="small">
-                {{ row.passed ? '通过' : '阻塞' }}
+                {{ row.passed ? $t('financeReportPages.periods.passed') : $t('financeReportPages.periods.blocked') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="message" label="说明" min-width="280" show-overflow-tooltip />
-          <el-table-column prop="metric" label="数量/金额" width="120" align="right">
+          <el-table-column prop="message" :label="$t('financeReportPages.periods.explanation')" min-width="280" show-overflow-tooltip />
+          <el-table-column prop="metric" :label="$t('financeReportPages.periods.metric')" width="120" align="right">
             <template #default="{ row }">{{ formatAmount(row.metric) }}</template>
           </el-table-column>
         </el-table>
@@ -171,25 +171,25 @@
           stripe
           class="dialog-table"
         >
-          <el-table-column prop="type" label="问题类型" width="210">
+          <el-table-column prop="type" :label="$t('financeReportPages.periods.issueType')" width="210">
             <template #default="{ row }">
               <el-tag :type="getIssueSeverity(row.type)" size="small">
                 {{ getIssueTypeLabel(row.type) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="message" label="说明" min-width="260" />
-          <el-table-column prop="amount" label="数量/金额" width="140" align="right">
+          <el-table-column prop="message" :label="$t('financeReportPages.periods.explanation')" min-width="260" />
+          <el-table-column prop="amount" :label="$t('financeReportPages.periods.metric')" width="140" align="right">
             <template #default="{ row }">
               {{ formatAmount(row.amount) }}
             </template>
           </el-table-column>
         </el-table>
 
-        <el-empty v-else-if="closeCheckResult && closeCheckResult.passed" description="没有发现阻塞项" />
+        <el-empty v-else-if="closeCheckResult && closeCheckResult.passed" :description="$t('financeReportPages.periods.noBlockingIssues')" />
       </div>
       <template #footer>
-        <el-button @click="closeCheckVisible = false">关闭</el-button>
+        <el-button @click="closeCheckVisible = false">{{ $t('financeReportPages.common.close') }}</el-button>
         <el-button
           v-if="activePeriod?.status === 'OPEN'"
           v-permission="'finance:period:close'"
@@ -197,7 +197,7 @@
           :disabled="!closeCheckResult?.passed"
           @click="activePeriod && handleLock(activePeriod)"
         >
-          检查通过后锁定
+          {{ $t('financeReportPages.periods.lockAfterCheck') }}
         </el-button>
         <el-button
           v-if="activePeriod?.status === 'LOCKED'"
@@ -205,7 +205,7 @@
           type="success"
           @click="activePeriod && handleClose(activePeriod)"
         >
-          继续结账
+          {{ $t('financeReportPages.periods.continueClosing') }}
         </el-button>
       </template>
     </el-dialog>
@@ -213,24 +213,24 @@
     <!-- 结账向导 -->
     <el-drawer
       v-model="wizardVisible"
-      :title="`期间结账向导 · ${wizardPeriod?.periodMonth || ''}`"
+      :title="$t('financeReportPages.periods.wizardTitle', { period: wizardPeriod?.periodMonth || '' })"
       size="560px"
       destroy-on-close
     >
       <div v-loading="wizardLoading" class="wizard-body">
         <el-steps :active="wizardStep" finish-status="success" align-center>
-          <el-step title="概览" />
-          <el-step title="月结检查" />
-          <el-step title="锁定/结账" />
+          <el-step :title="$t('financeReportPages.periods.overview')" />
+          <el-step :title="$t('financeReportPages.periods.monthCloseCheck')" />
+          <el-step :title="$t('financeReportPages.periods.lockOrClose')" />
         </el-steps>
 
         <section v-if="wizardStep === 0" class="wizard-panel">
           <el-descriptions :column="1" border>
-            <el-descriptions-item label="期间">{{ wizardPeriod?.periodMonth }}</el-descriptions-item>
-            <el-descriptions-item label="起止">
+            <el-descriptions-item :label="$t('financeReportPages.periods.period')">{{ wizardPeriod?.periodMonth }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.periods.dateSpan')">
               {{ wizardPeriod?.startDate }} ~ {{ wizardPeriod?.endDate }}
             </el-descriptions-item>
-            <el-descriptions-item label="当前状态">
+            <el-descriptions-item :label="$t('financeReportPages.periods.currentStatus')">
               <el-tag :type="getStatusType(wizardPeriod?.status)" size="small">
                 {{ getStatusLabel(wizardPeriod?.status) }}
               </el-tag>
@@ -241,14 +241,14 @@
             type="info"
             :closable="false"
             show-icon
-            title="建议顺序：生成年期间 → 跑月结检查 → 锁定 → 结账。锁定前必须检查通过。"
+            :title="$t('financeReportPages.periods.suggestedOrder')"
           />
         </section>
 
         <section v-else-if="wizardStep === 1" class="wizard-panel">
           <el-alert
             v-if="wizardCheck"
-            :title="wizardCheck.passed ? '全部检查通过' : `发现 ${wizardCheck.issues.length} 项阻塞`"
+            :title="wizardCheck.passed ? $t('financeReportPages.periods.allChecksPassed') : $t('financeReportPages.periods.blockingCount', { count: wizardCheck.issues.length })"
             :type="wizardCheck.passed ? 'success' : 'error'"
             :closable="false"
             show-icon
@@ -260,18 +260,18 @@
             stripe
             class="dialog-table"
           >
-            <el-table-column prop="category" label="分类" width="80" />
-            <el-table-column prop="title" label="检查项" width="140" />
-            <el-table-column label="结果" width="80" align="center">
+            <el-table-column prop="category" :label="$t('financeReportPages.periods.category')" width="80" />
+            <el-table-column prop="title" :label="$t('financeReportPages.periods.checkItem')" width="140" />
+            <el-table-column :label="$t('financeReportPages.periods.result')" width="80" align="center">
               <template #default="{ row }">
                 <el-tag :type="row.passed ? 'success' : 'danger'" size="small">
-                  {{ row.passed ? '通过' : '阻塞' }}
+                  {{ row.passed ? $t('financeReportPages.periods.passed') : $t('financeReportPages.periods.blocked') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="message" label="说明" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="message" :label="$t('financeReportPages.periods.explanation')" min-width="200" show-overflow-tooltip />
           </el-table>
-          <el-button class="wizard-refresh" :icon="Refresh" @click="runWizardCheck">重新检查</el-button>
+          <el-button class="wizard-refresh" :icon="Refresh" @click="runWizardCheck">{{ $t('financeReportPages.periods.recheck') }}</el-button>
         </section>
 
         <section v-else class="wizard-panel">
@@ -289,7 +289,7 @@
               :loading="wizardActionLoading"
               @click="wizardLock"
             >
-              锁定期间
+              {{ $t('financeReportPages.periods.lockPeriod') }}
             </el-button>
             <el-button
               v-if="wizardPeriod?.status === 'LOCKED'"
@@ -298,7 +298,7 @@
               :loading="wizardActionLoading"
               @click="wizardClose"
             >
-              确认结账
+              {{ $t('financeReportPages.periods.confirmClose') }}
             </el-button>
             <el-button
               v-if="wizardPeriod?.status === 'LOCKED'"
@@ -308,52 +308,52 @@
               :loading="wizardActionLoading"
               @click="wizardUnlock"
             >
-              解锁
+              {{ $t('financeReportPages.periods.unlock') }}
             </el-button>
           </div>
         </section>
       </div>
       <template #footer>
         <div class="wizard-footer">
-          <el-button :disabled="wizardStep === 0" @click="wizardStep = Math.max(0, wizardStep - 1)">上一步</el-button>
+          <el-button :disabled="wizardStep === 0" @click="wizardStep = Math.max(0, wizardStep - 1)">{{ $t('financeReportPages.periods.previous') }}</el-button>
           <el-button
             v-if="wizardStep < 2"
             type="primary"
             @click="nextWizardStep"
           >
-            下一步
+            {{ $t('financeReportPages.periods.next') }}
           </el-button>
-          <el-button v-else @click="wizardVisible = false">完成</el-button>
+          <el-button v-else @click="wizardVisible = false">{{ $t('financeReportPages.common.finish') }}</el-button>
         </div>
       </template>
     </el-drawer>
 
     <el-dialog
       v-model="reconciliationVisible"
-      title="库存财务对账"
+      :title="$t('financeReportPages.periods.inventoryFinanceReconciliation')"
       width="920px"
       class="period-dialog"
     >
       <div v-loading="reconciliationLoading">
         <div v-if="reconciliationResult" class="reconciliation-summary">
           <div class="reconciliation-item">
-            <span>库存净额</span>
+            <span>{{ $t('financeReportPages.periods.inventoryNetAmount') }}</span>
             <strong>{{ formatAmount(reconciliationResult.inventoryNetAmount) }}</strong>
           </div>
           <div class="reconciliation-item">
-            <span>财务库存科目净额</span>
+            <span>{{ $t('financeReportPages.periods.financeInventoryNetAmount') }}</span>
             <strong>{{ formatAmount(reconciliationResult.financeInventoryNetAmount) }}</strong>
           </div>
           <div class="reconciliation-item">
-            <span>差异金额</span>
+            <span>{{ $t('financeReportPages.periods.differenceAmount') }}</span>
             <strong :class="reconciliationResult.balanced ? 'balanced' : 'unbalanced'">
               {{ formatAmount(reconciliationResult.differenceAmount) }}
             </strong>
           </div>
           <div class="reconciliation-item">
-            <span>对账状态</span>
+            <span>{{ $t('financeReportPages.periods.reconciliationStatus') }}</span>
             <el-tag :type="reconciliationResult.balanced ? 'success' : 'danger'">
-              {{ reconciliationResult.balanced ? '平衡' : '不平衡' }}
+              {{ reconciliationResult.balanced ? $t('financeReportPages.periods.balanced') : $t('financeReportPages.periods.unbalanced') }}
             </el-tag>
           </div>
         </div>
@@ -361,7 +361,7 @@
         <div class="difference-toolbar">
           <el-select
             v-model="differenceType"
-            placeholder="差异类型"
+            :placeholder="$t('financeReportPages.periods.differenceType')"
             clearable
             style="width: 180px"
             @change="loadDifferences"
@@ -373,7 +373,7 @@
               :value="option.value"
             />
           </el-select>
-          <el-button :icon="Refresh" @click="loadDifferences">刷新差异</el-button>
+          <el-button :icon="Refresh" @click="loadDifferences">{{ $t('financeReportPages.periods.refreshDifferences') }}</el-button>
         </div>
 
         <el-table
@@ -383,53 +383,53 @@
           stripe
           class="dialog-table"
         >
-          <el-table-column prop="sourceNo" label="来源单号" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="sourceType" label="来源类型" width="130">
+          <el-table-column prop="sourceNo" :label="$t('financeReportPages.periods.sourceNo')" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="sourceType" :label="$t('financeReportPages.periods.sourceType')" width="130">
             <template #default="{ row }">
               {{ getSourceTypeLabel(row.sourceType) }}
             </template>
           </el-table-column>
-          <el-table-column prop="inventoryAmount" label="库存金额" width="130" align="right">
+          <el-table-column prop="inventoryAmount" :label="$t('financeReportPages.periods.inventoryAmount')" width="130" align="right">
             <template #default="{ row }">
               {{ formatAmount(row.inventoryAmount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="financeAmount" label="财务金额" width="130" align="right">
+          <el-table-column prop="financeAmount" :label="$t('financeReportPages.periods.financeAmount')" width="130" align="right">
             <template #default="{ row }">
               {{ formatAmount(row.financeAmount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="differenceAmount" label="差异金额" width="130" align="right">
+          <el-table-column prop="differenceAmount" :label="$t('financeReportPages.periods.differenceAmount')" width="130" align="right">
             <template #default="{ row }">
               <span :class="Number(row.differenceAmount) === 0 ? 'balanced' : 'unbalanced'">
                 {{ formatAmount(row.differenceAmount) }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="differenceType" label="差异类型" width="140">
+          <el-table-column prop="differenceType" :label="$t('financeReportPages.periods.differenceType')" width="140">
             <template #default="{ row }">
               <el-tag :type="getDifferenceTypeTag(row.differenceType)" size="small">
                 {{ getDifferenceTypeLabel(row.differenceType) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="明细" width="90" align="center" fixed="right">
+          <el-table-column :label="$t('financeReportPages.common.details')" width="90" align="center" fixed="right">
             <template #default="{ row }">
               <el-button type="primary" link :icon="View" @click="openDifferenceDetail(row)">
-                明细
+                {{ $t('financeReportPages.common.details') }}
               </el-button>
             </template>
           </el-table-column>
         </el-table>
       </div>
       <template #footer>
-        <el-button @click="reconciliationVisible = false">关闭</el-button>
+        <el-button @click="reconciliationVisible = false">{{ $t('financeReportPages.common.close') }}</el-button>
       </template>
     </el-dialog>
 
     <el-drawer
       v-model="differenceDetailVisible"
-      title="对账差异明细"
+      :title="$t('financeReportPages.periods.differenceDetail')"
       size="86%"
       class="difference-detail-drawer"
     >
@@ -447,15 +447,15 @@
 
           <div class="detail-summary">
             <div class="detail-summary-item">
-              <span>库存金额</span>
+              <span>{{ $t('financeReportPages.periods.inventoryAmount') }}</span>
               <strong>{{ formatAmount(differenceDetail.inventoryAmount) }}</strong>
             </div>
             <div class="detail-summary-item">
-              <span>财务金额</span>
+              <span>{{ $t('financeReportPages.periods.financeAmount') }}</span>
               <strong>{{ formatAmount(differenceDetail.financeAmount) }}</strong>
             </div>
             <div class="detail-summary-item">
-              <span>差异金额</span>
+              <span>{{ $t('financeReportPages.periods.differenceAmount') }}</span>
               <strong :class="Number(differenceDetail.differenceAmount) === 0 ? 'balanced' : 'unbalanced'">
                 {{ formatAmount(differenceDetail.differenceAmount) }}
               </strong>
@@ -463,66 +463,66 @@
           </div>
 
           <section class="detail-section">
-            <div class="section-title">库存流水</div>
+            <div class="section-title">{{ $t('financeReportPages.periods.inventoryTransactions') }}</div>
             <el-table
               :data="differenceDetail.inventoryTransactions"
               border
               stripe
-              empty-text="无库存流水"
+              :empty-text="$t('financeReportPages.periods.noInventoryTransactions')"
             >
-              <el-table-column prop="occurredTime" label="发生时间" width="170">
+              <el-table-column prop="occurredTime" :label="$t('financeReportPages.periods.occurredTime')" width="170">
                 <template #default="{ row }">
                   {{ formatDateTime(row.occurredTime) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="direction" label="方向" width="90" align="center">
+              <el-table-column prop="direction" :label="$t('financeReportPages.periods.direction')" width="90" align="center">
                 <template #default="{ row }">
                   <el-tag :type="row.direction === 'IN' ? 'success' : 'warning'" size="small">
-                    {{ row.direction === 'IN' ? '入库' : '出库' }}
+                    {{ row.direction === 'IN' ? $t('financeReportPages.periods.inbound') : $t('financeReportPages.periods.outbound') }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="qty" label="数量" width="120" align="right">
+              <el-table-column prop="qty" :label="$t('financeReportPages.periods.quantity')" width="120" align="right">
                 <template #default="{ row }">
                   {{ formatQty(row.qty) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="amount" label="金额" width="130" align="right">
+              <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
                 <template #default="{ row }">
                   {{ formatAmount(row.amount) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
+              <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="180" show-overflow-tooltip />
             </el-table>
           </section>
 
           <section class="detail-section">
-            <div class="section-title">财务凭证分录</div>
+            <div class="section-title">{{ $t('financeReportPages.periods.voucherEntries') }}</div>
             <el-table
               :data="differenceDetail.voucherEntries"
               border
               stripe
-              empty-text="无财务分录"
+              :empty-text="$t('financeReportPages.periods.noVoucherEntries')"
             >
-              <el-table-column prop="voucherNo" label="凭证号" min-width="150" show-overflow-tooltip />
-              <el-table-column prop="bizDate" label="业务日期" width="120" align="center" />
-              <el-table-column prop="lineNo" label="行号" width="80" align="center" />
-              <el-table-column label="科目" min-width="180" show-overflow-tooltip>
+              <el-table-column prop="voucherNo" :label="$t('financeReportPages.periods.voucherNo')" min-width="150" show-overflow-tooltip />
+              <el-table-column prop="bizDate" :label="$t('financeReportPages.common.bizDate')" width="120" align="center" />
+              <el-table-column prop="lineNo" :label="$t('financeReportPages.common.lineNo')" width="80" align="center" />
+              <el-table-column :label="$t('financeReportPages.common.subject')" min-width="180" show-overflow-tooltip>
                 <template #default="{ row }">
                   {{ row.subjectCode }} {{ row.subjectName }}
                 </template>
               </el-table-column>
-              <el-table-column prop="debitAmount" label="借方" width="130" align="right">
+              <el-table-column prop="debitAmount" :label="$t('financeReportPages.common.debit')" width="130" align="right">
                 <template #default="{ row }">
                   {{ formatAmount(row.debitAmount) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="creditAmount" label="贷方" width="130" align="right">
+              <el-table-column prop="creditAmount" :label="$t('financeReportPages.common.credit')" width="130" align="right">
                 <template #default="{ row }">
                   {{ formatAmount(row.creditAmount) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="summary" label="摘要" min-width="180" show-overflow-tooltip />
+              <el-table-column prop="summary" :label="$t('financeReportPages.common.summary')" min-width="180" show-overflow-tooltip />
             </el-table>
           </section>
         </template>
@@ -534,6 +534,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 import {
   Calendar,
@@ -563,6 +564,7 @@ import {
   type InventoryFinanceReconciliation
 } from '@/api/finance'
 
+const { t } = useI18n()
 const currentYear = new Date().getFullYear()
 const queryYear = ref(currentYear)
 const loading = ref(false)
@@ -591,19 +593,19 @@ const differenceDetailVisible = ref(false)
 const differenceDetailLoading = ref(false)
 const differenceDetail = ref<InventoryFinanceDifferenceDetail>()
 
-const differenceTypeOptions = [
-  { label: '仅库存有记录', value: 'INVENTORY_ONLY' },
-  { label: '仅财务有记录', value: 'FINANCE_ONLY' },
-  { label: '金额不一致', value: 'AMOUNT_MISMATCH' }
-]
+const differenceTypeOptions = computed(() => [
+  { label: t('financeReportPages.periods.difference.inventoryOnly'), value: 'INVENTORY_ONLY' },
+  { label: t('financeReportPages.periods.difference.financeOnly'), value: 'FINANCE_ONLY' },
+  { label: t('financeReportPages.periods.difference.amountMismatch'), value: 'AMOUNT_MISMATCH' }
+])
 
 const statusSummary = computed(() => {
   const count = (status: string) => tableData.value.filter(item => item.status === status).length
   return [
-    { key: 'open', label: '打开期间', value: count('OPEN') },
-    { key: 'locked', label: '锁定期间', value: count('LOCKED') },
-    { key: 'closed', label: '已结账期间', value: count('CLOSED') },
-    { key: 'total', label: '期间总数', value: tableData.value.length }
+    { key: 'open', label: t('financeReportPages.periods.statusSummary.open'), value: count('OPEN') },
+    { key: 'locked', label: t('financeReportPages.periods.statusSummary.locked'), value: count('LOCKED') },
+    { key: 'closed', label: t('financeReportPages.periods.statusSummary.closed'), value: count('CLOSED') },
+    { key: 'total', label: t('financeReportPages.periods.statusSummary.total'), value: tableData.value.length }
   ]
 })
 
@@ -613,7 +615,7 @@ const loadData = async () => {
     const periods = await getAccountPeriods(queryYear.value)
     tableData.value = periods || []
   } catch (error) {
-    ElMessage.error('加载会计期间失败')
+    ElMessage.error(t('financeReportPages.periods.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -627,17 +629,17 @@ const handleReset = () => {
 const handleGenerate = async () => {
   try {
     await ElMessageBox.confirm(
-      `确定生成 ${queryYear.value} 年 12 个会计期间吗？已存在的期间会保留。`,
-      '生成会计期间',
+      t('financeReportPages.periods.message.generateConfirm', { year: queryYear.value }),
+      t('financeReportPages.periods.message.generateTitle'),
       { type: 'warning' }
     )
     generateLoading.value = true
     const periods = await generateAccountPeriods(queryYear.value)
     tableData.value = periods || []
-    ElMessage.success('会计期间生成成功')
+    ElMessage.success(t('financeReportPages.periods.message.generated'))
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('生成会计期间失败')
+      ElMessage.error(t('financeReportPages.periods.message.generateFailed'))
     }
   } finally {
     generateLoading.value = false
@@ -652,7 +654,7 @@ const handleCheck = async (row: AccountPeriod) => {
   try {
     closeCheckResult.value = await checkAccountPeriodClose(row.id)
   } catch (error) {
-    ElMessage.error('月结检查失败')
+    ElMessage.error(t('financeReportPages.periods.message.checkFailed'))
   } finally {
     closeCheckLoading.value = false
   }
@@ -671,7 +673,7 @@ const runWizardCheck = async () => {
   try {
     wizardCheck.value = await checkAccountPeriodClose(wizardPeriod.value.id)
   } catch {
-    ElMessage.error('月结检查失败')
+    ElMessage.error(t('financeReportPages.periods.message.checkFailed'))
   } finally {
     wizardLoading.value = false
   }
@@ -689,23 +691,23 @@ const nextWizardStep = async () => {
 }
 
 const wizardActionTitle = computed(() => {
-  if (wizardPeriod.value?.status === 'CLOSED') return '期间已结账'
-  if (wizardPeriod.value?.status === 'LOCKED') return '期间已锁定，可确认结账'
-  if (wizardCheck.value?.passed) return '检查通过，可锁定期间'
-  return '请先处理阻塞项再锁定'
+  if (wizardPeriod.value?.status === 'CLOSED') return t('financeReportPages.periods.wizardAction.closed')
+  if (wizardPeriod.value?.status === 'LOCKED') return t('financeReportPages.periods.wizardAction.locked')
+  if (wizardCheck.value?.passed) return t('financeReportPages.periods.wizardAction.ready')
+  return t('financeReportPages.periods.wizardAction.blocked')
 })
 
 const wizardActionSubtitle = computed(() => {
   if (!wizardPeriod.value) return ''
   if (wizardPeriod.value.status === 'CLOSED') {
-    return `${wizardPeriod.value.periodMonth} 已结账，仅可查询。`
+    return t('financeReportPages.periods.wizardAction.closedSubtitle', { period: wizardPeriod.value.periodMonth })
   }
   if (wizardPeriod.value.status === 'LOCKED') {
-    return '结账后本期业务将不可再处理。'
+    return t('financeReportPages.periods.wizardAction.lockedSubtitle')
   }
   return wizardCheck.value?.passed
-    ? '锁定后仍可解锁（仅最新锁定期间），结账前请再次确认。'
-    : '可返回上一步查看检查明细。'
+    ? t('financeReportPages.periods.wizardAction.readySubtitle')
+    : t('financeReportPages.periods.wizardAction.blockedSubtitle')
 })
 
 const refreshWizardPeriod = async () => {
@@ -756,19 +758,19 @@ const handleLock = async (row: AccountPeriod) => {
       activePeriod.value = row
       closeCheckResult.value = check
       closeCheckVisible.value = true
-      ElMessage.warning('月结检查未通过，不能锁定')
+      ElMessage.warning(t('financeReportPages.periods.message.checkBlocksLock'))
       return
     }
 
-    await ElMessageBox.confirm(`确定锁定 ${row.periodMonth} 会计期间吗？`, '锁定期间', {
+    await ElMessageBox.confirm(t('financeReportPages.periods.message.lockConfirm', { period: row.periodMonth }), t('financeReportPages.periods.lockPeriod'), {
       type: 'warning'
     })
     await lockAccountPeriod(row.id)
-    ElMessage.success('会计期间已锁定')
+    ElMessage.success(t('financeReportPages.periods.message.locked'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('锁定会计期间失败')
+      ElMessage.error(t('financeReportPages.periods.message.lockFailed'))
     }
   }
 }
@@ -779,7 +781,7 @@ const handleClose = async (row: AccountPeriod) => {
   try {
     check = await checkAccountPeriodClose(row.id)
   } catch (error) {
-    ElMessage.error('月结检查失败，暂不能结账')
+    ElMessage.error(t('financeReportPages.periods.message.checkBlocksClose'))
     return
   }
 
@@ -789,10 +791,17 @@ const handleClose = async (row: AccountPeriod) => {
     closeCheckVisible.value = true
     try {
       await ElMessageBox.confirm(
-        `月结检查发现 ${check.issues.length} 项待处理问题（见“月结检查”弹窗）。` +
-          `结账后本期业务将不可再处理，且这些问题会被固化。确定仍要结账 ${row.periodMonth} 吗？`,
-        '带风险结账确认',
-        { type: 'error', confirmButtonText: '仍要结账', cancelButtonText: '取消', confirmButtonClass: 'el-button--danger' }
+        t('financeReportPages.periods.message.riskyCloseConfirm', {
+          count: check.issues.length,
+          period: row.periodMonth
+        }),
+        t('financeReportPages.periods.message.riskyCloseTitle'),
+        {
+          type: 'error',
+          confirmButtonText: t('financeReportPages.periods.message.closeAnyway'),
+          cancelButtonText: t('financeReportPages.common.cancel'),
+          confirmButtonClass: 'el-button--danger'
+        }
       )
     } catch {
       return
@@ -800,8 +809,8 @@ const handleClose = async (row: AccountPeriod) => {
   } else {
     try {
       await ElMessageBox.confirm(
-        `月结检查通过。确定结账 ${row.periodMonth} 会计期间吗？结账后将不能继续处理本期业务。`,
-        '期间结账',
+        t('financeReportPages.periods.message.safeCloseConfirm', { period: row.periodMonth }),
+        t('financeReportPages.periods.message.closeTitle'),
         { type: 'warning' }
       )
     } catch {
@@ -811,29 +820,31 @@ const handleClose = async (row: AccountPeriod) => {
 
   try {
     await closeAccountPeriod(row.id)
-    ElMessage.success('会计期间已结账')
+    ElMessage.success(t('financeReportPages.periods.message.closed'))
     closeCheckVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error('会计期间结账失败')
+    ElMessage.error(t('financeReportPages.periods.message.closeFailed'))
   }
 }
 
 const handleUnlock = async (row: AccountPeriod) => {
   try {
     await ElMessageBox.confirm(
-      `确定解锁 ${row.periodMonth} 会计期间吗？` +
-        `解锁会把 ${row.periodMonth} 从“已锁定”退回“打开”，本期将重新允许录入和过账。` +
-        `注意：后端只允许解锁“最新锁定期间”，已结账期间无法解锁。确定解锁吗？`,
-      '解锁期间',
-      { type: 'warning', confirmButtonText: '确定解锁', cancelButtonText: '取消' }
+      t('financeReportPages.periods.message.unlockConfirm', { period: row.periodMonth }),
+      t('financeReportPages.periods.message.unlockTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('financeReportPages.periods.message.confirmUnlock'),
+        cancelButtonText: t('financeReportPages.common.cancel')
+      }
     )
     await unlockAccountPeriod(row.id)
-    ElMessage.success('会计期间已解锁')
+    ElMessage.success(t('financeReportPages.periods.message.unlocked'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('解锁会计期间失败')
+      ElMessage.error(t('financeReportPages.periods.message.unlockFailed'))
     }
   }
 }
@@ -860,7 +871,7 @@ const loadReconciliation = async () => {
     reconciliationResult.value = summary
     differences.value = rows || []
   } catch (error) {
-    ElMessage.error('加载对账数据失败')
+    ElMessage.error(t('financeReportPages.periods.message.reconciliationLoadFailed'))
   } finally {
     reconciliationLoading.value = false
     differenceLoading.value = false
@@ -877,7 +888,7 @@ const loadDifferences = async () => {
     })
     differences.value = rows || []
   } catch (error) {
-    ElMessage.error('加载对账差异失败')
+    ElMessage.error(t('financeReportPages.periods.message.differencesLoadFailed'))
   } finally {
     differenceLoading.value = false
   }
@@ -896,7 +907,7 @@ const openDifferenceDetail = async (row: InventoryFinanceDifference) => {
       row.sourceNo
     )
   } catch (error) {
-    ElMessage.error('加载对账差异明细失败')
+    ElMessage.error(t('financeReportPages.periods.message.differenceDetailLoadFailed'))
   } finally {
     differenceDetailLoading.value = false
   }
@@ -926,9 +937,9 @@ const formatQty = (qty?: number | string) => {
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    OPEN: '打开',
-    LOCKED: '已锁定',
-    CLOSED: '已结账'
+    OPEN: t('financeReportPages.periods.status.open'),
+    LOCKED: t('financeReportPages.periods.status.locked'),
+    CLOSED: t('financeReportPages.periods.status.closed')
   }
   return map[status] || status
 }
@@ -944,15 +955,15 @@ const getStatusType = (status: string): any => {
 
 const getIssueTypeLabel = (type: string) => {
   const map: Record<string, string> = {
-    OPEN_DOCUMENTS: '未完结业务单据',
-    INVENTORY_FINANCE_RECONCILIATION: '库存财务不一致',
-    VOUCHER_ENTRY_MISSING: '凭证缺少分录',
-    VOUCHER_UNBALANCED: '凭证借贷不平',
-    PAYMENT_ALLOCATION_MISMATCH: '付款核销不一致',
-    RECEIPT_ALLOCATION_MISMATCH: '收款核销不一致',
-    SETTLEMENT_AMOUNT_INVALID: '应收应付金额异常',
-    BANK_STATEMENT_UNMATCHED: '银行流水未匹配',
-    INVENTORY_BALANCE_NEGATIVE: '负库存余额'
+    OPEN_DOCUMENTS: t('financeReportPages.periods.issue.openDocuments'),
+    INVENTORY_FINANCE_RECONCILIATION: t('financeReportPages.periods.issue.inventoryFinanceReconciliation'),
+    VOUCHER_ENTRY_MISSING: t('financeReportPages.periods.issue.voucherEntryMissing'),
+    VOUCHER_UNBALANCED: t('financeReportPages.periods.issue.voucherUnbalanced'),
+    PAYMENT_ALLOCATION_MISMATCH: t('financeReportPages.periods.issue.paymentAllocationMismatch'),
+    RECEIPT_ALLOCATION_MISMATCH: t('financeReportPages.periods.issue.receiptAllocationMismatch'),
+    SETTLEMENT_AMOUNT_INVALID: t('financeReportPages.periods.issue.settlementAmountInvalid'),
+    BANK_STATEMENT_UNMATCHED: t('financeReportPages.periods.issue.bankStatementUnmatched'),
+    INVENTORY_BALANCE_NEGATIVE: t('financeReportPages.periods.issue.inventoryBalanceNegative')
   }
   return map[type] || type
 }
@@ -963,9 +974,9 @@ const getIssueSeverity = (type: string): any => {
 
 const getDifferenceTypeLabel = (type: string) => {
   const map: Record<string, string> = {
-    INVENTORY_ONLY: '仅库存有记录',
-    FINANCE_ONLY: '仅财务有记录',
-    AMOUNT_MISMATCH: '金额不一致'
+    INVENTORY_ONLY: t('financeReportPages.periods.difference.inventoryOnly'),
+    FINANCE_ONLY: t('financeReportPages.periods.difference.financeOnly'),
+    AMOUNT_MISMATCH: t('financeReportPages.periods.difference.amountMismatch')
   }
   return map[type] || type
 }
@@ -981,12 +992,12 @@ const getDifferenceTypeTag = (type: string): any => {
 
 const getSourceTypeLabel = (type: string) => {
   const map: Record<string, string> = {
-    PURCHASE_RECEIPT: '采购收货',
-    PURCHASE_RETURN: '采购退货',
-    SALES_DELIVERY: '销售发货',
-    SALES_RETURN: '销售退货',
-    INVENTORY_ADJUSTMENT: '库存调整',
-    INVENTORY_TRANSFER: '库存调拨'
+    PURCHASE_RECEIPT: t('financeReportPages.periods.source.purchaseReceipt'),
+    PURCHASE_RETURN: t('financeReportPages.periods.source.purchaseReturn'),
+    SALES_DELIVERY: t('financeReportPages.periods.source.salesDelivery'),
+    SALES_RETURN: t('financeReportPages.periods.source.salesReturn'),
+    INVENTORY_ADJUSTMENT: t('financeReportPages.periods.source.inventoryAdjustment'),
+    INVENTORY_TRANSFER: t('financeReportPages.periods.source.inventoryTransfer')
   }
   return map[type] || type || '-'
 }

@@ -2,26 +2,26 @@
   <div class="replenishment-suggestions-container">
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="建议编号">
+        <el-form-item :label="t('inventoryReplenishment.suggestionNo')">
           <el-input
             v-model="queryParams.suggestionNo"
-            placeholder="请输入建议编号"
+            :placeholder="t('inventoryReplenishment.suggestionNoPlaceholder')"
             clearable
             style="width: 190px"
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="全部" clearable style="width: 140px">
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="已转单" value="CONVERTED" />
-            <el-option label="已取消" value="CANCELLED" />
+        <el-form-item :label="t('inventoryReplenishment.statusLabel')">
+          <el-select v-model="queryParams.status" :placeholder="t('inventoryReplenishment.all')" clearable style="width: 140px">
+            <el-option :label="t('inventoryReplenishment.status.draft')" value="DRAFT" />
+            <el-option :label="t('inventoryReplenishment.status.converted')" value="CONVERTED" />
+            <el-option :label="t('inventoryReplenishment.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="仓库">
+        <el-form-item :label="t('inventoryReplenishment.warehouse')">
           <el-select
             v-model="queryParams.warehouseId"
-            placeholder="请选择仓库"
+            :placeholder="t('inventoryReplenishment.selectWarehouse')"
             clearable
             filterable
             style="width: 190px"
@@ -34,10 +34,10 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="产品">
+        <el-form-item :label="t('inventoryReplenishment.product')">
           <el-select
             v-model="queryParams.productId"
-            placeholder="请选择产品"
+            :placeholder="t('inventoryReplenishment.selectProduct')"
             clearable
             filterable
             style="width: 220px"
@@ -50,10 +50,10 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="供应商">
+        <el-form-item :label="t('inventoryReplenishment.supplier')">
           <el-select
             v-model="queryParams.supplierId"
-            placeholder="请选择供应商"
+            :placeholder="t('inventoryReplenishment.selectSupplier')"
             clearable
             filterable
             style="width: 220px"
@@ -66,13 +66,13 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="创建时间">
+        <el-form-item :label="t('inventoryReplenishment.createdAt')">
           <el-date-picker
             v-model="createdRange"
             type="datetimerange"
-            range-separator="至"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
+            :range-separator="t('inventoryReplenishment.rangeSeparator')"
+            :start-placeholder="t('inventoryReplenishment.startTime')"
+            :end-placeholder="t('inventoryReplenishment.endTime')"
             value-format="YYYY-MM-DDTHH:mm:ss"
             style="width: 360px"
             @change="handleCreatedRangeChange"
@@ -81,11 +81,11 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ t('inventoryReplenishment.search') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ t('inventoryReplenishment.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -93,37 +93,37 @@
 
     <el-card class="table-card" shadow="never">
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="suggestionNo" label="建议编号" width="170" fixed />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="suggestionNo" :label="t('inventoryReplenishment.suggestionNo')" width="170" fixed />
+        <el-table-column prop="status" :label="t('inventoryReplenishment.statusLabel')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'DRAFT'" type="warning">草稿</el-tag>
-            <el-tag v-else-if="row.status === 'CONVERTED'" type="success">已转单</el-tag>
-            <el-tag v-else type="info">已取消</el-tag>
+            <el-tag v-if="row.status === 'DRAFT'" type="warning">{{ t('inventoryReplenishment.status.draft') }}</el-tag>
+            <el-tag v-else-if="row.status === 'CONVERTED'" type="success">{{ t('inventoryReplenishment.status.converted') }}</el-tag>
+            <el-tag v-else type="info">{{ t('inventoryReplenishment.status.cancelled') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="fulfillmentStatus" label="履约状态" width="120" align="center">
+        <el-table-column prop="fulfillmentStatus" :label="t('inventoryReplenishment.fulfillmentStatus')" width="140" align="center">
           <template #default="{ row }">
             <el-tag :type="fulfillmentStatusMeta(row.fulfillmentStatus).type" effect="plain">
               {{ fulfillmentStatusMeta(row.fulfillmentStatus).label }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="warehouseName" label="仓库" width="150" show-overflow-tooltip />
-        <el-table-column prop="productCode" label="产品编码" width="140" show-overflow-tooltip />
-        <el-table-column prop="productName" label="产品名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="supplierName" label="供应商" min-width="180" show-overflow-tooltip>
+        <el-table-column prop="warehouseName" :label="t('inventoryReplenishment.warehouse')" width="150" show-overflow-tooltip />
+        <el-table-column prop="productCode" :label="t('inventoryReplenishment.productCode')" width="140" show-overflow-tooltip />
+        <el-table-column prop="productName" :label="t('inventoryReplenishment.productName')" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="supplierName" :label="t('inventoryReplenishment.supplier')" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ row.supplierName || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="suggestedQty" label="建议数量" width="130" align="right">
+        <el-table-column prop="suggestedQty" :label="t('inventoryReplenishment.suggestedQty')" width="140" align="right">
           <template #default="{ row }">{{ formatNumber(row.suggestedQty) }}</template>
         </el-table-column>
-        <el-table-column prop="shortageQtySnapshot" label="缺口快照" width="130" align="right">
+        <el-table-column prop="shortageQtySnapshot" :label="t('inventoryReplenishment.shortageSnapshot')" width="140" align="right">
           <template #default="{ row }">{{ formatNumber(row.shortageQtySnapshot) }}</template>
         </el-table-column>
-        <el-table-column prop="expectedArrivalDate" label="预计到货" width="120">
+        <el-table-column prop="expectedArrivalDate" :label="t('inventoryReplenishment.expectedArrival')" width="140">
           <template #default="{ row }">{{ row.expectedArrivalDate || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="purchaseOrderNo" label="采购订单" width="170">
+        <el-table-column prop="purchaseOrderNo" :label="t('inventoryReplenishment.purchaseOrder')" width="170">
           <template #default="{ row }">
             <el-button
               v-if="row.purchaseOrderNo"
@@ -136,13 +136,13 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="创建时间" width="170">
+        <el-table-column prop="createdTime" :label="t('inventoryReplenishment.createdAt')" width="190">
           <template #default="{ row }">{{ formatDateTime(row.createdTime) }}</template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip>
+        <el-table-column prop="remark" :label="t('inventoryReplenishment.remark')" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ row.remark || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right" align="center">
+        <el-table-column :label="t('inventoryReplenishment.actions')" width="260" fixed="right" align="center">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -151,7 +151,7 @@
               type="primary"
               @click="handleEdit(row)"
             >
-              编辑
+              {{ t('inventoryReplenishment.edit') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -160,7 +160,7 @@
               type="success"
               @click="handleConvert(row)"
             >
-              转采购订单
+              {{ t('inventoryReplenishment.convert') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -169,7 +169,7 @@
               type="danger"
               @click="handleCancel(row)"
             >
-              取消
+              {{ t('inventoryReplenishment.cancel') }}
             </el-button>
           </template>
         </el-table-column>
@@ -188,7 +188,7 @@
 
     <el-dialog
       v-model="editDialogVisible"
-      title="编辑补货建议"
+      :title="t('inventoryReplenishment.editTitle')"
       width="560px"
       destroy-on-close
     >
@@ -198,19 +198,19 @@
         :rules="editRules"
         label-width="100px"
       >
-        <el-form-item label="建议编号">
+        <el-form-item :label="t('inventoryReplenishment.suggestionNo')">
           <el-input v-model="editForm.suggestionNo" disabled />
         </el-form-item>
-        <el-form-item label="仓库">
+        <el-form-item :label="t('inventoryReplenishment.warehouse')">
           <el-input v-model="editForm.warehouseName" disabled />
         </el-form-item>
-        <el-form-item label="产品">
+        <el-form-item :label="t('inventoryReplenishment.product')">
           <el-input v-model="editForm.productName" disabled />
         </el-form-item>
-        <el-form-item label="供应商">
+        <el-form-item :label="t('inventoryReplenishment.supplier')">
           <el-select
             v-model="editForm.supplierId"
-            placeholder="请选择供应商"
+            :placeholder="t('inventoryReplenishment.selectSupplier')"
             clearable
             filterable
             style="width: 100%"
@@ -223,7 +223,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="建议数量" prop="suggestedQty">
+        <el-form-item :label="t('inventoryReplenishment.suggestedQty')" prop="suggestedQty">
           <el-input-number
             v-model="editForm.suggestedQty"
             :min="0.0001"
@@ -232,16 +232,16 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="预计到货">
+        <el-form-item :label="t('inventoryReplenishment.expectedArrival')">
           <el-date-picker
             v-model="editForm.expectedArrivalDate"
             type="date"
             value-format="YYYY-MM-DD"
-            placeholder="请选择预计到货日期"
+            :placeholder="t('inventoryReplenishment.expectedArrivalPlaceholder')"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="t('inventoryReplenishment.remark')">
           <el-input
             v-model="editForm.remark"
             type="textarea"
@@ -252,9 +252,9 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button @click="editDialogVisible = false">{{ t('inventoryReplenishment.cancel') }}</el-button>
         <el-button type="primary" :loading="editSubmitting" @click="submitEdit">
-          保存
+          {{ t('inventoryReplenishment.save') }}
         </el-button>
       </template>
     </el-dialog>
@@ -262,8 +262,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 import {
@@ -284,6 +285,7 @@ import {
 } from '@/api/masterdata'
 
 const router = useRouter()
+const { t } = useI18n()
 const loading = ref(false)
 const tableData = ref<InventoryReplenishmentSuggestion[]>([])
 const total = ref(0)
@@ -306,13 +308,13 @@ const editForm = reactive({
   remark: ''
 })
 
-const editRules: FormRules = {
+const editRules = computed<FormRules>(() => ({
   suggestedQty: [
-    { required: true, message: '请输入建议数量', trigger: 'blur' },
+    { required: true, message: t('inventoryReplenishment.validation.quantityRequired'), trigger: 'blur' },
     {
       validator: (_rule, value, callback) => {
         if (Number(value) <= 0) {
-          callback(new Error('建议数量必须大于0'))
+          callback(new Error(t('inventoryReplenishment.validation.quantityPositive')))
           return
         }
         callback()
@@ -320,16 +322,16 @@ const editRules: FormRules = {
       trigger: 'blur'
     }
   ]
-}
+}))
 
-const fulfillmentStatusMap: Record<string, { label: string; type: 'primary' | 'success' | 'warning' | 'info' | 'danger' }> = {
-  SUGGESTED: { label: '待转采购', type: 'warning' },
-  PURCHASE_CREATED: { label: '已生成采购', type: 'primary' },
-  PARTIAL_RECEIVED: { label: '部分到货', type: 'warning' },
-  REPLENISHED: { label: '已补足', type: 'success' },
-  PURCHASE_CLOSED: { label: '采购关闭', type: 'info' },
-  CANCELLED: { label: '已取消', type: 'info' }
-}
+const fulfillmentStatusMap = computed<Record<string, { label: string; type: 'primary' | 'success' | 'warning' | 'info' | 'danger' }>>(() => ({
+  SUGGESTED: { label: t('inventoryReplenishment.fulfillment.suggested'), type: 'warning' },
+  PURCHASE_CREATED: { label: t('inventoryReplenishment.fulfillment.purchaseCreated'), type: 'primary' },
+  PARTIAL_RECEIVED: { label: t('inventoryReplenishment.fulfillment.partialReceived'), type: 'warning' },
+  REPLENISHED: { label: t('inventoryReplenishment.fulfillment.replenished'), type: 'success' },
+  PURCHASE_CLOSED: { label: t('inventoryReplenishment.fulfillment.purchaseClosed'), type: 'info' },
+  CANCELLED: { label: t('inventoryReplenishment.fulfillment.cancelled'), type: 'info' }
+}))
 
 const queryParams = reactive<InventoryReplenishmentSuggestionQuery>({
   pageNo: 1,
@@ -343,7 +345,7 @@ const queryParams = reactive<InventoryReplenishmentSuggestionQuery>({
   createdTimeTo: undefined
 })
 
-const fulfillmentStatusMeta = (status?: string) => fulfillmentStatusMap[status || ''] || {
+const fulfillmentStatusMeta = (status?: string) => fulfillmentStatusMap.value[status || ''] || {
   label: status || '-',
   type: 'info' as const
 }
@@ -355,7 +357,7 @@ const loadData = async () => {
     tableData.value = response.records
     total.value = response.total
   } catch (error) {
-    ElMessage.error('加载补货建议失败')
+    ElMessage.error(t('inventoryReplenishment.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -412,11 +414,11 @@ const submitEdit = async () => {
       expectedArrivalDate: editForm.expectedArrivalDate || undefined,
       remark: editForm.remark || undefined
     })
-    ElMessage.success('补货建议已更新')
+    ElMessage.success(t('inventoryReplenishment.message.updated'))
     editDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error('保存补货建议失败')
+    ElMessage.error(t('inventoryReplenishment.message.saveFailed'))
   } finally {
     editSubmitting.value = false
   }
@@ -425,46 +427,46 @@ const submitEdit = async () => {
 const handleCancel = async (row: InventoryReplenishmentSuggestion) => {
   try {
     const { value } = await ElMessageBox.prompt(
-      `确认取消补货建议 ${row.suggestionNo} 吗？`,
-      '取消补货建议',
+      t('inventoryReplenishment.message.cancelConfirm', { no: row.suggestionNo }),
+      t('inventoryReplenishment.message.cancelTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('inventoryReplenishment.message.confirm'),
+        cancelButtonText: t('inventoryReplenishment.cancel'),
         inputType: 'textarea',
-        inputPlaceholder: '取消原因（选填）'
+        inputPlaceholder: t('inventoryReplenishment.message.cancelReason')
       }
     )
     await cancelInventoryReplenishmentSuggestion(row.id, value || undefined)
-    ElMessage.success('已取消')
+    ElMessage.success(t('inventoryReplenishment.message.cancelled'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('取消失败')
+      ElMessage.error(t('inventoryReplenishment.message.cancelFailed'))
     }
   }
 }
 
 const handleConvert = async (row: InventoryReplenishmentSuggestion) => {
   if (!row.supplierId) {
-    ElMessage.warning('请先为补货建议选择供应商')
+    ElMessage.warning(t('inventoryReplenishment.message.supplierRequired'))
     return
   }
   try {
     await ElMessageBox.confirm(
-      `确认将补货建议 ${row.suggestionNo} 转为采购订单吗？`,
-      '转采购订单',
+      t('inventoryReplenishment.message.convertConfirm', { no: row.suggestionNo }),
+      t('inventoryReplenishment.message.convertTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('inventoryReplenishment.message.confirm'),
+        cancelButtonText: t('inventoryReplenishment.cancel'),
         type: 'warning'
       }
     )
     const response = await convertInventoryReplenishmentSuggestion(row.id)
-    ElMessage.success(`已生成采购订单 ${response.purchaseOrderNo}`)
+    ElMessage.success(t('inventoryReplenishment.message.converted', { no: response.purchaseOrderNo }))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('转采购订单失败')
+      ElMessage.error(t('inventoryReplenishment.message.convertFailed'))
     }
   }
 }
@@ -487,7 +489,7 @@ const loadOptions = async () => {
     products.value = productPage.records
     suppliers.value = supplierPage.records
   } catch (error) {
-    ElMessage.warning('加载筛选选项失败')
+    ElMessage.warning(t('inventoryReplenishment.message.optionsLoadFailed'))
   }
 }
 

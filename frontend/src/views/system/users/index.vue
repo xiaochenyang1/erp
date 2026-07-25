@@ -2,35 +2,35 @@
   <div class="system-users-container">
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="关键词">
+        <el-form-item :label="$t('systemUsers.keyword')">
           <el-input
             v-model="queryParams.keyword"
-            placeholder="用户名/姓名/工号"
+            :placeholder="$t('systemUsers.keywordPlaceholder')"
             clearable
             style="width: 220px"
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="部门">
-          <el-select v-model="queryParams.deptId" placeholder="请选择部门" clearable style="width: 180px">
+        <el-form-item :label="$t('systemUsers.department')">
+          <el-select v-model="queryParams.deptId" :placeholder="$t('systemUsers.selectDepartment')" clearable style="width: 180px">
             <el-option v-for="dept in flatDepts" :key="dept.id" :label="dept.name" :value="dept.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="岗位">
-          <el-select v-model="queryParams.postId" placeholder="请选择岗位" clearable style="width: 180px">
+        <el-form-item :label="$t('systemUsers.post')">
+          <el-select v-model="queryParams.postId" :placeholder="$t('systemUsers.selectPost')" clearable style="width: 180px">
             <el-option v-for="post in posts" :key="post.id" :label="post.name" :value="post.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 140px">
-            <el-option label="启用" value="ACTIVE" />
-            <el-option label="停用" value="INACTIVE" />
-            <el-option label="锁定" value="LOCKED" />
+        <el-form-item :label="$t('systemUsers.status')">
+          <el-select v-model="queryParams.status" :placeholder="$t('systemUsers.selectStatus')" clearable style="width: 140px">
+            <el-option :label="$t('systemUsers.active')" value="ACTIVE" />
+            <el-option :label="$t('systemUsers.inactive')" value="INACTIVE" />
+            <el-option :label="$t('systemUsers.locked')" value="LOCKED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('systemUsers.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('systemUsers.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -38,40 +38,40 @@
     <el-card class="table-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>用户管理</span>
-          <el-button v-permission="'system:user:create'" type="primary" :icon="Plus" @click="handleCreate">新增用户</el-button>
+          <span>{{ $t('systemUsers.title') }}</span>
+          <el-button v-permission="'system:user:create'" type="primary" :icon="Plus" @click="handleCreate">{{ $t('systemUsers.addUser') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="username" label="用户名" min-width="140" fixed />
-        <el-table-column prop="employeeNo" label="工号" width="120" />
-        <el-table-column prop="realName" label="姓名" width="140" />
-        <el-table-column prop="email" label="邮箱" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="mobile" label="手机号" width="140" />
-        <el-table-column prop="deptId" label="部门" width="160">
+        <el-table-column prop="username" :label="$t('systemUsers.username')" min-width="140" fixed />
+        <el-table-column prop="employeeNo" :label="$t('systemUsers.employeeNo')" width="120" />
+        <el-table-column prop="realName" :label="$t('systemUsers.realName')" width="140" />
+        <el-table-column prop="email" :label="$t('systemUsers.email')" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="mobile" :label="$t('systemUsers.mobile')" width="140" />
+        <el-table-column prop="deptId" :label="$t('systemUsers.department')" width="160">
           <template #default="{ row }">{{ deptName(row.deptId) }}</template>
         </el-table-column>
-        <el-table-column prop="postId" label="岗位" width="160">
+        <el-table-column prop="postId" :label="$t('systemUsers.post')" width="160">
           <template #default="{ row }">{{ postName(row.postId) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="$t('systemUsers.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="角色" min-width="180" show-overflow-tooltip>
+        <el-table-column :label="$t('systemUsers.roles')" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             {{ roleNames(row.roles) }}
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
-        <el-table-column label="操作" width="460" fixed="right" align="center">
+        <el-table-column prop="remark" :label="$t('systemUsers.remark')" min-width="180" show-overflow-tooltip />
+        <el-table-column :label="$t('systemUsers.operations')" width="460" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button v-permission="'system:user:update'" link type="primary" :icon="Edit" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-permission="'system:user:assign-role'" link type="primary" :icon="UserFilled" @click="handleAssignRoles(row)">角色</el-button>
-            <el-button v-permission="'system:user:assign-data-scope'" link type="primary" @click="handleAssignDataScope(row)">数据范围</el-button>
-            <el-button v-permission="'system:user:reset-password'" link type="warning" :icon="Key" @click="handleResetPassword(row)">重置密码</el-button>
+            <el-button v-permission="'system:user:update'" link type="primary" :icon="Edit" @click="handleEdit(row)">{{ $t('systemUsers.edit') }}</el-button>
+            <el-button v-permission="'system:user:assign-role'" link type="primary" :icon="UserFilled" @click="handleAssignRoles(row)">{{ $t('systemUsers.roles') }}</el-button>
+            <el-button v-permission="'system:user:assign-data-scope'" link type="primary" @click="handleAssignDataScope(row)">{{ $t('systemUsers.dataScope') }}</el-button>
+            <el-button v-permission="'system:user:reset-password'" link type="warning" :icon="Key" @click="handleResetPassword(row)">{{ $t('systemUsers.resetPassword') }}</el-button>
             <el-button
               v-if="row.status !== 'INACTIVE'"
               v-permission="'system:user:disable'"
@@ -80,7 +80,7 @@
               :icon="Delete"
               @click="handleDisable(row)"
             >
-              停用
+              {{ $t('systemUsers.disable') }}
             </el-button>
             <el-button
               v-else
@@ -89,7 +89,7 @@
               type="success"
               @click="handleEnable(row)"
             >
-              启用
+              {{ $t('systemUsers.enable') }}
             </el-button>
           </template>
         </el-table-column>
@@ -108,80 +108,80 @@
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="640px" @close="resetForm">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="formData.username" placeholder="请输入用户名" :disabled="Boolean(formData.id)" />
+        <el-form-item :label="$t('systemUsers.username')" prop="username">
+          <el-input v-model="formData.username" :placeholder="$t('systemUsers.usernamePlaceholder')" :disabled="Boolean(formData.id)" />
         </el-form-item>
-        <el-form-item v-if="!formData.id" label="初始密码" prop="password">
-          <el-input v-model="formData.password" type="password" show-password placeholder="请输入初始密码" />
+        <el-form-item v-if="!formData.id" :label="$t('systemUsers.initialPassword')" prop="password">
+          <el-input v-model="formData.password" type="password" show-password :placeholder="$t('systemUsers.initialPasswordPlaceholder')" />
         </el-form-item>
-        <el-form-item label="工号">
-          <el-input v-model="formData.employeeNo" placeholder="请输入工号" />
+        <el-form-item :label="$t('systemUsers.employeeNo')">
+          <el-input v-model="formData.employeeNo" :placeholder="$t('systemUsers.employeeNoPlaceholder')" />
         </el-form-item>
-        <el-form-item label="姓名" prop="realName">
-          <el-input v-model="formData.realName" placeholder="请输入姓名" />
+        <el-form-item :label="$t('systemUsers.realName')" prop="realName">
+          <el-input v-model="formData.realName" :placeholder="$t('systemUsers.realNamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="formData.email" placeholder="请输入邮箱" />
+        <el-form-item :label="$t('systemUsers.email')" prop="email">
+          <el-input v-model="formData.email" :placeholder="$t('systemUsers.emailPlaceholder')" />
         </el-form-item>
-        <el-form-item label="手机号">
-          <el-input v-model="formData.mobile" placeholder="请输入手机号" />
+        <el-form-item :label="$t('systemUsers.mobile')">
+          <el-input v-model="formData.mobile" :placeholder="$t('systemUsers.mobilePlaceholder')" />
         </el-form-item>
-        <el-form-item label="头像URL">
-          <el-input v-model="formData.avatar" placeholder="可选，头像图片地址" />
+        <el-form-item :label="$t('systemUsers.avatarUrl')">
+          <el-input v-model="formData.avatar" :placeholder="$t('systemUsers.avatarPlaceholder')" />
         </el-form-item>
-        <el-form-item label="部门">
-          <el-select v-model="formData.deptId" placeholder="请选择部门" clearable style="width: 100%">
+        <el-form-item :label="$t('systemUsers.department')">
+          <el-select v-model="formData.deptId" :placeholder="$t('systemUsers.selectDepartment')" clearable style="width: 100%">
             <el-option v-for="dept in flatDepts" :key="dept.id" :label="dept.name" :value="dept.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="岗位">
-          <el-select v-model="formData.postId" placeholder="请选择岗位" clearable style="width: 100%">
+        <el-form-item :label="$t('systemUsers.post')">
+          <el-select v-model="formData.postId" :placeholder="$t('systemUsers.selectPost')" clearable style="width: 100%">
             <el-option v-for="post in posts" :key="post.id" :label="post.name" :value="post.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="formData.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+        <el-form-item :label="$t('systemUsers.remark')">
+          <el-input v-model="formData.remark" type="textarea" :rows="3" :placeholder="$t('systemUsers.remarkPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('systemUsers.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('systemUsers.confirm') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="roleDialogVisible" title="分配角色" width="560px" destroy-on-close>
+    <el-dialog v-model="roleDialogVisible" :title="$t('systemUsers.assignRoles')" width="560px" destroy-on-close>
       <div v-loading="roleLoading">
         <el-alert
           class="role-alert"
-          :title="`当前用户：${currentUsername || '-'}`"
+          :title="$t('systemUsers.currentUser', { username: currentUsername || '-' })"
           type="info"
           show-icon
           :closable="false"
         />
         <el-checkbox-group v-model="selectedRoleIds" class="role-list">
           <el-checkbox v-for="role in roles" :key="role.id" :label="role.id">
-            {{ role.name }}（{{ role.code }}）
+            {{ $t('systemUsers.roleOption', { name: role.name, code: role.code }) }}
           </el-checkbox>
         </el-checkbox-group>
       </div>
       <template #footer>
-        <el-button @click="roleDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="roleSubmitLoading" @click="submitRoleAssignment">保存</el-button>
+        <el-button @click="roleDialogVisible = false">{{ $t('systemUsers.cancel') }}</el-button>
+        <el-button type="primary" :loading="roleSubmitLoading" @click="submitRoleAssignment">{{ $t('systemUsers.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="dataScopeDialogVisible" title="配置数据范围" width="640px" destroy-on-close>
+    <el-dialog v-model="dataScopeDialogVisible" :title="$t('systemUsers.dataScopeDialog')" width="640px" destroy-on-close>
       <div v-loading="dataScopeLoading">
         <el-alert
           class="role-alert"
-          :title="`当前用户：${currentUsername || '-'}`"
+          :title="$t('systemUsers.currentUser', { username: currentUsername || '-' })"
           type="info"
           show-icon
           :closable="false"
-          description="下方开关仅编辑用户级追加范围；生效范围 = 用户配置 ∪ 角色配置。勾选「全部数据」时忽略其它用户级项。"
+          :description="$t('systemUsers.dataScopeDescription')"
         />
         <div class="effective-scope-box">
-          <div class="effective-scope-title">当前生效范围（含角色并集）</div>
+          <div class="effective-scope-title">{{ $t('systemUsers.effectiveScope') }}</div>
           <div class="effective-scope-tags">
             <template v-if="effectiveScopeSummary.tags.length">
               <el-tag
@@ -194,23 +194,23 @@
                 {{ tag }}
               </el-tag>
             </template>
-            <span v-else class="effective-scope-empty">无生效范围（列表将不可见业务数据）</span>
+            <span v-else class="effective-scope-empty">{{ $t('systemUsers.noEffectiveScope') }}</span>
           </div>
         </div>
         <el-form label-width="110px" class="data-scope-form">
-          <el-form-item label="全部数据">
+          <el-form-item :label="$t('systemUsers.allData')">
             <el-switch v-model="dataScopeForm.hasAllScope" />
           </el-form-item>
-          <el-form-item label="本部门">
+          <el-form-item :label="$t('systemUsers.ownDepartment')">
             <el-switch v-model="dataScopeForm.deptScoped" :disabled="dataScopeForm.hasAllScope" />
           </el-form-item>
-          <el-form-item label="本岗位">
+          <el-form-item :label="$t('systemUsers.ownPost')">
             <el-switch v-model="dataScopeForm.postScoped" :disabled="dataScopeForm.hasAllScope" />
           </el-form-item>
-          <el-form-item label="仅本人">
+          <el-form-item :label="$t('systemUsers.selfOnly')">
             <el-switch v-model="dataScopeForm.selfScoped" :disabled="dataScopeForm.hasAllScope" />
           </el-form-item>
-          <el-form-item label="仓库范围">
+          <el-form-item :label="$t('systemUsers.warehouseScope')">
             <el-select
               v-model="dataScopeForm.warehouseIds"
               multiple
@@ -219,7 +219,7 @@
               collapse-tags
               collapse-tags-tooltip
               :disabled="dataScopeForm.hasAllScope"
-              placeholder="选择可见仓库"
+              :placeholder="$t('systemUsers.selectWarehouses')"
               style="width: 100%"
             >
               <el-option
@@ -233,8 +233,8 @@
         </el-form>
       </div>
       <template #footer>
-        <el-button @click="dataScopeDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="dataScopeSubmitLoading" @click="submitDataScopeAssignment">保存</el-button>
+        <el-button @click="dataScopeDialogVisible = false">{{ $t('systemUsers.cancel') }}</el-button>
+        <el-button type="primary" :loading="dataScopeSubmitLoading" @click="submitDataScopeAssignment">{{ $t('systemUsers.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -242,6 +242,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Delete, Edit, Key, Plus, Refresh, Search, UserFilled } from '@element-plus/icons-vue'
 import {
@@ -266,6 +267,8 @@ import {
   type UserQuery
 } from '@/api/system'
 import { getWarehouses, type Warehouse } from '@/api/masterdata'
+
+const { t } = useI18n()
 
 type UserForm = {
   id?: string
@@ -323,15 +326,17 @@ const effectiveScope = reactive({
 })
 const effectiveScopeSummary = computed(() => {
   if (effectiveScope.hasAllScope) {
-    return { tags: ['全部数据'] }
+    return { tags: [t('systemUsers.allData')] }
   }
   const tags: string[] = []
-  if (effectiveScope.deptScoped) tags.push('本部门')
-  if (effectiveScope.postScoped) tags.push('本岗位')
-  if (effectiveScope.selfScoped) tags.push('仅本人')
+  if (effectiveScope.deptScoped) tags.push(t('systemUsers.ownDepartment'))
+  if (effectiveScope.postScoped) tags.push(t('systemUsers.ownPost'))
+  if (effectiveScope.selfScoped) tags.push(t('systemUsers.selfOnly'))
   for (const id of effectiveScope.warehouseIds) {
     const warehouse = warehouses.value.find((item) => String(item.id) === String(id))
-    tags.push(warehouse ? `仓:${warehouseOptionLabel(warehouse)}` : `仓库 ${id}`)
+    tags.push(warehouse
+      ? t('systemUsers.warehouseScopeTag', { warehouse: warehouseOptionLabel(warehouse) })
+      : t('systemUsers.warehouseFallback', { id }))
   }
   return { tags }
 })
@@ -352,12 +357,12 @@ const formData = reactive<UserForm>({
   remark: ''
 })
 
-const formRules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入初始密码', trigger: 'blur' }],
-  realName: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }]
-}
+const formRules = computed<FormRules>(() => ({
+  username: [{ required: true, message: t('systemUsers.usernamePlaceholder'), trigger: 'blur' }],
+  password: [{ required: true, message: t('systemUsers.initialPasswordPlaceholder'), trigger: 'blur' }],
+  realName: [{ required: true, message: t('systemUsers.realNamePlaceholder'), trigger: 'blur' }],
+  email: [{ type: 'email', message: t('systemUsers.validation.email'), trigger: 'blur' }]
+}))
 
 const flatDepts = computed(() => {
   const result: Dept[] = []
@@ -383,8 +388,8 @@ const loadData = async () => {
     tableData.value = page.records
     total.value = page.total
   } catch (error) {
-    console.error('加载用户列表失败:', error)
-    ElMessage.error('加载用户列表失败')
+    console.error(t('systemUsers.message.loadFailed'), error)
+    ElMessage.error(t('systemUsers.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -412,13 +417,13 @@ const handleReset = () => {
 }
 
 const handleCreate = () => {
-  dialogTitle.value = '新增用户'
+  dialogTitle.value = t('systemUsers.dialog.add')
   resetForm()
   dialogVisible.value = true
 }
 
 const handleEdit = async (row: User) => {
-  dialogTitle.value = '编辑用户'
+  dialogTitle.value = t('systemUsers.dialog.edit')
   try {
     const user = await getUser(row.id)
     Object.assign(formData, {
@@ -436,7 +441,7 @@ const handleEdit = async (row: User) => {
     })
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载用户详情失败')
+    ElMessage.error(t('systemUsers.message.detailLoadFailed'))
   }
 }
 
@@ -453,7 +458,7 @@ const handleAssignRoles = async (row: User) => {
     const assignment = await getAssignedUserRoles(row.id)
     selectedRoleIds.value = assignment.roleIds
   } catch (error) {
-    ElMessage.error('加载用户角色失败')
+    ElMessage.error(t('systemUsers.message.rolesLoadFailed'))
   } finally {
     roleLoading.value = false
   }
@@ -461,17 +466,17 @@ const handleAssignRoles = async (row: User) => {
 
 const submitRoleAssignment = async () => {
   if (selectedRoleIds.value.length === 0) {
-    ElMessage.warning('请至少选择一个角色')
+    ElMessage.warning(t('systemUsers.message.roleRequired'))
     return
   }
   roleSubmitLoading.value = true
   try {
     await assignUserRoles(currentUserId.value, selectedRoleIds.value)
-    ElMessage.success('角色分配成功')
+    ElMessage.success(t('systemUsers.message.rolesSaved'))
     roleDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error('角色分配失败')
+    ElMessage.error(t('systemUsers.message.rolesSaveFailed'))
   } finally {
     roleSubmitLoading.value = false
   }
@@ -523,7 +528,7 @@ const handleAssignDataScope = async (row: User) => {
     applyEffectiveScope(scope)
   } catch (error) {
     resetDataScopeForm()
-    ElMessage.error('加载数据范围失败')
+    ElMessage.error(t('systemUsers.message.dataScopeLoadFailed'))
   } finally {
     dataScopeLoading.value = false
   }
@@ -541,10 +546,10 @@ const submitDataScopeAssignment = async () => {
       warehouseIds: dataScopeForm.warehouseIds
     })
     applyEffectiveScope(saved)
-    ElMessage.success('数据范围已保存（下次请求即生效）')
+    ElMessage.success(t('systemUsers.message.dataScopeSaved'))
     dataScopeDialogVisible.value = false
   } catch (error) {
-    ElMessage.error('保存数据范围失败')
+    ElMessage.error(t('systemUsers.message.dataScopeSaveFailed'))
   } finally {
     dataScopeSubmitLoading.value = false
   }
@@ -579,15 +584,15 @@ const handleSubmit = async () => {
           postId: payload.postId,
           remark: payload.remark
         })
-        ElMessage.success('更新成功')
+        ElMessage.success(t('systemUsers.message.updateSuccess'))
       } else {
         await createUser(payload)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('systemUsers.message.createSuccess'))
       }
       dialogVisible.value = false
       loadData()
     } catch (error) {
-      ElMessage.error('保存用户失败')
+      ElMessage.error(t('systemUsers.message.saveFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -596,43 +601,43 @@ const handleSubmit = async () => {
 
 const handleDisable = async (row: User) => {
   try {
-    await ElMessageBox.confirm(`确定停用用户"${row.username}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('systemUsers.message.disableConfirm', { username: row.username }), t('systemUsers.prompt'), { type: 'warning' })
     await deleteUser(row.id)
-    ElMessage.success('停用成功')
+    ElMessage.success(t('systemUsers.message.disableSuccess'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('停用失败')
+      ElMessage.error(t('systemUsers.message.disableFailed'))
     }
   }
 }
 
 const handleEnable = async (row: User) => {
   try {
-    await ElMessageBox.confirm(`确定启用用户"${row.username}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('systemUsers.message.enableConfirm', { username: row.username }), t('systemUsers.prompt'), { type: 'warning' })
     await enableUser(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(t('systemUsers.message.enableSuccess'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(t('systemUsers.message.enableFailed'))
     }
   }
 }
 
 const handleResetPassword = async (row: User) => {
   try {
-    const { value } = await ElMessageBox.prompt('请输入新密码', `重置 ${row.username} 密码`, {
+    const { value } = await ElMessageBox.prompt(t('systemUsers.message.newPassword'), t('systemUsers.message.resetPasswordTitle', { username: row.username }), {
       inputType: 'password',
-      inputPlaceholder: '至少满足后端强密码规则',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消'
+      inputPlaceholder: t('systemUsers.message.passwordRule'),
+      confirmButtonText: t('systemUsers.confirm'),
+      cancelButtonText: t('systemUsers.cancel')
     })
     await resetUserPassword(row.id, value)
-    ElMessage.success('密码已重置')
+    ElMessage.success(t('systemUsers.message.passwordReset'))
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('重置密码失败')
+      ElMessage.error(t('systemUsers.message.passwordResetFailed'))
     }
   }
 }
@@ -654,15 +659,21 @@ const resetForm = () => {
   })
 }
 
-const deptName = (id?: string) => (id ? deptMap.value.get(String(id)) || `部门 ${id}` : '-')
-const postName = (id?: string) => (id ? postMap.value.get(String(id)) || `岗位 ${id}` : '-')
-const roleNames = (items?: Role[]) => (items?.length ? items.map((role) => role.name || role.code).join('、') : '-')
+const deptName = (id?: string) => (id ? deptMap.value.get(String(id)) || t('systemUsers.departmentFallback', { id }) : '-')
+const postName = (id?: string) => (id ? postMap.value.get(String(id)) || t('systemUsers.postFallback', { id }) : '-')
+const roleNames = (items?: Role[]) => (items?.length
+  ? items.map((role) => role.name || role.code).join(t('systemUsers.listSeparator'))
+  : '-')
 const warehouseOptionLabel = (warehouse: Warehouse) => {
-  const name = warehouse.name || warehouse.warehouseName || `仓库 ${warehouse.id}`
+  const name = warehouse.name || warehouse.warehouseName || t('systemUsers.warehouseFallback', { id: warehouse.id })
   const code = warehouse.code || warehouse.warehouseCode
-  return code ? `${name}（${code}）` : name
+  return code ? t('systemUsers.warehouseOption', { name, code }) : name
 }
-const statusText = (status: string) => ({ ACTIVE: '启用', INACTIVE: '停用', LOCKED: '锁定' }[status] || status)
+const statusText = (status: string) => ({
+  ACTIVE: t('systemUsers.active'),
+  INACTIVE: t('systemUsers.inactive'),
+  LOCKED: t('systemUsers.locked')
+}[status] || status)
 const statusType = (status: string) => {
   if (status === 'ACTIVE') return 'success'
   if (status === 'LOCKED') return 'warning'
@@ -673,7 +684,7 @@ onMounted(async () => {
   try {
     await loadOptions()
   } catch (error) {
-    console.error('加载用户筛选项失败:', error)
+    console.error(t('systemUsers.message.optionsLoadFailed'), error)
   }
   loadData()
 })

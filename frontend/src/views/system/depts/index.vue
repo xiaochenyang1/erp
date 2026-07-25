@@ -3,11 +3,11 @@
     <el-card class="toolbar-card" shadow="never">
       <el-button v-permission="'system:dept:create'" type="primary" @click="handleCreate(null)">
         <el-icon><Plus /></el-icon>
-        新增部门
+        {{ $t('systemDept.create') }}
       </el-button>
       <el-button @click="expandAll">
         <el-icon><DCaret /></el-icon>
-        展开/折叠
+        {{ $t('systemDept.expandCollapse') }}
       </el-button>
     </el-card>
 
@@ -20,23 +20,23 @@
         border
         :tree-props="{ children: 'children' }"
       >
-        <el-table-column prop="name" label="部门名称" width="200" />
-        <el-table-column prop="code" label="部门编码" width="150" />
-        <el-table-column prop="manager" label="负责人" width="120" />
-        <el-table-column prop="contact" label="联系方式" width="150" />
-        <el-table-column prop="orderNum" label="排序" width="80" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="name" :label="$t('systemDept.name')" width="200" />
+        <el-table-column prop="code" :label="$t('systemDept.code')" width="150" />
+        <el-table-column prop="manager" :label="$t('systemDept.manager')" width="120" />
+        <el-table-column prop="contact" :label="$t('systemDept.contact')" width="150" />
+        <el-table-column prop="orderNum" :label="$t('systemDept.order')" width="80" />
+        <el-table-column prop="status" :label="$t('systemDept.status')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'ACTIVE'" type="success">正常</el-tag>
-            <el-tag v-else type="danger">停用</el-tag>
+            <el-tag v-if="row.status === 'ACTIVE'" type="success">{{ $t('systemDept.active') }}</el-tag>
+            <el-tag v-else type="danger">{{ $t('systemDept.inactive') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column :label="$t('systemDept.actions')" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="'system:dept:create'" link type="primary" @click="handleCreate(row)">新增</el-button>
-            <el-button v-permission="'system:dept:update'" link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-if="row.status === 'ACTIVE'" v-permission="'system:dept:disable'" link type="danger" @click="handleDisable(row)">停用</el-button>
-            <el-button v-else v-permission="'system:dept:enable'" link type="success" @click="handleEnable(row)">启用</el-button>
+            <el-button v-permission="'system:dept:create'" link type="primary" @click="handleCreate(row)">{{ $t('systemDept.add') }}</el-button>
+            <el-button v-permission="'system:dept:update'" link type="primary" @click="handleEdit(row)">{{ $t('systemDept.edit') }}</el-button>
+            <el-button v-if="row.status === 'ACTIVE'" v-permission="'system:dept:disable'" link type="danger" @click="handleDisable(row)">{{ $t('systemDept.disable') }}</el-button>
+            <el-button v-else v-permission="'system:dept:enable'" link type="success" @click="handleEnable(row)">{{ $t('systemDept.enable') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -44,50 +44,53 @@
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <el-form-item label="上级部门">
+        <el-form-item :label="$t('systemDept.parent')">
           <el-tree-select
             v-model="formData.parentId"
             :data="deptTree"
             :props="{ label: 'name', value: 'id' }"
-            placeholder="请选择上级部门"
+            :placeholder="$t('systemDept.selectParent')"
             clearable
           />
         </el-form-item>
-        <el-form-item label="部门名称" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入部门名称" />
+        <el-form-item :label="$t('systemDept.name')" prop="name">
+          <el-input v-model="formData.name" :placeholder="$t('systemDept.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="部门编码">
-          <el-input v-model="formData.code" placeholder="请输入部门编码" />
+        <el-form-item :label="$t('systemDept.code')">
+          <el-input v-model="formData.code" :placeholder="$t('systemDept.codePlaceholder')" />
         </el-form-item>
-        <el-form-item label="负责人">
-          <el-input v-model="formData.manager" placeholder="请输入负责人" />
+        <el-form-item :label="$t('systemDept.manager')">
+          <el-input v-model="formData.manager" :placeholder="$t('systemDept.managerPlaceholder')" />
         </el-form-item>
-        <el-form-item label="联系方式">
-          <el-input v-model="formData.contact" placeholder="请输入联系方式" />
+        <el-form-item :label="$t('systemDept.contact')">
+          <el-input v-model="formData.contact" :placeholder="$t('systemDept.contactPlaceholder')" />
         </el-form-item>
-        <el-form-item label="排序" prop="orderNum">
+        <el-form-item :label="$t('systemDept.order')" prop="orderNum">
           <el-input-number v-model="formData.orderNum" :min="0" />
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="$t('systemDept.status')">
           <el-radio-group v-model="formData.status">
-            <el-radio value="ACTIVE">正常</el-radio>
-            <el-radio value="INACTIVE">停用</el-radio>
+            <el-radio value="ACTIVE">{{ $t('systemDept.active') }}</el-radio>
+            <el-radio value="INACTIVE">{{ $t('systemDept.inactive') }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('systemDept.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('systemDept.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getDeptTree, getDept, createDept, updateDept, deleteDept, enableDept, type Dept, type DeptSaveRequest } from '@/api/system'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const tableData = ref<Dept[]>([])
@@ -110,19 +113,19 @@ const formData = reactive<DeptSaveRequest>({
   status: 'ACTIVE'
 })
 
-const formRules: FormRules = {
-  name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }],
-  orderNum: [{ required: true, message: '请输入排序', trigger: 'blur' }]
-}
+const formRules = computed<FormRules>(() => ({
+  name: [{ required: true, message: t('systemDept.validation.name'), trigger: 'blur' }],
+  orderNum: [{ required: true, message: t('systemDept.validation.order'), trigger: 'blur' }]
+}))
 
 const loadData = async () => {
   loading.value = true
   try {
     const data = await getDeptTree()
     tableData.value = data
-    deptTree.value = [{ id: 0, name: '顶级部门', children: data } as any]
-  } catch (error) {
-    ElMessage.error('加载数据失败')
+    deptTree.value = [{ id: 0, name: t('systemDept.root'), children: data } as any]
+  } catch {
+    ElMessage.error(t('systemDept.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -133,7 +136,7 @@ const expandAll = () => {
 }
 
 const handleCreate = (row: Dept | null) => {
-  dialogTitle.value = '新增部门'
+  dialogTitle.value = t('systemDept.create')
   isEdit.value = false
   resetForm()
   if (row) {
@@ -143,48 +146,48 @@ const handleCreate = (row: Dept | null) => {
 }
 
 const handleEdit = async (row: Dept) => {
-  dialogTitle.value = '编辑部门'
+  dialogTitle.value = t('systemDept.editTitle')
   isEdit.value = true
   currentId.value = row.id
   try {
     const data = await getDept(row.id)
     Object.assign(formData, data)
     dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error('加载详情失败')
+  } catch {
+    ElMessage.error(t('systemDept.message.detailLoadFailed'))
   }
 }
 
 const handleDisable = async (row: Dept) => {
   try {
-    await ElMessageBox.confirm(`确认停用部门"${row.name}"吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('systemDept.message.disableConfirm', { name: row.name }), t('systemDept.message.prompt'), {
+      confirmButtonText: t('systemDept.message.confirm'),
+      cancelButtonText: t('systemDept.message.cancel'),
       type: 'warning'
     })
     await deleteDept(row.id)
-    ElMessage.success('停用成功')
+    ElMessage.success(t('systemDept.message.disabled'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('停用失败')
+      ElMessage.error(t('systemDept.message.disableFailed'))
     }
   }
 }
 
 const handleEnable = async (row: Dept) => {
   try {
-    await ElMessageBox.confirm(`确认启用部门"${row.name}"吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('systemDept.message.enableConfirm', { name: row.name }), t('systemDept.message.prompt'), {
+      confirmButtonText: t('systemDept.message.confirm'),
+      cancelButtonText: t('systemDept.message.cancel'),
       type: 'warning'
     })
     await enableDept(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(t('systemDept.message.enabled'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(t('systemDept.message.enableFailed'))
     }
   }
 }
@@ -200,11 +203,11 @@ const handleSubmit = async () => {
         } else {
           await createDept(formData)
         }
-        ElMessage.success('操作成功')
+        ElMessage.success(t('systemDept.message.saved'))
         dialogVisible.value = false
         loadData()
-      } catch (error) {
-        ElMessage.error('操作失败')
+      } catch {
+        ElMessage.error(t('systemDept.message.saveFailed'))
       } finally {
         submitLoading.value = false
       }

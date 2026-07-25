@@ -1,43 +1,43 @@
 <template>
   <div class="app-container">
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-      <el-tab-pane label="操作日志" name="operation">
+      <el-tab-pane :label="$t('systemLogs.tabs.operation')" name="operation">
     <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="模块">
-          <el-input v-model="queryForm.module" placeholder="请输入模块" clearable style="width: 150px" />
+        <el-form-item :label="$t('systemLogs.module')">
+          <el-input v-model="queryForm.module" :placeholder="$t('systemLogs.modulePlaceholder')" clearable style="width: 150px" />
         </el-form-item>
-        <el-form-item label="操作">
-          <el-input v-model="queryForm.operation" placeholder="请输入操作" clearable style="width: 150px" />
+        <el-form-item :label="$t('systemLogs.operation')">
+          <el-input v-model="queryForm.operation" :placeholder="$t('systemLogs.operationPlaceholder')" clearable style="width: 150px" />
         </el-form-item>
-        <el-form-item label="业务编号">
-          <el-input v-model="queryForm.bizNo" placeholder="请输入业务编号" clearable style="width: 180px" />
+        <el-form-item :label="$t('systemLogs.businessNo')">
+          <el-input v-model="queryForm.bizNo" :placeholder="$t('systemLogs.businessNoPlaceholder')" clearable style="width: 180px" />
         </el-form-item>
-        <el-form-item label="操作人">
-          <el-input v-model="queryForm.operatorName" placeholder="请输入操作人" clearable style="width: 150px" />
+        <el-form-item :label="$t('systemLogs.operator')">
+          <el-input v-model="queryForm.operatorName" :placeholder="$t('systemLogs.operatorPlaceholder')" clearable style="width: 150px" />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable style="width: 120px">
-            <el-option label="成功" value="SUCCESS" />
-            <el-option label="失败" value="FAIL" />
+        <el-form-item :label="$t('systemLogs.status')">
+          <el-select v-model="queryForm.status" :placeholder="$t('systemLogs.select')" clearable style="width: 120px">
+            <el-option :label="$t('systemLogs.success')" value="SUCCESS" />
+            <el-option :label="$t('systemLogs.failure')" value="FAIL" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期范围">
+        <el-form-item :label="$t('systemLogs.dateRange')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="$t('systemLogs.rangeSeparator')"
+            :start-placeholder="$t('systemLogs.startDate')"
+            :end-placeholder="$t('systemLogs.endDate')"
             value-format="YYYY-MM-DD"
             style="width: 280px"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button v-permission="'system:log:view'" :icon="Download" @click="handleExport">导出</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('systemLogs.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('systemLogs.reset') }}</el-button>
+          <el-button v-permission="'system:log:view'" :icon="Download" @click="handleExport">{{ $t('systemLogs.export') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -45,65 +45,65 @@
     <!-- 表格 -->
     <el-card shadow="never" class="table-card">
       <template #header>
-        <span>操作日志</span>
+        <span>{{ $t('systemLogs.tabs.operation') }}</span>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
         <el-table-column type="expand">
           <template #default="{ row }">
             <el-descriptions :column="1" border>
-              <el-descriptions-item label="请求URL">
+              <el-descriptions-item :label="$t('systemLogs.requestUrl')">
                 {{ row.requestUrl }}
               </el-descriptions-item>
-              <el-descriptions-item label="请求方法">
+              <el-descriptions-item :label="$t('systemLogs.requestMethod')">
                 {{ row.method }}
               </el-descriptions-item>
-              <el-descriptions-item label="业务编号" v-if="row.bizNo">
+              <el-descriptions-item :label="$t('systemLogs.businessNo')" v-if="row.bizNo">
                 {{ row.bizNo }}
               </el-descriptions-item>
-              <el-descriptions-item label="日志消息" v-if="row.message">
+              <el-descriptions-item :label="$t('systemLogs.logMessage')" v-if="row.message">
                 {{ row.message }}
               </el-descriptions-item>
-              <el-descriptions-item label="请求参数" v-if="row.requestParams">
+              <el-descriptions-item :label="$t('systemLogs.requestParams')" v-if="row.requestParams">
                 <el-text tag="pre" style="max-height: 200px; overflow: auto">{{ formatJson(row.requestParams) }}</el-text>
               </el-descriptions-item>
-              <el-descriptions-item label="响应数据" v-if="row.responseData">
+              <el-descriptions-item :label="$t('systemLogs.responseData')" v-if="row.responseData">
                 <el-text tag="pre" style="max-height: 200px; overflow: auto">{{ formatJson(row.responseData) }}</el-text>
               </el-descriptions-item>
-              <el-descriptions-item label="User-Agent" v-if="row.userAgent">
+              <el-descriptions-item :label="$t('systemLogs.userAgent')" v-if="row.userAgent">
                 {{ row.userAgent }}
               </el-descriptions-item>
-              <el-descriptions-item label="错误信息" v-if="row.errorMsg">
+              <el-descriptions-item :label="$t('systemLogs.errorMessage')" v-if="row.errorMsg">
                 <el-text type="danger">{{ row.errorMsg }}</el-text>
               </el-descriptions-item>
             </el-descriptions>
           </template>
         </el-table-column>
-        <el-table-column prop="module" label="模块" width="100" />
-        <el-table-column prop="operation" label="操作" width="120" />
-        <el-table-column prop="operatorName" label="操作人" width="120" />
-        <el-table-column prop="ipAddress" label="IP地址" width="140" />
-        <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table-column prop="module" :label="$t('systemLogs.module')" width="100" />
+        <el-table-column prop="operation" :label="$t('systemLogs.operation')" width="120" />
+        <el-table-column prop="operatorName" :label="$t('systemLogs.operator')" width="120" />
+        <el-table-column prop="ipAddress" :label="$t('systemLogs.ipAddress')" width="140" />
+        <el-table-column prop="status" :label="$t('systemLogs.status')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'SUCCESS' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'SUCCESS' ? '成功' : '失败' }}
+              {{ row.status === 'SUCCESS' ? $t('systemLogs.success') : $t('systemLogs.failure') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="executionTime" label="耗时(ms)" width="100" align="right">
+        <el-table-column prop="executionTime" :label="$t('systemLogs.executionTimeMs')" width="100" align="right">
           <template #default="{ row }">
             <el-text :type="getExecutionTimeType(row.executionTime)">
               {{ row.executionTime }}
             </el-text>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="操作时间" width="190">
+        <el-table-column prop="createdAt" :label="$t('systemLogs.operationTime')" width="190">
           <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="100" align="center" fixed="right">
+        <el-table-column :label="$t('systemLogs.operations')" width="100" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleView(row)">
-              查看
+              {{ $t('systemLogs.view') }}
             </el-button>
           </template>
         </el-table-column>
@@ -124,56 +124,56 @@
 
       </el-tab-pane>
 
-      <el-tab-pane label="登录日志" name="login">
+      <el-tab-pane :label="$t('systemLogs.tabs.login')" name="login">
         <el-card shadow="never" class="search-card">
           <el-form :model="loginQueryForm" inline>
-            <el-form-item label="用户名">
-              <el-input v-model="loginQueryForm.username" placeholder="请输入用户名" clearable style="width: 180px" />
+            <el-form-item :label="$t('systemLogs.username')">
+              <el-input v-model="loginQueryForm.username" :placeholder="$t('systemLogs.usernamePlaceholder')" clearable style="width: 180px" />
             </el-form-item>
-            <el-form-item label="结果">
-              <el-select v-model="loginQueryForm.result" placeholder="请选择" clearable style="width: 120px">
-                <el-option label="成功" value="SUCCESS" />
-                <el-option label="失败" value="FAIL" />
-                <el-option label="失败" value="FAILURE" />
+            <el-form-item :label="$t('systemLogs.result')">
+              <el-select v-model="loginQueryForm.result" :placeholder="$t('systemLogs.select')" clearable style="width: 120px">
+                <el-option :label="$t('systemLogs.success')" value="SUCCESS" />
+                <el-option :label="$t('systemLogs.failure')" value="FAIL" />
+                <el-option :label="$t('systemLogs.failure')" value="FAILURE" />
               </el-select>
             </el-form-item>
-            <el-form-item label="日期范围">
+            <el-form-item :label="$t('systemLogs.dateRange')">
               <el-date-picker
                 v-model="loginDateRange"
                 type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
+                :range-separator="$t('systemLogs.rangeSeparator')"
+                :start-placeholder="$t('systemLogs.startDate')"
+                :end-placeholder="$t('systemLogs.endDate')"
                 value-format="YYYY-MM-DD"
                 style="width: 280px"
               />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" :icon="Search" @click="handleLoginQuery">查询</el-button>
-              <el-button :icon="Refresh" @click="handleLoginReset">重置</el-button>
+              <el-button type="primary" :icon="Search" @click="handleLoginQuery">{{ $t('systemLogs.search') }}</el-button>
+              <el-button :icon="Refresh" @click="handleLoginReset">{{ $t('systemLogs.reset') }}</el-button>
             </el-form-item>
           </el-form>
         </el-card>
 
         <el-card shadow="never" class="table-card">
           <template #header>
-            <span>登录日志</span>
+            <span>{{ $t('systemLogs.tabs.login') }}</span>
           </template>
 
           <el-table v-loading="loginLoading" :data="loginTableData" border stripe>
-            <el-table-column prop="username" label="用户名" width="140" />
-            <el-table-column prop="userId" label="用户ID" width="160" show-overflow-tooltip />
-            <el-table-column prop="result" label="结果" width="100" align="center">
+            <el-table-column prop="username" :label="$t('systemLogs.username')" width="140" />
+            <el-table-column prop="userId" :label="$t('systemLogs.userId')" width="160" show-overflow-tooltip />
+            <el-table-column prop="result" :label="$t('systemLogs.result')" width="100" align="center">
               <template #default="{ row }">
                 <el-tag :type="isSuccess(row.result) ? 'success' : 'danger'" size="small">
-                  {{ isSuccess(row.result) ? '成功' : '失败' }}
+                  {{ isSuccess(row.result) ? $t('systemLogs.success') : $t('systemLogs.failure') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="message" label="消息" min-width="180" show-overflow-tooltip />
-            <el-table-column prop="loginIp" label="登录IP" width="150" />
-            <el-table-column prop="loginTime" label="登录时间" width="170" />
-            <el-table-column prop="userAgent" label="User-Agent" min-width="260" show-overflow-tooltip />
+            <el-table-column prop="message" :label="$t('systemLogs.messageLabel')" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="loginIp" :label="$t('systemLogs.loginIp')" width="150" />
+            <el-table-column prop="loginTime" :label="$t('systemLogs.loginTime')" width="170" />
+            <el-table-column prop="userAgent" :label="$t('systemLogs.userAgent')" min-width="260" show-overflow-tooltip />
           </el-table>
 
           <el-pagination
@@ -189,69 +189,69 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane label="审计日志" name="audit">
+      <el-tab-pane :label="$t('systemLogs.tabs.audit')" name="audit">
         <el-card shadow="never" class="search-card">
           <el-form :model="auditQueryForm" inline>
-            <el-form-item label="审计类型">
-              <el-input v-model="auditQueryForm.auditType" placeholder="请输入审计类型" clearable style="width: 150px" />
+            <el-form-item :label="$t('systemLogs.auditType')">
+              <el-input v-model="auditQueryForm.auditType" :placeholder="$t('systemLogs.auditTypePlaceholder')" clearable style="width: 150px" />
             </el-form-item>
-            <el-form-item label="业务类型">
-              <el-input v-model="auditQueryForm.businessType" placeholder="请输入业务类型" clearable style="width: 150px" />
+            <el-form-item :label="$t('systemLogs.businessType')">
+              <el-input v-model="auditQueryForm.businessType" :placeholder="$t('systemLogs.businessTypePlaceholder')" clearable style="width: 150px" />
             </el-form-item>
-            <el-form-item label="业务编号">
-              <el-input v-model="auditQueryForm.businessNo" placeholder="请输入业务编号" clearable style="width: 180px" />
+            <el-form-item :label="$t('systemLogs.businessNo')">
+              <el-input v-model="auditQueryForm.businessNo" :placeholder="$t('systemLogs.businessNoPlaceholder')" clearable style="width: 180px" />
             </el-form-item>
-            <el-form-item label="动作">
-              <el-input v-model="auditQueryForm.action" placeholder="请输入动作" clearable style="width: 140px" />
+            <el-form-item :label="$t('systemLogs.action')">
+              <el-input v-model="auditQueryForm.action" :placeholder="$t('systemLogs.actionPlaceholder')" clearable style="width: 140px" />
             </el-form-item>
-            <el-form-item label="操作人">
-              <el-input v-model="auditQueryForm.operatorName" placeholder="请输入操作人" clearable style="width: 150px" />
+            <el-form-item :label="$t('systemLogs.operator')">
+              <el-input v-model="auditQueryForm.operatorName" :placeholder="$t('systemLogs.operatorPlaceholder')" clearable style="width: 150px" />
             </el-form-item>
-            <el-form-item label="日期范围">
+            <el-form-item :label="$t('systemLogs.dateRange')">
               <el-date-picker
                 v-model="auditDateRange"
                 type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
+                :range-separator="$t('systemLogs.rangeSeparator')"
+                :start-placeholder="$t('systemLogs.startDate')"
+                :end-placeholder="$t('systemLogs.endDate')"
                 value-format="YYYY-MM-DD"
                 style="width: 280px"
               />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" :icon="Search" @click="handleAuditQuery">查询</el-button>
-              <el-button :icon="Refresh" @click="handleAuditReset">重置</el-button>
+              <el-button type="primary" :icon="Search" @click="handleAuditQuery">{{ $t('systemLogs.search') }}</el-button>
+              <el-button :icon="Refresh" @click="handleAuditReset">{{ $t('systemLogs.reset') }}</el-button>
             </el-form-item>
           </el-form>
         </el-card>
 
         <el-card shadow="never" class="table-card">
           <template #header>
-            <span>审计日志</span>
+            <span>{{ $t('systemLogs.tabs.audit') }}</span>
           </template>
 
           <el-table v-loading="auditLoading" :data="auditTableData" border stripe>
             <el-table-column type="expand">
               <template #default="{ row }">
                 <el-descriptions :column="1" border>
-                  <el-descriptions-item label="快照" v-if="row.snapshotJson">
+                  <el-descriptions-item :label="$t('systemLogs.snapshot')" v-if="row.snapshotJson">
                     <el-text tag="pre" style="max-height: 240px; overflow: auto">{{ formatJson(row.snapshotJson) }}</el-text>
                   </el-descriptions-item>
-                  <el-descriptions-item label="消息" v-if="row.message">
+                  <el-descriptions-item :label="$t('systemLogs.messageLabel')" v-if="row.message">
                     {{ row.message }}
                   </el-descriptions-item>
                 </el-descriptions>
               </template>
             </el-table-column>
-            <el-table-column prop="auditType" label="审计类型" width="130" />
-            <el-table-column prop="businessType" label="业务类型" width="140" />
-            <el-table-column prop="businessNo" label="业务编号" width="160" show-overflow-tooltip />
-            <el-table-column prop="businessId" label="业务ID" width="160" show-overflow-tooltip />
-            <el-table-column prop="action" label="动作" width="120" />
-            <el-table-column prop="operatorName" label="操作人" width="140" />
-            <el-table-column prop="operatorId" label="操作人ID" width="160" show-overflow-tooltip />
-            <el-table-column prop="auditTime" label="审计时间" width="170" />
-            <el-table-column prop="message" label="消息" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="auditType" :label="$t('systemLogs.auditType')" width="130" />
+            <el-table-column prop="businessType" :label="$t('systemLogs.businessType')" width="140" />
+            <el-table-column prop="businessNo" :label="$t('systemLogs.businessNo')" width="160" show-overflow-tooltip />
+            <el-table-column prop="businessId" :label="$t('systemLogs.businessId')" width="160" show-overflow-tooltip />
+            <el-table-column prop="action" :label="$t('systemLogs.action')" width="120" />
+            <el-table-column prop="operatorName" :label="$t('systemLogs.operator')" width="140" />
+            <el-table-column prop="operatorId" :label="$t('systemLogs.operatorId')" width="160" show-overflow-tooltip />
+            <el-table-column prop="auditTime" :label="$t('systemLogs.auditTime')" width="170" />
+            <el-table-column prop="message" :label="$t('systemLogs.messageLabel')" min-width="220" show-overflow-tooltip />
           </el-table>
 
           <el-pagination
@@ -269,34 +269,34 @@
     </el-tabs>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="日志详情" width="900px">
+    <el-dialog v-model="detailDialogVisible" :title="$t('systemLogs.detailTitle')" width="900px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="日志ID">{{ detailData.id }}</el-descriptions-item>
-        <el-descriptions-item label="模块">{{ detailData.module }}</el-descriptions-item>
-        <el-descriptions-item label="操作">{{ detailData.operation }}</el-descriptions-item>
-        <el-descriptions-item label="操作人">{{ detailData.operatorName }}</el-descriptions-item>
-        <el-descriptions-item label="IP地址">{{ detailData.ipAddress }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="$t('systemLogs.logId')">{{ detailData.id }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.module')">{{ detailData.module }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.operation')">{{ detailData.operation }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.operator')">{{ detailData.operatorName }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.ipAddress')">{{ detailData.ipAddress }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.status')">
           <el-tag :type="detailData.status === 'SUCCESS' ? 'success' : 'danger'">
-            {{ detailData.status === 'SUCCESS' ? '成功' : '失败' }}
+            {{ detailData.status === 'SUCCESS' ? $t('systemLogs.success') : $t('systemLogs.failure') }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="耗时">
+        <el-descriptions-item :label="$t('systemLogs.executionTime')">
           <el-text :type="getExecutionTimeType(detailData.executionTime)">
             {{ detailData.executionTime }} ms
           </el-text>
         </el-descriptions-item>
-        <el-descriptions-item label="操作时间">{{ formatLocalizedDateTime(detailData.createdAt) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="请求URL" :span="2">{{ detailData.requestUrl }}</el-descriptions-item>
-        <el-descriptions-item label="请求方法" :span="2">{{ detailData.method }}</el-descriptions-item>
-        <el-descriptions-item label="业务编号" :span="2">{{ detailData.bizNo || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="日志消息" :span="2">{{ detailData.message || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="User-Agent" :span="2">{{ detailData.userAgent }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.operationTime')">{{ formatLocalizedDateTime(detailData.createdAt) || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.requestUrl')" :span="2">{{ detailData.requestUrl }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.requestMethod')" :span="2">{{ detailData.method }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.businessNo')" :span="2">{{ detailData.bizNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.logMessage')" :span="2">{{ detailData.message || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('systemLogs.userAgent')" :span="2">{{ detailData.userAgent }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider />
 
-      <h4>请求参数</h4>
+      <h4>{{ $t('systemLogs.requestParams') }}</h4>
       <el-input
         v-model="detailData.requestParams"
         type="textarea"
@@ -307,7 +307,7 @@
 
       <el-divider v-if="detailData.responseData" />
 
-      <h4 v-if="detailData.responseData">响应数据</h4>
+      <h4 v-if="detailData.responseData">{{ $t('systemLogs.responseData') }}</h4>
       <el-input
         v-if="detailData.responseData"
         v-model="detailData.responseData"
@@ -319,7 +319,7 @@
 
       <el-divider v-if="detailData.errorMsg" />
 
-      <h4 v-if="detailData.errorMsg">错误信息</h4>
+      <h4 v-if="detailData.errorMsg">{{ $t('systemLogs.errorMessage') }}</h4>
       <el-alert
         v-if="detailData.errorMsg"
         :title="detailData.errorMsg"
@@ -329,7 +329,7 @@
       />
 
       <template #footer>
-        <el-button @click="detailDialogVisible = false">关闭</el-button>
+        <el-button @click="detailDialogVisible = false">{{ $t('systemLogs.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -337,6 +337,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Download, View } from '@element-plus/icons-vue'
@@ -356,6 +357,7 @@ import {
 import { downloadBlob } from '@/utils/download'
 import { formatLocalizedDateTime } from '@/utils/locale'
 
+const { t } = useI18n()
 const route = useRoute()
 const readQueryString = (key: string) => {
   const value = route.query[key]
@@ -434,8 +436,8 @@ const loadData = async () => {
     tableData.value = res.records || []
     pagination.total = res.total || 0
   } catch (error) {
-    console.error('加载日志失败:', error)
-    ElMessage.error('加载数据失败')
+    console.error(t('systemLogs.message.loadOperationLogsFailed'), error)
+    ElMessage.error(t('systemLogs.message.loadDataFailed'))
   } finally {
     loading.value = false
   }
@@ -448,7 +450,7 @@ const loadLoginLogs = async () => {
     loginTableData.value = res.records || []
     loginPagination.total = res.total || 0
   } catch (error) {
-    ElMessage.error('加载登录日志失败')
+    ElMessage.error(t('systemLogs.message.loadLoginLogsFailed'))
   } finally {
     loginLoading.value = false
   }
@@ -461,7 +463,7 @@ const loadAuditLogs = async () => {
     auditTableData.value = res.records || []
     auditPagination.total = res.total || 0
   } catch (error) {
-    ElMessage.error('加载审计日志失败')
+    ElMessage.error(t('systemLogs.message.loadAuditLogsFailed'))
   } finally {
     auditLoading.value = false
   }
@@ -553,7 +555,7 @@ const handleView = async (row: OperationLog) => {
     detailData.value = await getOperationLog(row.id)
     detailDialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载详情失败')
+    ElMessage.error(t('systemLogs.message.loadDetailFailed'))
   }
 }
 
@@ -562,10 +564,10 @@ const handleExport = async () => {
   try {
     syncDateRange()
     const blob = await exportOperationLogs(buildQueryParams())
-    downloadBlob(blob, `操作日志_${Date.now()}.csv`)
-    ElMessage.success('导出成功')
+    downloadBlob(blob, `${t('systemLogs.exportFileName')}_${Date.now()}.csv`)
+    ElMessage.success(t('systemLogs.message.exportSuccess'))
   } catch (error) {
-    ElMessage.error('导出失败')
+    ElMessage.error(t('systemLogs.message.exportFailed'))
   }
 }
 

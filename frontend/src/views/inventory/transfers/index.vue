@@ -3,18 +3,18 @@
     <!-- 查询表单 -->
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="调拨单号">
+        <el-form-item :label="$t('inventoryTransfers.transferNo')">
           <el-input
             v-model="queryParams.transferNo"
-            placeholder="请输入调拨单号"
+            :placeholder="$t('inventoryTransfers.placeholder.transferNo')"
             clearable
             style="width: 200px"
           />
         </el-form-item>
-        <el-form-item label="调出仓库">
+        <el-form-item :label="$t('inventoryTransfers.fromWarehouse')">
           <el-select
             v-model="queryParams.fromWarehouseId"
-            placeholder="请选择调出仓库"
+            :placeholder="$t('inventoryTransfers.placeholder.fromWarehouse')"
             clearable
             style="width: 180px"
           >
@@ -26,10 +26,10 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="调入仓库">
+        <el-form-item :label="$t('inventoryTransfers.toWarehouse')">
           <el-select
             v-model="queryParams.toWarehouseId"
-            placeholder="请选择调入仓库"
+            :placeholder="$t('inventoryTransfers.placeholder.toWarehouse')"
             clearable
             style="width: 180px"
           >
@@ -41,25 +41,25 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="$t('inventoryTransfers.statusLabel')">
           <el-select
             v-model="queryParams.status"
-            placeholder="请选择状态"
+            :placeholder="$t('inventoryTransfers.placeholder.status')"
             clearable
             style="width: 150px"
           >
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="已完成" value="COMPLETED" />
-            <el-option label="已取消" value="CANCELLED" />
+            <el-option :label="$t('inventoryTransfers.status.draft')" value="DRAFT" />
+            <el-option :label="$t('inventoryTransfers.status.completed')" value="COMPLETED" />
+            <el-option :label="$t('inventoryTransfers.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期范围">
+        <el-form-item :label="$t('inventoryTransfers.dateRange')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="$t('inventoryTransfers.rangeSeparator')"
+            :start-placeholder="$t('inventoryTransfers.placeholder.startDate')"
+            :end-placeholder="$t('inventoryTransfers.placeholder.endDate')"
             value-format="YYYY-MM-DD"
             style="width: 240px"
           />
@@ -67,11 +67,11 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ $t('inventoryTransfers.action.search') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ $t('inventoryTransfers.action.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -81,7 +81,7 @@
     <el-card class="toolbar-card" shadow="never">
       <el-button v-permission="'inventory:transfer:create'" type="primary" @click="handleCreate">
         <el-icon><Plus /></el-icon>
-        新增调拨
+        {{ $t('inventoryTransfers.action.create') }}
       </el-button>
     </el-card>
 
@@ -93,25 +93,25 @@
         border
         stripe
       >
-        <el-table-column prop="transferNo" label="调拨单号" width="180" />
-        <el-table-column prop="fromWarehouseName" label="调出仓库" width="140" />
-        <el-table-column prop="toWarehouseName" label="调入仓库" width="140" />
-        <el-table-column prop="transferDate" label="调拨日期" width="120" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="transferNo" :label="$t('inventoryTransfers.transferNo')" width="180" />
+        <el-table-column prop="fromWarehouseName" :label="$t('inventoryTransfers.fromWarehouse')" width="140" />
+        <el-table-column prop="toWarehouseName" :label="$t('inventoryTransfers.toWarehouse')" width="140" />
+        <el-table-column prop="transferDate" :label="$t('inventoryTransfers.transferDate')" width="120" />
+        <el-table-column prop="status" :label="$t('inventoryTransfers.statusLabel')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'DRAFT'" type="info">草稿</el-tag>
-            <el-tag v-else-if="row.status === 'COMPLETED'" type="success">已完成</el-tag>
-            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">已取消</el-tag>
+            <el-tag v-if="row.status === 'DRAFT'" type="info">{{ $t('inventoryTransfers.status.draft') }}</el-tag>
+            <el-tag v-else-if="row.status === 'COMPLETED'" type="success">{{ $t('inventoryTransfers.status.completed') }}</el-tag>
+            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">{{ $t('inventoryTransfers.status.cancelled') }}</el-tag>
             <el-tag v-else type="info">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" show-overflow-tooltip />
-        <el-table-column prop="createdBy" label="创建人" width="120" />
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column prop="remark" :label="$t('inventoryTransfers.remark')" show-overflow-tooltip />
+        <el-table-column prop="createdBy" :label="$t('inventoryTransfers.createdBy')" width="120" />
+        <el-table-column prop="createdAt" :label="$t('inventoryTransfers.createdTime')" width="160" />
+        <el-table-column :label="$t('inventoryTransfers.actions')" width="250" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
-              查看
+              {{ $t('inventoryTransfers.action.view') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -120,7 +120,7 @@
               type="success"
               @click="handleShip(row)"
             >
-              过账
+              {{ $t('inventoryTransfers.action.post') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -129,7 +129,7 @@
               type="danger"
               @click="handleCancel(row)"
             >
-              取消
+              {{ $t('inventoryTransfers.action.cancel') }}
             </el-button>
           </template>
         </el-table-column>
@@ -162,10 +162,10 @@
       >
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="调出仓库" prop="fromWarehouseId">
+            <el-form-item :label="$t('inventoryTransfers.fromWarehouse')" prop="fromWarehouseId">
               <el-select
                 v-model="formData.fromWarehouseId"
-                placeholder="请选择调出仓库"
+                :placeholder="$t('inventoryTransfers.placeholder.fromWarehouse')"
                 style="width: 100%"
                 :disabled="isView"
               >
@@ -179,10 +179,10 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="调入仓库" prop="toWarehouseId">
+            <el-form-item :label="$t('inventoryTransfers.toWarehouse')" prop="toWarehouseId">
               <el-select
                 v-model="formData.toWarehouseId"
-                placeholder="请选择调入仓库"
+                :placeholder="$t('inventoryTransfers.placeholder.toWarehouse')"
                 style="width: 100%"
                 :disabled="isView"
               >
@@ -196,11 +196,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="调拨日期" prop="transferDate">
+            <el-form-item :label="$t('inventoryTransfers.transferDate')" prop="transferDate">
               <el-date-picker
                 v-model="formData.transferDate"
                 type="date"
-                placeholder="请选择调拨日期"
+                :placeholder="$t('inventoryTransfers.placeholder.transferDate')"
                 style="width: 100%"
                 value-format="YYYY-MM-DD"
                 :disabled="isView"
@@ -208,18 +208,18 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('inventoryTransfers.remark')">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="2"
-            placeholder="请输入备注"
+            :placeholder="$t('inventoryTransfers.placeholder.remark')"
             :disabled="isView"
           />
         </el-form-item>
 
         <!-- 调拨明细 -->
-        <el-divider content-position="left">调拨明细</el-divider>
+        <el-divider content-position="left">{{ $t('inventoryTransfers.details') }}</el-divider>
         <el-button
           v-if="!isView"
           type="primary"
@@ -228,14 +228,14 @@
           style="margin-bottom: 10px"
         >
           <el-icon><Plus /></el-icon>
-          添加产品
+          {{ $t('inventoryTransfers.action.addProduct') }}
         </el-button>
         <el-table :data="formData.items" border>
-          <el-table-column label="产品" prop="productId" width="250">
+          <el-table-column :label="$t('inventoryTransfers.product')" prop="productId" width="250">
             <template #default="{ row, $index }">
               <el-select
                 v-model="row.productId"
-                placeholder="请选择产品"
+                :placeholder="$t('inventoryTransfers.placeholder.product')"
                 filterable
                 style="width: 100%"
                 :disabled="isView"
@@ -250,9 +250,9 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="产品编码" prop="productCode" width="150" />
-          <el-table-column label="产品名称" prop="productName" width="150" />
-          <el-table-column label="调拨数量" prop="quantity" width="150">
+          <el-table-column :label="$t('inventoryTransfers.productCode')" prop="productCode" width="150" />
+          <el-table-column :label="$t('inventoryTransfers.productName')" prop="productName" width="150" />
+          <el-table-column :label="$t('inventoryTransfers.transferQuantity')" prop="quantity" width="150">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.quantity"
@@ -263,23 +263,23 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="备注" prop="remark">
+          <el-table-column :label="$t('inventoryTransfers.remark')" prop="remark">
             <template #default="{ row }">
               <el-input
                 v-model="row.remark"
-                placeholder="请输入备注"
+                :placeholder="$t('inventoryTransfers.placeholder.remark')"
                 :disabled="isView"
               />
             </template>
           </el-table-column>
-          <el-table-column v-if="!isView" label="操作" width="80" fixed="right">
+          <el-table-column v-if="!isView" :label="$t('inventoryTransfers.actions')" width="80" fixed="right">
             <template #default="{ $index }">
               <el-button
                 link
                 type="danger"
                 @click="handleDeleteItem($index)"
               >
-                删除
+                {{ $t('inventoryTransfers.action.delete') }}
               </el-button>
             </template>
           </el-table-column>
@@ -287,9 +287,9 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('inventoryTransfers.action.cancel') }}</el-button>
         <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSubmit">
-          确定
+          {{ $t('inventoryTransfers.action.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -298,6 +298,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
@@ -312,6 +313,9 @@ import {
 } from '@/api/inventory'
 import { getWarehouses, type Warehouse } from '@/api/masterdata'
 import { getProducts, type Product } from '@/api/masterdata'
+import { formatBusinessDate } from '@/utils/locale'
+
+const { t } = useI18n()
 
 // 查询参数
 const queryParams = reactive<InventoryTransferQuery>({
@@ -357,9 +361,9 @@ const formData = reactive<InventoryTransferCreateRequest>({
 
 // 表单验证规则
 const formRules: FormRules = {
-  fromWarehouseId: [{ required: true, message: '请选择调出仓库', trigger: 'change' }],
-  toWarehouseId: [{ required: true, message: '请选择调入仓库', trigger: 'change' }],
-  transferDate: [{ required: true, message: '请选择调拨日期', trigger: 'change' }]
+  fromWarehouseId: [{ required: true, message: t('inventoryTransfers.validation.fromWarehouse'), trigger: 'change' }],
+  toWarehouseId: [{ required: true, message: t('inventoryTransfers.validation.toWarehouse'), trigger: 'change' }],
+  transferDate: [{ required: true, message: t('inventoryTransfers.validation.transferDate'), trigger: 'change' }]
 }
 
 // 加载数据
@@ -374,7 +378,7 @@ const loadData = async () => {
     }))
     total.value = response.total
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('inventoryTransfers.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -387,7 +391,7 @@ const loadWarehouses = async () => {
     const response = await getWarehouses(optionPageQuery)
     warehouses.value = response.records
   } catch (error) {
-    ElMessage.error('加载仓库列表失败')
+    ElMessage.error(t('inventoryTransfers.message.warehousesLoadFailed'))
   }
 }
 
@@ -398,7 +402,7 @@ const loadProducts = async () => {
     const response = await getProducts(optionPageQuery)
     products.value = response.records
   } catch (error) {
-    ElMessage.error('加载产品列表失败')
+    ElMessage.error(t('inventoryTransfers.message.productsLoadFailed'))
   }
 }
 
@@ -429,7 +433,7 @@ const handleReset = () => {
 
 // 新增
 const handleCreate = () => {
-  dialogTitle.value = '新增库存调拨'
+  dialogTitle.value = t('inventoryTransfers.dialog.create')
   isView.value = false
   resetForm()
   dialogVisible.value = true
@@ -437,31 +441,31 @@ const handleCreate = () => {
 
 // 查看
 const handleView = async (row: InventoryTransfer) => {
-  dialogTitle.value = '查看库存调拨'
+  dialogTitle.value = t('inventoryTransfers.dialog.view')
   isView.value = true
   try {
     const data = await getInventoryTransfer(row.id)
     Object.assign(formData, data)
     dialogVisible.value = true
   } catch (error) {
-    ElMessage.error('加载详情失败')
+    ElMessage.error(t('inventoryTransfers.message.detailLoadFailed'))
   }
 }
 
 // 过账
 const handleShip = async (row: InventoryTransfer) => {
   try {
-    await ElMessageBox.confirm('确认过账此库存调拨吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('inventoryTransfers.message.postConfirm'), t('inventoryTransfers.prompt'), {
+      confirmButtonText: t('inventoryTransfers.action.confirm'),
+      cancelButtonText: t('inventoryTransfers.action.cancel'),
       type: 'warning'
     })
     await shipInventoryTransfer(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('inventoryTransfers.message.success'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('inventoryTransfers.message.failed'))
     }
   }
 }
@@ -469,17 +473,17 @@ const handleShip = async (row: InventoryTransfer) => {
 // 取消
 const handleCancel = async (row: InventoryTransfer) => {
   try {
-    await ElMessageBox.confirm('确认取消此调拨单吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('inventoryTransfers.message.cancelConfirm'), t('inventoryTransfers.prompt'), {
+      confirmButtonText: t('inventoryTransfers.action.confirm'),
+      cancelButtonText: t('inventoryTransfers.action.cancel'),
       type: 'warning'
     })
     await cancelInventoryTransfer(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('inventoryTransfers.message.success'))
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败')
+      ElMessage.error(t('inventoryTransfers.message.failed'))
     }
   }
 }
@@ -512,7 +516,7 @@ const handleProductChange = (index: number) => {
   }
 }
 
-const warehouseLabel = (warehouse: Warehouse) => warehouse.name || warehouse.warehouseName || `仓库${warehouse.id}`
+const warehouseLabel = (warehouse: Warehouse) => warehouse.name || warehouse.warehouseName || t('inventoryTransfers.warehouseFallback', { id: warehouse.id })
 
 const warehouseNameById = (warehouseId: string | number) => {
   const warehouse = warehouses.value.find(item => String(item.id) === String(warehouseId))
@@ -522,7 +526,7 @@ const warehouseNameById = (warehouseId: string | number) => {
 const productLabel = (product: Product) => {
   const code = product.code || product.productCode || ''
   const name = product.name || product.productName || ''
-  return code && name ? `${code} - ${name}` : name || code || `产品${product.id}`
+  return code && name ? `${code} - ${name}` : name || code || t('inventoryTransfers.productFallback', { id: product.id })
 }
 
 // 提交表单
@@ -532,23 +536,23 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       if (formData.fromWarehouseId === formData.toWarehouseId) {
-        ElMessage.warning('调出仓库和调入仓库不能相同')
+        ElMessage.warning(t('inventoryTransfers.validation.warehousesDifferent'))
         return
       }
 
       if (formData.items.length === 0) {
-        ElMessage.warning('请至少添加一条调拨明细')
+        ElMessage.warning(t('inventoryTransfers.validation.itemRequired'))
         return
       }
 
       submitLoading.value = true
       try {
         await createInventoryTransfer(formData)
-        ElMessage.success('操作成功')
+        ElMessage.success(t('inventoryTransfers.message.success'))
         dialogVisible.value = false
         loadData()
       } catch (error) {
-        ElMessage.error('操作失败')
+        ElMessage.error(t('inventoryTransfers.message.failed'))
       } finally {
         submitLoading.value = false
       }
@@ -560,7 +564,7 @@ const handleSubmit = async () => {
 const resetForm = () => {
   formData.fromWarehouseId = 0
   formData.toWarehouseId = 0
-  formData.transferDate = new Date().toISOString().split('T')[0]
+  formData.transferDate = formatBusinessDate()
   formData.items = []
   formData.remark = ''
   formRef.value?.clearValidate()

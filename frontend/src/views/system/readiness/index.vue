@@ -3,38 +3,38 @@
     <el-card shadow="never" class="header-card">
       <div class="header-row">
         <div>
-          <div class="page-title">预生产验收</div>
-          <div class="page-subtitle">预检时间：{{ formatLocalizedDateTime(preflight.checkedAt) || '-' }}</div>
+          <div class="page-title">{{ $t('systemReadiness.title') }}</div>
+          <div class="page-subtitle">{{ $t('systemReadiness.preflightTime', { time: formatLocalizedDateTime(preflight.checkedAt) || '-' }) }}</div>
         </div>
         <div class="header-actions">
           <el-tag :type="preflightTagType(preflight.overallStatus)" size="large">
             {{ preflightStatusLabel(preflight.overallStatus) }}
           </el-tag>
-          <el-button :icon="Refresh" :loading="preflightLoading" @click="loadPreflight">刷新预检</el-button>
-          <el-button v-permission="'system:readiness:manage'" type="primary" :icon="Plus" @click="openRunDialog">新建运行单</el-button>
+          <el-button :icon="Refresh" :loading="preflightLoading" @click="loadPreflight">{{ $t('systemReadiness.refreshPreflight') }}</el-button>
+          <el-button v-permission="'system:readiness:manage'" type="primary" :icon="Plus" @click="openRunDialog">{{ $t('systemReadiness.newRun') }}</el-button>
         </div>
       </div>
     </el-card>
 
     <el-card shadow="never" class="preflight-card">
       <template #header>
-        <span>迁移前健康检查</span>
+        <span>{{ $t('systemReadiness.preflightTitle') }}</span>
       </template>
       <el-table v-loading="preflightLoading" :data="preflight.items" border stripe>
-        <el-table-column prop="code" label="检查项" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="severity" label="级别" width="90" align="center">
+        <el-table-column prop="code" :label="$t('systemReadiness.checkItem')" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="severity" :label="$t('systemReadiness.level')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="priorityTagType(row.severity)">{{ row.severity }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="110" align="center">
+        <el-table-column prop="status" :label="$t('systemReadiness.status')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="preflightTagType(row.status)">{{ preflightStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="count" label="数量" width="100" align="right" />
-        <el-table-column prop="summary" label="说明" min-width="260" show-overflow-tooltip />
-        <el-table-column label="样例" min-width="240" show-overflow-tooltip>
+        <el-table-column prop="count" :label="$t('systemReadiness.count')" width="100" align="right" />
+        <el-table-column prop="summary" :label="$t('systemReadiness.description')" min-width="260" show-overflow-tooltip />
+        <el-table-column :label="$t('systemReadiness.sample')" min-width="240" show-overflow-tooltip>
           <template #default="{ row }">{{ sampleText(row.sample) }}</template>
         </el-table-column>
       </el-table>
@@ -42,66 +42,66 @@
 
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="Commit">
-          <el-input v-model="queryForm.releaseCommit" placeholder="候选 commit" clearable style="width: 190px" />
+        <el-form-item :label="$t('systemReadiness.commit')">
+          <el-input v-model="queryForm.releaseCommit" :placeholder="$t('systemReadiness.candidateCommitPlaceholder')" clearable style="width: 190px" />
         </el-form-item>
-        <el-form-item label="环境">
-          <el-input v-model="queryForm.environment" placeholder="如 LOCAL" clearable style="width: 130px" />
+        <el-form-item :label="$t('systemReadiness.environment')">
+          <el-input v-model="queryForm.environment" :placeholder="$t('systemReadiness.environmentPlaceholder')" clearable style="width: 130px" />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable style="width: 150px">
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="进行中" value="IN_PROGRESS" />
-            <el-option label="通过" value="PASSED" />
-            <el-option label="失败" value="FAILED" />
-            <el-option label="阻塞" value="BLOCKED" />
-            <el-option label="不发布" value="NO_GO" />
+        <el-form-item :label="$t('systemReadiness.status')">
+          <el-select v-model="queryForm.status" :placeholder="$t('systemReadiness.select')" clearable style="width: 150px">
+            <el-option :label="$t('systemReadiness.statuses.draft')" value="DRAFT" />
+            <el-option :label="$t('systemReadiness.statuses.inProgress')" value="IN_PROGRESS" />
+            <el-option :label="$t('systemReadiness.statuses.passed')" value="PASSED" />
+            <el-option :label="$t('systemReadiness.statuses.failed')" value="FAILED" />
+            <el-option :label="$t('systemReadiness.statuses.blocked')" value="BLOCKED" />
+            <el-option :label="$t('systemReadiness.statuses.noGo')" value="NO_GO" />
           </el-select>
         </el-form-item>
-        <el-form-item label="决策">
-          <el-select v-model="queryForm.decision" placeholder="请选择" clearable style="width: 130px">
-            <el-option label="待决策" value="PENDING" />
-            <el-option label="Go" value="GO" />
-            <el-option label="No-Go" value="NO_GO" />
+        <el-form-item :label="$t('systemReadiness.decision')">
+          <el-select v-model="queryForm.decision" :placeholder="$t('systemReadiness.select')" clearable style="width: 130px">
+            <el-option :label="$t('systemReadiness.decisions.pending')" value="PENDING" />
+            <el-option :label="$t('systemReadiness.decisions.go')" value="GO" />
+            <el-option :label="$t('systemReadiness.decisions.noGo')" value="NO_GO" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('systemReadiness.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('systemReadiness.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="never" class="table-card">
       <template #header>
-        <span>验收运行单</span>
+        <span>{{ $t('systemReadiness.runsTitle') }}</span>
       </template>
       <el-table v-loading="runLoading" :data="runData" border stripe>
-        <el-table-column prop="runNo" label="运行单号" width="190" show-overflow-tooltip />
-        <el-table-column prop="releaseCommit" label="Commit" min-width="190" show-overflow-tooltip />
-        <el-table-column prop="releaseVersion" label="版本" width="140">
+        <el-table-column prop="runNo" :label="$t('systemReadiness.runNo')" width="190" show-overflow-tooltip />
+        <el-table-column prop="releaseCommit" :label="$t('systemReadiness.commit')" min-width="190" show-overflow-tooltip />
+        <el-table-column prop="releaseVersion" :label="$t('systemReadiness.version')" width="140">
           <template #default="{ row }">{{ row.releaseVersion || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="environment" label="环境" width="110" />
-        <el-table-column prop="status" label="状态" width="110" align="center">
+        <el-table-column prop="environment" :label="$t('systemReadiness.environment')" width="110" />
+        <el-table-column prop="status" :label="$t('systemReadiness.status')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="runStatusTagType(row.status)">{{ runStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="decision" label="决策" width="110" align="center">
+        <el-table-column prop="decision" :label="$t('systemReadiness.decision')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="decisionTagType(row.decision)">{{ decisionLabel(row.decision) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="databaseInstance" label="数据库" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="databaseInstance" :label="$t('systemReadiness.database')" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ row.databaseInstance || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="创建时间" width="190">
+        <el-table-column prop="createdTime" :label="$t('systemReadiness.createdTime')" width="190">
           <template #default="{ row }">{{ formatLocalizedDateTime(row.createdTime) || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="260" align="center" fixed="right">
+        <el-table-column :label="$t('systemReadiness.operations')" width="260" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link :icon="View" @click="openDetail(row)">详情</el-button>
+            <el-button type="primary" link :icon="View" @click="openDetail(row)">{{ $t('systemReadiness.detail') }}</el-button>
             <el-button
               v-permission="'system:readiness:manage'"
               type="success"
@@ -110,7 +110,7 @@
               :disabled="isRunClosed(row)"
               @click="handleRecordPreflight(row)"
             >
-              记录预检
+              {{ $t('systemReadiness.recordPreflight') }}
             </el-button>
             <el-button
               v-permission="'system:readiness:decide'"
@@ -120,7 +120,7 @@
               :disabled="isRunClosed(row)"
               @click="openDecisionDialog(row)"
             >
-              决策
+              {{ $t('systemReadiness.decision') }}
             </el-button>
           </template>
         </el-table-column>
@@ -139,24 +139,24 @@
 
     <el-drawer v-model="detailVisible" size="78%">
       <template #header>
-        <span>运行单详情{{ selectedDetail ? `：${selectedDetail.run.runNo}` : '' }}</span>
+        <span>{{ selectedDetail ? $t('systemReadiness.runDetailWithNo', { runNo: selectedDetail.run.runNo }) : $t('systemReadiness.runDetail') }}</span>
       </template>
       <template v-if="selectedDetail">
         <el-descriptions :column="3" border class="detail-descriptions">
-          <el-descriptions-item label="Commit">{{ selectedDetail.run.releaseCommit }}</el-descriptions-item>
-          <el-descriptions-item label="环境">{{ selectedDetail.run.environment }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ runStatusLabel(selectedDetail.run.status) }}</el-descriptions-item>
-          <el-descriptions-item label="版本">{{ selectedDetail.run.releaseVersion || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="数据库">{{ selectedDetail.run.databaseInstance || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="决策">{{ decisionLabel(selectedDetail.run.decision) }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="3">{{ selectedDetail.run.remark || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="决策说明" :span="3">
+          <el-descriptions-item :label="$t('systemReadiness.commit')">{{ selectedDetail.run.releaseCommit }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemReadiness.environment')">{{ selectedDetail.run.environment }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemReadiness.status')">{{ runStatusLabel(selectedDetail.run.status) }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemReadiness.version')">{{ selectedDetail.run.releaseVersion || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemReadiness.database')">{{ selectedDetail.run.databaseInstance || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemReadiness.decision')">{{ decisionLabel(selectedDetail.run.decision) }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemReadiness.remark')" :span="3">{{ selectedDetail.run.remark || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemReadiness.decisionComment')" :span="3">
             {{ selectedDetail.run.decisionComment || '-' }}
           </el-descriptions-item>
         </el-descriptions>
 
         <div class="detail-toolbar">
-          <div class="section-title">验收项</div>
+          <div class="section-title">{{ $t('systemReadiness.items') }}</div>
           <el-button
             v-permission="'system:readiness:manage'"
             type="primary"
@@ -164,7 +164,7 @@
             :disabled="isRunClosed(selectedDetail.run)"
             @click="openItemDialog"
           >
-            新增验收项
+            {{ $t('systemReadiness.addItem') }}
           </el-button>
         </div>
 
@@ -172,40 +172,40 @@
           <el-table-column type="expand" width="48">
             <template #default="{ row }">
               <div class="evidence-panel">
-                <el-empty v-if="row.evidence.length === 0" description="暂无证据" />
+                <el-empty v-if="row.evidence.length === 0" :description="$t('systemReadiness.noEvidence')" />
                 <el-table v-else :data="row.evidence" size="small" border>
-                  <el-table-column prop="evidenceType" label="类型" width="120" />
-                  <el-table-column prop="summary" label="摘要" min-width="220" show-overflow-tooltip />
-                  <el-table-column prop="requestUri" label="接口" min-width="220" show-overflow-tooltip>
+                  <el-table-column prop="evidenceType" :label="$t('systemReadiness.type')" width="120" />
+                  <el-table-column prop="summary" :label="$t('systemReadiness.summary')" min-width="220" show-overflow-tooltip />
+                  <el-table-column prop="requestUri" :label="$t('systemReadiness.endpoint')" min-width="220" show-overflow-tooltip>
                     <template #default="{ row: evidence }">{{ evidence.requestUri || '-' }}</template>
                   </el-table-column>
-                  <el-table-column prop="businessNo" label="业务编号" width="160" show-overflow-tooltip>
+                  <el-table-column prop="businessNo" :label="$t('systemReadiness.businessNo')" width="160" show-overflow-tooltip>
                     <template #default="{ row: evidence }">{{ evidence.businessNo || '-' }}</template>
                   </el-table-column>
-                  <el-table-column prop="recordedTime" label="记录时间" width="190">
+                  <el-table-column prop="recordedTime" :label="$t('systemReadiness.recordedTime')" width="190">
                     <template #default="{ row }">{{ formatLocalizedDateTime(row.recordedTime) || '-' }}</template>
                   </el-table-column>
                 </el-table>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="itemCode" label="编码" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="itemName" label="名称" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="category" label="分类" width="130" />
-          <el-table-column prop="priority" label="级别" width="90" align="center">
+          <el-table-column prop="itemCode" :label="$t('systemReadiness.code')" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="itemName" :label="$t('systemReadiness.name')" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="category" :label="$t('systemReadiness.category')" width="130" />
+          <el-table-column prop="priority" :label="$t('systemReadiness.level')" width="90" align="center">
             <template #default="{ row }">
               <el-tag :type="priorityTagType(row.priority)">{{ row.priority }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" width="110" align="center">
+          <el-table-column prop="status" :label="$t('systemReadiness.status')" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="itemStatusTagType(row.status)">{{ itemStatusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="expectedResult" label="预期结果" min-width="220" show-overflow-tooltip>
+          <el-table-column prop="expectedResult" :label="$t('systemReadiness.expectedResult')" min-width="220" show-overflow-tooltip>
             <template #default="{ row }">{{ row.expectedResult || '-' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="160" align="center" fixed="right">
+          <el-table-column :label="$t('systemReadiness.operations')" width="160" align="center" fixed="right">
             <template #default="{ row }">
               <el-button
                 v-permission="'system:readiness:manage'"
@@ -214,7 +214,7 @@
                 :disabled="isRunClosed(selectedDetail.run)"
                 @click="openEvidenceDialog(row)"
               >
-                证据
+                {{ $t('systemReadiness.evidence') }}
               </el-button>
               <el-button
                 v-permission="'system:readiness:manage'"
@@ -223,7 +223,7 @@
                 :disabled="isRunClosed(selectedDetail.run)"
                 @click="openResultDialog(row)"
               >
-                结果
+                {{ $t('systemReadiness.result') }}
               </el-button>
             </template>
           </el-table-column>
@@ -231,151 +231,151 @@
       </template>
     </el-drawer>
 
-    <el-dialog v-model="runDialogVisible" title="新建验收运行单" width="680px" @close="resetRunForm">
+    <el-dialog v-model="runDialogVisible" :title="$t('systemReadiness.dialog.newRun')" width="680px" @close="resetRunForm">
       <el-form ref="runFormRef" :model="runForm" :rules="runRules" label-width="130px">
-        <el-form-item label="候选 Commit" prop="releaseCommit">
+        <el-form-item :label="$t('systemReadiness.candidateCommit')" prop="releaseCommit">
           <el-input v-model="runForm.releaseCommit" />
         </el-form-item>
-        <el-form-item label="版本">
+        <el-form-item :label="$t('systemReadiness.version')">
           <el-input v-model="runForm.releaseVersion" clearable />
         </el-form-item>
-        <el-form-item label="环境" prop="environment">
+        <el-form-item :label="$t('systemReadiness.environment')" prop="environment">
           <el-input v-model="runForm.environment" />
         </el-form-item>
-        <el-form-item label="数据库实例">
+        <el-form-item :label="$t('systemReadiness.databaseInstance')">
           <el-input v-model="runForm.databaseInstance" clearable />
         </el-form-item>
-        <el-form-item label="Redis 实例">
+        <el-form-item :label="$t('systemReadiness.redisInstance')">
           <el-input v-model="runForm.redisInstance" clearable />
         </el-form-item>
-        <el-form-item label="Docker profile">
+        <el-form-item :label="$t('systemReadiness.dockerProfile')">
           <el-input v-model="runForm.dockerProfile" clearable />
         </el-form-item>
-        <el-form-item label="默认验收项">
-          <el-switch v-model="runForm.generateDefaultItems" active-text="生成" inactive-text="不生成" />
+        <el-form-item :label="$t('systemReadiness.defaultItems')">
+          <el-switch v-model="runForm.generateDefaultItems" :active-text="$t('systemReadiness.generate')" :inactive-text="$t('systemReadiness.doNotGenerate')" />
         </el-form-item>
-        <el-form-item label="记录预检证据">
-          <el-switch v-model="runForm.recordPreflightEvidence" active-text="记录" inactive-text="不记录" />
+        <el-form-item :label="$t('systemReadiness.recordPreflightEvidence')">
+          <el-switch v-model="runForm.recordPreflightEvidence" :active-text="$t('systemReadiness.record')" :inactive-text="$t('systemReadiness.doNotRecord')" />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('systemReadiness.remark')">
           <el-input v-model="runForm.remark" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="runDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="runSubmitting" @click="submitRun">保存</el-button>
+        <el-button @click="runDialogVisible = false">{{ $t('systemReadiness.cancel') }}</el-button>
+        <el-button type="primary" :loading="runSubmitting" @click="submitRun">{{ $t('systemReadiness.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="itemDialogVisible" title="新增验收项" width="620px" @close="resetItemForm">
+    <el-dialog v-model="itemDialogVisible" :title="$t('systemReadiness.dialog.addItem')" width="620px" @close="resetItemForm">
       <el-form ref="itemFormRef" :model="itemForm" :rules="itemRules" label-width="110px">
-        <el-form-item label="编码" prop="itemCode">
-          <el-input v-model="itemForm.itemCode" placeholder="如 DATA_RECONCILE" />
+        <el-form-item :label="$t('systemReadiness.code')" prop="itemCode">
+          <el-input v-model="itemForm.itemCode" :placeholder="$t('systemReadiness.itemCodePlaceholder')" />
         </el-form-item>
-        <el-form-item label="名称" prop="itemName">
+        <el-form-item :label="$t('systemReadiness.name')" prop="itemName">
           <el-input v-model="itemForm.itemName" />
         </el-form-item>
-        <el-form-item label="分类" prop="category">
-          <el-input v-model="itemForm.category" placeholder="如 FINANCE" />
+        <el-form-item :label="$t('systemReadiness.category')" prop="category">
+          <el-input v-model="itemForm.category" :placeholder="$t('systemReadiness.categoryPlaceholder')" />
         </el-form-item>
-        <el-form-item label="级别" prop="priority">
+        <el-form-item :label="$t('systemReadiness.level')" prop="priority">
           <el-select v-model="itemForm.priority" style="width: 100%">
             <el-option label="P0" value="P0" />
             <el-option label="P1" value="P1" />
             <el-option label="P2" value="P2" />
           </el-select>
         </el-form-item>
-        <el-form-item label="预期结果">
+        <el-form-item :label="$t('systemReadiness.expectedResult')">
           <el-input v-model="itemForm.expectedResult" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="itemDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="itemSubmitting" @click="submitItem">保存</el-button>
+        <el-button @click="itemDialogVisible = false">{{ $t('systemReadiness.cancel') }}</el-button>
+        <el-button type="primary" :loading="itemSubmitting" @click="submitItem">{{ $t('systemReadiness.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="evidenceDialogVisible" title="登记验收证据" width="700px" @close="resetEvidenceForm">
+    <el-dialog v-model="evidenceDialogVisible" :title="$t('systemReadiness.dialog.addEvidence')" width="700px" @close="resetEvidenceForm">
       <el-form ref="evidenceFormRef" :model="evidenceForm" :rules="evidenceRules" label-width="110px">
-        <el-form-item label="证据类型" prop="evidenceType">
+        <el-form-item :label="$t('systemReadiness.evidenceType')" prop="evidenceType">
           <el-select v-model="evidenceForm.evidenceType" style="width: 100%">
-            <el-option label="接口" value="API" />
-            <el-option label="业务单号" value="BUSINESS_NO" />
-            <el-option label="日志" value="LOG" />
-            <el-option label="截图" value="SCREENSHOT" />
-            <el-option label="备注" value="NOTE" />
-            <el-option label="附件" value="ATTACHMENT" />
+            <el-option :label="$t('systemReadiness.evidenceTypes.api')" value="API" />
+            <el-option :label="$t('systemReadiness.evidenceTypes.businessNo')" value="BUSINESS_NO" />
+            <el-option :label="$t('systemReadiness.evidenceTypes.log')" value="LOG" />
+            <el-option :label="$t('systemReadiness.evidenceTypes.screenshot')" value="SCREENSHOT" />
+            <el-option :label="$t('systemReadiness.evidenceTypes.note')" value="NOTE" />
+            <el-option :label="$t('systemReadiness.evidenceTypes.attachment')" value="ATTACHMENT" />
           </el-select>
         </el-form-item>
-        <el-form-item label="摘要" prop="summary">
+        <el-form-item :label="$t('systemReadiness.summary')" prop="summary">
           <el-input v-model="evidenceForm.summary" />
         </el-form-item>
-        <el-form-item label="请求方法">
+        <el-form-item :label="$t('systemReadiness.requestMethod')">
           <el-input v-model="evidenceForm.requestMethod" placeholder="GET / POST" clearable />
         </el-form-item>
-        <el-form-item label="请求地址">
+        <el-form-item :label="$t('systemReadiness.requestUri')">
           <el-input v-model="evidenceForm.requestUri" clearable />
         </el-form-item>
-        <el-form-item label="HTTP 状态">
+        <el-form-item :label="$t('systemReadiness.httpStatus')">
           <el-input-number v-model="evidenceForm.httpStatus" :min="100" :max="599" :controls="false" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="业务类型">
+        <el-form-item :label="$t('systemReadiness.businessType')">
           <el-input v-model="evidenceForm.businessType" clearable />
         </el-form-item>
-        <el-form-item label="业务ID">
+        <el-form-item :label="$t('systemReadiness.businessId')">
           <el-input v-model="evidenceForm.businessId" clearable />
         </el-form-item>
-        <el-form-item label="业务编号">
+        <el-form-item :label="$t('systemReadiness.businessNo')">
           <el-input v-model="evidenceForm.businessNo" clearable />
         </el-form-item>
-        <el-form-item label="附件业务类型">
+        <el-form-item :label="$t('systemReadiness.attachmentBusinessType')">
           <el-input v-model="evidenceForm.attachmentBusinessType" clearable />
         </el-form-item>
-        <el-form-item label="附件业务ID">
+        <el-form-item :label="$t('systemReadiness.attachmentBusinessId')">
           <el-input v-model="evidenceForm.attachmentBusinessId" clearable />
         </el-form-item>
-        <el-form-item label="详情">
+        <el-form-item :label="$t('systemReadiness.details')">
           <el-input v-model="evidenceForm.detail" type="textarea" :rows="4" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="evidenceDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="evidenceSubmitting" @click="submitEvidence">保存</el-button>
+        <el-button @click="evidenceDialogVisible = false">{{ $t('systemReadiness.cancel') }}</el-button>
+        <el-button type="primary" :loading="evidenceSubmitting" @click="submitEvidence">{{ $t('systemReadiness.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="resultDialogVisible" title="记录验收结果" width="620px" @close="resetResultForm">
+    <el-dialog v-model="resultDialogVisible" :title="$t('systemReadiness.dialog.recordResult')" width="620px" @close="resetResultForm">
       <el-form ref="resultFormRef" :model="resultForm" :rules="resultRules" label-width="110px">
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="$t('systemReadiness.status')" prop="status">
           <el-select v-model="resultForm.status" style="width: 100%">
-            <el-option label="通过" value="PASSED" />
-            <el-option label="失败" value="FAILED" />
-            <el-option label="阻塞" value="BLOCKED" />
-            <el-option label="跳过" value="SKIPPED" />
+            <el-option :label="$t('systemReadiness.statuses.passed')" value="PASSED" />
+            <el-option :label="$t('systemReadiness.statuses.failed')" value="FAILED" />
+            <el-option :label="$t('systemReadiness.statuses.blocked')" value="BLOCKED" />
+            <el-option :label="$t('systemReadiness.statuses.skipped')" value="SKIPPED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="实际结果">
+        <el-form-item :label="$t('systemReadiness.actualResult')">
           <el-input v-model="resultForm.actualResult" type="textarea" :rows="3" />
         </el-form-item>
-        <el-form-item label="失败/跳过原因">
+        <el-form-item :label="$t('systemReadiness.failureOrSkipReason')">
           <el-input v-model="resultForm.failureReason" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="resultDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="resultSubmitting" @click="submitResult">保存</el-button>
+        <el-button @click="resultDialogVisible = false">{{ $t('systemReadiness.cancel') }}</el-button>
+        <el-button type="primary" :loading="resultSubmitting" @click="submitResult">{{ $t('systemReadiness.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="decisionDialogVisible" title="发布决策" width="560px" @close="resetDecisionForm">
+    <el-dialog v-model="decisionDialogVisible" :title="$t('systemReadiness.dialog.releaseDecision')" width="560px" @close="resetDecisionForm">
       <el-form ref="decisionFormRef" :model="decisionForm" :rules="decisionRules" label-width="110px">
-        <el-form-item label="决策" prop="decision">
+        <el-form-item :label="$t('systemReadiness.decision')" prop="decision">
           <el-select v-model="decisionForm.decision" style="width: 100%">
-            <el-option label="Go" value="GO" />
-            <el-option label="No-Go" value="NO_GO" />
+            <el-option :label="$t('systemReadiness.decisions.go')" value="GO" />
+            <el-option :label="$t('systemReadiness.decisions.noGo')" value="NO_GO" />
           </el-select>
         </el-form-item>
-        <el-form-item label="运行单状态" prop="status">
+        <el-form-item :label="$t('systemReadiness.runStatus')" prop="status">
           <el-select v-model="decisionForm.status" style="width: 100%">
             <el-option
               v-for="option in decisionStatusOptions"
@@ -385,7 +385,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="决策说明">
+        <el-form-item :label="$t('systemReadiness.decisionComment')">
           <el-input v-model="decisionForm.decisionComment" type="textarea" :rows="4" />
         </el-form-item>
         <el-alert
@@ -394,7 +394,7 @@
           :closable="false"
           show-icon
           style="margin-bottom: 8px"
-          :title="`存在 ${decisionBlockingItems.length} 个未通过的 P0/P1 验收项，不能标记发布通过`"
+          :title="$t('systemReadiness.message.decisionBlocked', { count: decisionBlockingItems.length })"
         >
           <div class="decision-blocking-list">
             <div v-for="item in decisionBlockingItems" :key="item.id" class="decision-blocking-item">
@@ -410,17 +410,17 @@
           :closable="false"
           show-icon
           style="margin-bottom: 8px"
-          title="全部 P0/P1 验收项已通过，可以标记发布通过"
+          :title="$t('systemReadiness.message.decisionReady')"
         />
       </el-form>
       <template #footer>
-        <el-button @click="decisionDialogVisible = false">取消</el-button>
+        <el-button @click="decisionDialogVisible = false">{{ $t('systemReadiness.cancel') }}</el-button>
         <el-button
           type="primary"
           :loading="decisionSubmitting"
           :disabled="decisionGoBlocked || decisionItemsLoading"
           @click="submitDecision"
-        >保存</el-button>
+        >{{ $t('systemReadiness.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -428,6 +428,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { CircleCheck, DocumentChecked, Plus, Refresh, Search, View } from '@element-plus/icons-vue'
 import { formatLocalizedDateTime } from '@/utils/locale'
@@ -446,6 +447,8 @@ import {
   type ReadinessRunDetail,
   type ReadinessRunQuery
 } from '@/api/readiness'
+
+const { t } = useI18n()
 
 const queryForm = reactive<ReadinessRunQuery>({
   pageNo: 1,
@@ -534,40 +537,40 @@ const decisionForm = reactive({
   decisionComment: ''
 })
 
-const runRules: FormRules = {
-  releaseCommit: [{ required: true, message: '请输入候选 commit', trigger: 'blur' }],
-  environment: [{ required: true, message: '请输入验收环境', trigger: 'blur' }]
-}
+const runRules = computed<FormRules>(() => ({
+  releaseCommit: [{ required: true, message: t('systemReadiness.validation.candidateCommit'), trigger: 'blur' }],
+  environment: [{ required: true, message: t('systemReadiness.validation.environment'), trigger: 'blur' }]
+}))
 
-const itemRules: FormRules = {
-  itemCode: [{ required: true, message: '请输入验收项编码', trigger: 'blur' }],
-  itemName: [{ required: true, message: '请输入验收项名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请输入分类', trigger: 'blur' }],
-  priority: [{ required: true, message: '请选择级别', trigger: 'change' }]
-}
+const itemRules = computed<FormRules>(() => ({
+  itemCode: [{ required: true, message: t('systemReadiness.validation.itemCode'), trigger: 'blur' }],
+  itemName: [{ required: true, message: t('systemReadiness.validation.itemName'), trigger: 'blur' }],
+  category: [{ required: true, message: t('systemReadiness.validation.category'), trigger: 'blur' }],
+  priority: [{ required: true, message: t('systemReadiness.validation.level'), trigger: 'change' }]
+}))
 
-const evidenceRules: FormRules = {
-  evidenceType: [{ required: true, message: '请选择证据类型', trigger: 'change' }],
-  summary: [{ required: true, message: '请输入证据摘要', trigger: 'blur' }]
-}
+const evidenceRules = computed<FormRules>(() => ({
+  evidenceType: [{ required: true, message: t('systemReadiness.validation.evidenceType'), trigger: 'change' }],
+  summary: [{ required: true, message: t('systemReadiness.validation.summary'), trigger: 'blur' }]
+}))
 
-const resultRules: FormRules = {
-  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
-}
+const resultRules = computed<FormRules>(() => ({
+  status: [{ required: true, message: t('systemReadiness.validation.status'), trigger: 'change' }]
+}))
 
-const decisionRules: FormRules = {
-  decision: [{ required: true, message: '请选择发布决策', trigger: 'change' }],
-  status: [{ required: true, message: '请选择运行单状态', trigger: 'change' }]
-}
+const decisionRules = computed<FormRules>(() => ({
+  decision: [{ required: true, message: t('systemReadiness.validation.decision'), trigger: 'change' }],
+  status: [{ required: true, message: t('systemReadiness.validation.runStatus'), trigger: 'change' }]
+}))
 
 const decisionStatusOptions = computed(() => {
   if (decisionForm.decision === 'GO') {
-    return [{ label: '通过', value: 'PASSED' }]
+    return [{ label: t('systemReadiness.statuses.passed'), value: 'PASSED' }]
   }
   return [
-    { label: '失败', value: 'FAILED' },
-    { label: '阻塞', value: 'BLOCKED' },
-    { label: '不发布', value: 'NO_GO' }
+    { label: t('systemReadiness.statuses.failed'), value: 'FAILED' },
+    { label: t('systemReadiness.statuses.blocked'), value: 'BLOCKED' },
+    { label: t('systemReadiness.statuses.noGo'), value: 'NO_GO' }
   ]
 })
 
@@ -583,8 +586,8 @@ const loadPreflight = async () => {
   try {
     preflight.value = await getReadinessPreflight()
   } catch (error) {
-    console.error('加载预检失败:', error)
-    ElMessage.error('加载预检失败')
+    console.error(t('systemReadiness.message.loadPreflightFailed'), error)
+    ElMessage.error(t('systemReadiness.message.loadPreflightFailed'))
   } finally {
     preflightLoading.value = false
   }
@@ -597,8 +600,8 @@ const loadRuns = async () => {
     runData.value = res.records || []
     runTotal.value = res.total || 0
   } catch (error) {
-    console.error('加载验收运行单失败:', error)
-    ElMessage.error('加载验收运行单失败')
+    console.error(t('systemReadiness.message.loadRunsFailed'), error)
+    ElMessage.error(t('systemReadiness.message.loadRunsFailed'))
   } finally {
     runLoading.value = false
   }
@@ -627,12 +630,12 @@ const submitRun = async () => {
     runSubmitting.value = true
     try {
       const run = await createReadinessRun(runForm)
-      ElMessage.success('验收运行单创建成功')
+      ElMessage.success(t('systemReadiness.message.runCreated'))
       runDialogVisible.value = false
       await loadRuns()
       await openDetail(run)
     } catch (error) {
-      ElMessage.error('创建验收运行单失败')
+      ElMessage.error(t('systemReadiness.message.createRunFailed'))
     } finally {
       runSubmitting.value = false
     }
@@ -645,7 +648,7 @@ const openDetail = async (row: ReadinessRun) => {
     selectedRun.value = selectedDetail.value.run
     detailVisible.value = true
   } catch (error) {
-    ElMessage.error('加载运行单详情失败')
+    ElMessage.error(t('systemReadiness.message.loadRunDetailFailed'))
   }
 }
 
@@ -658,13 +661,13 @@ const refreshDetail = async () => {
 const handleRecordPreflight = async (row: ReadinessRun) => {
   try {
     await recordReadinessPreflightEvidence(row.id)
-    ElMessage.success('预检证据已记录')
+    ElMessage.success(t('systemReadiness.message.preflightRecorded'))
     await loadRuns()
     if (selectedDetail.value?.run.id === row.id) {
       await refreshDetail()
     }
   } catch (error) {
-    ElMessage.error('记录预检证据失败')
+    ElMessage.error(t('systemReadiness.message.recordPreflightFailed'))
   }
 }
 
@@ -680,12 +683,12 @@ const submitItem = async () => {
     itemSubmitting.value = true
     try {
       await addReadinessItem(selectedDetail.value.run.id, itemForm)
-      ElMessage.success('验收项已新增')
+      ElMessage.success(t('systemReadiness.message.itemAdded'))
       itemDialogVisible.value = false
       await refreshDetail()
       await loadRuns()
     } catch (error) {
-      ElMessage.error('新增验收项失败')
+      ElMessage.error(t('systemReadiness.message.addItemFailed'))
     } finally {
       itemSubmitting.value = false
     }
@@ -695,7 +698,7 @@ const submitItem = async () => {
 const openEvidenceDialog = (row: ReadinessItem) => {
   selectedItem.value = row
   resetEvidenceForm()
-  evidenceForm.summary = `${row.itemName} 验收证据`
+  evidenceForm.summary = t('systemReadiness.defaultEvidenceSummary', { name: row.itemName })
   evidenceDialogVisible.value = true
 }
 
@@ -711,11 +714,11 @@ const submitEvidence = async () => {
         businessId: evidenceForm.businessId || undefined,
         attachmentBusinessId: evidenceForm.attachmentBusinessId || undefined
       })
-      ElMessage.success('验收证据已登记')
+      ElMessage.success(t('systemReadiness.message.evidenceAdded'))
       evidenceDialogVisible.value = false
       await refreshDetail()
     } catch (error) {
-      ElMessage.error('登记验收证据失败')
+      ElMessage.error(t('systemReadiness.message.addEvidenceFailed'))
     } finally {
       evidenceSubmitting.value = false
     }
@@ -738,11 +741,11 @@ const submitResult = async () => {
     resultSubmitting.value = true
     try {
       await markReadinessItemResult(selectedItem.value.id, resultForm)
-      ElMessage.success('验收结果已记录')
+      ElMessage.success(t('systemReadiness.message.resultRecorded'))
       resultDialogVisible.value = false
       await refreshDetail()
     } catch (error) {
-      ElMessage.error('记录验收结果失败')
+      ElMessage.error(t('systemReadiness.message.recordResultFailed'))
     } finally {
       resultSubmitting.value = false
     }
@@ -778,7 +781,7 @@ const openDecisionDialog = async (row: ReadinessRun) => {
     }
   } catch {
     decisionItems.value = []
-    ElMessage.warning('加载验收项失败，Go 门禁预检不可用，提交仍会由后端校验')
+    ElMessage.warning(t('systemReadiness.message.loadItemsWarning'))
   } finally {
     decisionItemsLoading.value = false
   }
@@ -789,20 +792,20 @@ const submitDecision = async () => {
   await decisionFormRef.value.validate(async (valid) => {
     if (!valid || !selectedRun.value) return
     if (decisionGoBlocked.value) {
-      ElMessage.error(`存在 ${decisionBlockingItems.value.length} 个未通过的 P0/P1 验收项，不能标记发布通过`)
+      ElMessage.error(t('systemReadiness.message.decisionBlocked', { count: decisionBlockingItems.value.length }))
       return
     }
     decisionSubmitting.value = true
     try {
       await decideReadinessRun(selectedRun.value.id, decisionForm)
-      ElMessage.success('发布决策已保存')
+      ElMessage.success(t('systemReadiness.message.decisionSaved'))
       decisionDialogVisible.value = false
       await loadRuns()
       if (selectedDetail.value?.run.id === selectedRun.value.id) {
         await refreshDetail()
       }
     } catch (error) {
-      ElMessage.error('保存发布决策失败')
+      ElMessage.error(t('systemReadiness.message.saveDecisionFailed'))
     } finally {
       decisionSubmitting.value = false
     }
@@ -859,35 +862,43 @@ const resetDecisionForm = () => {
 const isRunClosed = (run: ReadinessRun) => ['PASSED', 'FAILED', 'BLOCKED', 'NO_GO'].includes(run.status)
 
 const preflightStatusLabel = (status: string) => {
-  const map: Record<string, string> = { PASS: '通过', WARN: '预警', FAIL: '失败' }
-  return map[status] || status || '未检查'
+  const map: Record<string, string> = {
+    PASS: t('systemReadiness.statuses.passed'),
+    WARN: t('systemReadiness.statuses.warning'),
+    FAIL: t('systemReadiness.statuses.failed')
+  }
+  return map[status] || status || t('systemReadiness.statuses.unchecked')
 }
 
 const runStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    DRAFT: '草稿',
-    IN_PROGRESS: '进行中',
-    PASSED: '通过',
-    FAILED: '失败',
-    BLOCKED: '阻塞',
-    NO_GO: '不发布'
+    DRAFT: t('systemReadiness.statuses.draft'),
+    IN_PROGRESS: t('systemReadiness.statuses.inProgress'),
+    PASSED: t('systemReadiness.statuses.passed'),
+    FAILED: t('systemReadiness.statuses.failed'),
+    BLOCKED: t('systemReadiness.statuses.blocked'),
+    NO_GO: t('systemReadiness.statuses.noGo')
   }
   return map[status] || status
 }
 
 const itemStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: '待执行',
-    PASSED: '通过',
-    FAILED: '失败',
-    BLOCKED: '阻塞',
-    SKIPPED: '跳过'
+    PENDING: t('systemReadiness.statuses.pending'),
+    PASSED: t('systemReadiness.statuses.passed'),
+    FAILED: t('systemReadiness.statuses.failed'),
+    BLOCKED: t('systemReadiness.statuses.blocked'),
+    SKIPPED: t('systemReadiness.statuses.skipped')
   }
   return map[status] || status
 }
 
 const decisionLabel = (decision: string) => {
-  const map: Record<string, string> = { PENDING: '待决策', GO: 'Go', NO_GO: 'No-Go' }
+  const map: Record<string, string> = {
+    PENDING: t('systemReadiness.decisions.pending'),
+    GO: t('systemReadiness.decisions.go'),
+    NO_GO: t('systemReadiness.decisions.noGo')
+  }
   return map[decision] || decision
 }
 
@@ -928,7 +939,7 @@ const priorityTagType = (priority: string) => {
 
 const sampleText = (sample?: string[]) => {
   if (!sample || sample.length === 0) return '-'
-  return sample.join('；')
+  return sample.join(t('systemReadiness.listSeparator'))
 }
 
 onMounted(() => {

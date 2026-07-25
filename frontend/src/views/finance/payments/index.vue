@@ -1,53 +1,51 @@
 <template>
   <div class="payments-container">
     <el-tabs v-model="activeTab">
-      <el-tab-pane label="收款管理" name="receipts">
+      <el-tab-pane :label="$t('financeReportPages.payments.tabs.receipts')" name="receipts">
         <el-card class="search-card" shadow="never">
           <el-form :model="receiptQuery" inline>
-            <el-form-item label="客户">
-              <el-select v-model="receiptQuery.customerId" placeholder="请选择客户" clearable filterable style="width: 200px">
+            <el-form-item :label="$t('financeReportPages.payments.customer')">
+              <el-select v-model="receiptQuery.customerId" :placeholder="$t('financeReportPages.payments.selectCustomer')" clearable filterable style="width: 200px">
                 <el-option v-for="customer in customers" :key="customer.id" :label="customer.name" :value="customer.id" />
               </el-select>
             </el-form-item>
-            <el-form-item label="状态">
-              <el-select v-model="receiptQuery.status" placeholder="请选择状态" clearable style="width: 150px">
-                <el-option label="草稿" value="DRAFT" />
-                <el-option label="已过账" value="POSTED" />
-                <el-option label="已取消" value="CANCELLED" />
+            <el-form-item :label="$t('financeReportPages.common.status')">
+              <el-select v-model="receiptQuery.status" :placeholder="$t('financeReportPages.common.statusPlaceholder')" clearable style="width: 150px">
+                <el-option :label="$t('financeReportPages.payments.status.draft')" value="DRAFT" />
+                <el-option :label="$t('financeReportPages.payments.status.posted')" value="POSTED" />
+                <el-option :label="$t('financeReportPages.payments.status.cancelled')" value="CANCELLED" />
               </el-select>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="loadReceipts"><el-icon><Search /></el-icon>查询</el-button>
-              <el-button v-permission="'finance:receipt:create'" type="primary" @click="handleCreateReceipt"><el-icon><Plus /></el-icon>新增收款</el-button>
+              <el-button type="primary" @click="loadReceipts"><el-icon><Search /></el-icon>{{ $t('financeReportPages.common.search') }}</el-button>
+              <el-button v-permission="'finance:receipt:create'" type="primary" @click="handleCreateReceipt"><el-icon><Plus /></el-icon>{{ $t('financeReportPages.payments.newReceipt') }}</el-button>
             </el-form-item>
           </el-form>
         </el-card>
 
         <el-card class="table-card" shadow="never">
           <el-table v-loading="receiptLoading" :data="receiptData" border stripe>
-            <el-table-column prop="receiptNo" label="收款单号" width="180" />
-            <el-table-column prop="customerId" label="客户" width="150">
+            <el-table-column prop="receiptNo" :label="$t('financeReportPages.payments.receiptNo')" width="180" />
+            <el-table-column prop="customerId" :label="$t('financeReportPages.payments.customer')" width="150">
               <template #default="{ row }">{{ customerName(row.customerId) }}</template>
             </el-table-column>
-            <el-table-column prop="receiptDate" label="收款日期" width="120" />
-            <el-table-column prop="receiptAmount" label="收款金额" width="120" align="right">
-              <template #default="{ row }">¥{{ formatMoney(row.receiptAmount) }}</template>
+            <el-table-column prop="receiptDate" :label="$t('financeReportPages.payments.receiptDate')" width="120" />
+            <el-table-column prop="receiptAmount" :label="$t('financeReportPages.payments.receiptAmount')" width="120" align="right">
+              <template #default="{ row }">{{ formatCurrency(row.receiptAmount) }}</template>
             </el-table-column>
-            <el-table-column prop="allocatedAmount" label="已核销" width="120" align="right">
-              <template #default="{ row }">¥{{ formatMoney(row.allocatedAmount) }}</template>
+            <el-table-column prop="allocatedAmount" :label="$t('financeReportPages.payments.allocated')" width="120" align="right">
+              <template #default="{ row }">{{ formatCurrency(row.allocatedAmount) }}</template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="100">
+            <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="100">
               <template #default="{ row }">
-                <el-tag v-if="row.status === 'DRAFT'" type="info">草稿</el-tag>
-                <el-tag v-else-if="row.status === 'POSTED' || row.status === 'COMPLETED'" type="success">已过账</el-tag>
-                <el-tag v-else type="danger">已取消</el-tag>
+                <el-tag :type="paymentStatusTagType(row.status)">{{ paymentStatusLabel(row.status) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
+            <el-table-column :label="$t('financeReportPages.common.actions')" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" @click="viewReceipt(row)">查看</el-button>
-                <el-button v-if="row.status === 'DRAFT'" v-permission="'finance:receipt:cancel'" link type="danger" @click="cancelReceipt(row)">取消</el-button>
+                <el-button link type="primary" @click="viewReceipt(row)">{{ $t('financeReportPages.common.view') }}</el-button>
+                <el-button v-if="row.status === 'DRAFT'" v-permission="'finance:receipt:cancel'" link type="danger" @click="cancelReceipt(row)">{{ $t('financeReportPages.common.cancel') }}</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -63,53 +61,51 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane label="付款管理" name="payments">
+      <el-tab-pane :label="$t('financeReportPages.payments.tabs.payments')" name="payments">
         <el-card class="search-card" shadow="never">
           <el-form :model="paymentQuery" inline>
-            <el-form-item label="供应商">
-              <el-select v-model="paymentQuery.supplierId" placeholder="请选择供应商" clearable filterable style="width: 200px">
+            <el-form-item :label="$t('financeReportPages.payments.supplier')">
+              <el-select v-model="paymentQuery.supplierId" :placeholder="$t('financeReportPages.payments.selectSupplier')" clearable filterable style="width: 200px">
                 <el-option v-for="supplier in suppliers" :key="supplier.id" :label="supplier.name" :value="supplier.id" />
               </el-select>
             </el-form-item>
-            <el-form-item label="状态">
-              <el-select v-model="paymentQuery.status" placeholder="请选择状态" clearable style="width: 150px">
-                <el-option label="草稿" value="DRAFT" />
-                <el-option label="已过账" value="POSTED" />
-                <el-option label="已取消" value="CANCELLED" />
+            <el-form-item :label="$t('financeReportPages.common.status')">
+              <el-select v-model="paymentQuery.status" :placeholder="$t('financeReportPages.common.statusPlaceholder')" clearable style="width: 150px">
+                <el-option :label="$t('financeReportPages.payments.status.draft')" value="DRAFT" />
+                <el-option :label="$t('financeReportPages.payments.status.posted')" value="POSTED" />
+                <el-option :label="$t('financeReportPages.payments.status.cancelled')" value="CANCELLED" />
               </el-select>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="loadPayments"><el-icon><Search /></el-icon>查询</el-button>
-              <el-button v-permission="'finance:payment:create'" type="primary" @click="handleCreatePayment"><el-icon><Plus /></el-icon>新增付款</el-button>
+              <el-button type="primary" @click="loadPayments"><el-icon><Search /></el-icon>{{ $t('financeReportPages.common.search') }}</el-button>
+              <el-button v-permission="'finance:payment:create'" type="primary" @click="handleCreatePayment"><el-icon><Plus /></el-icon>{{ $t('financeReportPages.payments.newPayment') }}</el-button>
             </el-form-item>
           </el-form>
         </el-card>
 
         <el-card class="table-card" shadow="never">
           <el-table v-loading="paymentLoading" :data="paymentData" border stripe>
-            <el-table-column prop="paymentNo" label="付款单号" width="180" />
-            <el-table-column prop="supplierId" label="供应商" width="150">
+            <el-table-column prop="paymentNo" :label="$t('financeReportPages.payments.paymentNo')" width="180" />
+            <el-table-column prop="supplierId" :label="$t('financeReportPages.payments.supplier')" width="150">
               <template #default="{ row }">{{ supplierName(row.supplierId) }}</template>
             </el-table-column>
-            <el-table-column prop="paymentDate" label="付款日期" width="120" />
-            <el-table-column prop="paymentAmount" label="付款金额" width="120" align="right">
-              <template #default="{ row }">¥{{ formatMoney(row.paymentAmount) }}</template>
+            <el-table-column prop="paymentDate" :label="$t('financeReportPages.payments.paymentDate')" width="120" />
+            <el-table-column prop="paymentAmount" :label="$t('financeReportPages.payments.paymentAmount')" width="120" align="right">
+              <template #default="{ row }">{{ formatCurrency(row.paymentAmount) }}</template>
             </el-table-column>
-            <el-table-column prop="allocatedAmount" label="已核销" width="120" align="right">
-              <template #default="{ row }">¥{{ formatMoney(row.allocatedAmount) }}</template>
+            <el-table-column prop="allocatedAmount" :label="$t('financeReportPages.payments.allocated')" width="120" align="right">
+              <template #default="{ row }">{{ formatCurrency(row.allocatedAmount) }}</template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="100">
+            <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="100">
               <template #default="{ row }">
-                <el-tag v-if="row.status === 'DRAFT'" type="info">草稿</el-tag>
-                <el-tag v-else-if="row.status === 'POSTED' || row.status === 'COMPLETED'" type="success">已过账</el-tag>
-                <el-tag v-else type="danger">已取消</el-tag>
+                <el-tag :type="paymentStatusTagType(row.status)">{{ paymentStatusLabel(row.status) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
+            <el-table-column :label="$t('financeReportPages.common.actions')" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" @click="viewPayment(row)">查看</el-button>
-                <el-button v-if="row.status === 'DRAFT'" v-permission="'finance:payment:cancel'" link type="danger" @click="cancelPayment(row)">取消</el-button>
+                <el-button link type="primary" @click="viewPayment(row)">{{ $t('financeReportPages.common.view') }}</el-button>
+                <el-button v-if="row.status === 'DRAFT'" v-permission="'finance:payment:cancel'" link type="danger" @click="cancelPayment(row)">{{ $t('financeReportPages.common.cancel') }}</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -126,55 +122,55 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="receiptDialogVisible" title="新增收款" width="820px" @close="resetReceiptForm">
+    <el-dialog v-model="receiptDialogVisible" :title="$t('financeReportPages.payments.newReceipt')" width="820px" @close="resetReceiptForm">
       <el-form ref="receiptFormRef" :model="receiptForm" :rules="receiptRules" label-width="110px">
-        <el-form-item label="客户" prop="customerId">
-          <el-select v-model="receiptForm.customerId" placeholder="请选择客户" filterable style="width: 100%" @change="loadOpenReceivables">
+        <el-form-item :label="$t('financeReportPages.payments.customer')" prop="customerId">
+          <el-select v-model="receiptForm.customerId" :placeholder="$t('financeReportPages.payments.selectCustomer')" filterable style="width: 100%" @change="loadOpenReceivables">
             <el-option v-for="customer in customers" :key="customer.id" :label="customer.name" :value="customer.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="待核销应收" prop="receivableIds">
+        <el-form-item :label="$t('financeReportPages.payments.pendingReceivables')" prop="receivableIds">
           <el-select
             v-model="receiptForm.receivableIds"
             multiple
             filterable
             collapse-tags
             collapse-tags-tooltip
-            placeholder="可多选未结应收"
+            :placeholder="$t('financeReportPages.payments.receivablesPlaceholder')"
             style="width: 100%"
             @change="onReceivableSelectionChange"
           >
             <el-option
               v-for="item in openReceivables"
               :key="item.id"
-              :label="`${item.receivableNo} / 剩余 ${formatMoney(item.remainingAmount)}`"
+              :label="$t('financeReportPages.payments.remainingOption', { no: item.receivableNo, amount: formatMoney(item.remainingAmount) })"
               :value="String(item.id)"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="收款日期" prop="receiptDate">
+        <el-form-item :label="$t('financeReportPages.payments.receiptDate')" prop="receiptDate">
           <el-date-picker v-model="receiptForm.receiptDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="收款金额" prop="amount">
+        <el-form-item :label="$t('financeReportPages.payments.receiptAmount')" prop="amount">
           <el-input-number v-model="receiptForm.amount" :min="0.01" :precision="2" :controls="false" style="width: 100%" @change="rebalanceReceiptAllocations" />
         </el-form-item>
-        <el-form-item label="核销明细">
+        <el-form-item :label="$t('financeReportPages.payments.allocationDetails')">
           <div style="width: 100%">
             <div class="alloc-toolbar">
-              <el-button size="small" @click="autoAllocateReceipt">按剩余自动分摊</el-button>
+              <el-button size="small" @click="autoAllocateReceipt">{{ $t('financeReportPages.payments.autoAllocate') }}</el-button>
               <span class="alloc-tip">
-                已分摊 {{ formatMoney(receiptAllocatedTotal) }} /
-                收款 {{ formatMoney(receiptForm.amount) }}
-                <template v-if="receiptUnallocated > 0.0001"> · 未核销 {{ formatMoney(receiptUnallocated) }}</template>
-                <template v-else-if="receiptUnallocated < -0.0001"> · 超出 {{ formatMoney(-receiptUnallocated) }}</template>
+                {{ $t('financeReportPages.payments.allocatedSummary', { amount: formatMoney(receiptAllocatedTotal) }) }} /
+                {{ $t('financeReportPages.payments.receiptSummary', { amount: formatMoney(receiptForm.amount) }) }}
+                <template v-if="receiptUnallocated > 0.0001"> · {{ $t('financeReportPages.payments.unallocated', { amount: formatMoney(receiptUnallocated) }) }}</template>
+                <template v-else-if="receiptUnallocated < -0.0001"> · {{ $t('financeReportPages.payments.exceeded', { amount: formatMoney(-receiptUnallocated) }) }}</template>
               </span>
             </div>
             <el-table :data="receiptAllocationRows" border size="small" max-height="260">
-              <el-table-column prop="receivableNo" label="应收单号" min-width="150" />
-              <el-table-column prop="remainingAmount" label="剩余" width="110" align="right">
+              <el-table-column prop="receivableNo" :label="$t('financeReportPages.payments.receivableNo')" min-width="150" />
+              <el-table-column prop="remainingAmount" :label="$t('financeReportPages.payments.remaining')" width="110" align="right">
                 <template #default="{ row }">{{ formatMoney(row.remainingAmount) }}</template>
               </el-table-column>
-              <el-table-column label="本次核销" width="150">
+              <el-table-column :label="$t('financeReportPages.payments.currentAllocation')" width="150">
                 <template #default="{ row }">
                   <el-input-number
                     v-model="row.allocatedAmount"
@@ -189,65 +185,65 @@
             </el-table>
           </div>
         </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="receiptForm.remark" type="textarea" :rows="2" placeholder="请输入备注" />
+        <el-form-item :label="$t('financeReportPages.common.remark')">
+          <el-input v-model="receiptForm.remark" type="textarea" :rows="2" :placeholder="$t('financeReportPages.payments.remarkPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="receiptDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="receiptSubmitting" @click="submitReceipt">确定</el-button>
+        <el-button @click="receiptDialogVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button>
+        <el-button type="primary" :loading="receiptSubmitting" @click="submitReceipt">{{ $t('financeReportPages.common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="paymentDialogVisible" title="新增付款" width="820px" @close="resetPaymentForm">
+    <el-dialog v-model="paymentDialogVisible" :title="$t('financeReportPages.payments.newPayment')" width="820px" @close="resetPaymentForm">
       <el-form ref="paymentFormRef" :model="paymentForm" :rules="paymentRules" label-width="110px">
-        <el-form-item label="供应商" prop="supplierId">
-          <el-select v-model="paymentForm.supplierId" placeholder="请选择供应商" filterable style="width: 100%" @change="loadOpenPayables">
+        <el-form-item :label="$t('financeReportPages.payments.supplier')" prop="supplierId">
+          <el-select v-model="paymentForm.supplierId" :placeholder="$t('financeReportPages.payments.selectSupplier')" filterable style="width: 100%" @change="loadOpenPayables">
             <el-option v-for="supplier in suppliers" :key="supplier.id" :label="supplier.name" :value="supplier.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="待核销应付" prop="payableIds">
+        <el-form-item :label="$t('financeReportPages.payments.pendingPayables')" prop="payableIds">
           <el-select
             v-model="paymentForm.payableIds"
             multiple
             filterable
             collapse-tags
             collapse-tags-tooltip
-            placeholder="可多选未结应付"
+            :placeholder="$t('financeReportPages.payments.payablesPlaceholder')"
             style="width: 100%"
             @change="onPayableSelectionChange"
           >
             <el-option
               v-for="item in openPayables"
               :key="item.id"
-              :label="`${item.payableNo} / 剩余 ${formatMoney(item.remainingAmount)}`"
+              :label="$t('financeReportPages.payments.remainingOption', { no: item.payableNo, amount: formatMoney(item.remainingAmount) })"
               :value="String(item.id)"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="付款日期" prop="paymentDate">
+        <el-form-item :label="$t('financeReportPages.payments.paymentDate')" prop="paymentDate">
           <el-date-picker v-model="paymentForm.paymentDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="付款金额" prop="amount">
+        <el-form-item :label="$t('financeReportPages.payments.paymentAmount')" prop="amount">
           <el-input-number v-model="paymentForm.amount" :min="0.01" :precision="2" :controls="false" style="width: 100%" @change="rebalancePaymentAllocations" />
         </el-form-item>
-        <el-form-item label="核销明细">
+        <el-form-item :label="$t('financeReportPages.payments.allocationDetails')">
           <div style="width: 100%">
             <div class="alloc-toolbar">
-              <el-button size="small" @click="autoAllocatePayment">按剩余自动分摊</el-button>
+              <el-button size="small" @click="autoAllocatePayment">{{ $t('financeReportPages.payments.autoAllocate') }}</el-button>
               <span class="alloc-tip">
-                已分摊 {{ formatMoney(paymentAllocatedTotal) }} /
-                付款 {{ formatMoney(paymentForm.amount) }}
-                <template v-if="paymentUnallocated > 0.0001"> · 未核销 {{ formatMoney(paymentUnallocated) }}</template>
-                <template v-else-if="paymentUnallocated < -0.0001"> · 超出 {{ formatMoney(-paymentUnallocated) }}</template>
+                {{ $t('financeReportPages.payments.allocatedSummary', { amount: formatMoney(paymentAllocatedTotal) }) }} /
+                {{ $t('financeReportPages.payments.paymentSummary', { amount: formatMoney(paymentForm.amount) }) }}
+                <template v-if="paymentUnallocated > 0.0001"> · {{ $t('financeReportPages.payments.unallocated', { amount: formatMoney(paymentUnallocated) }) }}</template>
+                <template v-else-if="paymentUnallocated < -0.0001"> · {{ $t('financeReportPages.payments.exceeded', { amount: formatMoney(-paymentUnallocated) }) }}</template>
               </span>
             </div>
             <el-table :data="paymentAllocationRows" border size="small" max-height="260">
-              <el-table-column prop="payableNo" label="应付单号" min-width="150" />
-              <el-table-column prop="remainingAmount" label="剩余" width="110" align="right">
+              <el-table-column prop="payableNo" :label="$t('financeReportPages.payments.payableNo')" min-width="150" />
+              <el-table-column prop="remainingAmount" :label="$t('financeReportPages.payments.remaining')" width="110" align="right">
                 <template #default="{ row }">{{ formatMoney(row.remainingAmount) }}</template>
               </el-table-column>
-              <el-table-column label="本次核销" width="150">
+              <el-table-column :label="$t('financeReportPages.payments.currentAllocation')" width="150">
                 <template #default="{ row }">
                   <el-input-number
                     v-model="row.allocatedAmount"
@@ -262,13 +258,13 @@
             </el-table>
           </div>
         </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="paymentForm.remark" type="textarea" :rows="2" placeholder="请输入备注" />
+        <el-form-item :label="$t('financeReportPages.common.remark')">
+          <el-input v-model="paymentForm.remark" type="textarea" :rows="2" :placeholder="$t('financeReportPages.payments.remarkPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="paymentDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="paymentSubmitting" @click="submitPayment">确定</el-button>
+        <el-button @click="paymentDialogVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button>
+        <el-button type="primary" :loading="paymentSubmitting" @click="submitPayment">{{ $t('financeReportPages.common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
@@ -282,22 +278,22 @@
       </el-descriptions>
 
       <el-table v-if="selectedReceipt" :data="receiptAllocations" border stripe class="detail-table">
-        <el-table-column prop="receivableNo" label="应收单号" min-width="180">
+        <el-table-column prop="receivableNo" :label="$t('financeReportPages.payments.receivableNo')" min-width="180">
           <template #default="{ row }">{{ row.receivableNo || row.receivableId }}</template>
         </el-table-column>
-        <el-table-column prop="receivableId" label="应收ID" min-width="180" />
-        <el-table-column prop="allocatedAmount" label="核销金额" width="140" align="right">
-          <template #default="{ row }">¥{{ formatMoney(row.allocatedAmount) }}</template>
+        <el-table-column prop="receivableId" :label="$t('financeReportPages.payments.receivableId')" min-width="180" />
+        <el-table-column prop="allocatedAmount" :label="$t('financeReportPages.payments.allocatedAmount')" width="140" align="right">
+          <template #default="{ row }">{{ formatCurrency(row.allocatedAmount) }}</template>
         </el-table-column>
       </el-table>
 
       <el-table v-if="selectedPayment" :data="paymentAllocations" border stripe class="detail-table">
-        <el-table-column prop="payableNo" label="应付单号" min-width="180">
+        <el-table-column prop="payableNo" :label="$t('financeReportPages.payments.payableNo')" min-width="180">
           <template #default="{ row }">{{ row.payableNo || row.payableId }}</template>
         </el-table-column>
-        <el-table-column prop="payableId" label="应付ID" min-width="180" />
-        <el-table-column prop="allocatedAmount" label="核销金额" width="140" align="right">
-          <template #default="{ row }">¥{{ formatMoney(row.allocatedAmount) }}</template>
+        <el-table-column prop="payableId" :label="$t('financeReportPages.payments.payableId')" min-width="180" />
+        <el-table-column prop="allocatedAmount" :label="$t('financeReportPages.payments.allocatedAmount')" width="140" align="right">
+          <template #default="{ row }">{{ formatCurrency(row.allocatedAmount) }}</template>
         </el-table-column>
       </el-table>
       </template>
@@ -308,6 +304,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { Plus, Search } from '@element-plus/icons-vue'
 import {
   cancelPayment as apiCancelPayment,
@@ -330,7 +327,9 @@ import {
   type Receivable
 } from '@/api/finance'
 import { getCustomers, getSuppliers, type Customer, type Supplier } from '@/api/masterdata'
+import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedNumber } from '@/utils/locale'
 
+const { t } = useI18n()
 const activeTab = ref('receipts')
 
 const receiptQuery = reactive<ReceiptQuery>({ pageNo: 1, pageSize: 10, customerId: undefined, status: '' })
@@ -382,19 +381,19 @@ type AllocRow = {
 const receiptAllocationRows = ref<AllocRow[]>([])
 const paymentAllocationRows = ref<AllocRow[]>([])
 
-const receiptRules: FormRules = {
-  customerId: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  receivableIds: [{ type: 'array', required: true, message: '请至少选择一笔应收账款', trigger: 'change' }],
-  receiptDate: [{ required: true, message: '请选择收款日期', trigger: 'change' }],
-  amount: [{ required: true, message: '请输入收款金额', trigger: 'blur' }]
-}
+const receiptRules = computed<FormRules>(() => ({
+  customerId: [{ required: true, message: t('financeReportPages.payments.validation.customer'), trigger: 'change' }],
+  receivableIds: [{ type: 'array', required: true, message: t('financeReportPages.payments.validation.receivable'), trigger: 'change' }],
+  receiptDate: [{ required: true, message: t('financeReportPages.payments.validation.receiptDate'), trigger: 'change' }],
+  amount: [{ required: true, message: t('financeReportPages.payments.validation.receiptAmount'), trigger: 'blur' }]
+}))
 
-const paymentRules: FormRules = {
-  supplierId: [{ required: true, message: '请选择供应商', trigger: 'change' }],
-  payableIds: [{ type: 'array', required: true, message: '请至少选择一笔应付账款', trigger: 'change' }],
-  paymentDate: [{ required: true, message: '请选择付款日期', trigger: 'change' }],
-  amount: [{ required: true, message: '请输入付款金额', trigger: 'blur' }]
-}
+const paymentRules = computed<FormRules>(() => ({
+  supplierId: [{ required: true, message: t('financeReportPages.payments.validation.supplier'), trigger: 'change' }],
+  payableIds: [{ type: 'array', required: true, message: t('financeReportPages.payments.validation.payable'), trigger: 'change' }],
+  paymentDate: [{ required: true, message: t('financeReportPages.payments.validation.paymentDate'), trigger: 'change' }],
+  amount: [{ required: true, message: t('financeReportPages.payments.validation.paymentAmount'), trigger: 'blur' }]
+}))
 
 const receiptAllocatedTotal = computed(() =>
   receiptAllocationRows.value.reduce((sum, row) => sum + Number(row.allocatedAmount || 0), 0)
@@ -424,7 +423,7 @@ const loadReceipts = async () => {
     receiptData.value = response.records
     receiptTotal.value = response.total
   } catch (error) {
-    ElMessage.error('加载收款数据失败')
+    ElMessage.error(t('financeReportPages.payments.message.receiptsLoadFailed'))
   } finally {
     receiptLoading.value = false
   }
@@ -437,7 +436,7 @@ const loadPayments = async () => {
     paymentData.value = response.records
     paymentTotal.value = response.total
   } catch (error) {
-    ElMessage.error('加载付款数据失败')
+    ElMessage.error(t('financeReportPages.payments.message.paymentsLoadFailed'))
   } finally {
     paymentLoading.value = false
   }
@@ -541,12 +540,12 @@ const submitReceipt = async () => {
       .filter((row) => Number(row.allocatedAmount) > 0)
       .map((row) => ({ receivableId: row.id, allocatedAmount: Number(row.allocatedAmount) }))
     if (!allocations.length) {
-      ElMessage.warning('请至少填写一笔核销金额')
+      ElMessage.warning(t('financeReportPages.payments.validation.allocationRequired'))
       return
     }
     const allocated = allocations.reduce((s, a) => s + a.allocatedAmount, 0)
     if (allocated - Number(receiptForm.amount) > 0.0001) {
-      ElMessage.warning('核销合计不能超过收款金额')
+      ElMessage.warning(t('financeReportPages.payments.validation.receiptAllocationExceeded'))
       return
     }
     receiptSubmitting.value = true
@@ -559,11 +558,11 @@ const submitReceipt = async () => {
         allocations,
         remark: receiptForm.remark
       })
-      ElMessage.success('收款创建成功')
+      ElMessage.success(t('financeReportPages.payments.message.receiptCreated'))
       receiptDialogVisible.value = false
       loadReceipts()
     } catch (error) {
-      ElMessage.error('创建收款失败')
+      ElMessage.error(t('financeReportPages.payments.message.receiptCreateFailed'))
     } finally {
       receiptSubmitting.value = false
     }
@@ -578,12 +577,12 @@ const submitPayment = async () => {
       .filter((row) => Number(row.allocatedAmount) > 0)
       .map((row) => ({ payableId: row.id, allocatedAmount: Number(row.allocatedAmount) }))
     if (!allocations.length) {
-      ElMessage.warning('请至少填写一笔核销金额')
+      ElMessage.warning(t('financeReportPages.payments.validation.allocationRequired'))
       return
     }
     const allocated = allocations.reduce((s, a) => s + a.allocatedAmount, 0)
     if (allocated - Number(paymentForm.amount) > 0.0001) {
-      ElMessage.warning('核销合计不能超过付款金额')
+      ElMessage.warning(t('financeReportPages.payments.validation.paymentAllocationExceeded'))
       return
     }
     paymentSubmitting.value = true
@@ -596,11 +595,11 @@ const submitPayment = async () => {
         allocations,
         remark: paymentForm.remark
       })
-      ElMessage.success('付款创建成功')
+      ElMessage.success(t('financeReportPages.payments.message.paymentCreated'))
       paymentDialogVisible.value = false
       loadPayments()
     } catch (error) {
-      ElMessage.error('创建付款失败')
+      ElMessage.error(t('financeReportPages.payments.message.paymentCreateFailed'))
     } finally {
       paymentSubmitting.value = false
     }
@@ -608,7 +607,7 @@ const submitPayment = async () => {
 }
 
 const viewReceipt = async (row: Receipt) => {
-  detailTitle.value = `收款单 ${row.receiptNo}`
+  detailTitle.value = t('financeReportPages.payments.receiptTitle', { no: row.receiptNo })
   detailVisible.value = true
   detailLoading.value = true
   selectedReceipt.value = undefined
@@ -619,16 +618,16 @@ const viewReceipt = async (row: Receipt) => {
     const detail = await getReceipt(row.id)
     selectedReceipt.value = detail
     receiptAllocations.value = detail.allocations || []
-  detailItems.value = [
-      { label: '客户', value: detail.customerName || customerName(detail.customerId) },
-      { label: '收款日期', value: detail.receiptDate },
-      { label: '收款金额', value: formatMoney(detail.receiptAmount) },
-      { label: '已核销', value: formatMoney(detail.allocatedAmount) },
-      { label: '状态', value: detail.status },
-      { label: '备注', value: detail.remark || '-' }
-  ]
+    detailItems.value = [
+      { label: t('financeReportPages.payments.customer'), value: detail.customerName || customerName(detail.customerId) },
+      { label: t('financeReportPages.payments.receiptDate'), value: detail.receiptDate },
+      { label: t('financeReportPages.payments.receiptAmount'), value: formatCurrency(detail.receiptAmount) },
+      { label: t('financeReportPages.payments.allocated'), value: formatCurrency(detail.allocatedAmount) },
+      { label: t('financeReportPages.common.status'), value: paymentStatusLabel(detail.status) },
+      { label: t('financeReportPages.common.remark'), value: detail.remark || '-' }
+    ]
   } catch (error) {
-    ElMessage.error('加载收款详情失败')
+    ElMessage.error(t('financeReportPages.payments.message.receiptDetailLoadFailed'))
     detailVisible.value = false
   } finally {
     detailLoading.value = false
@@ -636,7 +635,7 @@ const viewReceipt = async (row: Receipt) => {
 }
 
 const viewPayment = async (row: Payment) => {
-  detailTitle.value = `付款单 ${row.paymentNo}`
+  detailTitle.value = t('financeReportPages.payments.paymentTitle', { no: row.paymentNo })
   detailVisible.value = true
   detailLoading.value = true
   selectedReceipt.value = undefined
@@ -647,16 +646,16 @@ const viewPayment = async (row: Payment) => {
     const detail = await getPayment(row.id)
     selectedPayment.value = detail
     paymentAllocations.value = detail.allocations || []
-  detailItems.value = [
-      { label: '供应商', value: detail.supplierName || supplierName(detail.supplierId) },
-      { label: '付款日期', value: detail.paymentDate },
-      { label: '付款金额', value: formatMoney(detail.paymentAmount) },
-      { label: '已核销', value: formatMoney(detail.allocatedAmount) },
-      { label: '状态', value: detail.status },
-      { label: '备注', value: detail.remark || '-' }
-  ]
+    detailItems.value = [
+      { label: t('financeReportPages.payments.supplier'), value: detail.supplierName || supplierName(detail.supplierId) },
+      { label: t('financeReportPages.payments.paymentDate'), value: detail.paymentDate },
+      { label: t('financeReportPages.payments.paymentAmount'), value: formatCurrency(detail.paymentAmount) },
+      { label: t('financeReportPages.payments.allocated'), value: formatCurrency(detail.allocatedAmount) },
+      { label: t('financeReportPages.common.status'), value: paymentStatusLabel(detail.status) },
+      { label: t('financeReportPages.common.remark'), value: detail.remark || '-' }
+    ]
   } catch (error) {
-    ElMessage.error('加载付款详情失败')
+    ElMessage.error(t('financeReportPages.payments.message.paymentDetailLoadFailed'))
     detailVisible.value = false
   } finally {
     detailLoading.value = false
@@ -665,23 +664,31 @@ const viewPayment = async (row: Payment) => {
 
 const cancelReceipt = async (row: Receipt) => {
   try {
-    await ElMessageBox.confirm(`确定取消收款单"${row.receiptNo}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('financeReportPages.payments.message.receiptCancelConfirm', { no: row.receiptNo }),
+      t('financeReportPages.common.prompt'),
+      { type: 'warning' }
+    )
     await apiCancelReceipt(row.id)
-    ElMessage.success('取消成功')
+    ElMessage.success(t('financeReportPages.payments.message.cancelled'))
     loadReceipts()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('取消失败')
+    if (error !== 'cancel') ElMessage.error(t('financeReportPages.payments.message.cancelFailed'))
   }
 }
 
 const cancelPayment = async (row: Payment) => {
   try {
-    await ElMessageBox.confirm(`确定取消付款单"${row.paymentNo}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('financeReportPages.payments.message.paymentCancelConfirm', { no: row.paymentNo }),
+      t('financeReportPages.common.prompt'),
+      { type: 'warning' }
+    )
     await apiCancelPayment(row.id)
-    ElMessage.success('取消成功')
+    ElMessage.success(t('financeReportPages.payments.message.cancelled'))
     loadPayments()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('取消失败')
+    if (error !== 'cancel') ElMessage.error(t('financeReportPages.payments.message.cancelFailed'))
   }
 }
 
@@ -709,10 +716,27 @@ const resetPaymentForm = () => {
   openPayables.value = []
 }
 
-const customerName = (id: string | number) => customerMap.value.get(String(id)) || `客户 ${id}`
-const supplierName = (id: string | number) => supplierMap.value.get(String(id)) || `供应商 ${id}`
-const formatMoney = (value?: number) => Number(value ?? 0).toFixed(2)
-const today = () => new Date().toISOString().slice(0, 10)
+const customerName = (id: string | number) => customerMap.value.get(String(id)) || t('financeReportPages.payments.customerFallback', { id })
+const supplierName = (id: string | number) => supplierMap.value.get(String(id)) || t('financeReportPages.payments.supplierFallback', { id })
+const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
+const formatCurrency = (value?: number) => formatLocalizedCurrency(Number(value ?? 0))
+
+const paymentStatusLabel = (status?: string) => {
+  if (status === 'DRAFT') return t('financeReportPages.payments.status.draft')
+  if (status === 'POSTED' || status === 'COMPLETED') return t('financeReportPages.payments.status.posted')
+  if (status === 'CANCELLED') return t('financeReportPages.payments.status.cancelled')
+  return status || '-'
+}
+
+const paymentStatusTagType = (status?: string): 'info' | 'success' | 'danger' => {
+  if (status === 'DRAFT') return 'info'
+  if (status === 'POSTED' || status === 'COMPLETED') return 'success'
+  return 'danger'
+}
+const today = () => formatBusinessDate()
 
 watch(activeTab, (newTab) => {
   if (newTab === 'receipts') {
@@ -724,8 +748,8 @@ watch(activeTab, (newTab) => {
 
 onMounted(() => {
   loadReceipts()
-  loadCustomers().catch(() => ElMessage.error('加载客户列表失败'))
-  loadSuppliers().catch(() => ElMessage.error('加载供应商列表失败'))
+  loadCustomers().catch(() => ElMessage.error(t('financeReportPages.payments.message.customersLoadFailed')))
+  loadSuppliers().catch(() => ElMessage.error(t('financeReportPages.payments.message.suppliersLoadFailed')))
 })
 </script>
 

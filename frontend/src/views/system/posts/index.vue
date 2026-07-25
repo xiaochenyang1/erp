@@ -1,64 +1,64 @@
 <template>
   <div class="app-container">
-    <!-- 搜索栏 -->
+    <!-- Search filters -->
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="岗位编码">
-          <el-input v-model="queryForm.code" placeholder="请输入岗位编码" clearable style="width: 200px" />
+        <el-form-item :label="$t('systemPost.code')">
+          <el-input v-model="queryForm.code" :placeholder="$t('systemPost.codePlaceholder')" clearable style="width: 200px" />
         </el-form-item>
-        <el-form-item label="岗位名称">
-          <el-input v-model="queryForm.name" placeholder="请输入岗位名称" clearable style="width: 200px" />
+        <el-form-item :label="$t('systemPost.name')">
+          <el-input v-model="queryForm.name" :placeholder="$t('systemPost.namePlaceholder')" clearable style="width: 200px" />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable style="width: 120px">
-            <el-option label="启用" value="ACTIVE" />
-            <el-option label="停用" value="INACTIVE" />
+        <el-form-item :label="$t('systemPost.status')">
+          <el-select v-model="queryForm.status" :placeholder="$t('systemPost.selectStatus')" clearable style="width: 120px">
+            <el-option :label="$t('systemPost.active')" value="ACTIVE" />
+            <el-option :label="$t('systemPost.inactive')" value="INACTIVE" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('systemPost.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('systemPost.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
-    <!-- 表格 -->
+    <!-- Results table -->
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>岗位管理</span>
-          <el-button v-permission="'system:post:create'" type="primary" :icon="Plus" @click="handleAdd">新增岗位</el-button>
+          <span>{{ $t('systemPost.title') }}</span>
+          <el-button v-permission="'system:post:create'" type="primary" :icon="Plus" @click="handleAdd">{{ $t('systemPost.create') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="code" label="岗位编码" width="150" />
-        <el-table-column prop="name" label="岗位名称" width="200" />
-        <el-table-column prop="orderNum" label="排序" width="100" align="center" />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="code" :label="$t('systemPost.code')" width="150" />
+        <el-table-column prop="name" :label="$t('systemPost.name')" width="200" />
+        <el-table-column prop="orderNum" :label="$t('systemPost.order')" width="100" align="center" />
+        <el-table-column prop="status" :label="$t('systemPost.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+              {{ row.status === 'ACTIVE' ? $t('systemPost.active') : $t('systemPost.inactive') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip />
-        <el-table-column label="操作" width="220" align="center" fixed="right">
+        <el-table-column prop="remark" :label="$t('systemPost.remark')" min-width="200" show-overflow-tooltip />
+        <el-table-column :label="$t('systemPost.actions')" width="220" align="center" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'system:post:update'" type="primary" link :icon="Edit" @click="handleEdit(row)">
-              编辑
+              {{ $t('systemPost.edit') }}
             </el-button>
             <el-button v-if="row.status === 'ACTIVE'" v-permission="'system:post:disable'" type="danger" link :icon="Delete" @click="handleDisable(row)">
-              停用
+              {{ $t('systemPost.disable') }}
             </el-button>
             <el-button v-else v-permission="'system:post:enable'" type="success" link @click="handleEnable(row)">
-              启用
+              {{ $t('systemPost.enable') }}
             </el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <!-- 分页 -->
+      <!-- Pagination -->
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.size"
@@ -71,7 +71,7 @@
       />
     </el-card>
 
-    <!-- 新增/编辑对话框 -->
+    <!-- Create/edit dialog -->
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
@@ -84,44 +84,44 @@
         :rules="formRules"
         label-width="100px"
       >
-        <el-form-item label="岗位编码" prop="code">
-          <el-input v-model="formData.code" placeholder="请输入岗位编码" />
+        <el-form-item :label="$t('systemPost.code')" prop="code">
+          <el-input v-model="formData.code" :placeholder="$t('systemPost.codePlaceholder')" />
         </el-form-item>
-        <el-form-item label="岗位名称" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入岗位名称" />
+        <el-form-item :label="$t('systemPost.name')" prop="name">
+          <el-input v-model="formData.name" :placeholder="$t('systemPost.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="所属部门" prop="deptId">
+        <el-form-item :label="$t('systemPost.dept')" prop="deptId">
           <el-tree-select
             v-model="formData.deptId"
             :data="deptOptions"
             :props="{ label: 'name', value: 'id' }"
-            placeholder="请选择所属部门"
+            :placeholder="$t('systemPost.selectDept')"
             clearable
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="排序" prop="orderNum">
+        <el-form-item :label="$t('systemPost.order')" prop="orderNum">
           <el-input-number v-model="formData.orderNum" :min="0" controls-position="right" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="$t('systemPost.status')" prop="status">
           <el-radio-group v-model="formData.status">
-            <el-radio label="ACTIVE">启用</el-radio>
-            <el-radio label="INACTIVE">停用</el-radio>
+            <el-radio value="ACTIVE">{{ $t('systemPost.active') }}</el-radio>
+            <el-radio value="INACTIVE">{{ $t('systemPost.inactive') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
+        <el-form-item :label="$t('systemPost.remark')" prop="remark">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入备注"
+            :placeholder="$t('systemPost.remarkPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('systemPost.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
-          确定
+          {{ $t('systemPost.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -129,7 +129,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, Edit, Delete } from '@element-plus/icons-vue'
 import {
@@ -144,26 +145,28 @@ import {
   type Post
 } from '@/api/system'
 
-// 查询表单
+const { t } = useI18n()
+
+// Search form
 const queryForm = reactive({
   code: '',
   name: '',
   status: ''
 })
 
-// 表格数据
+// Table data
 const loading = ref(false)
 const tableData = ref<Post[]>([])
 const deptOptions = ref<Dept[]>([])
 
-// 分页
+// Pagination
 const pagination = reactive({
   page: 1,
   size: 20,
   total: 0
 })
 
-// 对话框
+// Dialog state
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const submitLoading = ref(false)
@@ -178,14 +181,14 @@ const formData = reactive({
   remark: ''
 })
 
-// 表单验证规则
-const formRules: FormRules = {
-  code: [{ required: true, message: '请输入岗位编码', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入岗位名称', trigger: 'blur' }],
-  deptId: [{ required: true, message: '请选择所属部门', trigger: 'change' }]
-}
+// Validation rules
+const formRules = computed<FormRules>(() => ({
+  code: [{ required: true, message: t('systemPost.validation.code'), trigger: 'blur' }],
+  name: [{ required: true, message: t('systemPost.validation.name'), trigger: 'blur' }],
+  deptId: [{ required: true, message: t('systemPost.validation.dept'), trigger: 'change' }]
+}))
 
-// 加载数据
+// Data loading
 const loadData = async () => {
   loading.value = true
   try {
@@ -198,8 +201,8 @@ const loadData = async () => {
     tableData.value = res.records || []
     pagination.total = res.total || 0
   } catch (error) {
-    console.error('加载岗位列表失败:', error)
-    ElMessage.error('加载数据失败')
+    console.error('Failed to load posts:', error)
+    ElMessage.error(t('systemPost.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -209,13 +212,13 @@ const loadDeptOptions = async () => {
   deptOptions.value = await getDeptTree()
 }
 
-// 查询
+// Search
 const handleQuery = () => {
   pagination.page = 1
   loadData()
 }
 
-// 重置
+// Reset
 const handleReset = () => {
   queryForm.code = ''
   queryForm.name = ''
@@ -224,15 +227,15 @@ const handleReset = () => {
   loadData()
 }
 
-// 新增
+// Create
 const handleAdd = () => {
-  dialogTitle.value = '新增岗位'
+  dialogTitle.value = t('systemPost.create')
   dialogVisible.value = true
 }
 
-// 编辑
+// Edit
 const handleEdit = async (row: Post) => {
-  dialogTitle.value = '编辑岗位'
+  dialogTitle.value = t('systemPost.editTitle')
   try {
     const res = await getPost(row.id)
     Object.assign(formData, {
@@ -245,44 +248,44 @@ const handleEdit = async (row: Post) => {
       remark: res.remark
     })
     dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error('加载岗位详情失败')
+  } catch {
+    ElMessage.error(t('systemPost.message.detailLoadFailed'))
   }
 }
 
-// 停用
+// Disable
 const handleDisable = async (row: Post) => {
   try {
-    await ElMessageBox.confirm(`确定要停用岗位"${row.name}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('systemPost.message.disableConfirm', { name: row.name }), t('systemPost.message.prompt'), {
       type: 'warning'
     })
     await deletePost(row.id)
-    ElMessage.success('停用成功')
+    ElMessage.success(t('systemPost.message.disabled'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('停用失败')
+      ElMessage.error(t('systemPost.message.disableFailed'))
     }
   }
 }
 
-// 启用
+// Enable
 const handleEnable = async (row: Post) => {
   try {
-    await ElMessageBox.confirm(`确定要启用岗位"${row.name}"吗？`, '提示', {
+    await ElMessageBox.confirm(t('systemPost.message.enableConfirm', { name: row.name }), t('systemPost.message.prompt'), {
       type: 'warning'
     })
     await enablePost(row.id)
-    ElMessage.success('启用成功')
+    ElMessage.success(t('systemPost.message.enabled'))
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('启用失败')
+      ElMessage.error(t('systemPost.message.enableFailed'))
     }
   }
 }
 
-// 提交
+// Submit
 const handleSubmit = async () => {
   if (!formRef.value) return
 
@@ -293,22 +296,22 @@ const handleSubmit = async () => {
     try {
       if (formData.id) {
         await updatePost(formData.id, formData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('systemPost.message.updated'))
       } else {
         await createPost(formData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('systemPost.message.created'))
       }
       dialogVisible.value = false
       loadData()
-    } catch (error) {
-      ElMessage.error('操作失败')
+    } catch {
+      ElMessage.error(t('systemPost.message.saveFailed'))
     } finally {
       submitLoading.value = false
     }
   })
 }
 
-// 对话框关闭
+// Dialog cleanup
 const handleDialogClose = () => {
   formRef.value?.resetFields()
   Object.assign(formData, {

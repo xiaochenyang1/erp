@@ -2,39 +2,47 @@
   <div class="page">
     <el-card shadow="never">
       <el-form inline>
-        <el-form-item label="关键字">
+        <el-form-item :label="$t('salesQuote.keyword')">
           <el-input v-model="query.keyword" clearable style="width: 160px" @keyup.enter="loadData" />
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="$t('salesQuote.status')">
           <el-select v-model="query.status" clearable style="width: 140px">
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="已确认" value="CONFIRMED" />
-            <el-option label="已转单" value="CONVERTED" />
-            <el-option label="已作废" value="CANCELLED" />
+            <el-option :label="$t('salesQuote.statusValue.draft')" value="DRAFT" />
+            <el-option :label="$t('salesQuote.statusValue.confirmed')" value="CONFIRMED" />
+            <el-option :label="$t('salesQuote.statusValue.converted')" value="CONVERTED" />
+            <el-option :label="$t('salesQuote.statusValue.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadData">查询</el-button>
-          <el-button v-permission="'sales:quote:manage'" type="success" @click="openCreate">新建报价</el-button>
+          <el-button type="primary" @click="loadData">{{ $t('salesQuote.search') }}</el-button>
+          <el-button v-permission="'sales:quote:manage'" type="success" @click="openCreate">{{ $t('salesQuote.create') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="never">
       <el-table v-loading="loading" :data="rows" border stripe>
-        <el-table-column prop="quoteNo" label="报价单号" min-width="160" />
-        <el-table-column prop="customerName" label="客户" min-width="140" />
-        <el-table-column prop="quoteDate" label="报价日期" width="120" />
-        <el-table-column prop="validUntil" label="有效期至" width="120" />
-        <el-table-column prop="totalAmount" label="金额" width="120" align="right" />
-        <el-table-column prop="status" label="状态" width="100" />
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column prop="quoteNo" :label="$t('salesQuote.quoteNo')" min-width="160" />
+        <el-table-column prop="customerName" :label="$t('salesQuote.customer')" min-width="140" />
+        <el-table-column prop="quoteDate" :label="$t('salesQuote.quoteDate')" width="130">
+          <template #default="{ row }">{{ formatLocalizedDate(row.quoteDate) }}</template>
+        </el-table-column>
+        <el-table-column prop="validUntil" :label="$t('salesQuote.validUntil')" width="130">
+          <template #default="{ row }">{{ formatLocalizedDate(row.validUntil) || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="totalAmount" :label="$t('salesQuote.amount')" width="140" align="right">
+          <template #default="{ row }">{{ formatLocalizedCurrency(row.totalAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="status" :label="$t('salesQuote.status')" width="110">
+          <template #default="{ row }">{{ statusLabel(row.status) }}</template>
+        </el-table-column>
+        <el-table-column :label="$t('salesQuote.actions')" width="360" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openView(row)">详情</el-button>
-            <el-button v-if="row.status === 'DRAFT'" v-permission="'sales:quote:manage'" link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button v-if="row.status === 'DRAFT'" v-permission="'sales:quote:manage'" link type="success" @click="confirm(row)">确认</el-button>
-            <el-button v-if="row.status === 'CONFIRMED'" v-permission="'sales:quote:manage'" link type="warning" @click="openConvert(row)">转订单</el-button>
-            <el-button v-if="row.status === 'DRAFT' || row.status === 'CONFIRMED'" v-permission="'sales:quote:manage'" link type="danger" @click="cancel(row)">作废</el-button>
+            <el-button link type="primary" @click="openView(row)">{{ $t('salesQuote.detail') }}</el-button>
+            <el-button v-if="row.status === 'DRAFT'" v-permission="'sales:quote:manage'" link type="primary" @click="openEdit(row)">{{ $t('salesQuote.edit') }}</el-button>
+            <el-button v-if="row.status === 'DRAFT'" v-permission="'sales:quote:manage'" link type="success" @click="confirm(row)">{{ $t('salesQuote.confirm') }}</el-button>
+            <el-button v-if="row.status === 'CONFIRMED'" v-permission="'sales:quote:manage'" link type="warning" @click="openConvert(row)">{{ $t('salesQuote.convert') }}</el-button>
+            <el-button v-if="row.status === 'DRAFT' || row.status === 'CONFIRMED'" v-permission="'sales:quote:manage'" link type="danger" @click="cancel(row)">{{ $t('salesQuote.cancelQuote') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -49,28 +57,28 @@
       />
     </el-card>
 
-    <el-dialog v-model="formVisible" :title="editingId ? '编辑报价' : '新建报价'" width="860px" destroy-on-close>
+    <el-dialog v-model="formVisible" :title="editingId ? $t('salesQuote.editTitle') : $t('salesQuote.createTitle')" width="860px" destroy-on-close>
       <el-form label-width="100px">
-        <el-form-item label="客户" required>
+        <el-form-item :label="$t('salesQuote.customer')" required>
           <el-select v-model="form.customerId" filterable style="width: 100%">
             <el-option v-for="c in customers" :key="c.id" :label="c.customerName || c.name" :value="String(c.id)" />
           </el-select>
         </el-form-item>
-        <el-form-item label="报价日期" required>
+        <el-form-item :label="$t('salesQuote.quoteDate')" required>
           <el-date-picker v-model="form.quoteDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="有效期至">
+        <el-form-item :label="$t('salesQuote.validUntil')">
           <el-date-picker v-model="form.validUntil" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('salesQuote.remark')">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
         <div class="line-bar">
-          <b>明细</b>
-          <el-button link type="primary" @click="addLine">加行</el-button>
+          <b>{{ $t('salesQuote.lines') }}</b>
+          <el-button link type="primary" @click="addLine">{{ $t('salesQuote.addLine') }}</el-button>
         </div>
         <el-table :data="form.lines" border size="small">
-          <el-table-column label="商品" min-width="220">
+          <el-table-column :label="$t('salesQuote.product')" min-width="220">
             <template #default="{ row }">
               <el-select v-model="row.productId" filterable style="width: 100%">
                 <el-option
@@ -82,45 +90,45 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="数量" width="120">
+          <el-table-column :label="$t('salesQuote.quantity')" width="120">
             <template #default="{ row }">
               <el-input-number v-model="row.qty" :min="0.0001" :precision="4" :controls="false" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column label="单价" width="120">
+          <el-table-column :label="$t('salesQuote.unitPrice')" width="120">
             <template #default="{ row }">
               <el-input-number v-model="row.price" :min="0" :precision="2" :controls="false" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column label="税率" width="110">
+          <el-table-column :label="$t('salesQuote.taxRate')" width="110">
             <template #default="{ row }">
               <el-input-number v-model="row.taxRate" :min="0" :precision="4" :controls="false" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80">
+          <el-table-column :label="$t('salesQuote.actions')" width="90">
             <template #default="{ $index }">
-              <el-button link type="danger" @click="form.lines.splice($index, 1)">删</el-button>
+              <el-button link type="danger" @click="form.lines.splice($index, 1)">{{ $t('salesQuote.delete') }}</el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-form>
       <template #footer>
-        <el-button @click="formVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <el-button @click="formVisible = false">{{ $t('salesQuote.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="save">{{ $t('salesQuote.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="convertVisible" title="转销售订单" width="420px">
+    <el-dialog v-model="convertVisible" :title="$t('salesQuote.convertTitle')" width="420px">
       <el-form label-width="100px">
-        <el-form-item label="发货仓库" required>
+        <el-form-item :label="$t('salesQuote.deliveryWarehouse')" required>
           <el-select v-model="convertWarehouseId" filterable style="width: 100%">
             <el-option v-for="w in warehouses" :key="w.id" :label="w.warehouseName || w.name" :value="String(w.id)" />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="convertVisible = false">取消</el-button>
-        <el-button type="primary" :loading="converting" @click="doConvert">确定转单</el-button>
+        <el-button @click="convertVisible = false">{{ $t('salesQuote.cancel') }}</el-button>
+        <el-button type="primary" :loading="converting" @click="doConvert">{{ $t('salesQuote.confirmConvert') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -128,6 +136,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   cancelSalesQuote,
@@ -140,6 +149,9 @@ import {
   type SalesQuote
 } from '@/api/sales'
 import { getCustomers, getProducts, getWarehouses } from '@/api/masterdata'
+import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -163,7 +175,17 @@ const convertVisible = ref(false)
 const convertQuoteId = ref<string | number>('')
 const convertWarehouseId = ref('')
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => formatBusinessDate()
+
+const statusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    DRAFT: t('salesQuote.statusValue.draft'),
+    CONFIRMED: t('salesQuote.statusValue.confirmed'),
+    CONVERTED: t('salesQuote.statusValue.converted'),
+    CANCELLED: t('salesQuote.statusValue.cancelled')
+  }
+  return map[status] || status
+}
 
 const loadOptions = async () => {
   const [c, p, w] = await Promise.all([
@@ -183,7 +205,7 @@ const loadData = async () => {
     rows.value = page.records || []
     total.value = page.total || 0
   } catch {
-    ElMessage.error('加载报价失败')
+    ElMessage.error(t('salesQuote.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -222,14 +244,20 @@ const openEdit = async (row: SalesQuote) => {
 const openView = async (row: SalesQuote) => {
   const detail = await getSalesQuote(row.id)
   ElMessageBox.alert(
-    `单号 ${detail.quoteNo}\n客户 ${detail.customerName}\n金额 ${detail.totalAmount}\n状态 ${detail.status}\n明细 ${detail.lines?.length || 0} 行`,
-    '报价详情'
+    t('salesQuote.detailContent', {
+      quoteNo: detail.quoteNo,
+      customer: detail.customerName,
+      amount: formatLocalizedCurrency(detail.totalAmount),
+      status: statusLabel(detail.status),
+      count: detail.lines?.length || 0
+    }),
+    t('salesQuote.detailTitle')
   )
 }
 
 const save = async () => {
   if (!form.customerId || !form.quoteDate || !form.lines.some((l) => l.productId)) {
-    ElMessage.warning('请完善客户、日期与明细')
+    ElMessage.warning(t('salesQuote.message.completeForm'))
     return
   }
   saving.value = true
@@ -245,11 +273,11 @@ const save = async () => {
     }
     if (editingId.value) await updateSalesQuote(editingId.value, payload)
     else await createSalesQuote(payload)
-    ElMessage.success('保存成功')
+    ElMessage.success(t('salesQuote.message.saved'))
     formVisible.value = false
     loadData()
   } catch {
-    // interceptor
+    // The shared request interceptor already surfaces the error.
   } finally {
     saving.value = false
   }
@@ -257,14 +285,18 @@ const save = async () => {
 
 const confirm = async (row: SalesQuote) => {
   await confirmSalesQuote(row.id)
-  ElMessage.success('已确认')
+  ElMessage.success(t('salesQuote.message.confirmed'))
   loadData()
 }
 
 const cancel = async (row: SalesQuote) => {
-  await ElMessageBox.confirm(`作废报价 ${row.quoteNo}？`, '提示', { type: 'warning' })
+  await ElMessageBox.confirm(
+    t('salesQuote.message.cancelConfirm', { quoteNo: row.quoteNo }),
+    t('salesQuote.message.prompt'),
+    { type: 'warning' }
+  )
   await cancelSalesQuote(row.id)
-  ElMessage.success('已作废')
+  ElMessage.success(t('salesQuote.message.cancelled'))
   loadData()
 }
 
@@ -277,17 +309,17 @@ const openConvert = async (row: SalesQuote) => {
 
 const doConvert = async () => {
   if (!convertWarehouseId.value) {
-    ElMessage.warning('请选择仓库')
+    ElMessage.warning(t('salesQuote.message.selectWarehouse'))
     return
   }
   converting.value = true
   try {
     const order = await convertSalesQuoteToOrder(convertQuoteId.value, convertWarehouseId.value)
-    ElMessage.success(`已转销售订单 ${order.orderNo}`)
+    ElMessage.success(t('salesQuote.message.converted', { orderNo: order.orderNo }))
     convertVisible.value = false
     loadData()
   } catch {
-    // interceptor
+    // The shared request interceptor already surfaces the error.
   } finally {
     converting.value = false
   }

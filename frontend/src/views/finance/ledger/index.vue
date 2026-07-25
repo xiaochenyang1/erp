@@ -3,33 +3,33 @@
     <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="会计科目">
+        <el-form-item :label="$t('financeReportPages.ledger.subject')">
           <el-tree-select
             v-model="queryForm.subjectId"
             :data="subjectOptions"
             :props="{ label: 'name', value: 'id' }"
-            placeholder="请选择会计科目"
+            :placeholder="$t('financeReportPages.ledger.subjectPlaceholder')"
             clearable
             filterable
             check-strictly
             style="width: 250px"
           />
         </el-form-item>
-        <el-form-item label="日期范围">
+        <el-form-item :label="$t('financeReportPages.common.dateRange')">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="$t('financeReportPages.common.rangeSeparator')"
+            :start-placeholder="$t('financeReportPages.common.startDate')"
+            :end-placeholder="$t('financeReportPages.common.endDate')"
             value-format="YYYY-MM-DD"
             style="width: 280px"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button v-permission="'finance:ledger:view'" :icon="Download" @click="handleExport">导出</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
+          <el-button v-permission="'finance:ledger:view'" :icon="Download" @click="handleExport">{{ $t('financeReportPages.ledger.export') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -38,7 +38,7 @@
     <el-card shadow="never" class="table-card">
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
         <!-- 总账 -->
-        <el-tab-pane label="总账查询" name="general">
+        <el-tab-pane :label="$t('financeReportPages.ledger.generalTab')" name="general">
           <el-table
             v-loading="generalLoading"
             :data="generalLedger"
@@ -47,22 +47,22 @@
             :summary-method="getGeneralSummary"
             show-summary
           >
-            <el-table-column prop="subjectCode" label="科目编码" width="150" />
-            <el-table-column prop="subjectName" label="科目名称" width="200" />
-            <el-table-column prop="debitAmount" label="借方金额" width="150" align="right">
+            <el-table-column prop="subjectCode" :label="$t('financeReportPages.common.subjectCode')" width="150" />
+            <el-table-column prop="subjectName" :label="$t('financeReportPages.common.subjectName')" width="200" />
+            <el-table-column prop="debitAmount" :label="$t('financeReportPages.common.debitAmount')" width="150" align="right">
               <template #default="{ row }">
                 {{ formatAmount(row.debitAmount) }}
               </template>
             </el-table-column>
-            <el-table-column prop="creditAmount" label="贷方金额" width="150" align="right">
+            <el-table-column prop="creditAmount" :label="$t('financeReportPages.common.creditAmount')" width="150" align="right">
               <template #default="{ row }">
                 {{ formatAmount(row.creditAmount) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" align="center" fixed="right">
+            <el-table-column :label="$t('financeReportPages.common.actions')" width="120" align="center" fixed="right">
               <template #default="{ row }">
                 <el-button type="primary" link @click="handleViewDetail(row)">
-                  查看明细
+                  {{ $t('financeReportPages.ledger.viewDetail') }}
                 </el-button>
               </template>
             </el-table-column>
@@ -70,25 +70,27 @@
         </el-tab-pane>
 
         <!-- 明细账 -->
-        <el-tab-pane label="明细账查询" name="detail">
+        <el-tab-pane :label="$t('financeReportPages.ledger.detailTab')" name="detail">
           <el-table
             v-loading="detailLoading"
             :data="detailLedger"
             border
             stripe
           >
-            <el-table-column prop="bizDate" label="业务日期" width="120" />
-            <el-table-column prop="voucherId" label="凭证ID" width="180" />
-            <el-table-column prop="lineNo" label="行号" width="80" align="center" />
-            <el-table-column prop="subjectCode" label="科目编码" width="120" />
-            <el-table-column prop="subjectName" label="科目名称" width="150" />
-            <el-table-column prop="summary" label="摘要" min-width="200" show-overflow-tooltip />
-            <el-table-column prop="debitAmount" label="借方金额" width="130" align="right">
+            <el-table-column prop="bizDate" :label="$t('financeReportPages.common.bizDate')" width="130">
+              <template #default="{ row }">{{ formatDate(row.bizDate) }}</template>
+            </el-table-column>
+            <el-table-column prop="voucherId" :label="$t('financeReportPages.ledger.voucherId')" width="180" />
+            <el-table-column prop="lineNo" :label="$t('financeReportPages.common.lineNo')" width="80" align="center" />
+            <el-table-column prop="subjectCode" :label="$t('financeReportPages.common.subjectCode')" width="120" />
+            <el-table-column prop="subjectName" :label="$t('financeReportPages.common.subjectName')" width="150" />
+            <el-table-column prop="summary" :label="$t('financeReportPages.common.summary')" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="debitAmount" :label="$t('financeReportPages.common.debitAmount')" width="140" align="right">
               <template #default="{ row }">
                 {{ row.debitAmount ? formatAmount(row.debitAmount) : '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="creditAmount" label="贷方金额" width="130" align="right">
+            <el-table-column prop="creditAmount" :label="$t('financeReportPages.common.creditAmount')" width="140" align="right">
               <template #default="{ row }">
                 {{ row.creditAmount ? formatAmount(row.creditAmount) : '-' }}
               </template>
@@ -114,10 +116,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
-import { formatLocalizedNumber } from '@/utils/locale'
+import { formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
 import {
   getAccountSubjectTree,
   getLedgerEntries,
@@ -127,6 +130,8 @@ import {
   type LedgerEntry,
   type LedgerSummary
 } from '@/api/finance'
+
+const { t } = useI18n()
 
 // 标签页
 const activeTab = ref('general')
@@ -164,7 +169,8 @@ const loadSubjects = async () => {
     const subjects = await getAccountSubjectTree()
     subjectOptions.value = subjects || []
   } catch (error) {
-    console.error('加载科目失败:', error)
+    console.error('Failed to load account subjects:', error)
+    ElMessage.error(t('financeReportPages.ledger.message.subjectsLoadFailed'))
   }
 }
 
@@ -176,8 +182,8 @@ const loadGeneralLedger = async () => {
     const res = await getLedgerSummary(params)
     generalLedger.value = res || []
   } catch (error) {
-    console.error('加载总账失败:', error)
-    ElMessage.error('加载总账数据失败')
+    console.error('Failed to load the general ledger:', error)
+    ElMessage.error(t('financeReportPages.ledger.message.generalLoadFailed'))
   } finally {
     generalLoading.value = false
   }
@@ -192,8 +198,8 @@ const loadDetailLedger = async () => {
     detailLedger.value = entries.slice(start, start + pagination.size)
     pagination.total = entries.length
   } catch (error) {
-    console.error('加载明细账失败:', error)
-    ElMessage.error('加载明细账数据失败')
+    console.error('Failed to load ledger entries:', error)
+    ElMessage.error(t('financeReportPages.ledger.message.detailLoadFailed'))
   } finally {
     detailLoading.value = false
   }
@@ -296,20 +302,19 @@ const handleExport = async () => {
   try {
     syncDateRange()
     const blob = await exportLedger(buildLedgerQueryParams())
-    downloadBlob(blob, `总账_${Date.now()}.csv`)
-    ElMessage.success('导出成功')
-  } catch (error) {
-    ElMessage.error('导出失败')
+    downloadBlob(blob, t('financeReportPages.ledger.fileName', { timestamp: Date.now() }))
+    ElMessage.success(t('financeReportPages.ledger.message.exported'))
+  } catch {
+    ElMessage.error(t('financeReportPages.ledger.message.exportFailed'))
   }
 }
 
 // 格式化金额
 const formatAmount = (amount: number) => {
-  return amount == null ? '0.00' : formatLocalizedNumber(amount, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
+  return formatLocalizedCurrency(Number(amount || 0))
 }
+
+const formatDate = (value?: string) => formatLocalizedDate(value)
 
 // 总账合计行
 const getGeneralSummary = (param: any) => {
@@ -317,7 +322,7 @@ const getGeneralSummary = (param: any) => {
   const sums: string[] = []
   columns.forEach((column: any, index: number) => {
     if (index === 0) {
-      sums[index] = '合计'
+      sums[index] = t('financeReportPages.ledger.total')
       return
     }
     if (index === 1) {
