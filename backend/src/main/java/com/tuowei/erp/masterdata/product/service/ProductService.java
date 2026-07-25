@@ -28,6 +28,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -46,6 +47,8 @@ public class ProductService {
             "categoryName",
             "specification",
             "unitName",
+            "auxUnitName",
+            "conversionFactor",
             "purchasePrice",
             "salePrice",
             "taxRate",
@@ -97,6 +100,7 @@ public class ProductService {
         entity.setCategoryName(request.categoryName());
         entity.setSpecification(request.specification());
         entity.setUnitName(request.unitName());
+        applyAuxUnit(entity, request.auxUnitName(), request.conversionFactor());
         entity.setPurchasePrice(request.purchasePrice());
         entity.setSalePrice(request.salePrice());
         entity.setTaxRate(request.taxRate());
@@ -207,6 +211,7 @@ public class ProductService {
         entity.setCategoryName(request.categoryName());
         entity.setSpecification(request.specification());
         entity.setUnitName(request.unitName());
+        applyAuxUnit(entity, request.auxUnitName(), request.conversionFactor());
         entity.setPurchasePrice(request.purchasePrice());
         entity.setSalePrice(request.salePrice());
         entity.setTaxRate(request.taxRate());
@@ -292,6 +297,8 @@ public class ProductService {
                 record.categoryName(),
                 record.specification(),
                 record.unitName(),
+                record.auxUnitName(),
+                record.conversionFactor(),
                 record.purchasePrice(),
                 record.salePrice(),
                 record.taxRate(),
@@ -302,6 +309,23 @@ public class ProductService {
                 record.serialControlled(),
                 record.remark()
         );
+    }
+
+    private void applyAuxUnit(ProductEntity entity, String auxUnitName, BigDecimal conversionFactor) {
+        String normalizedAuxUnit = normalizeNullableText(auxUnitName);
+        if (!StringUtils.hasText(normalizedAuxUnit)) {
+            entity.setAuxUnitName(null);
+            entity.setConversionFactor(null);
+            return;
+        }
+        if (conversionFactor == null || conversionFactor.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("启用辅单位时换算率必须大于0（1 辅单位 = N 库存单位）");
+        }
+        if (normalizedAuxUnit.equals(normalizeNullableText(entity.getUnitName()))) {
+            throw new IllegalArgumentException("辅单位不能与库存单位相同");
+        }
+        entity.setAuxUnitName(normalizedAuxUnit);
+        entity.setConversionFactor(conversionFactor.stripTrailingZeros());
     }
 
     private String normalizeNullableText(String value) {
@@ -393,6 +417,8 @@ public class ProductService {
                 entity.getCategoryName(),
                 entity.getSpecification(),
                 entity.getUnitName(),
+                entity.getAuxUnitName(),
+                entity.getConversionFactor(),
                 entity.getPurchasePrice(),
                 entity.getSalePrice(),
                 entity.getTaxRate(),

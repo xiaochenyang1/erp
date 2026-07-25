@@ -13,6 +13,8 @@ public record ProductCreateRequest(
         @NotBlank(message = "categoryName不能为空") String categoryName,
         String specification,
         @NotBlank(message = "unitName不能为空") String unitName,
+        String auxUnitName,
+        BigDecimal conversionFactor,
         @NotNull(message = "purchasePrice不能为空") BigDecimal purchasePrice,
         @NotNull(message = "salePrice不能为空") BigDecimal salePrice,
         @NotNull(message = "taxRate不能为空") BigDecimal taxRate,
@@ -23,4 +25,41 @@ public record ProductCreateRequest(
         String remark,
         @Size(max = 128, message = "商品条码长度不能超过128个字符") String barcode
 ) {
+    public ProductCreateRequest(
+            String productCode,
+            String productName,
+            String productType,
+            String categoryName,
+            String specification,
+            String unitName,
+            BigDecimal purchasePrice,
+            BigDecimal salePrice,
+            BigDecimal taxRate,
+            Boolean lotControlled,
+            Boolean shelfLifeControlled,
+            Boolean inspectionRequired,
+            Boolean serialControlled,
+            String remark,
+            String barcode
+    ) {
+        this(
+                productCode,
+                productName,
+                productType,
+                categoryName,
+                specification,
+                unitName,
+                null,
+                null,
+                purchasePrice,
+                salePrice,
+                taxRate,
+                lotControlled,
+                shelfLifeControlled,
+                inspectionRequired,
+                serialControlled,
+                remark,
+                barcode
+        );
+    }
 }

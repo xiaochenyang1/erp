@@ -129,8 +129,10 @@ export interface components {
             total?: number;
         };
         ProductCreateRequest: {
+            auxUnitName?: string;
             barcode?: string;
             categoryName: string;
+            conversionFactor?: number;
             inspectionRequired?: boolean;
             lotControlled?: boolean;
             productCode: string;
@@ -154,8 +156,10 @@ export interface components {
             status?: string;
         };
         ProductResponse: {
+            auxUnitName?: string;
             barcode?: string;
             categoryName?: string;
+            conversionFactor?: number;
             id?: string;
             inspectionRequired?: boolean;
             lotControlled?: boolean;
@@ -172,8 +176,10 @@ export interface components {
             unitName?: string;
         };
         ProductUpdateRequest: {
+            auxUnitName?: string;
             barcode?: string;
             categoryName: string;
+            conversionFactor?: number;
             inspectionRequired?: boolean;
             lotControlled?: boolean;
             productName: string;

@@ -825,6 +825,12 @@
             "type": "string",
             "minLength": 1
           },
+          "auxUnitName": {
+            "type": "string"
+          },
+          "conversionFactor": {
+            "type": "number"
+          },
           "purchasePrice": {
             "type": "number"
           },
@@ -909,6 +915,12 @@
           "unitName": {
             "type": "string"
           },
+          "auxUnitName": {
+            "type": "string"
+          },
+          "conversionFactor": {
+            "type": "number"
+          },
           "purchasePrice": {
             "type": "number"
           },
@@ -955,6 +967,12 @@
           "unitName": {
             "type": "string",
             "minLength": 1
+          },
+          "auxUnitName": {
+            "type": "string"
+          },
+          "conversionFactor": {
+            "type": "number"
           },
           "purchasePrice": {
             "type": "number"

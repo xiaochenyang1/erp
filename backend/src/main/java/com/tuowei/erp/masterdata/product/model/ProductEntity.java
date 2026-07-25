@@ -32,6 +32,10 @@ public class ProductEntity {
 
     private String unitName;
 
+    private String auxUnitName;
+
+    private BigDecimal conversionFactor;
+
     private BigDecimal purchasePrice;
 
     private BigDecimal salePrice;
@@ -141,6 +145,22 @@ public class ProductEntity {
 
     public void setUnitName(String unitName) {
         this.unitName = unitName;
+    }
+
+    public String getAuxUnitName() {
+        return auxUnitName;
+    }
+
+    public void setAuxUnitName(String auxUnitName) {
+        this.auxUnitName = auxUnitName;
+    }
+
+    public BigDecimal getConversionFactor() {
+        return conversionFactor;
+    }
+
+    public void setConversionFactor(BigDecimal conversionFactor) {
+        this.conversionFactor = conversionFactor;
     }
 
     public BigDecimal getPurchasePrice() {

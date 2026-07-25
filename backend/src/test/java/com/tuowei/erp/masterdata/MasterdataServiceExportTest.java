@@ -88,8 +88,8 @@ class MasterdataServiceExportTest {
         productService(mapper).exportProducts(query).writeTo(outputStream);
 
         String csv = outputStream.toString(StandardCharsets.UTF_8);
-        assertThat(csv).startsWith("\uFEFFproductCode,productName,barcode,productType,categoryName,specification,unitName,purchasePrice,salePrice,taxRate,status,lotControlled,shelfLifeControlled,inspectionRequired,remark\r\n");
-        assertThat(csv).contains("P001,螺栓,6901234567890,STANDARD,标准件,M8,个,1.50,2.00,13.00,ACTIVE,true,false,false,product export\r\n");
+        assertThat(csv).startsWith("\uFEFFproductCode,productName,barcode,productType,categoryName,specification,unitName,auxUnitName,conversionFactor,purchasePrice,salePrice,taxRate,status,lotControlled,shelfLifeControlled,inspectionRequired,serialControlled,remark\r\n");
+        assertThat(csv).contains("P001,螺栓,6901234567890,STANDARD,标准件,M8,个,箱,12,1.50,2.00,13.00,ACTIVE,true,false,false,false,product export\r\n");
         verifySelectListScoped(mapper, ProductEntity.class);
     }
 
@@ -108,8 +108,8 @@ class MasterdataServiceExportTest {
         customerService(mapper).exportCustomers(query).writeTo(outputStream);
 
         String csv = outputStream.toString(StandardCharsets.UTF_8);
-        assertThat(csv).startsWith("\uFEFFcustomerCode,customerName,customerType,contactName,contactPhone,email,settlementMethod,creditLimit,address,status,remark\r\n");
-        assertThat(csv).contains("C001,东北客户,COMPANY,老王,13800000001,customer@example.com,MONTHLY,10000.00,沈阳,ACTIVE,customer export\r\n");
+        assertThat(csv).startsWith("\uFEFFcustomerCode,customerName,customerType,contactName,contactPhone,email,settlementMethod,creditLimit,creditPeriod,address,status,remark\r\n");
+        assertThat(csv).contains("C001,东北客户,COMPANY,老王,13800000001,customer@example.com,MONTHLY,10000.00,,沈阳,ACTIVE,customer export\r\n");
         verifySelectListScoped(mapper, CustomerEntity.class);
     }
 
@@ -214,12 +214,16 @@ class MasterdataServiceExportTest {
         entity.setCategoryName("标准件");
         entity.setSpecification("M8");
         entity.setUnitName("个");
+        entity.setAuxUnitName("箱");
+        entity.setConversionFactor(new BigDecimal("12"));
         entity.setPurchasePrice(new BigDecimal("1.50"));
         entity.setSalePrice(new BigDecimal("2.00"));
         entity.setTaxRate(new BigDecimal("13.00"));
         entity.setStatus("ACTIVE");
         entity.setLotControlled(1);
         entity.setShelfLifeControlled(0);
+        entity.setInspectionRequired(0);
+        entity.setSerialControlled(0);
         entity.setRemark("product export");
         entity.setDeletedFlag(0);
         return entity;

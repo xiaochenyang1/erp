@@ -43,6 +43,7 @@ class InitialImportControllerTest {
         jdbcTemplate.update("delete from inv_txn where product_id in (select id from md_product where product_code like 'IMP-PROD-%')");
         jdbcTemplate.update("delete from inv_lot_balance where product_id in (select id from md_product where product_code like 'IMP-PROD-%')");
         jdbcTemplate.update("delete from inv_balance where product_id in (select id from md_product where product_code like 'IMP-PROD-%')");
+        jdbcTemplate.update("delete from md_location where warehouse_id in (select id from md_warehouse where warehouse_code like 'IMP-WH-%')");
         jdbcTemplate.update("delete from md_warehouse where warehouse_code like 'IMP-WH-%'");
         jdbcTemplate.update("delete from md_product where product_code like 'IMP-PROD-%'");
         jdbcTemplate.update("delete from fin_account_period where id = 880001");
@@ -90,8 +91,8 @@ class InitialImportControllerTest {
     @WithErpUser(userId = IMPORT_USER_ID, authorities = {IMPORT_PERMISSION})
     void previewsAndCommitsProductImportThenRejectsRepeatedCommit() {
         String productCode = "IMP-PROD-880001";
-        String csv = "product_code,product_name,product_type,category_name,specification,unit_name,purchase_price,sale_price,tax_rate,status,remark\n"
-                + productCode + ",导入测试商品,STANDARD,导入分类,规格A,件,10.00,18.00,13.00,ACTIVE,导入测试\n";
+        String csv = "product_code,product_name,product_type,category_name,specification,unit_name,aux_unit_name,conversion_factor,purchase_price,sale_price,tax_rate,status,remark\n"
+                + productCode + ",导入测试商品,STANDARD,导入分类,规格A,件,箱,12,10.00,18.00,13.00,ACTIVE,导入测试\n";
 
         ImportJobResponse preview = importJobService.preview("PRODUCT", csvFile("product.csv", csv));
         Assertions.assertThat(preview.status()).isEqualTo("VALIDATED");
@@ -108,6 +109,15 @@ class InitialImportControllerTest {
                 productCode
         );
         Assertions.assertThat(importedCount).isEqualTo(1L);
+
+        Map<String, Object> product = jdbcTemplate.queryForMap(
+                "select aux_unit_name, conversion_factor from md_product where product_code = ? and company_id = 1 and account_book_id = 1",
+                productCode
+        );
+        Assertions.assertThat(String.valueOf(product.get("AUX_UNIT_NAME") != null ? product.get("AUX_UNIT_NAME") : product.get("aux_unit_name")))
+                .isEqualTo("箱");
+        Object factor = product.get("CONVERSION_FACTOR") != null ? product.get("CONVERSION_FACTOR") : product.get("conversion_factor");
+        Assertions.assertThat(new BigDecimal(factor.toString()).compareTo(new BigDecimal("12"))).isZero();
 
         Assertions.assertThatThrownBy(() -> importJobService.commit(preview.jobId()))
                 .isInstanceOf(BusinessConflictException.class)
@@ -223,8 +233,8 @@ class InitialImportControllerTest {
     }
 
     private String productCsv(String productCode) {
-        return "product_code,product_name,product_type,category_name,specification,unit_name,purchase_price,sale_price,tax_rate,status,remark\n"
-                + productCode + ",导入测试商品,STANDARD,导入分类,规格A,件,10.00,18.00,13.00,ACTIVE,导入测试\n";
+        return "product_code,product_name,product_type,category_name,specification,unit_name,aux_unit_name,conversion_factor,purchase_price,sale_price,tax_rate,status,remark\n"
+                + productCode + ",导入测试商品,STANDARD,导入分类,规格A,件,,,10.00,18.00,13.00,ACTIVE,导入测试\n";
     }
 
     private void seedCustomer(long id, String customerCode) {
@@ -245,6 +255,13 @@ class InitialImportControllerTest {
                 values (?, 1, 1, ?, '导入批次仓库', 1, 1,
                         '北京市', 'ACTIVE', 0, '导入批次测试', ?, ?, 0)
                 """, id, warehouseCode, IMPORT_USER_ID, IMPORT_USER_ID);
+        jdbcTemplate.update("""
+                insert into md_location
+                (id, company_id, account_book_id, warehouse_id, location_code, location_name,
+                 is_default, status, deleted_flag, remark, created_by, updated_by, version)
+                values (?, 1, 1, ?, 'MAIN', '默认库位',
+                        1, 'ACTIVE', 0, '导入测试默认库位', ?, ?, 0)
+                """, id + 500000000000000000L, id, IMPORT_USER_ID, IMPORT_USER_ID);
     }
 
     private void seedLotProduct(long id, String productCode) {

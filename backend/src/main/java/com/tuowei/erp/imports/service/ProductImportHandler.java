@@ -36,6 +36,7 @@ public class ProductImportHandler extends AbstractImportHandler {
         String productCode = support.required(raw, "product_code", errors);
         String productName = support.required(raw, "product_name", errors);
         String unitName = support.required(raw, "unit_name", errors);
+        String auxUnitName = support.optionalText(raw, "aux_unit_name");
         if (productCode != null) {
             support.duplicateInFile(seen(context, "productCode"), productCode, "product_code", errors);
             Long count = productMapper.selectCount(new LambdaQueryWrapper<ProductEntity>()
@@ -50,6 +51,23 @@ public class ProductImportHandler extends AbstractImportHandler {
         BigDecimal purchasePrice = support.optionalAmount(raw, "purchase_price", BigDecimal.ZERO, errors);
         BigDecimal salePrice = support.optionalAmount(raw, "sale_price", BigDecimal.ZERO, errors);
         BigDecimal taxRate = support.optionalAmount(raw, "tax_rate", BigDecimal.ZERO, errors);
+        BigDecimal conversionFactor = null;
+        if (auxUnitName != null) {
+            if (unitName != null && auxUnitName.equalsIgnoreCase(unitName.trim())) {
+                errors.add(new ImportRowErrorResponse("aux_unit_name", "辅单位不能与库存单位相同"));
+            }
+            if (!org.springframework.util.StringUtils.hasText(raw.get("conversion_factor"))) {
+                errors.add(new ImportRowErrorResponse("conversion_factor", "启用辅单位时换算率必须大于0（1 辅单位 = N 库存单位）"));
+            } else {
+                conversionFactor = support.quantity(raw, "conversion_factor", errors);
+                if (conversionFactor.compareTo(BigDecimal.ZERO) <= 0) {
+                    errors.add(new ImportRowErrorResponse("conversion_factor", "启用辅单位时换算率必须大于0（1 辅单位 = N 库存单位）"));
+                    conversionFactor = null;
+                }
+            }
+        } else if (org.springframework.util.StringUtils.hasText(raw.get("conversion_factor"))) {
+            errors.add(new ImportRowErrorResponse("conversion_factor", "未填写辅单位时不能填写换算率"));
+        }
         rejectNegative("purchase_price", purchasePrice, errors);
         rejectNegative("sale_price", salePrice, errors);
         rejectNegative("tax_rate", taxRate, errors);
@@ -59,6 +77,8 @@ public class ProductImportHandler extends AbstractImportHandler {
         normalized.put("categoryName", support.optionalText(raw, "category_name"));
         normalized.put("specification", support.optionalText(raw, "specification"));
         normalized.put("unitName", unitName);
+        normalized.put("auxUnitName", auxUnitName);
+        normalized.put("conversionFactor", conversionFactor);
         normalized.put("purchasePrice", purchasePrice);
         normalized.put("salePrice", salePrice);
         normalized.put("taxRate", taxRate);
@@ -81,6 +101,13 @@ public class ProductImportHandler extends AbstractImportHandler {
             entity.setCategoryName(text(normalized, "categoryName"));
             entity.setSpecification(text(normalized, "specification"));
             entity.setUnitName(text(normalized, "unitName"));
+            entity.setAuxUnitName(text(normalized, "auxUnitName"));
+            Object conversionFactor = normalized.get("conversionFactor");
+            if (conversionFactor instanceof BigDecimal factor) {
+                entity.setConversionFactor(factor.stripTrailingZeros());
+            } else if (conversionFactor != null) {
+                entity.setConversionFactor(new BigDecimal(conversionFactor.toString()).stripTrailingZeros());
+            }
             entity.setPurchasePrice(decimalValue(normalized, "purchasePrice"));
             entity.setSalePrice(decimalValue(normalized, "salePrice"));
             entity.setTaxRate(decimalValue(normalized, "taxRate"));

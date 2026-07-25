@@ -120,6 +120,16 @@
           <span>{{ formatUnit(row.unit) }}</span>
         </template>
       </el-table-column>
+      <el-table-column v-if="isColumnVisible('auxUnitName')" prop="auxUnitName" :label="texts.auxUnit" width="120" align="center">
+        <template #default="{ row }">
+          <span>{{ formatUnit(row.auxUnitName) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="isColumnVisible('conversionFactor')" prop="conversionFactor" :label="texts.conversionFactor" width="120" align="right">
+        <template #default="{ row }">
+          <span>{{ row.conversionFactor != null && row.auxUnitName ? row.conversionFactor : '-' }}</span>
+        </template>
+      </el-table-column>
       <el-table-column v-if="isColumnVisible('unitPrice')" prop="unitPrice" :label="texts.salePrice" width="140" align="right">
         <template #default="{ row }">
           <span class="price-value">{{ formatCurrency(row.unitPrice) }}</span>
@@ -208,6 +218,24 @@
           <el-select v-model="formData.unit" :placeholder="texts.selectUnit" clearable>
             <el-option v-for="option in unitOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
+        </el-form-item>
+        <el-form-item :label="texts.auxUnit" prop="auxUnitName">
+          <el-select v-model="formData.auxUnitName" :placeholder="texts.selectAuxUnit" clearable>
+            <el-option v-for="option in unitOptions" :key="`aux-${option.value}`" :label="option.label" :value="option.value" />
+          </el-select>
+          <span class="form-tip">{{ texts.auxUnitHint }}</span>
+        </el-form-item>
+        <el-form-item :label="texts.conversionFactor" prop="conversionFactor">
+          <el-input-number
+            v-model="formData.conversionFactor"
+            :min="0"
+            :precision="6"
+            :controls="false"
+            :disabled="!formData.auxUnitName"
+            :placeholder="texts.enterConversionFactor"
+            style="width: 100%"
+          />
+          <span class="form-tip">{{ texts.conversionFactorHint }}</span>
         </el-form-item>
         <el-form-item :label="texts.salePrice" prop="unitPrice">
           <el-input-number
@@ -307,6 +335,14 @@
               <div class="detail-value">{{ formatUnit(currentRow?.unit) }}</div>
             </div>
             <div class="detail-item">
+              <div class="detail-label">{{ texts.auxUnit }}</div>
+              <div class="detail-value">{{ formatUnit(currentRow?.auxUnitName) }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">{{ texts.conversionFactor }}</div>
+              <div class="detail-value">{{ currentRow?.conversionFactor != null && currentRow?.auxUnitName ? currentRow.conversionFactor : '-' }}</div>
+            </div>
+            <div class="detail-item">
               <div class="detail-label">{{ texts.barcode }}</div>
               <div class="detail-value">{{ currentRow?.barcode || '-' }}</div>
             </div>
@@ -369,7 +405,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Box, View, Edit, Delete, CircleCheck, Download, Refresh, Plus } from '@element-plus/icons-vue'
 import {
@@ -404,6 +440,13 @@ const PRODUCT_TEXTS = {
     productCategory: '产品分类',
     specification: '规格型号',
     unit: '单位',
+    auxUnit: '辅单位',
+    conversionFactor: '换算率',
+    selectAuxUnit: '请选择辅单位',
+    enterConversionFactor: '1 辅单位 = N 库存单位',
+    auxUnitHint: '可选；用于箱/件等包装单位',
+    conversionFactorHint: '例如 1 箱 = 12 件，则填 12',
+    validationConversionFactor: '启用辅单位时换算率必须大于0',
     salePrice: '销售单价',
     costPrice: '成本单价',
     taxRate: '税率（%）',
@@ -511,6 +554,13 @@ const PRODUCT_TEXTS = {
     productCategory: 'Category',
     specification: 'Specification',
     unit: 'Unit',
+    auxUnit: 'Aux unit',
+    conversionFactor: 'Conversion factor',
+    selectAuxUnit: 'Select aux unit',
+    enterConversionFactor: '1 aux unit = N stock units',
+    auxUnitHint: 'Optional packaging unit such as carton',
+    conversionFactorHint: 'Example: 1 carton = 12 pcs → enter 12',
+    validationConversionFactor: 'Conversion factor must be greater than 0 when aux unit is set',
     salePrice: 'Sale price',
     costPrice: 'Cost price',
     taxRate: 'Tax rate (%)',
@@ -651,6 +701,8 @@ const productColumns = [
   { prop: 'categoryName', label: 'categoryName' },
   { prop: 'specifications', label: 'specifications' },
   { prop: 'unit', label: 'unit' },
+  { prop: 'auxUnitName', label: 'auxUnitName' },
+  { prop: 'conversionFactor', label: 'conversionFactor' },
   { prop: 'unitPrice', label: 'unitPrice' },
   { prop: 'costPrice', label: 'costPrice' },
   { prop: 'status', label: 'status' }
@@ -659,6 +711,8 @@ const productColumnOptions = computed(() => ([
   { prop: 'categoryName', label: texts.value.productCategory },
   { prop: 'specifications', label: texts.value.specification },
   { prop: 'unit', label: texts.value.unit },
+  { prop: 'auxUnitName', label: texts.value.auxUnit },
+  { prop: 'conversionFactor', label: texts.value.conversionFactor },
   { prop: 'unitPrice', label: texts.value.salePrice },
   { prop: 'costPrice', label: texts.value.costPrice },
   { prop: 'status', label: texts.value.status }
@@ -802,6 +856,8 @@ const handleExportSelected = () => {
     texts.value.productCategory,
     texts.value.specification,
     texts.value.unit,
+    texts.value.auxUnit,
+    texts.value.conversionFactor,
     texts.value.salePrice,
     texts.value.costPrice,
     texts.value.status
@@ -812,6 +868,8 @@ const handleExportSelected = () => {
     row.categoryName ?? '',
     row.specifications ?? '',
     formatUnit(row.unit),
+    formatUnit(row.auxUnitName),
+    row.conversionFactor != null && row.auxUnitName ? row.conversionFactor : '',
     row.unitPrice != null ? formatCurrency(row.unitPrice) : '',
     row.costPrice != null ? formatCurrency(row.costPrice) : '',
     row.status === 'ACTIVE' ? texts.value.active : texts.value.inactive
@@ -839,6 +897,8 @@ const formData = reactive<ProductSaveRequest & { id?: string }>({
   categoryName: '',
   specifications: '',
   unit: '',
+  auxUnitName: '',
+  conversionFactor: undefined,
   unitPrice: undefined,
   costPrice: undefined,
   taxRate: 13,
@@ -852,6 +912,12 @@ const formData = reactive<ProductSaveRequest & { id?: string }>({
 })
 
 // 表单验证规则
+watch(() => formData.auxUnitName, (value) => {
+  if (!value) {
+    formData.conversionFactor = undefined
+  }
+})
+
 const formRules = computed(() => ({
   code: [
     { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
@@ -864,6 +930,20 @@ const formRules = computed(() => ({
   productType: [{ required: true, message: texts.value.validationProductType, trigger: 'change' }],
   categoryName: [{ required: true, message: texts.value.validationCategory, trigger: 'blur' }],
   unit: [{ required: true, message: texts.value.validationUnit, trigger: 'change' }],
+  conversionFactor: [{
+    validator: (_rule: any, value: number | undefined | null, callback: (error?: Error) => void) => {
+      if (!formData.auxUnitName) {
+        callback()
+        return
+      }
+      if (value == null || !Number.isFinite(Number(value)) || Number(value) <= 0) {
+        callback(new Error(texts.value.validationConversionFactor))
+        return
+      }
+      callback()
+    },
+    trigger: 'blur'
+  }],
   unitPrice: [{ required: true, message: texts.value.validationSalePrice, trigger: 'blur' }],
   costPrice: [{ required: true, message: texts.value.validationCostPrice, trigger: 'blur' }],
   taxRate: [{ required: true, message: texts.value.validationTaxRate, trigger: 'blur' }]
@@ -927,6 +1007,8 @@ const handleCreate = () => {
     categoryName: '',
     specifications: '',
     unit: '',
+    auxUnitName: '',
+    conversionFactor: undefined,
     unitPrice: undefined,
     costPrice: undefined,
     taxRate: 13,
@@ -951,6 +1033,8 @@ const handleEdit = (row: Product) => {
     categoryName: row.categoryName,
     specifications: row.specification ?? row.specifications,
     unit: row.unitName ?? row.unit,
+    auxUnitName: row.auxUnitName || '',
+    conversionFactor: row.conversionFactor != null ? Number(row.conversionFactor) : undefined,
     unitPrice: row.salePrice ?? row.unitPrice,
     costPrice: row.purchasePrice ?? row.costPrice,
     taxRate: row.taxRate ?? 13,

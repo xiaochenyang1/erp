@@ -42,6 +42,8 @@ export interface ProductSaveRequest {
   specifications?: string
   unitName?: string
   unit?: string
+  auxUnitName?: string
+  conversionFactor?: number | null
   salePrice?: number
   purchasePrice?: number
   unitPrice?: number
@@ -146,6 +148,10 @@ const toProductCommonContract = (data: ProductSaveRequest): ProductUpdateContrac
   categoryName: requiredText(data.categoryName, '产品分类'),
   specification: data.specification || data.specifications,
   unitName: requiredText(data.unitName || data.unit, '单位'),
+  auxUnitName: data.auxUnitName?.trim() || undefined,
+  conversionFactor: data.conversionFactor != null && data.conversionFactor !== undefined
+    ? Number(data.conversionFactor)
+    : undefined,
   salePrice: requiredNumber(data.salePrice ?? data.unitPrice, '销售单价'),
   purchasePrice: requiredNumber(data.purchasePrice ?? data.costPrice, '成本单价'),
   taxRate: requiredNumber(data.taxRate, '税率'),
@@ -175,7 +181,9 @@ const normalizeProduct = (product: ProductContract): Product => ({
   specifications: product.specification,
   unit: product.unitName,
   unitPrice: product.salePrice,
-  costPrice: product.purchasePrice
+  costPrice: product.purchasePrice,
+  auxUnitName: product.auxUnitName || undefined,
+  conversionFactor: product.conversionFactor != null ? Number(product.conversionFactor) : undefined
 })
 
 // ==================== 客户管理 ====================
