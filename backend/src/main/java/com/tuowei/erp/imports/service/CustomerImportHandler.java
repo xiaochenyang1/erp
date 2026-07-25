@@ -59,6 +59,10 @@ public class CustomerImportHandler extends AbstractImportHandler {
         }
         BigDecimal creditLimit = support.optionalAmount(raw, "credit_limit", BigDecimal.ZERO, errors);
         rejectNegative("credit_limit", creditLimit, errors);
+        Integer creditPeriod = support.optionalInteger(raw, "credit_period", errors);
+        if (creditPeriod != null && creditPeriod < 0) {
+            errors.add(new ImportRowErrorResponse("credit_period", "credit_period不能小于0"));
+        }
         normalized.put("customerCode", customerCode);
         normalized.put("customerName", customerName);
         normalized.put("customerType", customerType);
@@ -67,6 +71,7 @@ public class CustomerImportHandler extends AbstractImportHandler {
         normalized.put("email", support.optionalText(raw, "email"));
         normalized.put("settlementMethod", support.optionalText(raw, "settlement_method"));
         normalized.put("creditLimit", creditLimit);
+        normalized.put("creditPeriod", creditPeriod);
         normalized.put("address", support.optionalText(raw, "address"));
         normalized.put("status", support.optionalText(raw, "status", "ACTIVE"));
         normalized.put("remark", support.optionalText(raw, "remark"));
@@ -89,6 +94,8 @@ public class CustomerImportHandler extends AbstractImportHandler {
             entity.setEmail(text(normalized, "email"));
             entity.setSettlementMethod(text(normalized, "settlementMethod"));
             entity.setCreditLimit(decimalValue(normalized, "creditLimit"));
+            Long creditPeriod = longValue(normalized, "creditPeriod");
+            entity.setCreditPeriod(creditPeriod == null ? null : creditPeriod.intValue());
             entity.setAddress(text(normalized, "address"));
             entity.setStatus(text(normalized, "status"));
             entity.setDeletedFlag(0);

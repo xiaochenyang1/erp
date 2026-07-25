@@ -93,13 +93,15 @@ class ImportHandlersTenantBoundaryTest {
                 "customer_code", "C002",
                 "customer_name", "profile customer",
                 "customer_type", "individual",
-                "email", "customer@example.com"
+                "email", "customer@example.com",
+                "credit_period", "45"
         ), context());
 
         assertThat(plan.valid()).isTrue();
         assertThat(plan.normalized())
                 .containsEntry("customerType", "INDIVIDUAL")
-                .containsEntry("email", "customer@example.com");
+                .containsEntry("email", "customer@example.com")
+                .containsEntry("creditPeriod", 45);
 
         handler.commit(new ImportJobEntity(), List.of(row(support, plan)), audit());
 
@@ -107,6 +109,34 @@ class ImportHandlersTenantBoundaryTest {
         verify(customerMapper).insert(entity.capture());
         assertThat(entity.getValue().getCustomerType()).isEqualTo("INDIVIDUAL");
         assertThat(entity.getValue().getEmail()).isEqualTo("customer@example.com");
+        assertThat(entity.getValue().getCreditPeriod()).isEqualTo(45);
+    }
+
+    @Test
+    void customerImportRejectsInvalidCreditPeriod() {
+        CustomerMapper customerMapper = mock(CustomerMapper.class);
+        when(customerMapper.selectCount(any())).thenReturn(0L);
+        CustomerImportHandler handler = new CustomerImportHandler(support(), customerMapper);
+
+        ImportTypeHandler.ImportRowPlan nonNumeric = handler.validate(1, Map.of(
+                "customer_code", "C005",
+                "customer_name", "invalid customer",
+                "customer_type", "COMPANY",
+                "credit_period", "thirty"
+        ), context());
+        ImportTypeHandler.ImportRowPlan negative = handler.validate(2, Map.of(
+                "customer_code", "C006",
+                "customer_name", "negative customer",
+                "customer_type", "COMPANY",
+                "credit_period", "-1"
+        ), context());
+
+        assertThat(nonNumeric.valid()).isFalse();
+        assertThat(nonNumeric.errors())
+                .anySatisfy(error -> assertThat(error.column()).isEqualTo("credit_period"));
+        assertThat(negative.valid()).isFalse();
+        assertThat(negative.errors())
+                .anySatisfy(error -> assertThat(error.message()).contains("不能小于0"));
     }
 
     @Test
@@ -201,7 +231,7 @@ class ImportHandlersTenantBoundaryTest {
 
         assertThat(registry.headers(ImportConstants.CUSTOMER)).containsExactly(
                 "customer_code", "customer_name", "customer_type", "contact_name", "contact_phone",
-                "email", "settlement_method", "credit_limit", "address", "status", "remark"
+                "email", "settlement_method", "credit_limit", "credit_period", "address", "status", "remark"
         );
         assertThat(registry.headers(ImportConstants.SUPPLIER)).containsExactly(
                 "supplier_code", "supplier_name", "contact_name", "contact_phone", "email",
@@ -209,7 +239,8 @@ class ImportHandlersTenantBoundaryTest {
         );
         assertThat(registry.csvTemplate(ImportConstants.CUSTOMER))
                 .contains("COMPANY")
-                .contains("customer@example.com");
+                .contains("customer@example.com")
+                .contains(",30,");
         assertThat(registry.csvTemplate(ImportConstants.SUPPLIER))
                 .contains("supplier@example.com")
                 .contains(",30,");
