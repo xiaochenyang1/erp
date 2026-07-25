@@ -229,6 +229,25 @@
           </el-table-column>
           <el-table-column :label="$t('inventoryChecks.productCode')" prop="productCode" width="130" />
           <el-table-column :label="$t('inventoryChecks.productName')" prop="productName" width="150" />
+          <el-table-column :label="$t('inventoryChecks.location')" width="160">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.locationId"
+                clearable
+                filterable
+                :placeholder="$t('inventoryChecks.placeholder.location')"
+                :disabled="isView || isEdit"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="location in locationsForWarehouse"
+                  :key="location.id"
+                  :label="`${location.locationCode} ${location.locationName}`"
+                  :value="location.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
           <el-table-column :label="$t('inventoryChecks.bookQuantity')" prop="bookQuantity" width="120">
             <template #default="{ row }">
               {{ row.bookQuantity || 0 }}
@@ -287,7 +306,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -304,8 +323,8 @@ import {
   type InventoryCheck,
   type InventoryCheckItem
 } from '@/api/inventory'
-import { getWarehouses, type Warehouse } from '@/api/masterdata'
-import { getProducts, type Product } from '@/api/masterdata'
+import { getLocations, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
+import { getProducts } from '@/api/masterdata'
 import { getInventoryStocks, type InventoryStockQuery } from '@/api/inventory'
 import { formatBusinessDate } from '@/utils/locale'
 
@@ -332,6 +351,7 @@ const total = ref(0)
 
 // 仓库列表
 const warehouses = ref<Warehouse[]>([])
+const locations = ref<Location[]>([])
 
 // 产品列表
 const products = ref<Product[]>([])
@@ -351,6 +371,10 @@ const formData = reactive<InventoryCheckCreateRequest & { items: InventoryCheckI
   checkDate: '',
   items: [],
   remark: ''
+})
+const locationsForWarehouse = computed(() => {
+  if (!formData.warehouseId) return locations.value
+  return locations.value.filter((location) => String(location.warehouseId) === String(formData.warehouseId))
 })
 
 // 表单验证规则
@@ -384,6 +408,15 @@ const loadWarehouses = async () => {
     warehouses.value = response.records
   } catch (error) {
     ElMessage.error(t('inventoryChecks.message.warehousesLoadFailed'))
+  }
+}
+
+const loadLocations = async () => {
+  try {
+    const page = await getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
+    locations.value = page.records || []
+  } catch {
+    locations.value = []
   }
 }
 
@@ -513,6 +546,7 @@ const handleWarehouseChange = async () => {
       productId: stock.productId,
       productCode: stock.productCode,
       productName: stock.productName,
+      locationId: stock.locationId ?? undefined,
       bookQuantity: stock.quantity,
       actualQuantity: undefined,
       difference: undefined,
@@ -529,6 +563,7 @@ const handleAddItem = () => {
     productId: 0,
     productCode: '',
     productName: '',
+    locationId: undefined,
     bookQuantity: 0,
     actualQuantity: undefined,
     difference: undefined,
@@ -620,7 +655,8 @@ const resetForm = () => {
 onMounted(async () => {
   await Promise.all([
     loadWarehouses(),
-    loadProducts()
+    loadProducts(),
+    loadLocations()
   ])
   loadData()
 })

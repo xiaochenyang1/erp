@@ -14,6 +14,19 @@ public record InventoryStockCheckUpdateLineRequest(
         String lotNo,
         LocalDate productionDate,
         LocalDate expiryDate,
+        Long locationId,
         String remark
 ) {
+    public InventoryStockCheckUpdateLineRequest(
+            Long id,
+            Long productId,
+            BigDecimal actualQty,
+            BigDecimal unitCost,
+            String lotNo,
+            LocalDate productionDate,
+            LocalDate expiryDate,
+            String remark
+    ) {
+        this(id, productId, actualQty, unitCost, lotNo, productionDate, expiryDate, null, remark);
+    }
 }

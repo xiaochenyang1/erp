@@ -92,6 +92,7 @@ class InventoryStockCheckUpdateControllerTest {
                         8101L,
                         1,
                         7001L,
+                        null,
                         new BigDecimal("5.0000"),
                         new BigDecimal("7.0000"),
                         new BigDecimal("2.0000"),

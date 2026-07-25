@@ -627,6 +627,7 @@ export interface InventoryCheckItem {
   productId: string | number
   productCode?: string
   productName?: string
+  locationId?: string | number | null
   bookQuantity: number
   actualQuantity?: number
   difference?: number
@@ -642,6 +643,7 @@ export interface InventoryCheckLineResponse {
   id?: string | number
   lineNo?: number
   productId: string | number
+  locationId?: string | number | null
   bookQty: number
   actualQty?: number
   differenceQty?: number
@@ -734,6 +736,7 @@ const toStockCheckLinePayload = (item: InventoryCheckItem) => ({
   lotNo: item.lotNo,
   productionDate: item.productionDate,
   expiryDate: item.expiryDate,
+  locationId: item.locationId || undefined,
   remark: item.remark
 })
 
@@ -744,6 +747,7 @@ const normalizeInventoryCheck = (check: InventoryCheck): InventoryCheck => {
     items: check.items || lines.map((line) => ({
       id: line.id,
       productId: line.productId,
+      locationId: line.locationId != null ? String(line.locationId) : line.locationId,
       bookQuantity: line.bookQty ?? 0,
       actualQuantity: line.actualQty,
       difference: line.differenceQty,

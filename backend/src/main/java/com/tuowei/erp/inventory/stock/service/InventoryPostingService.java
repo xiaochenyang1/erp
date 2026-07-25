@@ -209,7 +209,12 @@ public class InventoryPostingService {
 
     @Transactional(readOnly = true)
     public BigDecimal getQtyOnHand(Long warehouseId, Long productId, Long companyId, Long accountBookId) {
-        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId, null);
+        return getQtyOnHand(warehouseId, productId, null, companyId, accountBookId);
+    }
+
+    @Transactional(readOnly = true)
+    public BigDecimal getQtyOnHand(Long warehouseId, Long productId, Long locationId, Long companyId, Long accountBookId) {
+        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId, locationId);
         if (balance == null) {
             return ScalePrecision.quantity(BigDecimal.ZERO);
         }
@@ -218,7 +223,12 @@ public class InventoryPostingService {
 
     @Transactional(readOnly = true)
     public BigDecimal getQtyAvailable(Long warehouseId, Long productId, Long companyId, Long accountBookId) {
-        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId, null);
+        return getQtyAvailable(warehouseId, productId, null, companyId, accountBookId);
+    }
+
+    @Transactional(readOnly = true)
+    public BigDecimal getQtyAvailable(Long warehouseId, Long productId, Long locationId, Long companyId, Long accountBookId) {
+        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId, locationId);
         if (balance == null) {
             return ScalePrecision.quantity(BigDecimal.ZERO);
         }

@@ -104,6 +104,7 @@ export const operationsPageMessages = {
     inventoryChecks: {
       checkNo: '盘点单号',
       warehouse: '仓库',
+      location: '库位',
       statusLabel: '状态',
       dateRange: '日期范围',
       rangeSeparator: '至',
@@ -123,7 +124,7 @@ export const operationsPageMessages = {
       warehouseFallback: '仓库 {id}',
       productFallback: '产品 {id}',
       placeholder: {
-        checkNo: '请输入盘点单号', warehouse: '请选择仓库', status: '请选择状态',
+        checkNo: '请输入盘点单号', warehouse: '请选择仓库', location: '请选择库位', status: '请选择状态',
         startDate: '开始日期', endDate: '结束日期', checkDate: '请选择盘点日期',
         remark: '请输入备注', product: '请选择产品'
       },
@@ -528,6 +529,7 @@ export const operationsPageMessages = {
     inventoryChecks: {
       checkNo: 'Stock count no.',
       warehouse: 'Warehouse',
+      location: 'Location',
       statusLabel: 'Status',
       dateRange: 'Date range',
       rangeSeparator: 'to',
@@ -547,7 +549,7 @@ export const operationsPageMessages = {
       warehouseFallback: 'Warehouse {id}',
       productFallback: 'Product {id}',
       placeholder: {
-        checkNo: 'Enter a stock count no.', warehouse: 'Select a warehouse', status: 'Select a status',
+        checkNo: 'Enter a stock count no.', warehouse: 'Select a warehouse', location: 'Select a location', status: 'Select a status',
         startDate: 'Start date', endDate: 'End date', checkDate: 'Select a count date',
         remark: 'Enter a remark', product: 'Select a product'
       },

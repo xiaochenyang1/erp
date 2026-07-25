@@ -103,6 +103,7 @@ public class InventoryStockCheckService {
             BigDecimal bookQty = inventoryPostingService.getQtyOnHand(
                     request.warehouseId(),
                     requestLine.productId(),
+                    requestLine.locationId(),
                     audit.companyId(),
                     audit.accountBookId()
             );
@@ -117,6 +118,7 @@ public class InventoryStockCheckService {
             line.setCheckId(check.getId());
             line.setLineNo(lineNo++);
             line.setProductId(requestLine.productId());
+            line.setLocationId(requestLine.locationId());
             line.setBookQty(bookQty);
             line.setActualQty(actualQty);
             line.setDifferenceQty(diffQty);
@@ -156,6 +158,8 @@ public class InventoryStockCheckService {
                         line.getLotNo(),
                         line.getProductionDate(),
                         line.getExpiryDate(),
+                        line.getLocationId(),
+                        null,
                         line.getRemark()
                 ))
                 .toList();
@@ -215,6 +219,9 @@ public class InventoryStockCheckService {
             line.setLotNo(requestLine.lotNo());
             line.setProductionDate(requestLine.productionDate());
             line.setExpiryDate(requestLine.expiryDate());
+            if (requestLine.locationId() != null) {
+                line.setLocationId(requestLine.locationId());
+            }
             line.setRemark(requestLine.remark());
             line.setUpdatedBy(audit.userId());
             line.setUpdatedTime(audit.now());
@@ -359,6 +366,7 @@ public class InventoryStockCheckService {
                         line.getId(),
                         line.getLineNo(),
                         line.getProductId(),
+                        line.getLocationId(),
                         line.getBookQty(),
                         line.getActualQty(),
                         line.getDifferenceQty(),

@@ -7,6 +7,7 @@ public record InventoryStockCheckLineResponse(
         Long id,
         Integer lineNo,
         Long productId,
+        Long locationId,
         BigDecimal bookQty,
         BigDecimal actualQty,
         BigDecimal differenceQty,

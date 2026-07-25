@@ -19,6 +19,7 @@ public class InventoryStockCheckLineEntity {
     private Long checkId;
     private Integer lineNo;
     private Long productId;
+    private Long locationId;
     private BigDecimal bookQty;
     private BigDecimal actualQty;
     private BigDecimal differenceQty;
@@ -47,6 +48,8 @@ public class InventoryStockCheckLineEntity {
     public void setLineNo(Integer lineNo) { this.lineNo = lineNo; }
     public Long getProductId() { return productId; }
     public void setProductId(Long productId) { this.productId = productId; }
+    public Long getLocationId() { return locationId; }
+    public void setLocationId(Long locationId) { this.locationId = locationId; }
     public BigDecimal getBookQty() { return bookQty; }
     public void setBookQty(BigDecimal bookQty) { this.bookQty = bookQty; }
     public BigDecimal getActualQty() { return actualQty; }
