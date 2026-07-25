@@ -2,10 +2,10 @@
   <div class="app-container import-page">
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item label="导入类型">
+        <el-form-item :label="$t('systemImports.importType')">
           <el-select
             v-model="queryForm.importType"
-            placeholder="全部类型"
+            :placeholder="$t('systemImports.allTypes')"
             clearable
             filterable
             style="width: 220px"
@@ -18,10 +18,10 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="任务状态">
+        <el-form-item :label="$t('systemImports.jobStatus')">
           <el-select
             v-model="queryForm.status"
-            placeholder="全部状态"
+            :placeholder="$t('systemImports.allStatuses')"
             clearable
             style="width: 160px"
           >
@@ -33,18 +33,18 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="创建人ID">
+        <el-form-item :label="$t('systemImports.createdById')">
           <el-input
             v-model="queryForm.createdBy"
-            placeholder="请输入创建人ID"
+            :placeholder="$t('systemImports.createdByPlaceholder')"
             clearable
             style="width: 180px"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button v-permission="'import:init:manage'" :icon="Download" @click="handleDownloadTemplate">下载模板</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('systemImports.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('systemImports.reset') }}</el-button>
+          <el-button v-permission="'import:init:manage'" :icon="Download" @click="handleDownloadTemplate">{{ $t('systemImports.downloadTemplate') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -52,7 +52,7 @@
     <el-card shadow="never" class="upload-card">
       <template #header>
         <div class="card-header">
-          <span>导入预览</span>
+          <span>{{ $t('systemImports.previewTitle') }}</span>
           <el-tag size="small" type="info">{{ currentImportTypeLabel }}</el-tag>
         </div>
       </template>
@@ -67,7 +67,7 @@
           :on-change="handleFileChange"
           :on-remove="handleFileRemove"
         >
-          <el-button :icon="Upload">选择CSV文件</el-button>
+          <el-button :icon="Upload">{{ $t('systemImports.selectCsv') }}</el-button>
         </el-upload>
         <el-button
           type="primary"
@@ -76,15 +76,15 @@
           :disabled="!selectedFile"
           @click="handlePreview"
         >
-          上传并预览
+          {{ $t('systemImports.uploadAndPreview') }}
         </el-button>
       </div>
 
       <div v-if="previewJob" class="preview-summary">
-        <el-statistic title="总行数" :value="previewJob.totalRows" />
-        <el-statistic title="有效行" :value="previewJob.validRows" />
-        <el-statistic title="错误行" :value="previewJob.errorRows" />
-        <el-statistic title="已提交" :value="previewJob.committedRows" />
+        <el-statistic :title="$t('systemImports.totalRows')" :value="previewJob.totalRows" />
+        <el-statistic :title="$t('systemImports.validRows')" :value="previewJob.validRows" />
+        <el-statistic :title="$t('systemImports.errorRows')" :value="previewJob.errorRows" />
+        <el-statistic :title="$t('systemImports.committedRows')" :value="previewJob.committedRows" />
         <el-button
           type="success"
           :icon="Check"
@@ -92,7 +92,7 @@
           :disabled="previewJob.status !== 'VALIDATED'"
           @click="handleCommit(previewJob)"
         >
-          提交导入
+          {{ $t('systemImports.commitImport') }}
         </el-button>
       </div>
     </el-card>
@@ -103,42 +103,42 @@
       type="error"
       show-icon
       :closable="false"
-      :title="`当前列表有 ${jobsWithErrors} 个任务含错误行，可在详情中查看并导出错误 CSV`"
+      :title="$t('systemImports.errorJobsNotice', { count: jobsWithErrors })"
       style="margin-bottom: 12px"
     />
     <el-card shadow="never" class="table-card">
       <template #header>
-        <span>导入任务</span>
+        <span>{{ $t('systemImports.jobsTitle') }}</span>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="jobId" label="任务ID" width="180" show-overflow-tooltip />
-        <el-table-column prop="importType" label="导入类型" min-width="180">
+        <el-table-column prop="jobId" :label="$t('systemImports.jobId')" width="180" show-overflow-tooltip />
+        <el-table-column prop="importType" :label="$t('systemImports.importType')" min-width="180">
           <template #default="{ row }">
             {{ importTypeLabel(row.importType) }}
           </template>
         </el-table-column>
-        <el-table-column prop="fileName" label="文件名" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="120">
+        <el-table-column prop="fileName" :label="$t('systemImports.fileName')" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="status" :label="$t('systemImports.status')" width="120">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)">
               {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="totalRows" label="总行" width="90" align="right" />
-        <el-table-column prop="validRows" label="有效" width="90" align="right" />
-        <el-table-column prop="errorRows" label="错误" width="90" align="right" />
-        <el-table-column prop="committedRows" label="提交" width="90" align="right" />
-        <el-table-column prop="errorMessage" label="错误信息" min-width="180" show-overflow-tooltip>
+        <el-table-column prop="totalRows" :label="$t('systemImports.total')" width="90" align="right" />
+        <el-table-column prop="validRows" :label="$t('systemImports.valid')" width="90" align="right" />
+        <el-table-column prop="errorRows" :label="$t('systemImports.errors')" width="90" align="right" />
+        <el-table-column prop="committedRows" :label="$t('systemImports.committed')" width="90" align="right" />
+        <el-table-column prop="errorMessage" :label="$t('systemImports.errorMessage')" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.errorMessage || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="260" align="center" fixed="right">
+        <el-table-column :label="$t('systemImports.operations')" width="260" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleViewDetail(row)">
-              详情
+              {{ $t('systemImports.detail') }}
             </el-button>
             <el-button
               v-if="row.errorRows > 0"
@@ -147,7 +147,7 @@
               :icon="Warning"
               @click="handleExportErrors(row)"
             >
-              错误行
+              {{ $t('systemImports.errorRows') }}
             </el-button>
             <el-button
               v-if="canCommit(row)"
@@ -157,7 +157,7 @@
               :loading="committingId === row.jobId"
               @click="handleCommit(row)"
             >
-              {{ row.status === 'FAILED' ? '重试' : '提交' }}
+              {{ row.status === 'FAILED' ? $t('systemImports.retry') : $t('systemImports.commit') }}
             </el-button>
           </template>
         </el-table-column>
@@ -175,45 +175,45 @@
       />
     </el-card>
 
-    <el-dialog v-model="detailVisible" title="导入任务详情" width="1100px">
+    <el-dialog v-model="detailVisible" :title="$t('systemImports.detailTitle')" width="1100px">
       <template v-if="detailJob">
         <el-descriptions :column="4" border class="detail-descriptions">
-          <el-descriptions-item label="任务ID">{{ detailJob.jobId }}</el-descriptions-item>
-          <el-descriptions-item label="导入类型">
+          <el-descriptions-item :label="$t('systemImports.jobId')">{{ detailJob.jobId }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemImports.importType')">
             {{ importTypeLabel(detailJob.importType) }}
           </el-descriptions-item>
-          <el-descriptions-item label="状态">
+          <el-descriptions-item :label="$t('systemImports.status')">
             <el-tag :type="statusTagType(detailJob.status)">
               {{ statusLabel(detailJob.status) }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="文件名">{{ detailJob.fileName }}</el-descriptions-item>
-          <el-descriptions-item label="总行">{{ detailJob.totalRows }}</el-descriptions-item>
-          <el-descriptions-item label="有效">{{ detailJob.validRows }}</el-descriptions-item>
-          <el-descriptions-item label="错误">{{ detailJob.errorRows }}</el-descriptions-item>
-          <el-descriptions-item label="提交">{{ detailJob.committedRows }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemImports.fileName')">{{ detailJob.fileName }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemImports.total')">{{ detailJob.totalRows }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemImports.valid')">{{ detailJob.validRows }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemImports.errors')">{{ detailJob.errorRows }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('systemImports.committed')">{{ detailJob.committedRows }}</el-descriptions-item>
         </el-descriptions>
 
         <el-table :data="detailJob.rows" border stripe max-height="460">
-          <el-table-column prop="rowNo" label="行号" width="80" align="right" />
-          <el-table-column prop="valid" label="校验" width="90">
+          <el-table-column prop="rowNo" :label="$t('systemImports.rowNo')" width="80" align="right" />
+          <el-table-column prop="valid" :label="$t('systemImports.validation')" width="90">
             <template #default="{ row }">
               <el-tag :type="row.valid ? 'success' : 'danger'">
-                {{ row.valid ? '通过' : '失败' }}
+                {{ row.valid ? $t('systemImports.passed') : $t('systemImports.failed') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="原始数据" min-width="260">
+          <el-table-column :label="$t('systemImports.rawData')" min-width="260">
             <template #default="{ row }">
               <pre class="json-cell">{{ formatJson(row.raw) }}</pre>
             </template>
           </el-table-column>
-          <el-table-column label="归一化数据" min-width="260">
+          <el-table-column :label="$t('systemImports.normalizedData')" min-width="260">
             <template #default="{ row }">
               <pre class="json-cell">{{ formatJson(row.normalized) }}</pre>
             </template>
           </el-table-column>
-          <el-table-column label="错误" min-width="220">
+          <el-table-column :label="$t('systemImports.errors')" min-width="220">
             <template #default="{ row }">
               <div v-if="row.errors.length" class="error-list">
                 <div v-for="item in row.errors" :key="`${row.rowNo}-${item.column}-${item.message}`">
@@ -226,13 +226,13 @@
         </el-table>
       </template>
       <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button @click="detailVisible = false">{{ $t('systemImports.close') }}</el-button>
         <el-button
           v-if="detailJob && detailJob.errorRows > 0"
           :icon="Download"
           @click="handleExportErrors(detailJob)"
         >
-          导出错误行
+          {{ $t('systemImports.exportErrorRows') }}
         </el-button>
         <el-button
           v-if="detailJob && canCommit(detailJob)"
@@ -241,7 +241,7 @@
           :loading="committingId === detailJob.jobId"
           @click="handleCommit(detailJob)"
         >
-          {{ detailJob.status === 'FAILED' ? '重试提交' : '提交导入' }}
+          {{ detailJob.status === 'FAILED' ? $t('systemImports.retryCommit') : $t('systemImports.commitImport') }}
         </el-button>
       </template>
     </el-dialog>
@@ -250,6 +250,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
 import { Check, Document, Download, Refresh, Search, Upload, View, Warning } from '@element-plus/icons-vue'
 import {
@@ -266,24 +267,26 @@ import {
 } from '@/api/imports'
 import { downloadBlob } from '@/utils/download'
 
-const importTypeOptions: Array<{ label: string; value: ImportType }> = [
-  { label: '产品', value: 'PRODUCT' },
-  { label: '客户', value: 'CUSTOMER' },
-  { label: '供应商', value: 'SUPPLIER' },
-  { label: '仓库', value: 'WAREHOUSE' },
-  { label: '期初库存', value: 'OPENING_INVENTORY' },
-  { label: '期初应收', value: 'OPENING_RECEIVABLE' },
-  { label: '期初应付', value: 'OPENING_PAYABLE' },
-  { label: '期初科目余额', value: 'OPENING_ACCOUNT_BALANCE' }
-]
+const { t } = useI18n()
 
-const statusOptions: Array<{ label: string; value: ImportJobStatus }> = [
-  { label: '校验通过', value: 'VALIDATED' },
-  { label: '校验失败', value: 'INVALID' },
-  { label: '提交中', value: 'COMMITTING' },
-  { label: '已提交', value: 'COMMITTED' },
-  { label: '提交失败', value: 'FAILED' }
-]
+const importTypeOptions = computed<Array<{ label: string; value: ImportType }>>(() => [
+  { label: t('systemImports.types.product'), value: 'PRODUCT' },
+  { label: t('systemImports.types.customer'), value: 'CUSTOMER' },
+  { label: t('systemImports.types.supplier'), value: 'SUPPLIER' },
+  { label: t('systemImports.types.warehouse'), value: 'WAREHOUSE' },
+  { label: t('systemImports.types.openingInventory'), value: 'OPENING_INVENTORY' },
+  { label: t('systemImports.types.openingReceivable'), value: 'OPENING_RECEIVABLE' },
+  { label: t('systemImports.types.openingPayable'), value: 'OPENING_PAYABLE' },
+  { label: t('systemImports.types.openingAccountBalance'), value: 'OPENING_ACCOUNT_BALANCE' }
+])
+
+const statusOptions = computed<Array<{ label: string; value: ImportJobStatus }>>(() => [
+  { label: t('systemImports.statuses.validated'), value: 'VALIDATED' },
+  { label: t('systemImports.statuses.invalid'), value: 'INVALID' },
+  { label: t('systemImports.statuses.committing'), value: 'COMMITTING' },
+  { label: t('systemImports.statuses.committed'), value: 'COMMITTED' },
+  { label: t('systemImports.statuses.failed'), value: 'FAILED' }
+])
 
 const queryForm = reactive<ImportJobQuery>({
   importType: '',
@@ -309,7 +312,7 @@ const selectedFile = ref<File | null>(null)
 const uploaderRef = ref<UploadInstance>()
 
 const currentImportType = computed<ImportType>(() => {
-  return (queryForm.importType || importTypeOptions[0].value) as ImportType
+  return (queryForm.importType || importTypeOptions.value[0].value) as ImportType
 })
 
 const currentImportTypeLabel = computed(() => importTypeLabel(currentImportType.value))
@@ -353,8 +356,8 @@ const handlePageChange = () => {
 const handleDownloadTemplate = async () => {
   const type = currentImportType.value
   const blob = await downloadImportTemplate(type)
-  downloadBlob(blob, `${type.toLowerCase()}-template.csv`)
-  ElMessage.success('模板下载已开始')
+  downloadBlob(blob, t('systemImports.templateFile', { type: type.toLowerCase() }))
+  ElMessage.success(t('systemImports.message.templateDownloadStarted'))
 }
 
 const handleFileChange = (uploadFile: UploadFile) => {
@@ -367,7 +370,7 @@ const handleFileRemove = () => {
 
 const handlePreview = async () => {
   if (!selectedFile.value) {
-    ElMessage.warning('请选择CSV文件')
+    ElMessage.warning(t('systemImports.message.selectCsv'))
     return
   }
 
@@ -380,7 +383,9 @@ const handlePreview = async () => {
     queryForm.importType = job.importType
     pagination.page = 1
     await loadData()
-    ElMessage.success(job.status === 'VALIDATED' ? '预览校验通过' : '预览完成，请处理错误行')
+    ElMessage.success(job.status === 'VALIDATED'
+      ? t('systemImports.message.previewValidated')
+      : t('systemImports.message.previewHasErrors'))
   } finally {
     previewing.value = false
   }
@@ -394,8 +399,8 @@ const handleViewDetail = async (row: ImportJob) => {
 
 const handleExportErrors = async (row: ImportJob) => {
   const blob = await exportImportErrorRows(row.jobId)
-  downloadBlob(blob, `import-job-${row.jobId}-errors.csv`)
-  ElMessage.success('错误行导出已开始')
+  downloadBlob(blob, t('systemImports.errorFile', { jobId: row.jobId }))
+  ElMessage.success(t('systemImports.message.errorExportStarted'))
 }
 
 const canCommit = (row: ImportJob) => {
@@ -404,10 +409,10 @@ const canCommit = (row: ImportJob) => {
 }
 
 const handleCommit = async (row: ImportJob) => {
-  const actionText = row.status === 'FAILED' ? '重试提交' : '提交'
-  await ElMessageBox.confirm(`确定${actionText}导入任务「${row.jobId}」吗？`, '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
+  const action = row.status === 'FAILED' ? t('systemImports.retryCommit') : t('systemImports.commit')
+  await ElMessageBox.confirm(t('systemImports.message.commitConfirm', { action, jobId: row.jobId }), t('systemImports.prompt'), {
+    confirmButtonText: t('systemImports.confirm'),
+    cancelButtonText: t('systemImports.cancel'),
     type: 'warning'
   })
 
@@ -417,18 +422,18 @@ const handleCommit = async (row: ImportJob) => {
     previewJob.value = previewJob.value?.jobId === job.jobId ? job : previewJob.value
     detailJob.value = detailJob.value?.jobId === job.jobId ? job : detailJob.value
     await loadData()
-    ElMessage.success('提交成功')
+    ElMessage.success(t('systemImports.message.commitSuccess'))
   } finally {
     committingId.value = ''
   }
 }
 
 const importTypeLabel = (value: string) => {
-  return importTypeOptions.find((item) => item.value === value)?.label || value
+  return importTypeOptions.value.find((item) => item.value === value)?.label || value
 }
 
 const statusLabel = (value: string) => {
-  return statusOptions.find((item) => item.value === value)?.label || value
+  return statusOptions.value.find((item) => item.value === value)?.label || value
 }
 
 const statusTagType = (value: string) => {

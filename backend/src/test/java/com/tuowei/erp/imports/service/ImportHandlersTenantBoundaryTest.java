@@ -4,10 +4,13 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
+import com.tuowei.erp.imports.model.ImportJobEntity;
+import com.tuowei.erp.imports.model.ImportJobRowEntity;
 import com.tuowei.erp.imports.service.ImportTypeHandler.ImportValidationContext;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
@@ -30,6 +33,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 
@@ -65,12 +70,63 @@ class ImportHandlersTenantBoundaryTest {
         when(customerMapper.selectCount(any())).thenReturn(0L);
 
         new CustomerImportHandler(support(), customerMapper)
-                .validate(1, Map.of("customer_code", "C001", "customer_name", "tenant customer"), context());
+                .validate(1, Map.of(
+                        "customer_code", "C001",
+                        "customer_name", "tenant customer",
+                        "customer_type", "COMPANY"
+                ), context());
 
         ArgumentCaptor<LambdaQueryWrapper<CustomerEntity>> wrapper =
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
         verify(customerMapper).selectCount(wrapper.capture());
         assertTenantScoped(wrapper.getValue());
+    }
+
+    @Test
+    void customerImportValidatesAndPersistsProfileFields() {
+        CustomerMapper customerMapper = mock(CustomerMapper.class);
+        when(customerMapper.selectCount(any())).thenReturn(0L);
+        ImportValidationSupport support = support();
+        CustomerImportHandler handler = new CustomerImportHandler(support, customerMapper);
+
+        ImportTypeHandler.ImportRowPlan plan = handler.validate(1, Map.of(
+                "customer_code", "C002",
+                "customer_name", "profile customer",
+                "customer_type", "individual",
+                "email", "customer@example.com"
+        ), context());
+
+        assertThat(plan.valid()).isTrue();
+        assertThat(plan.normalized())
+                .containsEntry("customerType", "INDIVIDUAL")
+                .containsEntry("email", "customer@example.com");
+
+        handler.commit(new ImportJobEntity(), List.of(row(support, plan)), audit());
+
+        ArgumentCaptor<CustomerEntity> entity = ArgumentCaptor.forClass(CustomerEntity.class);
+        verify(customerMapper).insert(entity.capture());
+        assertThat(entity.getValue().getCustomerType()).isEqualTo("INDIVIDUAL");
+        assertThat(entity.getValue().getEmail()).isEqualTo("customer@example.com");
+    }
+
+    @Test
+    void customerImportRejectsUnsupportedCustomerType() {
+        CustomerMapper customerMapper = mock(CustomerMapper.class);
+        when(customerMapper.selectCount(any())).thenReturn(0L);
+
+        ImportTypeHandler.ImportRowPlan plan = new CustomerImportHandler(support(), customerMapper)
+                .validate(1, Map.of(
+                        "customer_code", "C003",
+                        "customer_name", "invalid customer",
+                        "customer_type", "UNKNOWN"
+                ), context());
+
+        assertThat(plan.valid()).isFalse();
+        assertThat(plan.errors())
+                .anySatisfy(error -> {
+                    assertThat(error.column()).isEqualTo("customer_type");
+                    assertThat(error.message()).contains("COMPANY").contains("INDIVIDUAL");
+                });
     }
 
     @Test
@@ -85,6 +141,78 @@ class ImportHandlersTenantBoundaryTest {
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
         verify(productMapper).selectCount(wrapper.capture());
         assertTenantScoped(wrapper.getValue());
+    }
+
+    @Test
+    void supplierImportValidatesAndPersistsProfileFields() {
+        SupplierMapper supplierMapper = mock(SupplierMapper.class);
+        when(supplierMapper.selectCount(any())).thenReturn(0L);
+        ImportValidationSupport support = support();
+        SupplierImportHandler handler = new SupplierImportHandler(support, supplierMapper);
+
+        ImportTypeHandler.ImportRowPlan plan = handler.validate(1, Map.of(
+                "supplier_code", "S002",
+                "supplier_name", "profile supplier",
+                "email", "supplier@example.com",
+                "credit_period", "30"
+        ), context());
+
+        assertThat(plan.valid()).isTrue();
+        assertThat(plan.normalized())
+                .containsEntry("email", "supplier@example.com")
+                .containsEntry("creditPeriod", 30);
+
+        handler.commit(new ImportJobEntity(), List.of(row(support, plan)), audit());
+
+        ArgumentCaptor<SupplierEntity> entity = ArgumentCaptor.forClass(SupplierEntity.class);
+        verify(supplierMapper).insert(entity.capture());
+        assertThat(entity.getValue().getEmail()).isEqualTo("supplier@example.com");
+        assertThat(entity.getValue().getCreditPeriod()).isEqualTo(30);
+    }
+
+    @Test
+    void supplierImportRejectsInvalidCreditPeriod() {
+        SupplierMapper supplierMapper = mock(SupplierMapper.class);
+        when(supplierMapper.selectCount(any())).thenReturn(0L);
+        SupplierImportHandler handler = new SupplierImportHandler(support(), supplierMapper);
+
+        ImportTypeHandler.ImportRowPlan nonNumeric = handler.validate(1, Map.of(
+                "supplier_code", "S003",
+                "supplier_name", "invalid supplier",
+                "credit_period", "thirty"
+        ), context());
+        ImportTypeHandler.ImportRowPlan negative = handler.validate(2, Map.of(
+                "supplier_code", "S004",
+                "supplier_name", "negative supplier",
+                "credit_period", "-1"
+        ), context());
+
+        assertThat(nonNumeric.valid()).isFalse();
+        assertThat(nonNumeric.errors())
+                .anySatisfy(error -> assertThat(error.column()).isEqualTo("credit_period"));
+        assertThat(negative.valid()).isFalse();
+        assertThat(negative.errors())
+                .anySatisfy(error -> assertThat(error.message()).contains("不能小于0"));
+    }
+
+    @Test
+    void customerAndSupplierTemplatesExposeProfileFields() {
+        ImportTemplateRegistry registry = new ImportTemplateRegistry();
+
+        assertThat(registry.headers(ImportConstants.CUSTOMER)).containsExactly(
+                "customer_code", "customer_name", "customer_type", "contact_name", "contact_phone",
+                "email", "settlement_method", "credit_limit", "address", "status", "remark"
+        );
+        assertThat(registry.headers(ImportConstants.SUPPLIER)).containsExactly(
+                "supplier_code", "supplier_name", "contact_name", "contact_phone", "email",
+                "settlement_method", "credit_period", "address", "status", "remark"
+        );
+        assertThat(registry.csvTemplate(ImportConstants.CUSTOMER))
+                .contains("COMPANY")
+                .contains("customer@example.com");
+        assertThat(registry.csvTemplate(ImportConstants.SUPPLIER))
+                .contains("supplier@example.com")
+                .contains(",30,");
     }
 
     @Test
@@ -234,6 +362,21 @@ class ImportHandlersTenantBoundaryTest {
 
     private ImportValidationContext context() {
         return new ImportValidationContext(COMPANY_ID, ACCOUNT_BOOK_ID, USER_ID);
+    }
+
+    private AuditMetadata audit() {
+        return new AuditMetadata(
+                USER_ID,
+                COMPANY_ID,
+                ACCOUNT_BOOK_ID,
+                LocalDateTime.of(2026, 7, 23, 10, 0)
+        );
+    }
+
+    private ImportJobRowEntity row(ImportValidationSupport support, ImportTypeHandler.ImportRowPlan plan) {
+        ImportJobRowEntity row = new ImportJobRowEntity();
+        row.setNormalizedJson(support.toJson(plan.normalized()));
+        return row;
     }
 
     private CustomerEntity activeCustomer() {

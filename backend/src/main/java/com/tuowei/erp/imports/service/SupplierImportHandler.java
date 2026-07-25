@@ -45,11 +45,17 @@ public class SupplierImportHandler extends AbstractImportHandler {
                 errors.add(new ImportRowErrorResponse("supplier_code", "供应商编码已存在"));
             }
         }
+        Integer creditPeriod = support.optionalInteger(raw, "credit_period", errors);
+        if (creditPeriod != null && creditPeriod < 0) {
+            errors.add(new ImportRowErrorResponse("credit_period", "credit_period不能小于0"));
+        }
         normalized.put("supplierCode", supplierCode);
         normalized.put("supplierName", supplierName);
         normalized.put("contactName", support.optionalText(raw, "contact_name"));
         normalized.put("contactPhone", support.optionalText(raw, "contact_phone"));
+        normalized.put("email", support.optionalText(raw, "email"));
         normalized.put("settlementMethod", support.optionalText(raw, "settlement_method"));
+        normalized.put("creditPeriod", creditPeriod);
         normalized.put("address", support.optionalText(raw, "address"));
         normalized.put("status", support.optionalText(raw, "status", "ACTIVE"));
         normalized.put("remark", support.optionalText(raw, "remark"));
@@ -68,7 +74,10 @@ public class SupplierImportHandler extends AbstractImportHandler {
             entity.setSupplierName(text(normalized, "supplierName"));
             entity.setContactName(text(normalized, "contactName"));
             entity.setContactPhone(text(normalized, "contactPhone"));
+            entity.setEmail(text(normalized, "email"));
             entity.setSettlementMethod(text(normalized, "settlementMethod"));
+            Long creditPeriod = longValue(normalized, "creditPeriod");
+            entity.setCreditPeriod(creditPeriod == null ? null : creditPeriod.intValue());
             entity.setAddress(text(normalized, "address"));
             entity.setStatus(text(normalized, "status"));
             entity.setDeletedFlag(0);

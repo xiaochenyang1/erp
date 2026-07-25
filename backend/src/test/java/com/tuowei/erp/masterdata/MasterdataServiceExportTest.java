@@ -107,8 +107,8 @@ class MasterdataServiceExportTest {
         customerService(mapper).exportCustomers(query).writeTo(outputStream);
 
         String csv = outputStream.toString(StandardCharsets.UTF_8);
-        assertThat(csv).startsWith("\uFEFFcustomerCode,customerName,contactName,contactPhone,settlementMethod,creditLimit,address,status,remark\r\n");
-        assertThat(csv).contains("C001,东北客户,老王,13800000001,MONTHLY,10000.00,沈阳,ACTIVE,customer export\r\n");
+        assertThat(csv).startsWith("\uFEFFcustomerCode,customerName,customerType,contactName,contactPhone,email,settlementMethod,creditLimit,address,status,remark\r\n");
+        assertThat(csv).contains("C001,东北客户,COMPANY,老王,13800000001,customer@example.com,MONTHLY,10000.00,沈阳,ACTIVE,customer export\r\n");
         verifySelectListScoped(mapper, CustomerEntity.class);
     }
 
@@ -127,8 +127,8 @@ class MasterdataServiceExportTest {
         supplierService(mapper).exportSuppliers(query).writeTo(outputStream);
 
         String csv = outputStream.toString(StandardCharsets.UTF_8);
-        assertThat(csv).startsWith("\uFEFFsupplierCode,supplierName,contactName,contactPhone,settlementMethod,address,status,remark\r\n");
-        assertThat(csv).contains("S001,钢材供应商,老张,13800000002,MONTHLY,鞍山,ACTIVE,supplier export\r\n");
+        assertThat(csv).startsWith("\uFEFFsupplierCode,supplierName,contactName,contactPhone,email,settlementMethod,creditPeriod,address,status,remark\r\n");
+        assertThat(csv).contains("S001,钢材供应商,老张,13800000002,supplier@example.com,MONTHLY,30,鞍山,ACTIVE,supplier export\r\n");
         verifySelectListScoped(mapper, SupplierEntity.class);
     }
 
@@ -231,8 +231,10 @@ class MasterdataServiceExportTest {
         entity.setAccountBookId(AUDIT.accountBookId());
         entity.setCustomerCode("C001");
         entity.setCustomerName("东北客户");
+        entity.setCustomerType("COMPANY");
         entity.setContactName("老王");
         entity.setContactPhone("13800000001");
+        entity.setEmail("customer@example.com");
         entity.setSettlementMethod("MONTHLY");
         entity.setCreditLimit(new BigDecimal("10000.00"));
         entity.setAddress("沈阳");
@@ -251,7 +253,9 @@ class MasterdataServiceExportTest {
         entity.setSupplierName("钢材供应商");
         entity.setContactName("老张");
         entity.setContactPhone("13800000002");
+        entity.setEmail("supplier@example.com");
         entity.setSettlementMethod("MONTHLY");
+        entity.setCreditPeriod(30);
         entity.setAddress("鞍山");
         entity.setStatus("ACTIVE");
         entity.setRemark("supplier export");

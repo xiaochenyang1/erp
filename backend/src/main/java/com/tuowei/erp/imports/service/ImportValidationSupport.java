@@ -100,6 +100,19 @@ public class ImportValidationSupport {
         }
     }
 
+    public Integer optionalInteger(Map<String, String> raw, String column, List<ImportRowErrorResponse> errors) {
+        String value = raw.get(column);
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (Exception ex) {
+            errors.add(new ImportRowErrorResponse(column, column + "格式不正确，必须是整数"));
+            return null;
+        }
+    }
+
     public Long requiredLong(Map<String, String> raw, String column, List<ImportRowErrorResponse> errors) {
         String value = required(raw, column, errors);
         if (value == null) {

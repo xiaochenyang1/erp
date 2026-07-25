@@ -11,8 +11,8 @@ public class ImportTemplateRegistry {
 
     private static final Map<String, List<String>> HEADERS = Map.of(
             ImportConstants.PRODUCT, List.of("product_code", "product_name", "product_type", "category_name", "specification", "unit_name", "purchase_price", "sale_price", "tax_rate", "status", "remark"),
-            ImportConstants.CUSTOMER, List.of("customer_code", "customer_name", "contact_name", "contact_phone", "settlement_method", "credit_limit", "address", "status", "remark"),
-            ImportConstants.SUPPLIER, List.of("supplier_code", "supplier_name", "contact_name", "contact_phone", "settlement_method", "address", "status", "remark"),
+            ImportConstants.CUSTOMER, List.of("customer_code", "customer_name", "customer_type", "contact_name", "contact_phone", "email", "settlement_method", "credit_limit", "address", "status", "remark"),
+            ImportConstants.SUPPLIER, List.of("supplier_code", "supplier_name", "contact_name", "contact_phone", "email", "settlement_method", "credit_period", "address", "status", "remark"),
             ImportConstants.WAREHOUSE, List.of("warehouse_code", "warehouse_name", "dept_id", "manager_user_id", "address", "status", "remark"),
             ImportConstants.OPENING_INVENTORY, List.of("warehouse_code", "product_code", "qty_on_hand", "amount_on_hand", "opening_date", "lot_no", "production_date", "expiry_date", "remark"),
             ImportConstants.OPENING_RECEIVABLE, List.of("customer_code", "receivable_no", "biz_date", "original_amount", "settled_amount", "remark"),
@@ -22,8 +22,8 @@ public class ImportTemplateRegistry {
 
     private static final Map<String, List<String>> SAMPLES = Map.of(
             ImportConstants.PRODUCT, List.of("P001", "标准商品", "STANDARD", "默认分类", "规格A", "件", "10.00", "15.00", "13.00", "ACTIVE", "商品期初导入示例"),
-            ImportConstants.CUSTOMER, List.of("C001", "示例客户", "张三", "13800000000", "MONTH_END", "0", "北京市", "ACTIVE", "客户期初导入示例"),
-            ImportConstants.SUPPLIER, List.of("S001", "示例供应商", "李四", "13900000000", "MONTH_END", "上海市", "ACTIVE", "供应商期初导入示例"),
+            ImportConstants.CUSTOMER, List.of("C001", "示例客户", "COMPANY", "张三", "13800000000", "customer@example.com", "MONTH_END", "0", "北京市", "ACTIVE", "客户期初导入示例"),
+            ImportConstants.SUPPLIER, List.of("S001", "示例供应商", "李四", "13900000000", "supplier@example.com", "MONTH_END", "30", "上海市", "ACTIVE", "供应商期初导入示例"),
             ImportConstants.WAREHOUSE, List.of("W001", "主仓库", "1", "1", "北京市", "ACTIVE", "仓库期初导入示例"),
             ImportConstants.OPENING_INVENTORY, List.of("W001", "P001", "100.0000", "1000.00", "2026-01-01", "LOT-001", "2026-01-01", "2026-12-31", "期初库存示例"),
             ImportConstants.OPENING_RECEIVABLE, List.of("C001", "AR-OPEN-001", "2026-01-01", "500.00", "0", "期初应收示例"),
