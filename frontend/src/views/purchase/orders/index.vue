@@ -234,6 +234,20 @@
                 </el-select>
               </template>
             </el-table-column>
+                        <el-table-column :label="t('purchaseOrder.auxQty')" width="130">
+              <template #default="{ row, $index }">
+                <el-input-number
+                  v-model="row.auxQty"
+                  :min="0"
+                  :precision="4"
+                  :controls="false"
+                  :disabled="!row.auxUnitName"
+                  style="width: 100%"
+                  @change="handleAuxQtyChange($index)"
+                />
+                <div v-if="row.auxUnitName" class="price-hint">{{ row.auxUnitName }} × {{ row.conversionFactor }}</div>
+              </template>
+            </el-table-column>
             <el-table-column :label="t('purchaseOrder.quantity')" width="140">
               <template #default="{ row }">
                 <el-input-number v-model="row.quantity" :min="1" :controls="false" style="width: 100%" @change="calculateAmount(row)" />
@@ -336,6 +350,12 @@
           <el-table :data="currentRow.items" border class="detail-table">
             <el-table-column :label="t('purchaseOrder.sequence')" type="index" width="60" align="center" />
             <el-table-column prop="productName" :label="t('purchaseOrder.productName')" min-width="180" />
+            <el-table-column prop="auxQty" :label="t('purchaseOrder.auxQty')" width="110" align="right">
+              <template #default="{ row }">
+                <span v-if="row.auxUnitName">{{ row.auxQty ?? '-' }} {{ row.auxUnitName }}</span>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
             <el-table-column prop="quantity" :label="t('purchaseOrder.quantity')" width="100" align="center" />
             <el-table-column prop="price" :label="t('purchaseOrder.unitPrice')" width="120" align="right">
               <template #default="{ row }">
@@ -617,6 +637,9 @@ const handleCopy = async (row: PurchaseOrder) => {
       remark: t('purchaseOrder.dialog.copiedFrom', { orderNo: detail.orderNo }) + (detail.remark ? `; ${detail.remark}` : ''),
       items: (detail.items || detail.lines || []).map((item: any) => ({
         productId: item.productId,
+        auxQty: item.auxQty != null ? Number(item.auxQty) : undefined,
+        auxUnitName: item.auxUnitName || '',
+        conversionFactor: item.conversionFactor != null ? Number(item.conversionFactor) : undefined,
         quantity: Number(item.quantity ?? item.qty ?? 0),
         qty: Number(item.quantity ?? item.qty ?? 0),
         price: Number(item.price ?? 0),
@@ -855,6 +878,9 @@ const handleSubmitForm = async () => {
 const handleAddItem = () => {
   form.items.push({
     productId: '',
+    auxQty: undefined,
+    auxUnitName: '',
+    conversionFactor: undefined,
     quantity: 1,
     price: 0,
     amount: 0,
@@ -868,6 +894,16 @@ const handleRemoveItem = (index: number) => {
 }
 
 // 商品变更
+
+const handleAuxQtyChange = (index: number) => {
+  const item: any = form.items[index]
+  if (!item?.auxUnitName || item.conversionFactor == null || item.auxQty == null) return
+  item.quantity = Number((Number(item.auxQty) * Number(item.conversionFactor)).toFixed(4))
+  item.qty = item.quantity
+  if (typeof calculateAmount === 'function') calculateAmount(item)
+  else if (item.price != null) item.amount = Number((Number(item.quantity) * Number(item.price)).toFixed(2))
+}
+
 const handleProductChange = async (index: number) => {
   const item = form.items[index] as PurchaseOrderItem & { maxPrice?: number | null; priceLevel?: string | null }
   const product = products.value.find(product => String(product.id) === String(item.productId))

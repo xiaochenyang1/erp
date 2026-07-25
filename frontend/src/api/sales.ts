@@ -36,6 +36,9 @@ export interface SalesOrderItem {
   productName?: string
   quantity: number
   qty?: number
+  auxQty?: number | null
+  auxUnitName?: string
+  conversionFactor?: number | null
   price: number
   taxRate?: number
   amount: number
@@ -135,6 +138,8 @@ const normalizeSalesOrderItem = (item: SalesOrderItem): SalesOrderItem => ({
   id: item.id != null ? String(item.id) : undefined,
   productId: String(item.productId),
   quantity: item.quantity ?? item.qty ?? 0,
+  auxQty: item.auxQty != null ? Number(item.auxQty) : item.auxQty,
+  conversionFactor: item.conversionFactor != null ? Number(item.conversionFactor) : item.conversionFactor,
   deliveredQuantity: item.deliveredQuantity ?? item.deliveredQty ?? 0
 })
 
@@ -171,6 +176,9 @@ const toSalesOrderLinePayload = (items: SalesOrderItem[]) => items.map((item, in
   productId: item.productId,
   lineNo: item.lineNo ?? index + 1,
   qty: item.quantity,
+  auxQty: item.auxQty ?? undefined,
+  auxUnitName: item.auxUnitName || undefined,
+  conversionFactor: item.conversionFactor ?? undefined,
   price: item.price,
   taxRate: item.taxRate ?? 0,
   remark: item.remark

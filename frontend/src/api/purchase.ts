@@ -29,6 +29,9 @@ export interface PurchaseOrder {
 
 // 采购订单明细
 export interface PurchaseOrderItem {
+  auxQty?: number | null
+  auxUnitName?: string
+  conversionFactor?: number | null
   id?: string | number
   productId: string | number
   productCode?: string
@@ -207,6 +210,9 @@ const toPurchaseOrderPayload = (data: PurchaseOrderSaveRequest) => ({
   lines: data.items.map((item) => ({
     productId: item.productId,
     qty: item.qty ?? item.quantity,
+    auxQty: item.auxQty ?? undefined,
+    auxUnitName: item.auxUnitName || undefined,
+    conversionFactor: item.conversionFactor ?? undefined,
     price: item.price,
     taxRate: item.taxRate ?? 0,
     remark: item.remark
@@ -219,6 +225,8 @@ const normalizePurchaseOrderLine = (item: PurchaseOrderItem): PurchaseOrderItem 
   productId: item.productId != null ? String(item.productId) : item.productId,
   quantity: Number(item.quantity ?? item.qty ?? 0),
   qty: Number(item.qty ?? item.quantity ?? 0),
+  auxQty: item.auxQty != null ? Number(item.auxQty) : item.auxQty,
+  conversionFactor: item.conversionFactor != null ? Number(item.conversionFactor) : item.conversionFactor,
   price: Number(item.price ?? 0),
   taxRate: Number(item.taxRate ?? 0),
   amount: Number(item.amount ?? 0),

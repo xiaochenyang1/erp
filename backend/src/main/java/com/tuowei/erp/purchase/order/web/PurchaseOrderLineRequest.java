@@ -9,10 +9,16 @@ public record PurchaseOrderLineRequest(
         @NotNull(message = "productId不能为空") Long productId,
         @NotNull(message = "qty不能为空")
         @DecimalMin(value = "0.0001", message = "qty必须大于0") BigDecimal qty,
+        BigDecimal auxQty,
+        String auxUnitName,
+        BigDecimal conversionFactor,
         @NotNull(message = "price不能为空")
         @DecimalMin(value = "0.00", message = "price不能小于0") BigDecimal price,
         @NotNull(message = "taxRate不能为空")
         @DecimalMin(value = "0.00", message = "taxRate不能小于0") BigDecimal taxRate,
         String remark
 ) {
+    public PurchaseOrderLineRequest(Long productId, BigDecimal qty, BigDecimal price, BigDecimal taxRate, String remark) {
+        this(productId, qty, null, null, null, price, taxRate, remark);
+    }
 }

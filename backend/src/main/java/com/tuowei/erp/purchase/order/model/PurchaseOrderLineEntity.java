@@ -26,6 +26,12 @@ public class PurchaseOrderLineEntity {
 
     private BigDecimal qty;
 
+    private BigDecimal auxQty;
+
+    private String auxUnitName;
+
+    private BigDecimal conversionFactor;
+
     private BigDecimal price;
 
     private BigDecimal taxRate;
@@ -107,6 +113,30 @@ public class PurchaseOrderLineEntity {
 
     public void setQty(BigDecimal qty) {
         this.qty = qty;
+    }
+
+    public BigDecimal getAuxQty() {
+        return auxQty;
+    }
+
+    public void setAuxQty(BigDecimal auxQty) {
+        this.auxQty = auxQty;
+    }
+
+    public String getAuxUnitName() {
+        return auxUnitName;
+    }
+
+    public void setAuxUnitName(String auxUnitName) {
+        this.auxUnitName = auxUnitName;
+    }
+
+    public BigDecimal getConversionFactor() {
+        return conversionFactor;
+    }
+
+    public void setConversionFactor(BigDecimal conversionFactor) {
+        this.conversionFactor = conversionFactor;
     }
 
     public BigDecimal getPrice() {

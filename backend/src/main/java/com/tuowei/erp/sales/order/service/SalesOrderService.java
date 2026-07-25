@@ -3,6 +3,7 @@ package com.tuowei.erp.sales.order.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
+import com.tuowei.erp.common.math.ProductAuxUnitConversion;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.security.CurrentUser;
@@ -437,8 +438,14 @@ public class SalesOrderService {
                 audit.companyId(), audit.accountBookId());
         for (int i = 0; i < lineRequests.size(); i++) {
             SalesOrderLineRequest lineRequest = lineRequests.get(i);
-            SalesAmountCalculator.LineAmounts amounts = SalesAmountCalculator.line(
+            ProductAuxUnitConversion.ResolvedAuxUnit aux = ProductAuxUnitConversion.resolve(
                     lineRequest.qty(),
+                    lineRequest.auxQty(),
+                    lineRequest.auxUnitName(),
+                    lineRequest.conversionFactor()
+            );
+            SalesAmountCalculator.LineAmounts amounts = SalesAmountCalculator.line(
+                    aux.stockQty(),
                     lineRequest.price(),
                     lineRequest.taxRate()
             );
@@ -450,6 +457,9 @@ public class SalesOrderService {
             line.setLineNo(i + 1);
             line.setProductId(lineRequest.productId());
             line.setQty(amounts.qty());
+            line.setAuxQty(aux.auxQty());
+            line.setAuxUnitName(aux.auxUnitName());
+            line.setConversionFactor(aux.conversionFactor());
             line.setPrice(amounts.price());
             line.setTaxRate(amounts.taxRate());
             line.setAmount(amounts.amount());
@@ -643,6 +653,9 @@ public class SalesOrderService {
                 entity.getLineNo(),
                 entity.getProductId(),
                 entity.getQty(),
+                entity.getAuxQty(),
+                entity.getAuxUnitName(),
+                entity.getConversionFactor(),
                 entity.getPrice(),
                 entity.getTaxRate(),
                 entity.getAmount(),

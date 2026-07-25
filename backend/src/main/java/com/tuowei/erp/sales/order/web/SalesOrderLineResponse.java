@@ -7,6 +7,9 @@ public record SalesOrderLineResponse(
         Integer lineNo,
         Long productId,
         BigDecimal qty,
+        BigDecimal auxQty,
+        String auxUnitName,
+        BigDecimal conversionFactor,
         BigDecimal price,
         BigDecimal taxRate,
         BigDecimal amount,
@@ -14,4 +17,18 @@ public record SalesOrderLineResponse(
         BigDecimal deliveredQty,
         String remark
 ) {
+    public SalesOrderLineResponse(
+            Long id,
+            Integer lineNo,
+            Long productId,
+            BigDecimal qty,
+            BigDecimal price,
+            BigDecimal taxRate,
+            BigDecimal amount,
+            BigDecimal taxAmount,
+            BigDecimal deliveredQty,
+            String remark
+    ) {
+        this(id, lineNo, productId, qty, null, null, null, price, taxRate, amount, taxAmount, deliveredQty, remark);
+    }
 }

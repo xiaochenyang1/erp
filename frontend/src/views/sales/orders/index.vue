@@ -234,6 +234,12 @@
               </el-select>
             </template>
           </el-table-column>
+                    <el-table-column :label="t('salesOrder.auxQty')" width="130">
+            <template #default="{ row, $index }">
+              <el-input-number v-model="row.auxQty" :min="0" :precision="4" :controls="false" :disabled="!row.auxUnitName" style="width: 100%" @change="handleAuxQtyChange($index)" />
+              <div v-if="row.auxUnitName" class="price-hint">{{ row.auxUnitName }} × {{ row.conversionFactor }}</div>
+            </template>
+          </el-table-column>
           <el-table-column :label="t('salesOrder.quantity')" width="150">
             <template #default="{ row }">
               <el-input-number v-model="row.quantity" :min="0" :precision="2" :disabled="isView" style="width: 100%" />
@@ -646,6 +652,16 @@ const applyResolvedPrice = async (line: PricedSalesOrderItem) => {
   line.price = fallback
   line.minPrice = null
   line.priceLevel = null
+}
+
+const handleAuxQtyChange = (index: number) => {
+  const item: any = formData.items[index]
+  if (!item?.auxUnitName || item.conversionFactor == null || item.auxQty == null) return
+  item.quantity = Number((Number(item.auxQty) * Number(item.conversionFactor)).toFixed(4))
+  item.qty = item.quantity
+  if (item.price != null) {
+    item.amount = Number((Number(item.quantity) * Number(item.price)).toFixed(2))
+  }
 }
 
 const onProductChange = async (line: PricedSalesOrderItem) => {

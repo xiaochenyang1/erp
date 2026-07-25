@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.export.CsvExport;
+import com.tuowei.erp.common.math.ProductAuxUnitConversion;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
@@ -513,12 +514,21 @@ public class PurchaseOrderService {
             line.setOrderId(orderId);
             line.setLineNo(i + 1);
             line.setProductId(lineRequest.productId());
-            PurchaseAmountCalculator.LineAmounts amounts = PurchaseAmountCalculator.line(
+            ProductAuxUnitConversion.ResolvedAuxUnit aux = ProductAuxUnitConversion.resolve(
                     lineRequest.qty(),
+                    lineRequest.auxQty(),
+                    lineRequest.auxUnitName(),
+                    lineRequest.conversionFactor()
+            );
+            PurchaseAmountCalculator.LineAmounts amounts = PurchaseAmountCalculator.line(
+                    aux.stockQty(),
                     lineRequest.price(),
                     lineRequest.taxRate()
             );
             line.setQty(amounts.qty());
+            line.setAuxQty(aux.auxQty());
+            line.setAuxUnitName(aux.auxUnitName());
+            line.setConversionFactor(aux.conversionFactor());
             line.setPrice(amounts.price());
             line.setTaxRate(amounts.taxRate());
             line.setAmount(amounts.amount());
@@ -881,6 +891,9 @@ public class PurchaseOrderService {
                 entity.getLineNo(),
                 entity.getProductId(),
                 entity.getQty(),
+                entity.getAuxQty(),
+                entity.getAuxUnitName(),
+                entity.getConversionFactor(),
                 entity.getPrice(),
                 entity.getTaxRate(),
                 entity.getAmount(),
