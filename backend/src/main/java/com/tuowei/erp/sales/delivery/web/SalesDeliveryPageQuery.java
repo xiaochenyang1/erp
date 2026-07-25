@@ -15,6 +15,7 @@ public class SalesDeliveryPageQuery {
     private Long warehouseId;
 
     private String status;
+    private String trackingNo;
 
     private LocalDate deliveryDateFrom;
 
@@ -60,7 +61,7 @@ public class SalesDeliveryPageQuery {
         this.warehouseId = warehouseId;
     }
 
-    public String getStatus() {
+    public String getTrackingNo(){return trackingNo;} public void setTrackingNo(String trackingNo){this.trackingNo=trackingNo;} public String getStatus() {
         return status;
     }
 

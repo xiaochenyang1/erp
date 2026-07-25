@@ -37,6 +37,10 @@ public class SalesDeliveryEntity {
 
     private Integer deletedFlag;
 
+    private String carrierName;
+
+    private String trackingNo;
+
     private String remark;
 
     private Long createdBy;
@@ -144,6 +148,22 @@ public class SalesDeliveryEntity {
 
     public void setDeletedFlag(Integer deletedFlag) {
         this.deletedFlag = deletedFlag;
+    }
+
+    public String getCarrierName() {
+        return carrierName;
+    }
+
+    public void setCarrierName(String carrierName) {
+        this.carrierName = carrierName;
+    }
+
+    public String getTrackingNo() {
+        return trackingNo;
+    }
+
+    public void setTrackingNo(String trackingNo) {
+        this.trackingNo = trackingNo;
     }
 
     public String getRemark() {

@@ -15,6 +15,8 @@ public record SalesDeliveryResponse(
         BigDecimal totalAmount,
         BigDecimal totalTaxAmount,
         String remark,
+        String carrierName,
+        String trackingNo,
         List<SalesDeliveryLineResponse> lines
 ) {
 }

@@ -179,8 +179,7 @@ class SalesDeliveryServiceTenantBoundaryTest {
                 7001L,
                 3001L,
                 LocalDate.of(2026, 6, 8),
-                "scope test",
-                List.of(new SalesDeliveryLineRequest(
+                "scope test", null, null, List.of(new SalesDeliveryLineRequest(
                         8001L,
                         new BigDecimal("2.0000"),
                         null,
@@ -263,8 +262,7 @@ class SalesDeliveryServiceTenantBoundaryTest {
                 7001L,
                 3001L,
                 LocalDate.of(2026, 6, 8),
-                "scope test",
-                List.of(new SalesDeliveryLineRequest(
+                "scope test", null, null, List.of(new SalesDeliveryLineRequest(
                         8001L,
                         new BigDecimal("2.0000"),
                         null,

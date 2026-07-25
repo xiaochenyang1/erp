@@ -158,6 +158,8 @@ public class SalesDeliveryService {
         delivery.setTotalTaxAmount(totals.totalTaxAmount());
         delivery.setDeletedFlag(0);
         delivery.setRemark(request.remark());
+        delivery.setCarrierName(request.carrierName());
+        delivery.setTrackingNo(request.trackingNo());
         delivery.setCreatedBy(audit.userId());
         delivery.setCreatedTime(now);
         delivery.setUpdatedBy(audit.userId());
@@ -250,6 +252,8 @@ public class SalesDeliveryService {
         delivery.setTotalAmount(totals.totalAmount());
         delivery.setTotalTaxAmount(totals.totalTaxAmount());
         delivery.setRemark(request.remark());
+        delivery.setCarrierName(request.carrierName());
+        delivery.setTrackingNo(request.trackingNo());
         delivery.setUpdatedBy(audit.userId());
         delivery.setUpdatedTime(now);
         assertCanView(delivery);
@@ -714,6 +718,8 @@ public class SalesDeliveryService {
                 delivery.getTotalAmount(),
                 delivery.getTotalTaxAmount(),
                 delivery.getRemark(),
+                delivery.getCarrierName(),
+                delivery.getTrackingNo(),
                 lines.stream().map(this::toLineResponse).toList()
         );
     }
@@ -730,6 +736,8 @@ public class SalesDeliveryService {
                 delivery.getTotalAmount(),
                 delivery.getTotalTaxAmount(),
                 delivery.getRemark(),
+                delivery.getCarrierName(),
+                delivery.getTrackingNo(),
                 List.of()
         );
     }

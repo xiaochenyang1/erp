@@ -20,6 +20,8 @@ export interface SalesOrder {
   items: SalesOrderItem[]
   lines?: SalesOrderItem[]
   remark?: string
+  carrierName?: string
+  trackingNo?: string
   createdBy?: string
   createdAt?: string
   updatedAt?: string
@@ -158,6 +160,8 @@ const toSalesOrderPayload = (data: SalesOrderSaveRequest) => ({
   orderDate: data.orderDate,
   deliveryDate: data.deliveryDate,
   remark: data.remark,
+    carrierName: data.carrierName,
+    trackingNo: data.trackingNo,
   lines: toSalesOrderLinePayload(data.items)
 })
 
@@ -189,6 +193,8 @@ export interface SalesDelivery {
   items: SalesDeliveryItem[]
   lines?: SalesDeliveryItem[]
   remark?: string
+  carrierName?: string
+  trackingNo?: string
   createdBy?: string
   createdAt?: string
   updatedAt?: string
@@ -228,6 +234,8 @@ export interface SalesDeliveryCreateRequest {
   deliveryDate: string
   items: SalesDeliveryItem[]
   remark?: string
+  carrierName?: string
+  trackingNo?: string
 }
 
 // 销售发货API
@@ -284,6 +292,8 @@ const toSalesDeliveryPayload = (data: SalesDeliveryCreateRequest) => ({
   warehouseId: data.warehouseId,
   deliveryDate: data.deliveryDate,
   remark: data.remark,
+    carrierName: data.carrierName,
+    trackingNo: data.trackingNo,
   lines: data.items.map((item) => ({
     orderLineId: item.orderLineId ?? item.orderItemId,
     qty: item.quantity,
@@ -311,6 +321,8 @@ export interface SalesReturn {
   items: SalesReturnItem[]
   lines?: SalesReturnLineResponse[]
   remark?: string
+  carrierName?: string
+  trackingNo?: string
   createdBy?: string
   createdAt?: string
   updatedAt?: string
@@ -443,6 +455,8 @@ const toSalesReturnPayload = (data: SalesReturnCreateRequest) => ({
   deliveryId: data.deliveryId,
   returnDate: data.returnDate,
   remark: data.remark,
+    carrierName: data.carrierName,
+    trackingNo: data.trackingNo,
   lines: data.items.map((item) => ({
     deliveryLineId: item.deliveryLineId,
     qty: item.quantity,

@@ -12,6 +12,8 @@ public record SalesDeliveryUpdateRequest(
         @NotNull(message = "warehouseId不能为空") Long warehouseId,
         @NotNull(message = "deliveryDate不能为空") LocalDate deliveryDate,
         String remark,
+        String carrierName,
+        String trackingNo,
         @Valid @NotEmpty(message = "lines不能为空") List<SalesDeliveryLineRequest> lines
 ) {
 }

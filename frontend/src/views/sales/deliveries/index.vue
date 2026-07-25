@@ -99,6 +99,8 @@
             <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">{{ t('salesDelivery.status.cancelled') }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="carrierName" :label="t('salesDelivery.carrierName')" width="120" show-overflow-tooltip />
+        <el-table-column prop="trackingNo" :label="t('salesDelivery.trackingNo')" width="140" show-overflow-tooltip />
         <el-table-column prop="remark" :label="t('salesDelivery.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="t('salesDelivery.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="t('salesDelivery.createdAt')" width="190">
@@ -218,6 +220,12 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item :label="t('salesDelivery.carrierName')">
+          <el-input v-model="formData.carrierName" :placeholder="t('salesDelivery.carrierPlaceholder')" />
+        </el-form-item>
+        <el-form-item :label="t('salesDelivery.trackingNo')">
+          <el-input v-model="formData.trackingNo" :placeholder="t('salesDelivery.trackingPlaceholder')" />
+        </el-form-item>
         <el-form-item :label="t('salesDelivery.remark')">
           <el-input
             v-model="formData.remark"
@@ -369,7 +377,9 @@ const formData = reactive<SalesDeliveryCreateRequest>({
   warehouseId: 0,
   deliveryDate: '',
   items: [],
-  remark: ''
+  remark: '',
+  carrierName: '',
+  trackingNo: ''
 })
 const deliveryQuantityTotal = computed(() => formData.items.reduce(
   (total, item) => total + Number(item.quantity || 0),
@@ -516,6 +526,8 @@ const handleEdit = async (row: SalesDelivery) => {
     formData.warehouseId = detail.warehouseId
     formData.deliveryDate = detail.deliveryDate
     formData.remark = detail.remark || ''
+    formData.carrierName = detail.carrierName || ''
+    formData.trackingNo = detail.trackingNo || ''
     const deliveryItems = (detail.items || detail.lines || []).map(item => {
       const orderLineId = item.orderLineId ?? item.orderItemId
       const orderItem = orderItems.find(oi => String(oi.id) === String(orderLineId))
@@ -702,6 +714,8 @@ const resetForm = () => {
   formData.deliveryDate = formatBusinessDate()
   formData.items = []
   formData.remark = ''
+  formData.carrierName = ''
+  formData.trackingNo = ''
   scanFeedback.value = ''
   formRef.value?.clearValidate()
 }
