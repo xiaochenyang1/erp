@@ -10,6 +10,7 @@ public record ReceivableResponse(
         Long customerId,
         String customerName,
         LocalDate bizDate,
+        LocalDate dueDate,
         String sourceType,
         Long sourceId,
         String sourceNo,

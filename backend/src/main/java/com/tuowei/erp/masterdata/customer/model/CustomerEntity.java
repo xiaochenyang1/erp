@@ -34,6 +34,8 @@ public class CustomerEntity {
 
     private BigDecimal creditLimit;
 
+    private Integer creditPeriod;
+
     private String address;
 
     private String status;
@@ -139,6 +141,14 @@ public class CustomerEntity {
 
     public void setCreditLimit(BigDecimal creditLimit) {
         this.creditLimit = creditLimit;
+    }
+
+    public Integer getCreditPeriod() {
+        return creditPeriod;
+    }
+
+    public void setCreditPeriod(Integer creditPeriod) {
+        this.creditPeriod = creditPeriod;
     }
 
     public String getAddress() {

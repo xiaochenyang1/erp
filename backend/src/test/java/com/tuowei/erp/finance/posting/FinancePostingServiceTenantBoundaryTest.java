@@ -9,6 +9,8 @@ import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import com.tuowei.erp.finance.subject.mapper.AccountSubjectMapper;
+import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
+import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.finance.subject.model.AccountSubjectEntity;
 import com.tuowei.erp.finance.voucher.mapper.VoucherEntryMapper;
 import com.tuowei.erp.finance.voucher.mapper.VoucherMapper;
@@ -49,6 +51,8 @@ class FinancePostingServiceTenantBoundaryTest {
     private final VoucherMapper voucherMapper = mock(VoucherMapper.class);
     private final VoucherEntryMapper voucherEntryMapper = mock(VoucherEntryMapper.class);
     private final AccountSubjectMapper accountSubjectMapper = mock(AccountSubjectMapper.class);
+    private final CustomerMapper customerMapper = mock(CustomerMapper.class);
+    private final SupplierMapper supplierMapper = mock(SupplierMapper.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -106,7 +110,9 @@ class FinancePostingServiceTenantBoundaryTest {
                 receivableMapper,
                 voucherMapper,
                 voucherEntryMapper,
-                accountSubjectMapper
+                accountSubjectMapper,
+                customerMapper,
+                supplierMapper
         );
     }
 

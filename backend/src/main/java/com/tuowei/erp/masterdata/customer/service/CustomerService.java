@@ -39,6 +39,7 @@ public class CustomerService {
             "email",
             "settlementMethod",
             "creditLimit",
+            "creditPeriod",
             "address",
             "status",
             "remark"
@@ -68,6 +69,7 @@ public class CustomerService {
         entity.setEmail(request.email());
         entity.setSettlementMethod(request.settlementMethod());
         entity.setCreditLimit(request.creditLimit());
+        entity.setCreditPeriod(normalizeCreditPeriod(request.creditPeriod()));
         entity.setAddress(request.address());
         entity.setStatus(StringUtils.hasText(request.status()) ? request.status() : "ACTIVE");
         entity.setDeletedFlag(0);
@@ -141,6 +143,7 @@ public class CustomerService {
         entity.setEmail(request.email());
         entity.setSettlementMethod(request.settlementMethod());
         entity.setCreditLimit(request.creditLimit());
+        entity.setCreditPeriod(normalizeCreditPeriod(request.creditPeriod()));
         entity.setAddress(request.address());
         if (StringUtils.hasText(request.status())) {
             entity.setStatus(request.status());
@@ -224,6 +227,7 @@ public class CustomerService {
                 record.email(),
                 record.settlementMethod(),
                 record.creditLimit(),
+                record.creditPeriod(),
                 record.address(),
                 record.status(),
                 record.remark()
@@ -270,10 +274,21 @@ public class CustomerService {
                 entity.getEmail(),
                 entity.getSettlementMethod(),
                 entity.getCreditLimit(),
+                entity.getCreditPeriod(),
                 entity.getAddress(),
                 entity.getStatus(),
                 entity.getRemark()
         );
+    }
+
+    private Integer normalizeCreditPeriod(Integer creditPeriod) {
+        if (creditPeriod == null) {
+            return null;
+        }
+        if (creditPeriod < 0) {
+            throw new IllegalArgumentException("creditPeriod不能小于0");
+        }
+        return creditPeriod;
     }
 
     private void withAuthentication(Authentication authentication, ThrowingRunnable action) throws IOException {

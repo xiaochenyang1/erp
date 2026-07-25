@@ -10,6 +10,7 @@ public record PayableResponse(
         Long supplierId,
         String supplierName,
         LocalDate bizDate,
+        LocalDate dueDate,
         String sourceType,
         Long sourceId,
         String sourceNo,

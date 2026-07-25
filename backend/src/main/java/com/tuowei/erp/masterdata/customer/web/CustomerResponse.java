@@ -12,6 +12,7 @@ public record CustomerResponse(
         String email,
         String settlementMethod,
         BigDecimal creditLimit,
+        Integer creditPeriod,
         String address,
         String status,
         String remark

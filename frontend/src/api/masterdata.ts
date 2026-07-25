@@ -188,6 +188,7 @@ export interface Customer {
   contactPhone?: string         // 后端字段
   settlementMethod?: string     // 结算方式
   creditLimit?: number
+  creditPeriod?: number
   address?: string
   status: 'ACTIVE' | 'INACTIVE'
   remark?: string
@@ -226,6 +227,7 @@ export interface CustomerSaveRequest {
   email?: string
   address?: string
   creditLimit?: number
+  creditPeriod?: number
   status?: string
   remark?: string
 }

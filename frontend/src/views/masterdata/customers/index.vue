@@ -110,6 +110,13 @@
           <span v-else class="no-limit">{{ texts.noLimit }}</span>
         </template>
       </el-table-column>
+      <el-table-column prop="creditPeriod" :label="texts.creditPeriod" width="120" align="center">
+        <template #default="{ row }">
+          <span :class="hasCreditPeriod(row.creditPeriod) ? 'credit-period' : 'no-credit'">
+            {{ formatCreditPeriod(row.creditPeriod) }}
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column prop="status" :label="texts.status" width="100" align="center">
         <template #default="{ row }">
           <status-tag :status="row.status" />
@@ -204,6 +211,17 @@
           />
           <span class="form-tip">{{ texts.creditHint }}</span>
         </el-form-item>
+        <el-form-item :label="texts.creditPeriodDays" prop="creditPeriod">
+          <el-input-number
+            v-model="formData.creditPeriod"
+            :min="0"
+            :precision="0"
+            :controls="false"
+            :placeholder="texts.enterCreditPeriod"
+            style="width: 100%"
+          />
+          <span class="form-tip">{{ texts.creditPeriodHint }}</span>
+        </el-form-item>
         <el-form-item :label="texts.status" prop="status">
           <el-radio-group v-model="formData.status">
             <el-radio value="ACTIVE">{{ texts.active }}</el-radio>
@@ -295,6 +313,12 @@
               <div class="detail-label">{{ texts.creditLimit }}</div>
               <div class="detail-value credit">
                 <span :class="{ unlimited: !currentRow?.creditLimit }">{{ formatCreditLimit(currentRow?.creditLimit) }}</span>
+              </div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">{{ texts.creditPeriodDays }}</div>
+              <div class="detail-value credit" :class="{ 'cash-only': !hasCreditPeriod(currentRow?.creditPeriod) }">
+                {{ formatCreditPeriod(currentRow?.creditPeriod) }}
               </div>
             </div>
             <div class="detail-item">
@@ -398,6 +422,12 @@ const CUSTOMER_TEXTS = {
     phone: '联系电话',
     email: '邮箱',
     creditLimit: '信用额度',
+    creditPeriod: '账期',
+    creditPeriodDays: '账期（天）',
+    creditPeriodValue: '{days} 天',
+    cashSettlement: '现结',
+    enterCreditPeriod: '请输入账期天数',
+    creditPeriodHint: '0 或空表示现结',
     noLimit: '无限制',
     status: '状态',
     actions: '操作',
@@ -479,6 +509,12 @@ const CUSTOMER_TEXTS = {
     phone: 'Phone',
     email: 'Email',
     creditLimit: 'Credit limit',
+    creditPeriod: 'Credit period',
+    creditPeriodDays: 'Credit period (days)',
+    creditPeriodValue: '{days} days',
+    cashSettlement: 'Cash',
+    enterCreditPeriod: 'Enter credit period days',
+    creditPeriodHint: '0 or empty means cash terms',
     noLimit: 'Unlimited',
     status: 'Status',
     actions: 'Actions',
@@ -561,6 +597,12 @@ const formatCurrency = (value?: number | string | null) => {
 const formatDateTime = (value?: string | null) => (
   value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
 )
+const hasCreditPeriod = (value?: number | null) => value != null && Number(value) > 0
+const formatCreditPeriod = (value?: number | null) => (
+  hasCreditPeriod(value)
+    ? interpolate(texts.value.creditPeriodValue, { days: Number(value) })
+    : texts.value.cashSettlement
+)
 const formatCreditLimit = (value?: number | null) => (
   value ? formatCurrency(value) : texts.value.noLimit
 )
@@ -601,6 +643,7 @@ const formData = reactive<CustomerSaveRequest & { id?: string }>({
   address: '',
   settlementMethod: 'BANK_TRANSFER',
   creditLimit: 0,
+  creditPeriod: undefined,
   status: 'ACTIVE',
   remark: ''
 })
@@ -690,6 +733,7 @@ const handleCreate = () => {
     address: '',
     settlementMethod: 'BANK_TRANSFER',
     creditLimit: 0,
+    creditPeriod: undefined,
     status: 'ACTIVE',
     remark: ''
   })
@@ -709,6 +753,7 @@ const handleEdit = (row: Customer) => {
     address: row.address,
     settlementMethod: row.settlementMethod || 'BANK_TRANSFER',
     creditLimit: row.creditLimit ?? 0,
+    creditPeriod: row.creditPeriod ?? undefined,
     status: row.status,
     remark: row.remark
   })
@@ -784,6 +829,7 @@ const handleSubmit = async (values: any) => {
       email: values.email,
       settlementMethod: values.settlementMethod || 'BANK_TRANSFER',
       creditLimit: values.creditLimit ?? 0,
+      creditPeriod: values.creditPeriod ?? undefined,
       address: values.address,
       status: values.status,
       remark: values.remark

@@ -48,6 +48,9 @@
             <el-table-column prop="bizDate" :label="t('financeAccount.bizDate')" width="120">
               <template #default="{ row }">{{ formatDate(row.bizDate) }}</template>
             </el-table-column>
+            <el-table-column prop="dueDate" :label="t('financeAccount.dueDate')" width="120">
+              <template #default="{ row }">{{ formatDate(row.dueDate) }}</template>
+            </el-table-column>
             <el-table-column prop="status" :label="t('financeAccount.statusLabel')" width="100">
               <template #default="{ row }">
                 <el-tag :type="accountStatusType(row.status)">{{ accountStatusLabel(row.status) }}</el-tag>
@@ -121,6 +124,9 @@
             <el-table-column prop="bizDate" :label="t('financeAccount.bizDate')" width="120">
               <template #default="{ row }">{{ formatDate(row.bizDate) }}</template>
             </el-table-column>
+            <el-table-column prop="dueDate" :label="t('financeAccount.dueDate')" width="120">
+              <template #default="{ row }">{{ formatDate(row.dueDate) }}</template>
+            </el-table-column>
             <el-table-column prop="status" :label="t('financeAccount.statusLabel')" width="100">
               <template #default="{ row }">
                 <el-tag :type="accountStatusType(row.status)">{{ accountStatusLabel(row.status) }}</el-tag>
@@ -159,6 +165,7 @@
         <el-descriptions-item :label="t('financeAccount.receivedAmount')">{{ formatCurrency(selectedReceivable.receivedAmount) }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.unreceivedAmount')">{{ formatCurrency(selectedReceivable.remainingAmount) }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.bizDate')">{{ formatDate(selectedReceivable.bizDate) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('financeAccount.dueDate')">{{ formatDate(selectedReceivable.dueDate) }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.createdTime')">{{ formatDateTime(selectedReceivable.createdTime) }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.updatedTime')">{{ formatDateTime(selectedReceivable.updatedTime) }}</el-descriptions-item>
       </el-descriptions>
@@ -175,6 +182,7 @@
         <el-descriptions-item :label="t('financeAccount.paidAmount')">{{ formatCurrency(selectedPayable.paidAmount) }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.unpaidAmount')">{{ formatCurrency(selectedPayable.remainingAmount) }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.bizDate')">{{ formatDate(selectedPayable.bizDate) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('financeAccount.dueDate')">{{ formatDate(selectedPayable.dueDate) }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.createdTime')">{{ formatDateTime(selectedPayable.createdTime) }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.updatedTime')">{{ formatDateTime(selectedPayable.updatedTime) }}</el-descriptions-item>
       </el-descriptions>

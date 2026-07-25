@@ -25,6 +25,7 @@ describe('finance account API contract', () => {
         receivableNo: 'AR-1',
         customerId: '9007199254740994',
         bizDate: '2026-07-23',
+        dueDate: '2026-08-22',
         sourceType: 'SALES_DELIVERY',
         sourceId: '9007199254740995',
         sourceNo: 'SD-1',
@@ -59,12 +60,12 @@ describe('finance account API contract', () => {
       sourceId: '9007199254740995',
       sourceNo: 'SD-1',
       bizDate: '2026-07-23',
+      dueDate: '2026-08-22',
       status: 'UNSETTLED',
       createdTime: '2026-07-23T09:00:00',
       updatedTime: '2026-07-23T10:00:00'
     })
     expect(page.records[0]).not.toHaveProperty('orderNo')
-    expect(page.records[0]).not.toHaveProperty('dueDate')
     expect(page.records[0]).not.toHaveProperty('createdAt')
     expect(page.records[0]).not.toHaveProperty('updatedAt')
   })

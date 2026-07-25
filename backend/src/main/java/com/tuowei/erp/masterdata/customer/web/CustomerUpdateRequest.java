@@ -13,6 +13,7 @@ public record CustomerUpdateRequest(
         String email,
         @NotBlank(message = "settlementMethod不能为空") String settlementMethod,
         @NotNull(message = "creditLimit不能为空") BigDecimal creditLimit,
+        Integer creditPeriod,
         String address,
         String status,
         String remark

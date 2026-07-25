@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * <p>口径：
  * <ul>
  *   <li>未结单据：status 不在 SETTLED/CANCELLED/CLOSED，且剩余金额 &gt; 0；</li>
- *   <li>账龄天数：asOfDate - bizDate（负值按 0）；</li>
+ *   <li>账龄天数：asOfDate - dueDate（无 dueDate 时回退 bizDate；负值按 0）；</li>
  *   <li>分段：0-30 / 31-60 / 61-90 / 90+。</li>
  * </ul>
  */
@@ -96,7 +96,8 @@ public class FinanceAgingService {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            long days = agingDays(entity.getBizDate(), asOf);
+            LocalDate dueDate = effectiveDueDate(entity.getDueDate(), entity.getBizDate());
+            long days = agingDays(dueDate, asOf);
             String bucket = bucketCode(days);
             arBuckets.get(bucket).add(remaining);
             arItems.add(new FinanceAgingOpenItemResponse(
@@ -106,6 +107,7 @@ public class FinanceAgingService {
                     entity.getCustomerId(),
                     customerNames.get(entity.getCustomerId()),
                     entity.getBizDate(),
+                    dueDate,
                     days,
                     bucket,
                     remaining,
@@ -118,7 +120,8 @@ public class FinanceAgingService {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            long days = agingDays(entity.getBizDate(), asOf);
+            LocalDate dueDate = effectiveDueDate(entity.getDueDate(), entity.getBizDate());
+            long days = agingDays(dueDate, asOf);
             String bucket = bucketCode(days);
             apBuckets.get(bucket).add(remaining);
             apItems.add(new FinanceAgingOpenItemResponse(
@@ -128,6 +131,7 @@ public class FinanceAgingService {
                     entity.getSupplierId(),
                     supplierNames.get(entity.getSupplierId()),
                     entity.getBizDate(),
+                    dueDate,
                     days,
                     bucket,
                     remaining,
@@ -187,11 +191,15 @@ public class FinanceAgingService {
                 .collect(Collectors.toMap(SupplierEntity::getId, SupplierEntity::getSupplierName, (a, b) -> a, HashMap::new));
     }
 
-    private long agingDays(LocalDate bizDate, LocalDate asOf) {
-        if (bizDate == null) {
+    private LocalDate effectiveDueDate(LocalDate dueDate, LocalDate bizDate) {
+        return dueDate != null ? dueDate : bizDate;
+    }
+
+    private long agingDays(LocalDate dueDate, LocalDate asOf) {
+        if (dueDate == null) {
             return 0L;
         }
-        long days = ChronoUnit.DAYS.between(bizDate, asOf);
+        long days = ChronoUnit.DAYS.between(dueDate, asOf);
         return Math.max(days, 0L);
     }
 

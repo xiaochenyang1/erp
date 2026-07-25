@@ -89,6 +89,9 @@
             <el-table-column prop="bizDate" :label="t('financeAging.bizDate')" width="120">
               <template #default="{ row }">{{ formatDate(row.bizDate) }}</template>
             </el-table-column>
+            <el-table-column prop="dueDate" :label="t('financeAging.dueDate')" width="120">
+              <template #default="{ row }">{{ formatDate(row.dueDate) }}</template>
+            </el-table-column>
             <el-table-column prop="agingDays" :label="t('financeAging.agingDays')" width="90" align="right">
               <template #default="{ row }">{{ formatNumber(row.agingDays) }}</template>
             </el-table-column>
@@ -111,6 +114,9 @@
             <el-table-column prop="partnerName" :label="t('financeAging.supplier')" min-width="120" show-overflow-tooltip />
             <el-table-column prop="bizDate" :label="t('financeAging.bizDate')" width="120">
               <template #default="{ row }">{{ formatDate(row.bizDate) }}</template>
+            </el-table-column>
+            <el-table-column prop="dueDate" :label="t('financeAging.dueDate')" width="120">
+              <template #default="{ row }">{{ formatDate(row.dueDate) }}</template>
             </el-table-column>
             <el-table-column prop="agingDays" :label="t('financeAging.agingDays')" width="90" align="right">
               <template #default="{ row }">{{ formatNumber(row.agingDays) }}</template>

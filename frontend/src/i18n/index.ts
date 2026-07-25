@@ -74,7 +74,7 @@ const coreMessages = {
       tabs: { receivables: '应收账款', payables: '应付账款' },
       receivableNo: '应收单号', receivableNoPlaceholder: '请输入应收单号', payableNo: '应付单号', payableNoPlaceholder: '请输入应付单号',
       customer: '客户', selectCustomer: '请选择客户', supplier: '供应商', selectSupplier: '请选择供应商', statusLabel: '状态', selectStatus: '请选择状态',
-      search: '查询', export: '导出', sourceNo: '来源单号', bizDate: '业务日期', createdTime: '创建时间', updatedTime: '更新时间', actions: '操作', view: '查看',
+      search: '查询', export: '导出', sourceNo: '来源单号', bizDate: '业务日期', dueDate: '到期日', createdTime: '创建时间', updatedTime: '更新时间', actions: '操作', view: '查看',
       receivableAmount: '应收金额', receivedAmount: '已收金额', unreceivedAmount: '未收金额', payableAmount: '应付金额', paidAmount: '已付金额', unpaidAmount: '未付金额',
       status: { unsettled: '未结算', partiallySettled: '部分结算', settled: '已结算', offset: '已冲销' },
       dialog: { receivable: '应收账款详情', payable: '应付账款详情' },
@@ -84,7 +84,7 @@ const coreMessages = {
     financeAging: {
       asOfDate: '基准日', todayPlaceholder: '默认今天', search: '查询', reset: '重置', receivableTotal: '应收未结总额', payableTotal: '应付未结总额', asOfDateValue: '基准日 {date}', outstandingOnly: '仅统计剩余金额大于 0 的未结单据',
       receivableBuckets: '应收账龄分段', payableBuckets: '应付账龄分段', bucket: '账龄段', count: '笔数', amount: '金额', overdueReceivables: '应收逾期 TOP20', overduePayables: '应付逾期 TOP20', receivablesLedger: '去应收台账', payablesLedger: '去应付台账',
-      receivableNo: '应收单号', payableNo: '应付单号', customer: '客户', supplier: '供应商', bizDate: '业务日期', agingDays: '账龄天数', outstandingAmount: '未结金额',
+      receivableNo: '应收单号', payableNo: '应付单号', customer: '客户', supplier: '供应商', bizDate: '业务日期', dueDate: '到期日', agingDays: '账龄天数', outstandingAmount: '未结金额',
       bucketLabel: { d0_30: '0-30 天', d31_60: '31-60 天', d61_90: '61-90 天', d90Plus: '90 天以上' },
       message: { loadFailed: '加载账龄分析失败' }
     },
@@ -304,7 +304,7 @@ const coreMessages = {
       tabs: { receivables: 'Receivables', payables: 'Payables' },
       receivableNo: 'Receivable no.', receivableNoPlaceholder: 'Enter a receivable no.', payableNo: 'Payable no.', payableNoPlaceholder: 'Enter a payable no.',
       customer: 'Customer', selectCustomer: 'Select a customer', supplier: 'Supplier', selectSupplier: 'Select a supplier', statusLabel: 'Status', selectStatus: 'Select a status',
-      search: 'Search', export: 'Export', sourceNo: 'Source no.', bizDate: 'Business date', createdTime: 'Created', updatedTime: 'Updated', actions: 'Actions', view: 'View',
+      search: 'Search', export: 'Export', sourceNo: 'Source no.', bizDate: 'Business date', dueDate: 'Due date', createdTime: 'Created', updatedTime: 'Updated', actions: 'Actions', view: 'View',
       receivableAmount: 'Receivable amount', receivedAmount: 'Received amount', unreceivedAmount: 'Unreceived amount', payableAmount: 'Payable amount', paidAmount: 'Paid amount', unpaidAmount: 'Unpaid amount',
       status: { unsettled: 'Unsettled', partiallySettled: 'Partially settled', settled: 'Settled', offset: 'Offset' },
       dialog: { receivable: 'Receivable details', payable: 'Payable details' },
@@ -314,7 +314,7 @@ const coreMessages = {
     financeAging: {
       asOfDate: 'As-of date', todayPlaceholder: 'Defaults to today', search: 'Search', reset: 'Reset', receivableTotal: 'Open receivables', payableTotal: 'Open payables', asOfDateValue: 'As of {date}', outstandingOnly: 'Includes only open documents with a remaining amount greater than 0',
       receivableBuckets: 'Receivable aging buckets', payableBuckets: 'Payable aging buckets', bucket: 'Aging bucket', count: 'Count', amount: 'Amount', overdueReceivables: 'Top 20 overdue receivables', overduePayables: 'Top 20 overdue payables', receivablesLedger: 'Open receivables', payablesLedger: 'Open payables',
-      receivableNo: 'Receivable no.', payableNo: 'Payable no.', customer: 'Customer', supplier: 'Supplier', bizDate: 'Business date', agingDays: 'Aging days', outstandingAmount: 'Outstanding amount',
+      receivableNo: 'Receivable no.', payableNo: 'Payable no.', customer: 'Customer', supplier: 'Supplier', bizDate: 'Business date', dueDate: 'Due date', agingDays: 'Aging days', outstandingAmount: 'Outstanding amount',
       bucketLabel: { d0_30: '0-30 days', d31_60: '31-60 days', d61_90: '61-90 days', d90Plus: 'Over 90 days' },
       message: { loadFailed: 'Failed to load aging analysis' }
     },

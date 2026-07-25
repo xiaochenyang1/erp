@@ -23,6 +23,7 @@ public class PayableEntity {
     private String direction;
     private Long supplierId;
     private LocalDate bizDate;
+    private LocalDate dueDate;
     private BigDecimal originalAmount;
     private BigDecimal settledAmount;
     private String status;
@@ -55,6 +56,8 @@ public class PayableEntity {
     public void setSupplierId(Long supplierId) { this.supplierId = supplierId; }
     public LocalDate getBizDate() { return bizDate; }
     public void setBizDate(LocalDate bizDate) { this.bizDate = bizDate; }
+    public LocalDate getDueDate() { return dueDate; }
+    public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
     public BigDecimal getOriginalAmount() { return originalAmount; }
     public void setOriginalAmount(BigDecimal originalAmount) { this.originalAmount = originalAmount; }
     public BigDecimal getSettledAmount() { return settledAmount; }

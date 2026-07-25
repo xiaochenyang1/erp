@@ -20,6 +20,7 @@ export interface Receivable {
   originalAmount?: number
   settledAmount?: number
   bizDate?: string
+  dueDate?: string
   status: FinanceAccountStatus
   createdTime?: string
   updatedTime?: string
@@ -70,6 +71,7 @@ export interface Payable {
   originalAmount?: number
   settledAmount?: number
   bizDate?: string
+  dueDate?: string
   status: FinanceAccountStatus
   createdTime?: string
   updatedTime?: string
@@ -1162,6 +1164,7 @@ export interface FinanceAgingOpenItem {
   partnerId?: string | number
   partnerName?: string
   bizDate?: string
+  dueDate?: string
   agingDays: number
   bucketCode: string
   remainingAmount: number

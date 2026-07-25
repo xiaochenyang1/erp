@@ -10,6 +10,7 @@ public record FinanceAgingOpenItemResponse(
         Long partnerId,
         String partnerName,
         LocalDate bizDate,
+        LocalDate dueDate,
         long agingDays,
         String bucketCode,
         BigDecimal remainingAmount,

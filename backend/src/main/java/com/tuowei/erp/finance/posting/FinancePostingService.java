@@ -16,6 +16,10 @@ import com.tuowei.erp.finance.voucher.model.VoucherEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntryEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentLineEntity;
+import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
+import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
+import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
+import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
@@ -46,19 +50,25 @@ public class FinancePostingService {
     private final VoucherMapper voucherMapper;
     private final VoucherEntryMapper voucherEntryMapper;
     private final AccountSubjectMapper accountSubjectMapper;
+    private final CustomerMapper customerMapper;
+    private final SupplierMapper supplierMapper;
 
     public FinancePostingService(
             PayableMapper payableMapper,
             ReceivableMapper receivableMapper,
             VoucherMapper voucherMapper,
             VoucherEntryMapper voucherEntryMapper,
-            AccountSubjectMapper accountSubjectMapper
+            AccountSubjectMapper accountSubjectMapper,
+            CustomerMapper customerMapper,
+            SupplierMapper supplierMapper
     ) {
         this.payableMapper = payableMapper;
         this.receivableMapper = receivableMapper;
         this.voucherMapper = voucherMapper;
         this.voucherEntryMapper = voucherEntryMapper;
         this.accountSubjectMapper = accountSubjectMapper;
+        this.customerMapper = customerMapper;
+        this.supplierMapper = supplierMapper;
     }
 
     @Transactional
@@ -266,6 +276,7 @@ public class FinancePostingService {
         entity.setDirection(direction);
         entity.setSupplierId(supplierId);
         entity.setBizDate(bizDate);
+        entity.setDueDate(resolveSupplierDueDate(supplierId, bizDate, audit));
         entity.setOriginalAmount(amount);
         entity.setSettledAmount(ZERO_AMOUNT);
         entity.setStatus("INCREASE".equals(direction) ? "UNSETTLED" : "OFFSET");
@@ -306,11 +317,49 @@ public class FinancePostingService {
         entity.setDirection(direction);
         entity.setCustomerId(customerId);
         entity.setBizDate(bizDate);
+        entity.setDueDate(resolveCustomerDueDate(customerId, bizDate, audit));
         entity.setOriginalAmount(amount);
         entity.setSettledAmount(ZERO_AMOUNT);
         entity.setStatus("INCREASE".equals(direction) ? "UNSETTLED" : "OFFSET");
         setAudit(entity, remark, audit, now);
         receivableMapper.insert(entity);
+    }
+
+    private LocalDate resolveCustomerDueDate(Long customerId, LocalDate bizDate, AuditMetadata audit) {
+        if (bizDate == null) {
+            return null;
+        }
+        if (customerId == null) {
+            return bizDate;
+        }
+        CustomerEntity customer = customerMapper.selectById(customerId);
+        if (customer == null
+                || !java.util.Objects.equals(customer.getCompanyId(), audit.companyId())
+                || !java.util.Objects.equals(customer.getAccountBookId(), audit.accountBookId())) {
+            return bizDate;
+        }
+        return addCreditPeriod(bizDate, customer.getCreditPeriod());
+    }
+
+    private LocalDate resolveSupplierDueDate(Long supplierId, LocalDate bizDate, AuditMetadata audit) {
+        if (bizDate == null) {
+            return null;
+        }
+        if (supplierId == null) {
+            return bizDate;
+        }
+        SupplierEntity supplier = supplierMapper.selectById(supplierId);
+        if (supplier == null
+                || !java.util.Objects.equals(supplier.getCompanyId(), audit.companyId())
+                || !java.util.Objects.equals(supplier.getAccountBookId(), audit.accountBookId())) {
+            return bizDate;
+        }
+        return addCreditPeriod(bizDate, supplier.getCreditPeriod());
+    }
+
+    private LocalDate addCreditPeriod(LocalDate bizDate, Integer creditPeriod) {
+        int days = creditPeriod == null ? 0 : Math.max(creditPeriod, 0);
+        return bizDate.plusDays(days);
     }
 
     private VoucherEntity insertVoucherIfAbsent(

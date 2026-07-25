@@ -162,6 +162,7 @@ class MasterdataServiceTenantBoundaryTest {
                 "alice@example.com",
                 "BANK_TRANSFER",
                 new BigDecimal("1000.00"),
+                30,
                 "Shanghai",
                 "ACTIVE",
                 "remark"
