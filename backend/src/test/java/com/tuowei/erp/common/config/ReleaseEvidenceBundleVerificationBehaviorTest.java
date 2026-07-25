@@ -1,5 +1,6 @@
 package com.tuowei.erp.common.config;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -22,6 +23,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class ReleaseEvidenceBundleVerificationBehaviorTest {
 
@@ -30,6 +32,25 @@ class ReleaseEvidenceBundleVerificationBehaviorTest {
 
     @TempDir
     Path tempDir;
+
+    @BeforeEach
+    void requirePowerShellRuntime() {
+        String command = resolvePowerShellCommand();
+        try {
+            Process process = new ProcessBuilder(command, "-NoProfile", "-Command", "exit 0")
+                    .redirectErrorStream(true)
+                    .start();
+            int exitCode = process.waitFor();
+            assumeTrue(exitCode == 0, () -> "PowerShell runtime is unavailable: " + command);
+        }
+        catch (IOException ex) {
+            assumeTrue(false, () -> "PowerShell runtime is unavailable: " + command);
+        }
+        catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            assumeTrue(false, "Interrupted while checking the PowerShell runtime");
+        }
+    }
 
     @Test
     void verifierRejectsSha256SidecarThatNamesDifferentBundle() throws Exception {
