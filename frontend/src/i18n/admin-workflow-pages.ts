@@ -274,6 +274,7 @@ const messageSource = {
       customer: ['客户', 'Customer'],
       supplier: ['供应商', 'Supplier'],
       warehouse: ['仓库', 'Warehouse'],
+      location: ['库位', 'Location'],
       openingInventory: ['期初库存', 'Opening inventory'],
       openingReceivable: ['期初应收', 'Opening receivable'],
       openingPayable: ['期初应付', 'Opening payable'],

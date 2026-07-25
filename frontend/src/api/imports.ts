@@ -6,6 +6,7 @@ export type ImportType =
   | 'CUSTOMER'
   | 'SUPPLIER'
   | 'WAREHOUSE'
+  | 'LOCATION'
   | 'OPENING_INVENTORY'
   | 'OPENING_RECEIVABLE'
   | 'OPENING_PAYABLE'

@@ -6,6 +6,7 @@ public final class ImportConstants {
     public static final String CUSTOMER = "CUSTOMER";
     public static final String SUPPLIER = "SUPPLIER";
     public static final String WAREHOUSE = "WAREHOUSE";
+    public static final String LOCATION = "LOCATION";
     public static final String OPENING_INVENTORY = "OPENING_INVENTORY";
     public static final String OPENING_RECEIVABLE = "OPENING_RECEIVABLE";
     public static final String OPENING_PAYABLE = "OPENING_PAYABLE";

@@ -348,7 +348,7 @@ class ImportHandlersTenantBoundaryTest {
         when(deptMapper.selectCount(any())).thenReturn(1L);
         when(userMapper.selectCount(any())).thenReturn(1L);
 
-        new WarehouseImportHandler(support(), warehouseMapper, deptMapper, userMapper)
+        new WarehouseImportHandler(support(), warehouseMapper, deptMapper, userMapper, mock(com.tuowei.erp.masterdata.location.service.LocationService.class))
                 .validate(1, Map.of(
                         "warehouse_code", "W001",
                         "warehouse_name", "tenant warehouse",
@@ -370,6 +370,88 @@ class ImportHandlersTenantBoundaryTest {
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
         verify(userMapper).selectCount(userWrapper.capture());
         assertTenantScoped(userWrapper.getValue());
+    }
+
+    @Test
+    void warehouseImportCreatesDefaultLocationOnCommit() {
+        WarehouseMapper warehouseMapper = mock(WarehouseMapper.class);
+        DeptMapper deptMapper = mock(DeptMapper.class);
+        UserMapper userMapper = mock(UserMapper.class);
+        com.tuowei.erp.masterdata.location.service.LocationService locationService =
+                mock(com.tuowei.erp.masterdata.location.service.LocationService.class);
+        when(warehouseMapper.selectCount(any())).thenReturn(0L);
+        ImportValidationSupport support = support();
+        WarehouseImportHandler handler = new WarehouseImportHandler(
+                support, warehouseMapper, deptMapper, userMapper, locationService
+        );
+
+        ImportTypeHandler.ImportRowPlan plan = handler.validate(1, Map.of(
+                "warehouse_code", "W-DEF-001",
+                "warehouse_name", "default location warehouse"
+        ), context());
+        assertThat(plan.valid()).isTrue();
+
+        handler.commit(new ImportJobEntity(), List.of(row(support, plan)), audit());
+
+        ArgumentCaptor<WarehouseEntity> warehouse = ArgumentCaptor.forClass(WarehouseEntity.class);
+        verify(warehouseMapper).insert(warehouse.capture());
+        verify(locationService).ensureDefaultLocation(org.mockito.ArgumentMatchers.eq(warehouse.getValue()), any());
+        assertThat(warehouse.getValue().getWarehouseCode()).isEqualTo("W-DEF-001");
+    }
+
+    @Test
+    void locationImportValidatesAndCreatesViaLocationService() {
+        WarehouseMapper warehouseMapper = mock(WarehouseMapper.class);
+        LocationMapper locationMapper = mock(LocationMapper.class);
+        com.tuowei.erp.masterdata.location.service.LocationService locationService =
+                mock(com.tuowei.erp.masterdata.location.service.LocationService.class);
+        WarehouseEntity warehouse = new WarehouseEntity();
+        warehouse.setId(9101L);
+        warehouse.setWarehouseCode("W001");
+        warehouse.setStatus("ACTIVE");
+        warehouse.setDeletedFlag(0);
+        warehouse.setCompanyId(1L);
+        warehouse.setAccountBookId(1L);
+        when(warehouseMapper.selectOne(any())).thenReturn(warehouse);
+        when(locationMapper.selectCount(any())).thenReturn(0L);
+        ImportValidationSupport support = support();
+        LocationImportHandler handler = new LocationImportHandler(
+                support, warehouseMapper, locationMapper, locationService
+        );
+
+        ImportTypeHandler.ImportRowPlan plan = handler.validate(1, Map.of(
+                "warehouse_code", "W001",
+                "location_code", "a-01",
+                "location_name", "A区01",
+                "is_default", "1"
+        ), context());
+
+        assertThat(plan.valid()).isTrue();
+        assertThat(plan.normalized())
+                .containsEntry("warehouseId", 9101L)
+                .containsEntry("locationCode", "A-01")
+                .containsEntry("isDefault", true);
+
+        handler.commit(new ImportJobEntity(), List.of(row(support, plan)), audit());
+
+        ArgumentCaptor<com.tuowei.erp.masterdata.location.web.LocationCreateRequest> request =
+                ArgumentCaptor.forClass(com.tuowei.erp.masterdata.location.web.LocationCreateRequest.class);
+        verify(locationService).create(request.capture());
+        assertThat(request.getValue().warehouseId()).isEqualTo(9101L);
+        assertThat(request.getValue().locationCode()).isEqualTo("A-01");
+        assertThat(request.getValue().locationName()).isEqualTo("A区01");
+        assertThat(request.getValue().isDefault()).isTrue();
+    }
+
+    @Test
+    void locationTemplateExposesWarehouseAndDefaultFlags() {
+        ImportTemplateRegistry registry = new ImportTemplateRegistry();
+        assertThat(registry.headers(ImportConstants.LOCATION)).containsExactly(
+                "warehouse_code", "location_code", "location_name", "is_default", "status", "remark"
+        );
+        assertThat(registry.csvTemplate(ImportConstants.LOCATION))
+                .contains("W001")
+                .contains("A-01");
     }
 
     @Test

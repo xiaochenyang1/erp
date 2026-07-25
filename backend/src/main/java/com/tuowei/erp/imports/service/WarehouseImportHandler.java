@@ -5,6 +5,7 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.imports.model.ImportJobEntity;
 import com.tuowei.erp.imports.model.ImportJobRowEntity;
 import com.tuowei.erp.imports.web.ImportRowErrorResponse;
+import com.tuowei.erp.masterdata.location.service.LocationService;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.system.dept.mapper.DeptMapper;
@@ -23,17 +24,20 @@ public class WarehouseImportHandler extends AbstractImportHandler {
     private final WarehouseMapper warehouseMapper;
     private final DeptMapper deptMapper;
     private final UserMapper userMapper;
+    private final LocationService locationService;
 
     public WarehouseImportHandler(
             ImportValidationSupport support,
             WarehouseMapper warehouseMapper,
             DeptMapper deptMapper,
-            UserMapper userMapper
+            UserMapper userMapper,
+            LocationService locationService
     ) {
         super(support);
         this.warehouseMapper = warehouseMapper;
         this.deptMapper = deptMapper;
         this.userMapper = userMapper;
+        this.locationService = locationService;
     }
 
     @Override
@@ -112,6 +116,9 @@ public class WarehouseImportHandler extends AbstractImportHandler {
             entity.setUpdatedTime(now);
             entity.setVersion(0);
             warehouseMapper.insert(entity);
+            // Align with WarehouseService.create: every warehouse needs a default location
+            // so opening inventory / posting can resolve location_code or MAIN.
+            locationService.ensureDefaultLocation(entity, audit);
         }
         return rows.size();
     }

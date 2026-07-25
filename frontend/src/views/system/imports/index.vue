@@ -274,6 +274,7 @@ const importTypeOptions = computed<Array<{ label: string; value: ImportType }>>(
   { label: t('systemImports.types.customer'), value: 'CUSTOMER' },
   { label: t('systemImports.types.supplier'), value: 'SUPPLIER' },
   { label: t('systemImports.types.warehouse'), value: 'WAREHOUSE' },
+  { label: t('systemImports.types.location'), value: 'LOCATION' },
   { label: t('systemImports.types.openingInventory'), value: 'OPENING_INVENTORY' },
   { label: t('systemImports.types.openingReceivable'), value: 'OPENING_RECEIVABLE' },
   { label: t('systemImports.types.openingPayable'), value: 'OPENING_PAYABLE' },
