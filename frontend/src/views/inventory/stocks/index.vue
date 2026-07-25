@@ -2,10 +2,10 @@
   <div class="inventory-stocks-container">
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
-        <el-form-item label="仓库">
+        <el-form-item :label="$t('inventoryStocks.warehouse')">
           <el-select
             v-model="queryParams.warehouseId"
-            placeholder="请选择仓库"
+            :placeholder="$t('inventoryStocks.placeholder.warehouse')"
             clearable
             filterable
             style="width: 220px"
@@ -18,10 +18,10 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="产品">
+        <el-form-item :label="$t('inventoryStocks.product')">
           <el-select
             v-model="queryParams.productId"
-            placeholder="请选择产品"
+            :placeholder="$t('inventoryStocks.placeholder.product')"
             clearable
             filterable
             style="width: 260px"
@@ -35,13 +35,15 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button @click="handleOpenLotBalances()">批次库存</el-button>
-          <el-button @click="handleOpenTransactions()">库存流水</el-button>
-          <el-button :icon="Warning" @click="handleOpenLotAlerts()">效期预警</el-button>
-          <el-button :icon="Warning" @click="handleReservationCheck">预留检查</el-button>
-          <el-button :icon="Download" @click="handleExport">导出</el-button>
+          <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('inventoryStocks.action.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('inventoryStocks.action.reset') }}</el-button>
+          <el-button @click="handleOpenLotBalances()">{{ $t('inventoryStocks.action.lotStock') }}</el-button>
+          <el-button @click="handleOpenTransactions()">{{ $t('inventoryStocks.action.transactions') }}</el-button>
+          <el-button :icon="Warning" @click="handleOpenLotAlerts()">{{ $t('inventoryStocks.action.expiryAlerts') }}</el-button>
+          <el-button v-permission="'inventory:reservation:check'" :icon="Warning" @click="handleReservationCheck">
+            {{ $t('inventoryStocks.action.reservationCheck') }}
+          </el-button>
+          <el-button :icon="Download" @click="handleExport">{{ $t('inventoryStocks.action.export') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -49,45 +51,52 @@
     <el-card class="table-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>库存查询</span>
-          <el-button :icon="Refresh" @click="loadData">刷新</el-button>
+          <span>{{ $t('inventoryStocks.stockQuery') }}</span>
+          <el-button :icon="Refresh" @click="loadData">{{ $t('inventoryStocks.action.refresh') }}</el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column prop="warehouseId" label="仓库" min-width="160">
+        <el-table-column prop="warehouseId" :label="$t('inventoryStocks.warehouse')" min-width="160">
           <template #default="{ row }">
             {{ warehouseName(row.warehouseId) }}
           </template>
         </el-table-column>
-        <el-table-column prop="productId" label="产品" min-width="220">
+        <el-table-column prop="productId" :label="$t('inventoryStocks.product')" min-width="220">
           <template #default="{ row }">
             {{ productName(row.productId) }}
           </template>
         </el-table-column>
-        <el-table-column prop="quantity" label="账面库存" width="130" align="right">
+        <el-table-column prop="quantity" :label="$t('inventoryStocks.bookStock')" width="130" align="right">
           <template #default="{ row }">{{ formatNumber(row.quantity) }}</template>
         </el-table-column>
-        <el-table-column prop="reservedQuantity" label="已预留" width="130" align="right">
+        <el-table-column prop="reservedQuantity" :label="$t('inventoryStocks.reserved')" width="130" align="right">
           <template #default="{ row }">{{ formatNumber(row.reservedQuantity) }}</template>
         </el-table-column>
-        <el-table-column prop="availableQuantity" label="可用库存" width="130" align="right">
+        <el-table-column prop="availableQuantity" :label="$t('inventoryStocks.availableStock')" width="130" align="right">
           <template #default="{ row }">
             <span :class="{ 'text-danger': row.availableQuantity < 0 }">
               {{ formatNumber(row.availableQuantity) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="amountOnHand" label="库存金额" width="140" align="right">
+        <el-table-column prop="amountOnHand" :label="$t('inventoryStocks.stockAmount')" width="140" align="right">
           <template #default="{ row }">{{ formatMoney(row.amountOnHand) }}</template>
         </el-table-column>
-        <el-table-column prop="lastUpdated" label="更新时间" width="180" />
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column prop="lastUpdated" :label="$t('inventoryStocks.updatedTime')" width="180" />
+        <el-table-column :label="$t('inventoryStocks.actions')" width="260" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleViewStock(row)">详情</el-button>
-            <el-button link type="primary" @click="handleOpenReservations(row)">预留明细</el-button>
-            <el-button link type="primary" @click="handleOpenLotBalances(row)">批次</el-button>
-            <el-button link type="primary" @click="handleOpenTransactions(row)">流水</el-button>
+            <el-button link type="primary" @click="handleViewStock(row)">{{ $t('inventoryStocks.action.view') }}</el-button>
+            <el-button
+              v-permission="'inventory:reservation:view'"
+              link
+              type="primary"
+              @click="handleOpenReservations(row)"
+            >
+              {{ $t('inventoryStocks.action.reservationDetails') }}
+            </el-button>
+            <el-button link type="primary" @click="handleOpenLotBalances(row)">{{ $t('inventoryStocks.action.lots') }}</el-button>
+            <el-button link type="primary" @click="handleOpenTransactions(row)">{{ $t('inventoryStocks.action.transaction') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -103,85 +112,99 @@
       />
     </el-card>
 
-    <el-dialog v-model="reservationDialogVisible" title="预留明细" width="1080px">
+    <el-dialog v-model="reservationDialogVisible" :title="$t('inventoryStocks.reservationDetails')" width="1080px">
       <el-form :model="reservationQuery" inline>
-        <el-form-item label="状态">
+        <el-form-item :label="$t('inventoryStocks.statusLabel')">
           <el-select
             v-model="reservationQuery.status"
-            placeholder="全部状态"
+            :placeholder="$t('inventoryStocks.placeholder.allStatuses')"
             clearable
             style="width: 150px"
             @change="handleReservationQuery"
           >
-            <el-option label="有效" value="ACTIVE" />
-            <el-option label="已释放" value="RELEASED" />
-            <el-option label="已取消" value="CANCELLED" />
+            <el-option :label="$t('inventoryStocks.reservationStatus.active')" value="ACTIVE" />
+            <el-option :label="$t('inventoryStocks.reservationStatus.released')" value="RELEASED" />
+            <el-option :label="$t('inventoryStocks.reservationStatus.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="来源单号">
+        <el-form-item :label="$t('inventoryStocks.sourceNo')">
           <el-input
             v-model="reservationQuery.sourceNo"
-            placeholder="请输入来源单号"
+            :placeholder="$t('inventoryStocks.placeholder.sourceNo')"
             clearable
             style="width: 220px"
             @keyup.enter="handleReservationQuery"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleReservationQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="resetReservationQuery">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleReservationQuery">{{ $t('inventoryStocks.action.search') }}</el-button>
+          <el-button :icon="Refresh" @click="resetReservationQuery">{{ $t('inventoryStocks.action.reset') }}</el-button>
         </el-form-item>
       </el-form>
 
       <div class="dialog-section-header">
-        <span>预留汇总</span>
+        <span>{{ $t('inventoryStocks.reservationSummary') }}</span>
       </div>
       <el-table v-loading="reservationSummaryLoading" :data="reservationSummaryData" border stripe class="summary-table">
-        <el-table-column prop="sourceType" label="来源类型" min-width="130">
+        <el-table-column prop="sourceType" :label="$t('inventoryStocks.sourceType')" min-width="130">
           <template #default="{ row }">{{ sourceTypeLabel(row.sourceType) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="110">
+        <el-table-column prop="status" :label="$t('inventoryStocks.statusLabel')" width="110">
           <template #default="{ row }">{{ reservationStatusLabel(row.status) }}</template>
         </el-table-column>
-        <el-table-column prop="reservedQty" label="预留数量" width="120" align="right">
+        <el-table-column prop="reservedQty" :label="$t('inventoryStocks.reservedQuantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.reservedQty) }}</template>
         </el-table-column>
-        <el-table-column prop="releasedQty" label="已释放" width="120" align="right">
+        <el-table-column prop="releasedQty" :label="$t('inventoryStocks.releasedQuantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.releasedQty) }}</template>
         </el-table-column>
-        <el-table-column prop="remainingQty" label="剩余预留" width="120" align="right">
+        <el-table-column prop="remainingQty" :label="$t('inventoryStocks.remainingReserved')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.remainingQty) }}</template>
         </el-table-column>
-        <el-table-column prop="reservationCount" label="预留笔数" width="110" align="right" />
-        <el-table-column prop="qtyAvailable" label="可用库存" width="120" align="right">
+        <el-table-column prop="reservationCount" :label="$t('inventoryStocks.reservationCount')" width="110" align="right" />
+        <el-table-column prop="qtyAvailable" :label="$t('inventoryStocks.availableStock')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.qtyAvailable) }}</template>
         </el-table-column>
       </el-table>
 
       <el-table v-loading="reservationLoading" :data="reservationData" border stripe>
-        <el-table-column prop="sourceType" label="来源类型" width="140">
+        <el-table-column prop="sourceType" :label="$t('inventoryStocks.sourceType')" width="140">
           <template #default="{ row }">{{ sourceTypeLabel(row.sourceType) }}</template>
         </el-table-column>
-        <el-table-column prop="sourceNo" label="来源单号" min-width="160" />
-        <el-table-column prop="reservedQty" label="预留数量" width="120" align="right">
+        <el-table-column prop="sourceNo" :label="$t('inventoryStocks.sourceNo')" min-width="160" />
+        <el-table-column prop="reservedQty" :label="$t('inventoryStocks.reservedQuantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.reservedQty) }}</template>
         </el-table-column>
-        <el-table-column prop="releasedQty" label="已释放" width="120" align="right">
+        <el-table-column prop="releasedQty" :label="$t('inventoryStocks.releasedQuantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.releasedQty) }}</template>
         </el-table-column>
-        <el-table-column prop="remainingQty" label="剩余预留" width="120" align="right">
+        <el-table-column prop="remainingQty" :label="$t('inventoryStocks.remainingReserved')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.remainingQty) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="110">
+        <el-table-column prop="status" :label="$t('inventoryStocks.statusLabel')" width="110">
           <template #default="{ row }">
             <el-tag :type="reservationStatusType(row.status)">{{ reservationStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="updatedTime" label="更新时间" width="180" />
-        <el-table-column label="操作" width="190" fixed="right">
+        <el-table-column prop="updatedTime" :label="$t('inventoryStocks.updatedTime')" width="180" />
+        <el-table-column :label="$t('inventoryStocks.actions')" width="190" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleViewReservation(row)">详情</el-button>
-            <el-button link type="primary" @click="handleViewReservationSource(row)">来源</el-button>
+            <el-button
+              v-permission="'inventory:reservation:view'"
+              link
+              type="primary"
+              @click="handleViewReservation(row)"
+            >
+              {{ $t('inventoryStocks.action.view') }}
+            </el-button>
+            <el-button
+              v-permission="'inventory:reservation:view'"
+              link
+              type="primary"
+              @click="handleViewReservationSource(row)"
+            >
+              {{ $t('inventoryStocks.action.source') }}
+            </el-button>
             <el-button
               v-if="row.status === 'ACTIVE' && Number(row.remainingQty) > 0"
               v-permission="'inventory:reservation:release'"
@@ -189,7 +212,7 @@
               type="warning"
               @click="openReleaseDialog(row)"
             >
-              释放
+              {{ $t('inventoryStocks.action.release') }}
             </el-button>
           </template>
         </el-table-column>
@@ -206,77 +229,77 @@
       />
     </el-dialog>
 
-    <el-dialog v-model="reservationDetailVisible" title="预留详情" width="960px">
+    <el-dialog v-model="reservationDetailVisible" :title="$t('inventoryStocks.reservationDetail')" width="960px">
       <template v-if="reservationDetail">
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="仓库">
+          <el-descriptions-item :label="$t('inventoryStocks.warehouse')">
             {{ warehouseName(reservationDetail.reservation.warehouseId) }}
           </el-descriptions-item>
-          <el-descriptions-item label="产品">
+          <el-descriptions-item :label="$t('inventoryStocks.product')">
             {{ productName(reservationDetail.reservation.productId) }}
           </el-descriptions-item>
-          <el-descriptions-item label="状态">
+          <el-descriptions-item :label="$t('inventoryStocks.statusLabel')">
             <el-tag :type="reservationStatusType(reservationDetail.reservation.status)">
               {{ reservationStatusLabel(reservationDetail.reservation.status) }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="来源类型">
+          <el-descriptions-item :label="$t('inventoryStocks.sourceType')">
             {{ sourceTypeLabel(reservationDetail.reservation.sourceType) }}
           </el-descriptions-item>
-          <el-descriptions-item label="来源单号">
+          <el-descriptions-item :label="$t('inventoryStocks.sourceNo')">
             {{ reservationDetail.reservation.sourceNo || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="来源明细">
+          <el-descriptions-item :label="$t('inventoryStocks.sourceLine')">
             {{ reservationDetail.reservation.sourceLineId || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="预留数量">
+          <el-descriptions-item :label="$t('inventoryStocks.reservedQuantity')">
             {{ formatNumber(reservationDetail.reservation.reservedQty) }}
           </el-descriptions-item>
-          <el-descriptions-item label="已释放">
+          <el-descriptions-item :label="$t('inventoryStocks.releasedQuantity')">
             {{ formatNumber(reservationDetail.reservation.releasedQty) }}
           </el-descriptions-item>
-          <el-descriptions-item label="剩余预留">
+          <el-descriptions-item :label="$t('inventoryStocks.remainingReserved')">
             {{ formatNumber(reservationDetail.reservation.remainingQty) }}
           </el-descriptions-item>
-          <el-descriptions-item label="备注" :span="3">
+          <el-descriptions-item :label="$t('inventoryStocks.remark')" :span="3">
             {{ reservationDetail.reservation.remark || '-' }}
           </el-descriptions-item>
         </el-descriptions>
 
         <div class="dialog-section-header">
-          <span>事件记录</span>
+          <span>{{ $t('inventoryStocks.eventRecords') }}</span>
           <el-button
             v-if="reservationDetail.reservation.status === 'ACTIVE' && Number(reservationDetail.reservation.remainingQty) > 0"
             v-permission="'inventory:reservation:release'"
             type="warning"
             @click="openReleaseDialog(reservationDetail.reservation)"
           >
-            手工释放
+            {{ $t('inventoryStocks.action.manualRelease') }}
           </el-button>
         </div>
         <el-table :data="reservationDetail.events" border stripe>
-          <el-table-column prop="eventType" label="事件类型" width="130">
+          <el-table-column prop="eventType" :label="$t('inventoryStocks.eventType')" width="130">
             <template #default="{ row }">{{ reservationEventLabel(row.eventType) }}</template>
           </el-table-column>
-          <el-table-column prop="eventQty" label="事件数量" width="120" align="right">
+          <el-table-column prop="eventQty" :label="$t('inventoryStocks.eventQuantity')" width="120" align="right">
             <template #default="{ row }">{{ formatNumber(row.eventQty) }}</template>
           </el-table-column>
-          <el-table-column prop="remainingQtyBefore" label="变更前" width="120" align="right">
+          <el-table-column prop="remainingQtyBefore" :label="$t('inventoryStocks.beforeChange')" width="120" align="right">
             <template #default="{ row }">{{ formatNumber(row.remainingQtyBefore) }}</template>
           </el-table-column>
-          <el-table-column prop="remainingQtyAfter" label="变更后" width="120" align="right">
+          <el-table-column prop="remainingQtyAfter" :label="$t('inventoryStocks.afterChange')" width="120" align="right">
             <template #default="{ row }">{{ formatNumber(row.remainingQtyAfter) }}</template>
           </el-table-column>
-          <el-table-column prop="reason" label="原因" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="createdBy" label="操作人" width="120" />
-          <el-table-column prop="createdTime" label="操作时间" width="180" />
+          <el-table-column prop="reason" :label="$t('inventoryStocks.reason')" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="createdBy" :label="$t('inventoryStocks.operator')" width="120" />
+          <el-table-column prop="createdTime" :label="$t('inventoryStocks.operationTime')" width="180" />
         </el-table>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="releaseDialogVisible" title="手工释放预留" width="460px">
+    <el-dialog v-model="releaseDialogVisible" :title="$t('inventoryStocks.dialog.manualRelease')" width="460px">
       <el-form ref="releaseFormRef" :model="releaseForm" :rules="releaseRules" label-width="90px">
-        <el-form-item label="释放数量" prop="qty">
+        <el-form-item :label="$t('inventoryStocks.releaseQuantity')" prop="qty">
           <el-input-number
             v-model="releaseForm.qty"
             :min="0.0001"
@@ -287,61 +310,68 @@
             style="width: 220px"
           />
         </el-form-item>
-        <el-form-item label="释放原因" prop="reason">
+        <el-form-item :label="$t('inventoryStocks.releaseReason')" prop="reason">
           <el-input
             v-model="releaseForm.reason"
             type="textarea"
             :rows="3"
             maxlength="255"
             show-word-limit
-            placeholder="请输入释放原因"
+            :placeholder="$t('inventoryStocks.placeholder.releaseReason')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="releaseDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="releasing" @click="submitManualRelease">确认释放</el-button>
+        <el-button @click="releaseDialogVisible = false">{{ $t('inventoryStocks.action.cancel') }}</el-button>
+        <el-button
+          v-permission="'inventory:reservation:release'"
+          type="primary"
+          :loading="releasing"
+          @click="submitManualRelease"
+        >
+          {{ $t('inventoryStocks.action.confirmRelease') }}
+        </el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="checkDialogVisible" title="预留检查" width="980px">
+    <el-dialog v-model="checkDialogVisible" :title="$t('inventoryStocks.reservationCheck')" width="980px">
       <el-alert
         v-if="!checkIssues.length && !checkLoading"
-        title="当前筛选范围内未发现预留异常"
+        :title="$t('inventoryStocks.noReservationIssues')"
         type="success"
         :closable="false"
         show-icon
       />
       <el-table v-else v-loading="checkLoading" :data="checkIssues" border stripe>
-        <el-table-column prop="severity" label="级别" width="90">
+        <el-table-column prop="severity" :label="$t('inventoryStocks.severity')" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.severity === 'ERROR' ? 'danger' : 'warning'">{{ row.severity }}</el-tag>
+            <el-tag :type="row.severity === 'ERROR' ? 'danger' : 'warning'">{{ severityLabel(row.severity) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="issueType" label="异常类型" width="220" />
-        <el-table-column prop="sourceNo" label="来源单号" width="160" />
-        <el-table-column prop="expectedQty" label="期望值" width="120" align="right">
+        <el-table-column prop="issueType" :label="$t('inventoryStocks.issueType')" width="220" />
+        <el-table-column prop="sourceNo" :label="$t('inventoryStocks.sourceNo')" width="160" />
+        <el-table-column prop="expectedQty" :label="$t('inventoryStocks.expectedValue')" width="120" align="right">
           <template #default="{ row }">{{ formatOptionalNumber(row.expectedQty) }}</template>
         </el-table-column>
-        <el-table-column prop="actualQty" label="实际值" width="120" align="right">
+        <el-table-column prop="actualQty" :label="$t('inventoryStocks.actualValue')" width="120" align="right">
           <template #default="{ row }">{{ formatOptionalNumber(row.actualQty) }}</template>
         </el-table-column>
-        <el-table-column prop="message" label="说明" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="message" :label="$t('inventoryStocks.description')" min-width="220" show-overflow-tooltip />
       </el-table>
     </el-dialog>
 
-    <el-dialog v-model="lotBalanceDialogVisible" title="批次库存" width="1120px">
+    <el-dialog v-model="lotBalanceDialogVisible" :title="$t('inventoryStocks.lotStock')" width="1120px">
       <el-form :model="lotBalanceQuery" inline>
-        <el-form-item label="批号">
+        <el-form-item :label="$t('inventoryStocks.lotNo')">
           <el-input
             v-model="lotBalanceQuery.lotNo"
             clearable
-            placeholder="请输入批号"
+            :placeholder="$t('inventoryStocks.placeholder.lotNo')"
             style="width: 200px"
             @keyup.enter="handleLotBalanceQuery"
           />
         </el-form-item>
-        <el-form-item label="临期天数">
+        <el-form-item :label="$t('inventoryStocks.expiringDays')">
           <el-input-number
             v-model="lotBalanceQuery.expiringWithinDays"
             :min="1"
@@ -351,33 +381,33 @@
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleLotBalanceQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="resetLotBalanceQuery">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleLotBalanceQuery">{{ $t('inventoryStocks.action.search') }}</el-button>
+          <el-button :icon="Refresh" @click="resetLotBalanceQuery">{{ $t('inventoryStocks.action.reset') }}</el-button>
         </el-form-item>
       </el-form>
       <el-table v-loading="lotBalanceLoading" :data="lotBalanceData" border stripe>
-        <el-table-column prop="warehouseId" label="仓库" min-width="150">
+        <el-table-column prop="warehouseId" :label="$t('inventoryStocks.warehouse')" min-width="150">
           <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
         </el-table-column>
-        <el-table-column prop="productId" label="产品" min-width="200">
+        <el-table-column prop="productId" :label="$t('inventoryStocks.product')" min-width="200">
           <template #default="{ row }">{{ productName(row.productId) }}</template>
         </el-table-column>
-        <el-table-column prop="lotNo" label="批号" min-width="140" />
-        <el-table-column prop="productionDate" label="生产日期" width="120" />
-        <el-table-column prop="expiryDate" label="失效日期" width="120" />
-        <el-table-column prop="qtyOnHand" label="账面数量" width="120" align="right">
+        <el-table-column prop="lotNo" :label="$t('inventoryStocks.lotNo')" min-width="140" />
+        <el-table-column prop="productionDate" :label="$t('inventoryStocks.productionDate')" width="120" />
+        <el-table-column prop="expiryDate" :label="$t('inventoryStocks.expiryDate')" width="120" />
+        <el-table-column prop="qtyOnHand" :label="$t('inventoryStocks.bookQuantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.qtyOnHand) }}</template>
         </el-table-column>
-        <el-table-column prop="qtyReserved" label="预留数量" width="120" align="right">
+        <el-table-column prop="qtyReserved" :label="$t('inventoryStocks.reservedQuantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.qtyReserved) }}</template>
         </el-table-column>
-        <el-table-column prop="qtyAvailable" label="可用数量" width="120" align="right">
+        <el-table-column prop="qtyAvailable" :label="$t('inventoryStocks.availableQuantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.qtyAvailable) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column :label="$t('inventoryStocks.actions')" width="140" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleViewLotBalance(row)">详情</el-button>
-            <el-button link type="primary" @click="handleOpenLotTrace(row)">追踪</el-button>
+            <el-button link type="primary" @click="handleViewLotBalance(row)">{{ $t('inventoryStocks.action.view') }}</el-button>
+            <el-button link type="primary" @click="handleOpenLotTrace(row)">{{ $t('inventoryStocks.action.trace') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -392,53 +422,53 @@
       />
     </el-dialog>
 
-    <el-dialog v-model="transactionDialogVisible" title="库存流水" width="1120px">
+    <el-dialog v-model="transactionDialogVisible" :title="$t('inventoryStocks.transactions')" width="1120px">
       <el-form :model="transactionQuery" inline>
-        <el-form-item label="业务单号">
+        <el-form-item :label="$t('inventoryStocks.businessNo')">
           <el-input
             v-model="transactionQuery.bizNo"
             clearable
-            placeholder="请输入业务单号"
+            :placeholder="$t('inventoryStocks.placeholder.businessNo')"
             style="width: 200px"
             @keyup.enter="handleTransactionQuery"
           />
         </el-form-item>
-        <el-form-item label="方向">
-          <el-select v-model="transactionQuery.direction" clearable placeholder="全部" style="width: 120px">
-            <el-option label="入库" value="IN" />
-            <el-option label="出库" value="OUT" />
+        <el-form-item :label="$t('inventoryStocks.direction')">
+          <el-select v-model="transactionQuery.direction" clearable :placeholder="$t('inventoryStocks.placeholder.all')" style="width: 120px">
+            <el-option :label="$t('inventoryStocks.directionValue.inbound')" value="IN" />
+            <el-option :label="$t('inventoryStocks.directionValue.outbound')" value="OUT" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleTransactionQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="resetTransactionQuery">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleTransactionQuery">{{ $t('inventoryStocks.action.search') }}</el-button>
+          <el-button :icon="Refresh" @click="resetTransactionQuery">{{ $t('inventoryStocks.action.reset') }}</el-button>
         </el-form-item>
       </el-form>
       <el-table v-loading="transactionLoading" :data="transactionData" border stripe>
-        <el-table-column prop="warehouseId" label="仓库" min-width="150">
+        <el-table-column prop="warehouseId" :label="$t('inventoryStocks.warehouse')" min-width="150">
           <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
         </el-table-column>
-        <el-table-column prop="productId" label="产品" min-width="200">
+        <el-table-column prop="productId" :label="$t('inventoryStocks.product')" min-width="200">
           <template #default="{ row }">{{ productName(row.productId) }}</template>
         </el-table-column>
-        <el-table-column prop="bizType" label="业务类型" width="140" />
-        <el-table-column prop="bizNo" label="业务单号" min-width="150" />
-        <el-table-column prop="direction" label="方向" width="90">
+        <el-table-column prop="bizType" :label="$t('inventoryStocks.businessType')" width="140" />
+        <el-table-column prop="bizNo" :label="$t('inventoryStocks.businessNo')" min-width="150" />
+        <el-table-column prop="direction" :label="$t('inventoryStocks.direction')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.direction === 'IN' ? 'success' : 'warning'">{{ directionLabel(row.direction) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="qty" label="数量" width="120" align="right">
+        <el-table-column prop="qty" :label="$t('inventoryStocks.quantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.qty) }}</template>
         </el-table-column>
-        <el-table-column prop="amount" label="金额" width="120" align="right">
+        <el-table-column prop="amount" :label="$t('inventoryStocks.amount')" width="120" align="right">
           <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
         </el-table-column>
-        <el-table-column prop="occurredTime" label="发生时间" width="180" />
-        <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column prop="occurredTime" :label="$t('inventoryStocks.occurredTime')" width="180" />
+        <el-table-column prop="remark" :label="$t('inventoryStocks.remark')" min-width="160" show-overflow-tooltip />
+        <el-table-column :label="$t('inventoryStocks.actions')" width="90" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleViewTransaction(row)">详情</el-button>
+            <el-button link type="primary" @click="handleViewTransaction(row)">{{ $t('inventoryStocks.action.view') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -453,18 +483,18 @@
       />
     </el-dialog>
 
-    <el-dialog v-model="lotAlertDialogVisible" title="效期预警" width="1120px">
+    <el-dialog v-model="lotAlertDialogVisible" :title="$t('inventoryStocks.expiryAlerts')" width="1120px">
       <el-form :model="lotAlertQuery" inline>
-        <el-form-item label="批号">
+        <el-form-item :label="$t('inventoryStocks.lotNo')">
           <el-input
             v-model="lotAlertQuery.lotNo"
             clearable
-            placeholder="请输入批号"
+            :placeholder="$t('inventoryStocks.placeholder.lotNo')"
             style="width: 180px"
             @keyup.enter="handleLotAlertQuery"
           />
         </el-form-item>
-        <el-form-item label="预警天数">
+        <el-form-item :label="$t('inventoryStocks.warningDays')">
           <el-input-number
             v-model="lotAlertQuery.warningDays"
             :min="1"
@@ -473,37 +503,37 @@
             style="width: 140px"
           />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="lotAlertQuery.status" clearable placeholder="全部" style="width: 140px">
-            <el-option label="已过期" value="EXPIRED" />
-            <el-option label="即将过期" value="EXPIRING" />
-            <el-option label="正常" value="NORMAL" />
+        <el-form-item :label="$t('inventoryStocks.statusLabel')">
+          <el-select v-model="lotAlertQuery.status" clearable :placeholder="$t('inventoryStocks.placeholder.all')" style="width: 140px">
+            <el-option :label="$t('inventoryStocks.expiryStatus.expired')" value="EXPIRED" />
+            <el-option :label="$t('inventoryStocks.expiryStatus.expiring')" value="EXPIRING" />
+            <el-option :label="$t('inventoryStocks.expiryStatus.normal')" value="NORMAL" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleLotAlertQuery">查询</el-button>
-          <el-button :icon="Refresh" @click="resetLotAlertQuery">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleLotAlertQuery">{{ $t('inventoryStocks.action.search') }}</el-button>
+          <el-button :icon="Refresh" @click="resetLotAlertQuery">{{ $t('inventoryStocks.action.reset') }}</el-button>
         </el-form-item>
       </el-form>
       <el-table v-loading="lotAlertLoading" :data="lotAlertData" border stripe>
-        <el-table-column prop="warehouseId" label="仓库" min-width="150">
+        <el-table-column prop="warehouseId" :label="$t('inventoryStocks.warehouse')" min-width="150">
           <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
         </el-table-column>
-        <el-table-column prop="productId" label="产品" min-width="200">
+        <el-table-column prop="productId" :label="$t('inventoryStocks.product')" min-width="200">
           <template #default="{ row }">{{ productName(row.productId) }}</template>
         </el-table-column>
-        <el-table-column prop="lotNo" label="批号" min-width="140" />
-        <el-table-column prop="expiryDate" label="失效日期" width="120" />
-        <el-table-column prop="daysToExpiry" label="剩余天数" width="110" align="right" />
-        <el-table-column prop="expiryStatus" label="状态" width="120">
+        <el-table-column prop="lotNo" :label="$t('inventoryStocks.lotNo')" min-width="140" />
+        <el-table-column prop="expiryDate" :label="$t('inventoryStocks.expiryDate')" width="120" />
+        <el-table-column prop="daysToExpiry" :label="$t('inventoryStocks.daysToExpiry')" width="110" align="right" />
+        <el-table-column prop="expiryStatus" :label="$t('inventoryStocks.statusLabel')" width="120">
           <template #default="{ row }">
             <el-tag :type="expiryStatusType(row.expiryStatus)">{{ expiryStatusLabel(row.expiryStatus) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="qtyAvailable" label="可用数量" width="120" align="right">
+        <el-table-column prop="qtyAvailable" :label="$t('inventoryStocks.availableQuantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.qtyAvailable) }}</template>
         </el-table-column>
-        <el-table-column prop="updatedTime" label="更新时间" width="180" />
+        <el-table-column prop="updatedTime" :label="$t('inventoryStocks.updatedTime')" width="180" />
       </el-table>
       <el-pagination
         v-model:current-page="lotAlertQuery.pageNo"
@@ -516,27 +546,27 @@
       />
     </el-dialog>
 
-    <el-dialog v-model="lotTraceDialogVisible" title="批次追踪" width="1120px">
+    <el-dialog v-model="lotTraceDialogVisible" :title="$t('inventoryStocks.lotTrace')" width="1120px">
       <el-table v-loading="lotTraceLoading" :data="lotTraceData" border stripe>
-        <el-table-column prop="warehouseId" label="仓库" min-width="150">
+        <el-table-column prop="warehouseId" :label="$t('inventoryStocks.warehouse')" min-width="150">
           <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
         </el-table-column>
-        <el-table-column prop="productId" label="产品" min-width="200">
+        <el-table-column prop="productId" :label="$t('inventoryStocks.product')" min-width="200">
           <template #default="{ row }">{{ productName(row.productId) }}</template>
         </el-table-column>
-        <el-table-column prop="lotNo" label="批号" min-width="140" />
-        <el-table-column prop="bizType" label="业务类型" width="140" />
-        <el-table-column prop="bizNo" label="业务单号" min-width="150" />
-        <el-table-column prop="direction" label="方向" width="90">
+        <el-table-column prop="lotNo" :label="$t('inventoryStocks.lotNo')" min-width="140" />
+        <el-table-column prop="bizType" :label="$t('inventoryStocks.businessType')" width="140" />
+        <el-table-column prop="bizNo" :label="$t('inventoryStocks.businessNo')" min-width="150" />
+        <el-table-column prop="direction" :label="$t('inventoryStocks.direction')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.direction === 'IN' ? 'success' : 'warning'">{{ directionLabel(row.direction) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="qty" label="数量" width="120" align="right">
+        <el-table-column prop="qty" :label="$t('inventoryStocks.quantity')" width="120" align="right">
           <template #default="{ row }">{{ formatNumber(row.qty) }}</template>
         </el-table-column>
-        <el-table-column prop="occurredTime" label="发生时间" width="180" />
-        <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="occurredTime" :label="$t('inventoryStocks.occurredTime')" width="180" />
+        <el-table-column prop="remark" :label="$t('inventoryStocks.remark')" min-width="160" show-overflow-tooltip />
       </el-table>
       <el-pagination
         v-model:current-page="lotTraceQuery.pageNo"
@@ -549,79 +579,79 @@
       />
     </el-dialog>
 
-    <el-dialog v-model="stockDetailVisible" title="库存余额详情" width="760px">
+    <el-dialog v-model="stockDetailVisible" :title="$t('inventoryStocks.stockDetail')" width="760px">
       <el-skeleton v-if="detailLoading" :rows="5" animated />
       <el-descriptions v-else-if="selectedStock" :column="2" border>
-        <el-descriptions-item label="仓库">{{ warehouseName(selectedStock.warehouseId) }}</el-descriptions-item>
-        <el-descriptions-item label="产品">{{ productName(selectedStock.productId) }}</el-descriptions-item>
-        <el-descriptions-item label="账面库存">{{ formatNumber(selectedStock.quantity) }}</el-descriptions-item>
-        <el-descriptions-item label="已预留">{{ formatNumber(selectedStock.reservedQuantity) }}</el-descriptions-item>
-        <el-descriptions-item label="可用库存">{{ formatNumber(selectedStock.availableQuantity) }}</el-descriptions-item>
-        <el-descriptions-item label="库存金额">{{ formatMoney(selectedStock.amountOnHand) }}</el-descriptions-item>
-        <el-descriptions-item label="单位">{{ selectedStock.unit || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ selectedStock.lastUpdated || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.warehouse')">{{ warehouseName(selectedStock.warehouseId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.product')">{{ productName(selectedStock.productId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.bookStock')">{{ formatNumber(selectedStock.quantity) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.reserved')">{{ formatNumber(selectedStock.reservedQuantity) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.availableStock')">{{ formatNumber(selectedStock.availableQuantity) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.stockAmount')">{{ formatMoney(selectedStock.amountOnHand) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.unit')">{{ selectedStock.unit || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.updatedTime')">{{ selectedStock.lastUpdated || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
-    <el-dialog v-model="lotBalanceDetailVisible" title="批次库存详情" width="760px">
+    <el-dialog v-model="lotBalanceDetailVisible" :title="$t('inventoryStocks.lotStockDetail')" width="760px">
       <el-skeleton v-if="detailLoading" :rows="6" animated />
       <el-descriptions v-else-if="selectedLotBalance" :column="2" border>
-        <el-descriptions-item label="仓库">{{ warehouseName(selectedLotBalance.warehouseId) }}</el-descriptions-item>
-        <el-descriptions-item label="产品">{{ productName(selectedLotBalance.productId) }}</el-descriptions-item>
-        <el-descriptions-item label="批号">{{ selectedLotBalance.lotNo }}</el-descriptions-item>
-        <el-descriptions-item label="生产日期">{{ selectedLotBalance.productionDate || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="失效日期">{{ selectedLotBalance.expiryDate || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="首次入库">{{ selectedLotBalance.firstInboundTime || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="账面数量">{{ formatNumber(selectedLotBalance.qtyOnHand) }}</el-descriptions-item>
-        <el-descriptions-item label="预留数量">{{ formatNumber(selectedLotBalance.qtyReserved) }}</el-descriptions-item>
-        <el-descriptions-item label="可用数量">{{ formatNumber(selectedLotBalance.qtyAvailable) }}</el-descriptions-item>
-        <el-descriptions-item label="库存金额">{{ formatMoney(selectedLotBalance.amountOnHand) }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ selectedLotBalance.updatedTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.warehouse')">{{ warehouseName(selectedLotBalance.warehouseId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.product')">{{ productName(selectedLotBalance.productId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.lotNo')">{{ selectedLotBalance.lotNo }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.productionDate')">{{ selectedLotBalance.productionDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.expiryDate')">{{ selectedLotBalance.expiryDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.firstInbound')">{{ selectedLotBalance.firstInboundTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.bookQuantity')">{{ formatNumber(selectedLotBalance.qtyOnHand) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.reservedQuantity')">{{ formatNumber(selectedLotBalance.qtyReserved) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.availableQuantity')">{{ formatNumber(selectedLotBalance.qtyAvailable) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.stockAmount')">{{ formatMoney(selectedLotBalance.amountOnHand) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.updatedTime')">{{ selectedLotBalance.updatedTime || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
-    <el-dialog v-model="transactionDetailVisible" title="库存流水详情" width="760px">
+    <el-dialog v-model="transactionDetailVisible" :title="$t('inventoryStocks.transactionDetail')" width="760px">
       <el-skeleton v-if="detailLoading" :rows="6" animated />
       <el-descriptions v-else-if="selectedTransaction" :column="2" border>
-        <el-descriptions-item label="仓库">{{ warehouseName(selectedTransaction.warehouseId) }}</el-descriptions-item>
-        <el-descriptions-item label="产品">{{ productName(selectedTransaction.productId) }}</el-descriptions-item>
-        <el-descriptions-item label="业务类型">{{ selectedTransaction.bizType }}</el-descriptions-item>
-        <el-descriptions-item label="业务单号">{{ selectedTransaction.bizNo }}</el-descriptions-item>
-        <el-descriptions-item label="业务明细">{{ selectedTransaction.bizLineId || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="方向">{{ directionLabel(selectedTransaction.direction) }}</el-descriptions-item>
-        <el-descriptions-item label="数量">{{ formatNumber(selectedTransaction.qty) }}</el-descriptions-item>
-        <el-descriptions-item label="单价">{{ formatMoney(selectedTransaction.unitCost) }}</el-descriptions-item>
-        <el-descriptions-item label="金额">{{ formatMoney(selectedTransaction.amount) }}</el-descriptions-item>
-        <el-descriptions-item label="发生时间">{{ selectedTransaction.occurredTime || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ selectedTransaction.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.warehouse')">{{ warehouseName(selectedTransaction.warehouseId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.product')">{{ productName(selectedTransaction.productId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.businessType')">{{ selectedTransaction.bizType }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.businessNo')">{{ selectedTransaction.bizNo }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.businessDetail')">{{ selectedTransaction.bizLineId || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.direction')">{{ directionLabel(selectedTransaction.direction) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.quantity')">{{ formatNumber(selectedTransaction.qty) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.unitPrice')">{{ formatMoney(selectedTransaction.unitCost) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.amount')">{{ formatMoney(selectedTransaction.amount) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.occurredTime')">{{ selectedTransaction.occurredTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('inventoryStocks.remark')" :span="2">{{ selectedTransaction.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
-    <el-dialog v-model="reservationSourceVisible" title="来源预留详情" width="980px">
+    <el-dialog v-model="reservationSourceVisible" :title="$t('inventoryStocks.sourceReservationDetail')" width="980px">
       <el-skeleton v-if="reservationSourceLoading" :rows="5" animated />
       <template v-else-if="reservationSourceDetail">
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="来源类型">{{ sourceTypeLabel(reservationSourceDetail.sourceType) }}</el-descriptions-item>
-          <el-descriptions-item label="来源ID">{{ reservationSourceDetail.sourceId || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="来源单号">{{ reservationSourceDetail.sourceNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('inventoryStocks.sourceType')">{{ sourceTypeLabel(reservationSourceDetail.sourceType) }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('inventoryStocks.sourceId')">{{ reservationSourceDetail.sourceId || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('inventoryStocks.sourceNo')">{{ reservationSourceDetail.sourceNo || '-' }}</el-descriptions-item>
         </el-descriptions>
         <el-table :data="reservationSourceDetail.reservations" border stripe class="detail-table">
-          <el-table-column prop="reservation.warehouseId" label="仓库" min-width="140">
+          <el-table-column prop="reservation.warehouseId" :label="$t('inventoryStocks.warehouse')" min-width="140">
             <template #default="{ row }">{{ warehouseName(row.reservation.warehouseId) }}</template>
           </el-table-column>
-          <el-table-column prop="reservation.productId" label="产品" min-width="180">
+          <el-table-column prop="reservation.productId" :label="$t('inventoryStocks.product')" min-width="180">
             <template #default="{ row }">{{ productName(row.reservation.productId) }}</template>
           </el-table-column>
-          <el-table-column prop="reservation.reservedQty" label="预留数量" width="120" align="right">
+          <el-table-column prop="reservation.reservedQty" :label="$t('inventoryStocks.reservedQuantity')" width="120" align="right">
             <template #default="{ row }">{{ formatNumber(row.reservation.reservedQty) }}</template>
           </el-table-column>
-          <el-table-column prop="reservation.releasedQty" label="已释放" width="120" align="right">
+          <el-table-column prop="reservation.releasedQty" :label="$t('inventoryStocks.releasedQuantity')" width="120" align="right">
             <template #default="{ row }">{{ formatNumber(row.reservation.releasedQty) }}</template>
           </el-table-column>
-          <el-table-column prop="reservation.remainingQty" label="剩余预留" width="120" align="right">
+          <el-table-column prop="reservation.remainingQty" :label="$t('inventoryStocks.remainingReserved')" width="120" align="right">
             <template #default="{ row }">{{ formatNumber(row.reservation.remainingQty) }}</template>
           </el-table-column>
-          <el-table-column prop="reservation.status" label="状态" width="110">
+          <el-table-column prop="reservation.status" :label="$t('inventoryStocks.statusLabel')" width="110">
             <template #default="{ row }">
               <el-tag :type="reservationStatusType(row.reservation.status)">
                 {{ reservationStatusLabel(row.reservation.status) }}
@@ -635,147 +665,116 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Download, Refresh, Search, Warning } from '@element-plus/icons-vue'
 import {
   checkInventoryReservations,
   exportInventoryStocks,
-  getInventoryLotBalance,
-  getInventoryLotBalances,
-  getInventoryLotExpiryAlerts,
-  getInventoryLotTrace,
-  getInventoryReservation,
-  getInventoryReservationSource,
-  getInventoryReservationSummary,
-  getInventoryReservations,
-  getInventoryStock,
-  getInventoryStocks,
-  getInventoryTransaction,
-  getInventoryTransactions,
   manualReleaseInventoryReservation,
   type InventoryLotBalance,
-  type InventoryLotBalanceQuery,
-  type InventoryLotExpiryAlert,
-  type InventoryLotExpiryAlertQuery,
-  type InventoryLotTrace,
-  type InventoryLotTraceQuery,
   type InventoryReservation,
   type InventoryReservationCheckIssue,
-  type InventoryReservationDetail,
-  type InventoryReservationQuery,
-  type InventoryReservationSource,
-  type InventoryReservationSummary,
   type InventoryStock,
-  type InventoryStockQuery,
-  type InventoryTransaction,
-  type InventoryTransactionQuery
 } from '@/api/inventory'
 import { getProducts, getWarehouses, type Product, type Warehouse } from '@/api/masterdata'
+import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails'
+import { useInventoryStockQueries } from '@/composables/useInventoryStockQueries'
+import { useInventoryStockPresentation } from '@/composables/useInventoryStockPresentation'
+import { useInventoryStockResources } from '@/composables/useInventoryStockResources'
 import { downloadBlob } from '@/utils/download'
-import { formatLocalizedNumber } from '@/utils/locale'
 
 const route = useRoute()
+const { t } = useI18n()
 
-const queryParams = reactive<InventoryStockQuery>({
-  pageNo: 1,
-  pageSize: 20,
+const {
+  applyStockScope,
+  lotAlertQuery,
+  lotBalanceQuery,
+  lotTraceQuery,
+  queryParams,
+  reservationQuery,
+  transactionQuery
+} = useInventoryStockQueries({
   warehouseId: route.query.warehouseId ? String(route.query.warehouseId) : undefined,
   productId: route.query.productId ? String(route.query.productId) : undefined
 })
 
-const loading = ref(false)
-const tableData = ref<InventoryStock[]>([])
-const total = ref(0)
 const warehouses = ref<Warehouse[]>([])
 const products = ref<Product[]>([])
 const reservationDialogVisible = ref(false)
-const reservationDetailVisible = ref(false)
 const releaseDialogVisible = ref(false)
 const checkDialogVisible = ref(false)
 const lotBalanceDialogVisible = ref(false)
 const transactionDialogVisible = ref(false)
 const lotAlertDialogVisible = ref(false)
 const lotTraceDialogVisible = ref(false)
-const stockDetailVisible = ref(false)
-const lotBalanceDetailVisible = ref(false)
-const transactionDetailVisible = ref(false)
-const reservationSourceVisible = ref(false)
-const reservationLoading = ref(false)
-const reservationSummaryLoading = ref(false)
-const reservationSourceLoading = ref(false)
 const checkLoading = ref(false)
-const lotBalanceLoading = ref(false)
-const transactionLoading = ref(false)
-const lotAlertLoading = ref(false)
-const lotTraceLoading = ref(false)
-const detailLoading = ref(false)
 const releasing = ref(false)
-const reservationData = ref<InventoryReservation[]>([])
-const reservationSummaryData = ref<InventoryReservationSummary[]>([])
-const reservationTotal = ref(0)
-const lotBalanceData = ref<InventoryLotBalance[]>([])
-const lotBalanceTotal = ref(0)
-const transactionData = ref<InventoryTransaction[]>([])
-const transactionTotal = ref(0)
-const lotAlertData = ref<InventoryLotExpiryAlert[]>([])
-const lotAlertTotal = ref(0)
-const lotTraceData = ref<InventoryLotTrace[]>([])
-const lotTraceTotal = ref(0)
-const reservationDetail = ref<InventoryReservationDetail>()
-const reservationSourceDetail = ref<InventoryReservationSource>()
 const selectedReservation = ref<InventoryReservation>()
-const selectedStock = ref<InventoryStock>()
-const selectedLotBalance = ref<InventoryLotBalance>()
-const selectedTransaction = ref<InventoryTransaction>()
 const checkIssues = ref<InventoryReservationCheckIssue[]>([])
 const releaseFormRef = ref<FormInstance>()
 
-const reservationQuery = reactive<InventoryReservationQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  warehouseId: undefined,
-  productId: undefined,
-  status: 'ACTIVE',
-  sourceNo: undefined
-})
+const {
+  detailLoading,
+  handleViewLotBalance,
+  handleViewReservation,
+  handleViewReservationSource,
+  handleViewStock,
+  handleViewTransaction,
+  lotBalanceDetailVisible,
+  reservationDetail,
+  reservationDetailVisible,
+  reservationSourceDetail,
+  reservationSourceLoading,
+  reservationSourceVisible,
+  selectedLotBalance,
+  selectedStock,
+  selectedTransaction,
+  stockDetailVisible,
+  transactionDetailVisible
+} = useInventoryStockDetails((messageKey) => ElMessage.error(t(messageKey)))
 
-const lotBalanceQuery = reactive<InventoryLotBalanceQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  warehouseId: undefined,
-  productId: undefined,
-  lotNo: undefined,
-  expiringWithinDays: undefined
-})
-
-const transactionQuery = reactive<InventoryTransactionQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  warehouseId: undefined,
-  productId: undefined,
-  bizNo: undefined,
-  direction: undefined
-})
-
-const lotAlertQuery = reactive<InventoryLotExpiryAlertQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  warehouseId: undefined,
-  productId: undefined,
-  lotNo: undefined,
-  warningDays: 30,
-  status: undefined
-})
-
-const lotTraceQuery = reactive<InventoryLotTraceQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  warehouseId: undefined,
-  productId: undefined,
-  lotNo: undefined,
-  direction: undefined
+const {
+  loadData,
+  loadLotAlerts,
+  loadLotBalances,
+  loadLotTrace,
+  loadReservations,
+  loadReservationSummary,
+  loadTransactions,
+  loading,
+  lotAlertData,
+  lotAlertLoading,
+  lotAlertTotal,
+  lotBalanceData,
+  lotBalanceLoading,
+  lotBalanceTotal,
+  lotTraceData,
+  lotTraceLoading,
+  lotTraceTotal,
+  reservationData,
+  reservationLoading,
+  reservationSummaryData,
+  reservationSummaryLoading,
+  reservationTotal,
+  tableData,
+  total,
+  transactionData,
+  transactionLoading,
+  transactionTotal
+} = useInventoryStockResources({
+  stock: queryParams,
+  reservations: reservationQuery,
+  lotBalances: lotBalanceQuery,
+  transactions: transactionQuery,
+  lotAlerts: lotAlertQuery,
+  lotTrace: lotTraceQuery
+}, (messageKey, error) => {
+  console.error(t(messageKey), error)
+  ElMessage.error(t(messageKey))
 })
 
 const releaseForm = reactive({
@@ -786,11 +785,11 @@ const releaseForm = reactive({
 const validateReleaseQty = (_rule: unknown, value: number, callback: (error?: Error) => void) => {
   const qty = Number(value)
   if (!Number.isFinite(qty) || qty <= 0) {
-    callback(new Error('释放数量必须大于 0'))
+    callback(new Error(t('inventoryStocks.validation.releasePositive')))
     return
   }
   if (selectedReservation.value && qty > Number(selectedReservation.value.remainingQty)) {
-    callback(new Error('释放数量不能大于剩余预留'))
+    callback(new Error(t('inventoryStocks.validation.releaseMaximum')))
     return
   }
   callback()
@@ -799,30 +798,26 @@ const validateReleaseQty = (_rule: unknown, value: number, callback: (error?: Er
 const releaseRules: FormRules = {
   qty: [{ validator: validateReleaseQty, trigger: 'blur' }],
   reason: [
-    { required: true, message: '请输入释放原因', trigger: 'blur' },
-    { max: 255, message: '释放原因不能超过 255 个字符', trigger: 'blur' }
+    { required: true, message: t('inventoryStocks.validation.releaseReason'), trigger: 'blur' },
+    { max: 255, message: t('inventoryStocks.validation.releaseReasonLength'), trigger: 'blur' }
   ]
 }
 
-const warehouseMap = computed(() => new Map(warehouses.value.map((item) => [String(item.id), item.name])))
-const productMap = computed(() => new Map(products.value.map((item) => [
-  String(item.id),
-  `${item.code || item.productCode || item.id} - ${item.name || item.productName || '-'}`
-])))
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const page = await getInventoryStocks(queryParams)
-    tableData.value = page.records
-    total.value = page.total
-  } catch (error) {
-    console.error('加载库存余额失败:', error)
-    ElMessage.error('加载库存余额失败')
-  } finally {
-    loading.value = false
-  }
-}
+const {
+  directionLabel,
+  expiryStatusLabel,
+  expiryStatusType,
+  formatMoney,
+  formatNumber,
+  formatOptionalNumber,
+  productName,
+  reservationEventLabel,
+  reservationStatusLabel,
+  reservationStatusType,
+  severityLabel,
+  sourceTypeLabel,
+  warehouseName
+} = useInventoryStockPresentation(warehouses, products, t)
 
 const loadOptions = async () => {
   const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
@@ -832,86 +827,6 @@ const loadOptions = async () => {
   ])
   warehouses.value = warehousePage.records
   products.value = productPage.records
-}
-
-const loadReservations = async () => {
-  reservationLoading.value = true
-  try {
-    const page = await getInventoryReservations(reservationQuery)
-    reservationData.value = page.records
-    reservationTotal.value = page.total
-  } catch (error) {
-    ElMessage.error('加载预留明细失败')
-  } finally {
-    reservationLoading.value = false
-  }
-}
-
-const loadReservationSummary = async () => {
-  reservationSummaryLoading.value = true
-  try {
-    reservationSummaryData.value = await getInventoryReservationSummary({
-      warehouseId: reservationQuery.warehouseId,
-      productId: reservationQuery.productId,
-      status: reservationQuery.status
-    })
-  } catch (error) {
-    ElMessage.error('加载预留汇总失败')
-  } finally {
-    reservationSummaryLoading.value = false
-  }
-}
-
-const loadLotBalances = async () => {
-  lotBalanceLoading.value = true
-  try {
-    const page = await getInventoryLotBalances(lotBalanceQuery)
-    lotBalanceData.value = page.records
-    lotBalanceTotal.value = page.total
-  } catch (error) {
-    ElMessage.error('加载批次库存失败')
-  } finally {
-    lotBalanceLoading.value = false
-  }
-}
-
-const loadTransactions = async () => {
-  transactionLoading.value = true
-  try {
-    const page = await getInventoryTransactions(transactionQuery)
-    transactionData.value = page.records
-    transactionTotal.value = page.total
-  } catch (error) {
-    ElMessage.error('加载库存流水失败')
-  } finally {
-    transactionLoading.value = false
-  }
-}
-
-const loadLotAlerts = async () => {
-  lotAlertLoading.value = true
-  try {
-    const page = await getInventoryLotExpiryAlerts(lotAlertQuery)
-    lotAlertData.value = page.records
-    lotAlertTotal.value = page.total
-  } catch (error) {
-    ElMessage.error('加载效期预警失败')
-  } finally {
-    lotAlertLoading.value = false
-  }
-}
-
-const loadLotTrace = async () => {
-  lotTraceLoading.value = true
-  try {
-    const page = await getInventoryLotTrace(lotTraceQuery)
-    lotTraceData.value = page.records
-    lotTraceTotal.value = page.total
-  } catch (error) {
-    ElMessage.error('加载批次追踪失败')
-  } finally {
-    lotTraceLoading.value = false
-  }
 }
 
 const handleQuery = () => {
@@ -929,62 +844,11 @@ const handleReset = () => {
 const handleExport = async () => {
   try {
     const blob = await exportInventoryStocks(queryParams)
-    downloadBlob(blob, `库存余额_${Date.now()}.csv`)
-    ElMessage.success('导出成功')
+    downloadBlob(blob, t('inventoryStocks.file.stockBalances', { timestamp: Date.now() }))
+    ElMessage.success(t('inventoryStocks.message.exported'))
   } catch (error) {
-    ElMessage.error('导出失败')
+    ElMessage.error(t('inventoryStocks.message.exportFailed'))
   }
-}
-
-const handleViewStock = async (row: InventoryStock) => {
-  stockDetailVisible.value = true
-  selectedStock.value = undefined
-  detailLoading.value = true
-  try {
-    selectedStock.value = await getInventoryStock(row.id)
-  } catch (error) {
-    ElMessage.error('加载库存余额详情失败')
-    stockDetailVisible.value = false
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const handleViewLotBalance = async (row: InventoryLotBalance) => {
-  lotBalanceDetailVisible.value = true
-  selectedLotBalance.value = undefined
-  detailLoading.value = true
-  try {
-    selectedLotBalance.value = await getInventoryLotBalance(row.id)
-  } catch (error) {
-    ElMessage.error('加载批次库存详情失败')
-    lotBalanceDetailVisible.value = false
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const handleViewTransaction = async (row: InventoryTransaction) => {
-  transactionDetailVisible.value = true
-  selectedTransaction.value = undefined
-  detailLoading.value = true
-  try {
-    selectedTransaction.value = await getInventoryTransaction(row.id)
-  } catch (error) {
-    ElMessage.error('加载库存流水详情失败')
-    transactionDetailVisible.value = false
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const applyStockScope = (
-  target: { warehouseId?: string | number, productId?: string | number, pageNo?: number },
-  row?: InventoryStock
-) => {
-  target.warehouseId = row?.warehouseId || queryParams.warehouseId
-  target.productId = row?.productId || queryParams.productId
-  target.pageNo = 1
 }
 
 const handleOpenLotBalances = (row?: InventoryStock) => {
@@ -1084,33 +948,6 @@ const resetReservationQuery = () => {
   loadReservations()
 }
 
-const handleViewReservation = async (row: InventoryReservation) => {
-  try {
-    reservationDetail.value = await getInventoryReservation(row.id)
-    reservationDetailVisible.value = true
-  } catch (error) {
-    ElMessage.error('加载预留详情失败')
-  }
-}
-
-const handleViewReservationSource = async (row: InventoryReservation) => {
-  reservationSourceVisible.value = true
-  reservationSourceDetail.value = undefined
-  reservationSourceLoading.value = true
-  try {
-    reservationSourceDetail.value = await getInventoryReservationSource({
-      sourceType: row.sourceType,
-      sourceId: row.sourceId,
-      sourceNo: row.sourceNo
-    })
-  } catch (error) {
-    ElMessage.error('加载来源预留详情失败')
-    reservationSourceVisible.value = false
-  } finally {
-    reservationSourceLoading.value = false
-  }
-}
-
 const openReleaseDialog = (row: InventoryReservation) => {
   selectedReservation.value = row
   releaseForm.qty = Number(row.remainingQty)
@@ -1131,11 +968,11 @@ const submitManualRelease = async () => {
     })
     reservationDetail.value = detail
     releaseDialogVisible.value = false
-    ElMessage.success('释放成功')
+    ElMessage.success(t('inventoryStocks.message.released'))
     await loadReservations()
     loadData()
   } catch (error) {
-    ElMessage.error('释放失败')
+    ElMessage.error(t('inventoryStocks.message.releaseFailed'))
   } finally {
     releasing.value = false
   }
@@ -1150,79 +987,17 @@ const handleReservationCheck = async () => {
       productId: queryParams.productId
     })
   } catch (error) {
-    ElMessage.error('预留检查失败')
+    ElMessage.error(t('inventoryStocks.message.reservationCheckFailed'))
   } finally {
     checkLoading.value = false
   }
-}
-
-const warehouseName = (id: string) => warehouseMap.value.get(String(id)) || `仓库 ${id}`
-const productName = (id: string) => productMap.value.get(String(id)) || `产品 ${id}`
-const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0), { maximumFractionDigits: 4 })
-const formatOptionalNumber = (value?: number) => value == null ? '-' : formatNumber(value)
-const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2
-})
-const sourceTypeLabel = (value?: string) => {
-  const labelMap: Record<string, string> = {
-    SALES_ORDER: '销售订单'
-  }
-  return value ? labelMap[value] || value : '-'
-}
-const reservationStatusLabel = (value?: string) => {
-  const labelMap: Record<string, string> = {
-    ACTIVE: '有效',
-    RELEASED: '已释放',
-    CANCELLED: '已取消'
-  }
-  return value ? labelMap[value] || value : '-'
-}
-const reservationStatusType = (value?: string) => {
-  const typeMap: Record<string, 'success' | 'info' | 'warning' | 'danger'> = {
-    ACTIVE: 'success',
-    RELEASED: 'info',
-    CANCELLED: 'warning'
-  }
-  return value ? typeMap[value] || 'info' : 'info'
-}
-const reservationEventLabel = (value?: string) => {
-  const labelMap: Record<string, string> = {
-    RESERVE: '预留',
-    RELEASE: '释放',
-    MANUAL_RELEASE: '手工释放'
-  }
-  return value ? labelMap[value] || value : '-'
-}
-const directionLabel = (value?: string) => {
-  const labelMap: Record<string, string> = {
-    IN: '入库',
-    OUT: '出库'
-  }
-  return value ? labelMap[value] || value : '-'
-}
-const expiryStatusLabel = (value?: string) => {
-  const labelMap: Record<string, string> = {
-    EXPIRED: '已过期',
-    EXPIRING: '即将过期',
-    NORMAL: '正常'
-  }
-  return value ? labelMap[value] || value : '-'
-}
-const expiryStatusType = (value?: string) => {
-  const typeMap: Record<string, 'success' | 'info' | 'warning' | 'danger'> = {
-    EXPIRED: 'danger',
-    EXPIRING: 'warning',
-    NORMAL: 'success'
-  }
-  return value ? typeMap[value] || 'info' : 'info'
 }
 
 onMounted(async () => {
   try {
     await loadOptions()
   } catch (error) {
-    console.error('加载筛选项失败:', error)
+    console.error(t('inventoryStocks.message.optionsLoadFailed'), error)
   }
   loadData()
 })

@@ -6,12 +6,14 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
+import com.tuowei.erp.common.persistence.NativeSqlTenantScoped;
 import com.tuowei.erp.dashboard.web.OperationsDashboardTopSkuResponse;
 
 import java.time.LocalDate;
 import java.util.List;
 
 @Mapper
+@NativeSqlTenantScoped("Top-SKU aggregation constrains delivery, delivery-line, and product rows by the caller-provided company_id and account_book_id.")
 public interface SalesDeliveryLineMapper extends BaseMapper<SalesDeliveryLineEntity> {
 
     @InterceptorIgnore(tenantLine = "true")
