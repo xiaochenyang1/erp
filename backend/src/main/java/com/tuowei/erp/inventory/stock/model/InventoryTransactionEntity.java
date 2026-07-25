@@ -23,6 +23,8 @@ public class InventoryTransactionEntity {
 
     private Long productId;
 
+    private Long locationId;
+
     private String bizType;
 
     private String bizNo;
@@ -98,6 +100,14 @@ public class InventoryTransactionEntity {
 
     public void setProductId(Long productId) {
         this.productId = productId;
+    }
+
+    public Long getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(Long locationId) {
+        this.locationId = locationId;
     }
 
     public String getBizType() {

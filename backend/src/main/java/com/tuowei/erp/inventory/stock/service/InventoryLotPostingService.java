@@ -105,6 +105,7 @@ public class InventoryLotPostingService {
                 audit.accountBookId(),
                 command.warehouseId(),
                 command.productId(),
+                command.locationId(),
                 normalizedLotNo
         );
         if (lotBalance == null) {
@@ -113,6 +114,7 @@ public class InventoryLotPostingService {
             newLotBalance.setAccountBookId(audit.accountBookId());
             newLotBalance.setWarehouseId(command.warehouseId());
             newLotBalance.setProductId(command.productId());
+            newLotBalance.setLocationId(command.locationId());
             newLotBalance.setLotNo(normalizedLotNo);
             newLotBalance.setProductionDate(command.productionDate());
             newLotBalance.setExpiryDate(command.expiryDate());
@@ -186,7 +188,8 @@ public class InventoryLotPostingService {
                     audit.companyId(),
                     audit.accountBookId(),
                     command.warehouseId(),
-                    command.productId()
+                    command.productId(),
+                    command.locationId()
             );
             if (balance == null || qtyAvailable(balance).compareTo(scaledQty) < 0) {
                 throw new IllegalArgumentException(shortageMessage);
@@ -233,15 +236,19 @@ public class InventoryLotPostingService {
             Long accountBookId,
             Long warehouseId,
             Long productId,
+            Long locationId,
             String lotNo
     ) {
-        return inventoryLotBalanceMapper.selectOne(new LambdaQueryWrapper<InventoryLotBalanceEntity>()
+        LambdaQueryWrapper<InventoryLotBalanceEntity> wrapper = new LambdaQueryWrapper<InventoryLotBalanceEntity>()
                 .eq(InventoryLotBalanceEntity::getCompanyId, companyId)
                 .eq(InventoryLotBalanceEntity::getAccountBookId, accountBookId)
                 .eq(InventoryLotBalanceEntity::getWarehouseId, warehouseId)
                 .eq(InventoryLotBalanceEntity::getProductId, productId)
-                .eq(InventoryLotBalanceEntity::getLotNo, lotNo)
-                .last("limit 1"));
+                .eq(InventoryLotBalanceEntity::getLotNo, lotNo);
+        if (locationId != null) {
+            wrapper.eq(InventoryLotBalanceEntity::getLocationId, locationId);
+        }
+        return inventoryLotBalanceMapper.selectOne(wrapper.last("limit 1"));
     }
 
     private List<LotAllocation> allocateExplicitLot(
@@ -256,6 +263,7 @@ public class InventoryLotPostingService {
                 audit.accountBookId(),
                 command.warehouseId(),
                 command.productId(),
+                command.locationId(),
                 normalizedLotNo
         );
         if (lot == null || lotAvailable(lot).compareTo(scaledQty) < 0) {
@@ -311,6 +319,7 @@ public class InventoryLotPostingService {
                 .eq(InventoryLotBalanceEntity::getAccountBookId, audit.accountBookId())
                 .eq(InventoryLotBalanceEntity::getWarehouseId, command.warehouseId())
                 .eq(InventoryLotBalanceEntity::getProductId, command.productId())
+                .eq(command.locationId() != null, InventoryLotBalanceEntity::getLocationId, command.locationId())
                 .apply("qty_on_hand - qty_reserved > 0");
         LocalDate referenceDate = outboundReferenceDate(command, audit);
         wrapper.and(query -> query
@@ -326,12 +335,16 @@ public class InventoryLotPostingService {
         return wrapper;
     }
 
-    private InventoryBalanceEntity selectBalance(Long companyId, Long accountBookId, Long warehouseId, Long productId) {
-        return inventoryBalanceMapper.selectOne(new LambdaQueryWrapper<InventoryBalanceEntity>()
+    private InventoryBalanceEntity selectBalance(Long companyId, Long accountBookId, Long warehouseId, Long productId, Long locationId) {
+        LambdaQueryWrapper<InventoryBalanceEntity> wrapper = new LambdaQueryWrapper<InventoryBalanceEntity>()
                 .eq(InventoryBalanceEntity::getCompanyId, companyId)
                 .eq(InventoryBalanceEntity::getAccountBookId, accountBookId)
                 .eq(InventoryBalanceEntity::getWarehouseId, warehouseId)
-                .eq(InventoryBalanceEntity::getProductId, productId));
+                .eq(InventoryBalanceEntity::getProductId, productId);
+        if (locationId != null) {
+            wrapper.eq(InventoryBalanceEntity::getLocationId, locationId);
+        }
+        return inventoryBalanceMapper.selectOne(wrapper.last("limit 1"));
     }
 
     private boolean isShelfLifeControlled(ProductEntity product) {

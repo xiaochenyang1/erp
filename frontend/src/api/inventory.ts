@@ -4,6 +4,8 @@ import type { PageQuery, PageResponse } from '@/types/common'
 // ==================== 库存查询 ====================
 
 export interface InventoryStock {
+  locationId?: string
+
   id: string
   warehouseId: string
   warehouseName?: string
@@ -52,6 +54,7 @@ const normalizeInventoryStock = (stock: InventoryStock): InventoryStock => ({
   ...stock,
   id: String(stock.id),
   warehouseId: String(stock.warehouseId),
+  locationId: stock.locationId != null ? String(stock.locationId) : stock.locationId,
   productId: String(stock.productId),
   quantity: stock.quantity ?? stock.qtyOnHand ?? 0,
   availableQuantity: stock.availableQuantity ?? stock.qtyAvailable ?? 0,
@@ -62,6 +65,8 @@ const normalizeInventoryStock = (stock: InventoryStock): InventoryStock => ({
 // ==================== 批次库存与库存流水 ====================
 
 export interface InventoryLotBalance {
+  locationId?: string
+
   id: string
   warehouseId: string
   productId: string
@@ -77,6 +82,8 @@ export interface InventoryLotBalance {
 }
 
 export interface InventoryLotTrace {
+  locationId?: string
+
   id: string
   warehouseId: string
   productId: string
@@ -114,6 +121,8 @@ export interface InventoryLotExpiryAlert {
 }
 
 export interface InventoryTransaction {
+  locationId?: string
+
   id: string
   warehouseId: string
   productId: string
@@ -204,6 +213,7 @@ const normalizeInventoryLotBalance = (item: InventoryLotBalance): InventoryLotBa
   ...item,
   id: String(item.id),
   warehouseId: String(item.warehouseId),
+  locationId: item.locationId != null ? String(item.locationId) : item.locationId,
   productId: String(item.productId),
   qtyOnHand: Number(item.qtyOnHand ?? 0),
   qtyReserved: Number(item.qtyReserved ?? 0),
@@ -215,6 +225,7 @@ const normalizeInventoryLotTrace = (item: InventoryLotTrace): InventoryLotTrace 
   ...item,
   id: String(item.id),
   warehouseId: String(item.warehouseId),
+  locationId: item.locationId != null ? String(item.locationId) : item.locationId,
   productId: String(item.productId),
   bizLineId: item.bizLineId != null ? String(item.bizLineId) : undefined,
   qty: Number(item.qty ?? 0),
@@ -228,6 +239,7 @@ const normalizeInventoryLotExpiryAlert = (item: InventoryLotExpiryAlert): Invent
   ...item,
   id: String(item.id),
   warehouseId: String(item.warehouseId),
+  locationId: item.locationId != null ? String(item.locationId) : item.locationId,
   productId: String(item.productId),
   qtyOnHand: Number(item.qtyOnHand ?? 0),
   qtyReserved: Number(item.qtyReserved ?? 0),
@@ -240,6 +252,7 @@ const normalizeInventoryTransaction = (item: InventoryTransaction): InventoryTra
   ...item,
   id: String(item.id),
   warehouseId: String(item.warehouseId),
+  locationId: item.locationId != null ? String(item.locationId) : item.locationId,
   productId: String(item.productId),
   bizLineId: item.bizLineId != null ? String(item.bizLineId) : undefined,
   qty: Number(item.qty ?? 0),

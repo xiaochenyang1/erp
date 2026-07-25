@@ -23,6 +23,8 @@ public class InventoryLotBalanceEntity {
 
     private Long productId;
 
+    private Long locationId;
+
     private String lotNo;
 
     private LocalDate productionDate;
@@ -86,6 +88,14 @@ public class InventoryLotBalanceEntity {
 
     public void setProductId(Long productId) {
         this.productId = productId;
+    }
+
+    public Long getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(Long locationId) {
+        this.locationId = locationId;
     }
 
     public String getLotNo() {

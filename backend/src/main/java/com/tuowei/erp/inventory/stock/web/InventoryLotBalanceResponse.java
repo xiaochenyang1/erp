@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 public record InventoryLotBalanceResponse(
         Long id,
         Long warehouseId,
+        Long locationId,
         Long productId,
         String lotNo,
         LocalDate productionDate,

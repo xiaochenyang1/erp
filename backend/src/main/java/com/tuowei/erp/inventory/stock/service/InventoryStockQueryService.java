@@ -488,6 +488,7 @@ public class InventoryStockQueryService {
         return new InventoryBalanceResponse(
                 entity.getId(),
                 entity.getWarehouseId(),
+                entity.getLocationId(),
                 entity.getProductId(),
                 entity.getQtyOnHand(),
                 qtyReserved(entity),
@@ -513,6 +514,7 @@ public class InventoryStockQueryService {
         return new InventoryLotBalanceResponse(
                 entity.getId(),
                 entity.getWarehouseId(),
+                entity.getLocationId(),
                 entity.getProductId(),
                 entity.getLotNo(),
                 entity.getProductionDate(),
@@ -546,6 +548,7 @@ public class InventoryStockQueryService {
         return new InventoryTransactionResponse(
                 entity.getId(),
                 entity.getWarehouseId(),
+                entity.getLocationId(),
                 entity.getProductId(),
                 entity.getBizType(),
                 entity.getBizNo(),
@@ -564,6 +567,7 @@ public class InventoryStockQueryService {
         return new InventoryLotTraceResponse(
                 entity.getId(),
                 entity.getWarehouseId(),
+                entity.getLocationId(),
                 entity.getProductId(),
                 entity.getLotNo(),
                 entity.getProductionDate(),

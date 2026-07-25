@@ -302,11 +302,15 @@ public class InventoryReservationPostingService {
     }
 
     private InventoryBalanceEntity selectBalance(Long companyId, Long accountBookId, Long warehouseId, Long productId) {
-        return inventoryBalanceMapper.selectOne(new LambdaQueryWrapper<InventoryBalanceEntity>()
+        // 预留仍按仓库汇总维度操作：优先默认库位行，兼容未拆分前的单行余额。
+        InventoryBalanceEntity preferred = inventoryBalanceMapper.selectOne(new LambdaQueryWrapper<InventoryBalanceEntity>()
                 .eq(InventoryBalanceEntity::getCompanyId, companyId)
                 .eq(InventoryBalanceEntity::getAccountBookId, accountBookId)
                 .eq(InventoryBalanceEntity::getWarehouseId, warehouseId)
-                .eq(InventoryBalanceEntity::getProductId, productId));
+                .eq(InventoryBalanceEntity::getProductId, productId)
+                .orderByAsc(InventoryBalanceEntity::getId)
+                .last("limit 1"));
+        return preferred;
     }
 
     private InventoryReservationEntity findReservation(String sourceType, Long sourceLineId, Long companyId, Long accountBookId) {

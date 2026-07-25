@@ -15,7 +15,8 @@ public record InventoryPostingCommand(
         LocalDate bizDate,
         String lotNo,
         LocalDate productionDate,
-        LocalDate expiryDate
+        LocalDate expiryDate,
+        Long locationId
 ) {
     public InventoryPostingCommand(
             Long warehouseId,
@@ -27,7 +28,7 @@ public record InventoryPostingCommand(
             BigDecimal amount,
             String remark
     ) {
-        this(warehouseId, productId, bizType, bizNo, bizLineId, qty, amount, remark, null, null, null, null);
+        this(warehouseId, productId, bizType, bizNo, bizLineId, qty, amount, remark, null, null, null, null, null);
     }
 
     public InventoryPostingCommand(
@@ -41,6 +42,41 @@ public record InventoryPostingCommand(
             String remark,
             LocalDate bizDate
     ) {
-        this(warehouseId, productId, bizType, bizNo, bizLineId, qty, amount, remark, bizDate, null, null, null);
+        this(warehouseId, productId, bizType, bizNo, bizLineId, qty, amount, remark, bizDate, null, null, null, null);
+    }
+
+    public InventoryPostingCommand(
+            Long warehouseId,
+            Long productId,
+            String bizType,
+            String bizNo,
+            Long bizLineId,
+            BigDecimal qty,
+            BigDecimal amount,
+            String remark,
+            LocalDate bizDate,
+            String lotNo,
+            LocalDate productionDate,
+            LocalDate expiryDate
+    ) {
+        this(warehouseId, productId, bizType, bizNo, bizLineId, qty, amount, remark, bizDate, lotNo, productionDate, expiryDate, null);
+    }
+
+    public InventoryPostingCommand withLocationId(Long locationId) {
+        return new InventoryPostingCommand(
+                warehouseId,
+                productId,
+                bizType,
+                bizNo,
+                bizLineId,
+                qty,
+                amount,
+                remark,
+                bizDate,
+                lotNo,
+                productionDate,
+                expiryDate,
+                locationId
+        );
     }
 }

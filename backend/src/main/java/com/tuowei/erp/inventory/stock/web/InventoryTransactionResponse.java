@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 public record InventoryTransactionResponse(
         Long id,
         Long warehouseId,
+        Long locationId,
         Long productId,
         String bizType,
         String bizNo,

@@ -22,6 +22,8 @@ public class InventoryBalanceEntity {
 
     private Long productId;
 
+    private Long locationId;
+
     private BigDecimal qtyOnHand;
 
     private BigDecimal qtyReserved;
@@ -77,6 +79,14 @@ public class InventoryBalanceEntity {
 
     public void setProductId(Long productId) {
         this.productId = productId;
+    }
+
+    public Long getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(Long locationId) {
+        this.locationId = locationId;
     }
 
     public BigDecimal getQtyOnHand() {

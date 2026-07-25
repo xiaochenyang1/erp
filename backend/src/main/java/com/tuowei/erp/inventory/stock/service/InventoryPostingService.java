@@ -5,6 +5,7 @@ import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
+import com.tuowei.erp.inventory.stock.service.InventoryLocationResolver;
 import com.tuowei.erp.inventory.stock.mapper.InventoryLotBalanceMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
@@ -28,6 +29,7 @@ public class InventoryPostingService {
     private final InventoryReservationPostingService inventoryReservationPostingService;
     private final ProductMapper productMapper;
     private final InventoryLotPostingService inventoryLotPostingService;
+    private final InventoryLocationResolver inventoryLocationResolver;
 
     @Autowired
     public InventoryPostingService(
@@ -35,13 +37,15 @@ public class InventoryPostingService {
             InventoryTransactionWriter inventoryTransactionWriter,
             InventoryReservationPostingService inventoryReservationPostingService,
             ProductMapper productMapper,
-            InventoryLotPostingService inventoryLotPostingService
+            InventoryLotPostingService inventoryLotPostingService,
+            InventoryLocationResolver inventoryLocationResolver
     ) {
         this.inventoryBalanceMapper = inventoryBalanceMapper;
         this.inventoryTransactionWriter = inventoryTransactionWriter;
         this.inventoryReservationPostingService = inventoryReservationPostingService;
         this.productMapper = productMapper;
         this.inventoryLotPostingService = inventoryLotPostingService;
+        this.inventoryLocationResolver = inventoryLocationResolver;
     }
 
     /**
@@ -64,7 +68,8 @@ public class InventoryPostingService {
                         inventoryBalanceMapper,
                         inventoryLotBalanceMapper,
                         inventoryTransactionWriter
-                )
+                ),
+                null
         );
     }
 
@@ -74,6 +79,8 @@ public class InventoryPostingService {
         BigDecimal scaledAmount = ScalePrecision.amount(command.amount());
         ProductEntity product = requireProduct(audit.companyId(), audit.accountBookId(), command.productId());
         inventoryLotPostingService.validateInboundCommand(product, command);
+        command = command.withLocationId(resolveLocationId(command, audit));
+        Long locationId = command.locationId();
         String normalizedLotNo = inventoryLotPostingService.normalizeLotNo(command.lotNo());
         String lotKey = inventoryLotPostingService.lotKey(
                 inventoryLotPostingService.isLotControlled(product) ? normalizedLotNo : null
@@ -98,13 +105,14 @@ public class InventoryPostingService {
                     continue;
                 }
             }
-            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId());
+            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId(), locationId);
             if (balance == null) {
                 InventoryBalanceEntity newBalance = new InventoryBalanceEntity();
                 newBalance.setCompanyId(audit.companyId());
                 newBalance.setAccountBookId(audit.accountBookId());
                 newBalance.setWarehouseId(command.warehouseId());
                 newBalance.setProductId(command.productId());
+                newBalance.setLocationId(locationId);
                 newBalance.setQtyOnHand(scaledQty);
                 newBalance.setQtyReserved(ScalePrecision.quantity(BigDecimal.ZERO));
                 newBalance.setAmountOnHand(scaledAmount);
@@ -160,6 +168,8 @@ public class InventoryPostingService {
         if (!postedAllocations.isEmpty()) {
             return postedAllocations;
         }
+        command = command.withLocationId(resolveLocationId(command, audit));
+        Long locationId = command.locationId();
         if (inventoryLotPostingService.isLotControlled(product)) {
             return inventoryLotPostingService.postOutbound(
                     command,
@@ -174,7 +184,7 @@ public class InventoryPostingService {
         LocalDateTime now = audit.now();
 
         for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId());
+            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId(), locationId);
             if (balance == null) {
                 throw new IllegalArgumentException(shortageMessage);
             }
@@ -199,7 +209,7 @@ public class InventoryPostingService {
 
     @Transactional(readOnly = true)
     public BigDecimal getQtyOnHand(Long warehouseId, Long productId, Long companyId, Long accountBookId) {
-        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId);
+        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId, null);
         if (balance == null) {
             return ScalePrecision.quantity(BigDecimal.ZERO);
         }
@@ -208,7 +218,7 @@ public class InventoryPostingService {
 
     @Transactional(readOnly = true)
     public BigDecimal getQtyAvailable(Long warehouseId, Long productId, Long companyId, Long accountBookId) {
-        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId);
+        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId, null);
         if (balance == null) {
             return ScalePrecision.quantity(BigDecimal.ZERO);
         }
@@ -259,12 +269,23 @@ public class InventoryPostingService {
         );
     }
 
-    private InventoryBalanceEntity selectBalance(Long companyId, Long accountBookId, Long warehouseId, Long productId) {
-        return inventoryBalanceMapper.selectOne(new LambdaQueryWrapper<InventoryBalanceEntity>()
+    private InventoryBalanceEntity selectBalance(Long companyId, Long accountBookId, Long warehouseId, Long productId, Long locationId) {
+        LambdaQueryWrapper<InventoryBalanceEntity> wrapper = new LambdaQueryWrapper<InventoryBalanceEntity>()
                 .eq(InventoryBalanceEntity::getCompanyId, companyId)
                 .eq(InventoryBalanceEntity::getAccountBookId, accountBookId)
                 .eq(InventoryBalanceEntity::getWarehouseId, warehouseId)
-                .eq(InventoryBalanceEntity::getProductId, productId));
+                .eq(InventoryBalanceEntity::getProductId, productId);
+        if (locationId != null) {
+            wrapper.eq(InventoryBalanceEntity::getLocationId, locationId);
+        }
+        return inventoryBalanceMapper.selectOne(wrapper.last("limit 1"));
+    }
+
+    private Long resolveLocationId(InventoryPostingCommand command, AuditMetadata audit) {
+        if (inventoryLocationResolver == null) {
+            return command.locationId();
+        }
+        return inventoryLocationResolver.resolveLocationId(command, audit);
     }
 
     private ProductEntity requireProduct(Long companyId, Long accountBookId, Long productId) {

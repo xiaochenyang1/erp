@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 public record InventoryBalanceResponse(
         Long id,
         Long warehouseId,
+        Long locationId,
         Long productId,
         BigDecimal qtyOnHand,
         BigDecimal qtyReserved,

@@ -80,6 +80,7 @@ public class InventoryTransactionWriter {
         transaction.setAccountBookId(audit.accountBookId());
         transaction.setWarehouseId(command.warehouseId());
         transaction.setProductId(command.productId());
+        transaction.setLocationId(command.locationId());
         transaction.setBizType(command.bizType());
         transaction.setBizNo(command.bizNo());
         transaction.setBizLineId(command.bizLineId());
