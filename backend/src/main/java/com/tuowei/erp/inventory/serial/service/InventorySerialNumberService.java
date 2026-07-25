@@ -130,6 +130,90 @@ public class InventorySerialNumberService {
         return toResponse(entity, requireProduct(entity.getProductId(), audit));
     }
 
+
+    @Transactional
+    public void registerInboundSerials(
+            Long productId,
+            Long warehouseId,
+            Long locationId,
+            String serialNos,
+            String inboundBizType,
+            String inboundBizNo,
+            java.math.BigDecimal qty,
+            AuditMetadata audit
+    ) {
+        ProductEntity product = productMapper.selectById(productId);
+        if (product == null || !Integer.valueOf(1).equals(product.getSerialControlled())) {
+            if (StringUtils.hasText(serialNos)) {
+                throw new IllegalArgumentException("商品未启用序列号管理，不能填写序列号");
+            }
+            return;
+        }
+        java.util.List<String> serials = parseSerials(serialNos);
+        if (serials.isEmpty()) {
+            throw new IllegalArgumentException("启用序列号管理的商品入库必须填写序列号");
+        }
+        if (qty != null && serials.size() != qty.stripTrailingZeros().intValueExact()) {
+            // allow non-integer qty products? serial implies integer qty
+            throw new IllegalArgumentException("序列号数量必须等于入库数量");
+        }
+        for (String serial : serials) {
+            create(new InventorySerialCreateRequest(productId, warehouseId, locationId, serial, inboundBizType, inboundBizNo, null));
+        }
+    }
+
+    @Transactional
+    public void issueOutboundSerials(
+            Long productId,
+            String serialNos,
+            String outboundBizType,
+            String outboundBizNo,
+            java.math.BigDecimal qty,
+            AuditMetadata audit
+    ) {
+        ProductEntity product = productMapper.selectById(productId);
+        if (product == null || !Integer.valueOf(1).equals(product.getSerialControlled())) {
+            if (StringUtils.hasText(serialNos)) {
+                throw new IllegalArgumentException("商品未启用序列号管理，不能填写序列号");
+            }
+            return;
+        }
+        java.util.List<String> serials = parseSerials(serialNos);
+        if (serials.isEmpty()) {
+            throw new IllegalArgumentException("启用序列号管理的商品出库必须填写序列号");
+        }
+        if (qty != null && serials.size() != qty.stripTrailingZeros().intValueExact()) {
+            throw new IllegalArgumentException("序列号数量必须等于出库数量");
+        }
+        for (String serial : serials) {
+            InventorySerialNumberEntity entity = serialNumberMapper.selectOne(new LambdaQueryWrapper<InventorySerialNumberEntity>()
+                    .eq(InventorySerialNumberEntity::getCompanyId, audit.companyId())
+                    .eq(InventorySerialNumberEntity::getAccountBookId, audit.accountBookId())
+                    .eq(InventorySerialNumberEntity::getProductId, productId)
+                    .eq(InventorySerialNumberEntity::getSerialNo, serial)
+                    .eq(InventorySerialNumberEntity::getDeletedFlag, 0)
+                    .last("limit 1"));
+            if (entity == null) {
+                throw new IllegalArgumentException("序列号不存在: " + serial);
+            }
+            if (!STATUS_IN_STOCK.equals(entity.getStatus())) {
+                throw new IllegalArgumentException("序列号不在库: " + serial);
+            }
+            issue(entity.getId(), outboundBizType, outboundBizNo);
+        }
+    }
+
+    private java.util.List<String> parseSerials(String serialNos) {
+        if (!StringUtils.hasText(serialNos)) {
+            return java.util.List.of();
+        }
+        return java.util.Arrays.stream(serialNos.split("[,;\n]"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .toList();
+    }
+
     private ProductEntity requireSerialProduct(Long productId, AuditMetadata audit) {
         ProductEntity product = requireProduct(productId, audit);
         if (!Integer.valueOf(1).equals(product.getSerialControlled())) {

@@ -13,6 +13,7 @@ import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryReservationMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
@@ -107,6 +108,9 @@ class SalesDeliveryServiceTenantBoundaryTest {
     private InventoryPostingService inventoryPostingService;
 
     @Mock
+    private InventorySerialNumberService inventorySerialNumberService;
+
+    @Mock
     private SalesDeliveryNumberService salesDeliveryNumberService;
 
     @Mock
@@ -182,6 +186,8 @@ class SalesDeliveryServiceTenantBoundaryTest {
                 "scope test", null, null, null, List.of(new SalesDeliveryLineRequest(
                         8001L,
                         new BigDecimal("2.0000"),
+                        null,
+                        null,
                         null,
                         null,
                         null,
@@ -265,6 +271,8 @@ class SalesDeliveryServiceTenantBoundaryTest {
                 "scope test", null, null, null, List.of(new SalesDeliveryLineRequest(
                         8001L,
                         new BigDecimal("2.0000"),
+                        null,
+                        null,
                         null,
                         null,
                         null,
@@ -390,6 +398,7 @@ class SalesDeliveryServiceTenantBoundaryTest {
                 productMapper,
                 inventoryReservationMapper,
                 inventoryPostingService,
+                inventorySerialNumberService,
                 salesDeliveryNumberService,
                 financePostingService,
                 auditMetadataFactory,

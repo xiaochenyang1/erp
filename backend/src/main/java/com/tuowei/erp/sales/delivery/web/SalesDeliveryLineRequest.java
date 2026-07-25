@@ -13,6 +13,8 @@ public record SalesDeliveryLineRequest(
         String lotNo,
         LocalDate productionDate,
         LocalDate expiryDate,
+        Long locationId,
+        String serialNos,
         String remark
 ) {
 }

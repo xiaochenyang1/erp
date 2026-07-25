@@ -315,6 +315,11 @@ export interface PurchaseReceiptItem {
   taxAmount?: number
   returnedQty?: number
   availableReturnQty?: number
+  lotNo?: string
+  productionDate?: string
+  expiryDate?: string
+  locationId?: string | number | null
+  serialNos?: string
   remark?: string
 }
 
@@ -416,6 +421,11 @@ const toPurchaseReceiptPayload = (data: PurchaseReceiptCreateRequest) => ({
   lines: data.items.map((item) => ({
     orderLineId: item.orderLineId || item.orderItemId,
     qty: item.quantity,
+    lotNo: item.lotNo || undefined,
+    productionDate: item.productionDate || undefined,
+    expiryDate: item.expiryDate || undefined,
+    locationId: item.locationId || undefined,
+    serialNos: item.serialNos || undefined,
     remark: item.remark
   }))
 })
@@ -426,6 +436,7 @@ const normalizePurchaseReceiptLine = (item: PurchaseReceiptItem): PurchaseReceip
   orderItemId: item.orderItemId != null ? String(item.orderItemId) : item.orderLineId != null ? String(item.orderLineId) : undefined,
   orderLineId: item.orderLineId != null ? String(item.orderLineId) : item.orderItemId != null ? String(item.orderItemId) : undefined,
   productId: item.productId != null ? String(item.productId) : item.productId,
+  locationId: item.locationId != null ? String(item.locationId) : item.locationId,
   quantity: Number(item.quantity ?? item.qty ?? 0),
   qty: Number(item.qty ?? item.quantity ?? 0),
   price: Number(item.price ?? 0),

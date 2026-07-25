@@ -19,6 +19,7 @@ import com.tuowei.erp.inventory.stock.mapper.InventoryReservationMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
@@ -76,6 +77,7 @@ public class SalesDeliveryService {
     private final ProductMapper productMapper;
     private final InventoryReservationMapper inventoryReservationMapper;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
     private final SalesDeliveryNumberService salesDeliveryNumberService;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
@@ -96,6 +98,7 @@ public class SalesDeliveryService {
             ProductMapper productMapper,
             InventoryReservationMapper inventoryReservationMapper,
             InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService,
             SalesDeliveryNumberService salesDeliveryNumberService,
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
@@ -115,6 +118,7 @@ public class SalesDeliveryService {
         this.productMapper = productMapper;
         this.inventoryReservationMapper = inventoryReservationMapper;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
         this.salesDeliveryNumberService = salesDeliveryNumberService;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
@@ -377,10 +381,19 @@ public class SalesDeliveryService {
                             delivery.getDeliveryDate(),
                             deliveryLine.getLotNo(),
                             deliveryLine.getProductionDate(),
-                            deliveryLine.getExpiryDate()
+                            deliveryLine.getExpiryDate(),
+                            deliveryLine.getLocationId()
                     ),
                     audit,
                     OUTBOUND_SHORTAGE_MESSAGE
+            );
+            inventorySerialNumberService.issueOutboundSerials(
+                    deliveryLine.getProductId(),
+                    deliveryLine.getSerialNos(),
+                    "SALES_DELIVERY",
+                    delivery.getDeliveryNo(),
+                    deliveryLine.getQty(),
+                    audit
             );
             totalCostAmount = ScalePrecision.amount(totalCostAmount.add(lineCostAmount));
         }
@@ -605,6 +618,8 @@ public class SalesDeliveryService {
             deliveryLine.setLotNo(request.lotNo());
             deliveryLine.setProductionDate(request.productionDate());
             deliveryLine.setExpiryDate(request.expiryDate());
+            deliveryLine.setLocationId(request.locationId());
+            deliveryLine.setSerialNos(request.serialNos());
             deliveryLine.setRemark(request.remark());
             deliveryLine.setCreatedBy(audit.userId());
             deliveryLine.setCreatedTime(now);
@@ -822,6 +837,8 @@ public class SalesDeliveryService {
                 line.getLotNo(),
                 line.getProductionDate(),
                 line.getExpiryDate(),
+                line.getLocationId(),
+                line.getSerialNos(),
                 line.getRemark()
         );
     }

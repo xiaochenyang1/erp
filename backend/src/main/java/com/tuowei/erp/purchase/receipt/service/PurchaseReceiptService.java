@@ -17,6 +17,7 @@ import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
+import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -81,6 +82,7 @@ public class PurchaseReceiptService {
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
     private final WarehouseMapper warehouseMapper;
     private final InventoryPostingService inventoryPostingService;
+    private final InventorySerialNumberService inventorySerialNumberService;
     private final PurchaseOrderLookupService purchaseOrderLookupService;
     private final PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService;
     private final PurchaseReceiptNumberService purchaseReceiptNumberService;
@@ -101,6 +103,7 @@ public class PurchaseReceiptService {
             PurchaseOrderLineMapper purchaseOrderLineMapper,
             WarehouseMapper warehouseMapper,
             InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService,
             PurchaseOrderLookupService purchaseOrderLookupService,
             PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService,
             PurchaseReceiptNumberService purchaseReceiptNumberService,
@@ -120,6 +123,7 @@ public class PurchaseReceiptService {
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
         this.warehouseMapper = warehouseMapper;
         this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
         this.purchaseOrderLookupService = purchaseOrderLookupService;
         this.purchaseOrderReceiptStatusService = purchaseOrderReceiptStatusService;
         this.purchaseReceiptNumberService = purchaseReceiptNumberService;
@@ -370,8 +374,19 @@ public class PurchaseReceiptService {
                             receipt.getReceiptDate(),
                             receiptLine.getLotNo(),
                             receiptLine.getProductionDate(),
-                            receiptLine.getExpiryDate()
+                            receiptLine.getExpiryDate(),
+                            receiptLine.getLocationId()
                     ),
+                    audit
+            );
+            inventorySerialNumberService.registerInboundSerials(
+                    receiptLine.getProductId(),
+                    receipt.getWarehouseId(),
+                    receiptLine.getLocationId(),
+                    receiptLine.getSerialNos(),
+                    "PURCHASE_RECEIPT",
+                    receipt.getReceiptNo(),
+                    receiptLine.getQty(),
                     audit
             );
         }
@@ -440,6 +455,8 @@ public class PurchaseReceiptService {
             receiptLine.setLotNo(lineRequest.lotNo());
             receiptLine.setProductionDate(lineRequest.productionDate());
             receiptLine.setExpiryDate(lineRequest.expiryDate());
+            receiptLine.setLocationId(lineRequest.locationId());
+            receiptLine.setSerialNos(lineRequest.serialNos());
             receiptLine.setRemark(lineRequest.remark());
             receiptLine.setCreatedBy(audit.userId());
             receiptLine.setCreatedTime(now);
@@ -623,6 +640,8 @@ public class PurchaseReceiptService {
                 line.getLotNo(),
                 line.getProductionDate(),
                 line.getExpiryDate(),
+                line.getLocationId(),
+                line.getSerialNos(),
                 line.getRemark()
         );
     }

@@ -199,6 +199,7 @@
                 :placeholder="t('salesDelivery.selectWarehouse')"
                 style="width: 100%"
                 :disabled="isView"
+                @change="handleWarehouseChange"
               >
                 <el-option
                   v-for="warehouse in warehouses"
@@ -284,6 +285,34 @@
               />
             </template>
           </el-table-column>
+          <el-table-column :label="t('salesDelivery.location')" width="160">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.locationId"
+                clearable
+                filterable
+                :placeholder="t('salesDelivery.selectLocation')"
+                :disabled="isView"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="location in locationsForWarehouse"
+                  :key="location.id"
+                  :label="`${location.locationCode} ${location.locationName}`"
+                  :value="location.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('salesDelivery.serialNos')" min-width="180">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.serialNos"
+                :placeholder="t('salesDelivery.serialNosPlaceholder')"
+                :disabled="isView"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="t('salesDelivery.remark')" prop="remark">
             <template #default="{ row }">
               <el-input
@@ -327,8 +356,16 @@ import {
 } from '@/api/sales'
 import { printSalesDelivery } from '@/utils/bizPrint'
 import { getSalesOrders, getSalesOrder, type SalesOrder } from '@/api/sales'
-import { getCustomers, getProduct, getProductByBarcode, type Customer } from '@/api/masterdata'
-import { getWarehouses, type Warehouse } from '@/api/masterdata'
+import {
+  getCustomers,
+  getLocations,
+  getProduct,
+  getProductByBarcode,
+  getWarehouses,
+  type Customer,
+  type Location,
+  type Warehouse
+} from '@/api/masterdata'
 import { BarcodeScanField } from '@/components/common'
 import { incrementScannedLine } from '@/utils/barcode'
 import { hydrateProductLineLabels } from '@/utils/productLines'
@@ -367,6 +404,7 @@ const customers = ref<Customer[]>([])
 
 // 仓库列表
 const warehouses = ref<Warehouse[]>([])
+const locations = ref<Location[]>([])
 
 // 订单列表（已审批的订单）
 const orders = ref<SalesOrder[]>([])
@@ -396,6 +434,10 @@ const deliveryQuantityTotal = computed(() => formData.items.reduce(
   (total, item) => total + Number(item.quantity || 0),
   0
 ))
+const locationsForWarehouse = computed(() => {
+  if (!formData.warehouseId) return locations.value
+  return locations.value.filter((location) => String(location.warehouseId) === String(formData.warehouseId))
+})
 
 // 表单验证规则
 const formRules = computed<FormRules>(() => ({
@@ -436,6 +478,27 @@ const loadWarehouses = async () => {
   } catch (error) {
     ElMessage.error(t('salesDelivery.message.warehousesLoadFailed'))
   }
+}
+
+const loadLocations = async (warehouseId?: string | number) => {
+  try {
+    const page = await getLocations({
+      pageNo: 1,
+      pageSize: 500,
+      status: 'ACTIVE',
+      warehouseId: warehouseId || undefined
+    })
+    locations.value = page.records || []
+  } catch {
+    locations.value = []
+  }
+}
+
+const handleWarehouseChange = async (warehouseId?: string | number) => {
+  formData.items.forEach((item) => {
+    item.locationId = undefined
+  })
+  await loadLocations(warehouseId)
 }
 
 // 加载订单列表
@@ -557,10 +620,16 @@ const handleEdit = async (row: SalesDelivery) => {
           Number(orderItem?.deliveredQuantity ?? 0)
         ),
         quantity: qty,
+        locationId: item.locationId ?? undefined,
+        serialNos: item.serialNos || '',
+        lotNo: item.lotNo || '',
+        productionDate: item.productionDate || '',
+        expiryDate: item.expiryDate || '',
         remark: item.remark || ''
       }
     })
     formData.items = await hydrateProductLineLabels(deliveryItems, getProduct)
+    await loadLocations(formData.warehouseId)
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('salesDelivery.message.deliveryLoadFailed'))
@@ -633,9 +702,18 @@ const handleOrderChange = async () => {
       orderedQuantity: item.quantity,
       deliveredQuantity: item.deliveredQuantity || 0,
       quantity: Math.max(0, item.quantity - (item.deliveredQuantity || 0)),
+      locationId: undefined,
+      serialNos: '',
+      lotNo: '',
+      productionDate: '',
+      expiryDate: '',
       remark: ''
     }))
     formData.items = await hydrateProductLineLabels(orderItems, getProduct)
+    if (order.warehouseId) {
+      formData.warehouseId = order.warehouseId
+      await loadLocations(order.warehouseId)
+    }
   } catch (error) {
     ElMessage.error(t('salesDelivery.message.orderDetailLoadFailed'))
   }
@@ -751,6 +829,7 @@ onMounted(() => {
   loadData()
   loadCustomers()
   loadWarehouses()
+  loadLocations()
   loadOrders()
 })
 </script>

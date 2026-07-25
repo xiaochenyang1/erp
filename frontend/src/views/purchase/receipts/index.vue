@@ -183,7 +183,12 @@
             </el-col>
             <el-col :span="12">
               <el-form-item :label="t('purchaseReceipt.warehouse')" prop="warehouseId">
-                <el-select v-model="form.warehouseId" :placeholder="t('purchaseReceipt.selectWarehouse')" style="width: 100%">
+                <el-select
+                  v-model="form.warehouseId"
+                  :placeholder="t('purchaseReceipt.selectWarehouse')"
+                  style="width: 100%"
+                  @change="handleWarehouseChange"
+                >
                   <el-option
                     v-for="warehouse in warehouses"
                     :key="warehouse.id"
@@ -223,6 +228,32 @@
                   :max="getReceiptMaximum(row)"
                   :controls="false"
                   style="width: 100%"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('purchaseReceipt.location')" width="160">
+              <template #default="{ row }">
+                <el-select
+                  v-model="row.locationId"
+                  clearable
+                  filterable
+                  :placeholder="t('purchaseReceipt.selectLocation')"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="location in locationsForWarehouse"
+                    :key="location.id"
+                    :label="`${location.locationCode} ${location.locationName}`"
+                    :value="location.id"
+                  />
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('purchaseReceipt.serialNos')" min-width="180">
+              <template #default="{ row }">
+                <el-input
+                  v-model="row.serialNos"
+                  :placeholder="t('purchaseReceipt.serialNosPlaceholder')"
                 />
               </template>
             </el-table-column>
@@ -309,6 +340,12 @@
             <el-table-column prop="productName" :label="t('purchaseReceipt.productName')" min-width="180" />
             <el-table-column prop="orderedQuantity" :label="t('purchaseReceipt.orderedQuantity')" width="100" align="center" />
             <el-table-column prop="quantity" :label="t('purchaseReceipt.receivedQuantity')" width="100" align="center" />
+            <el-table-column :label="t('purchaseReceipt.location')" min-width="140">
+              <template #default="{ row }">
+                {{ locationLabel(row.locationId) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="serialNos" :label="t('purchaseReceipt.serialNos')" min-width="160" show-overflow-tooltip />
             <el-table-column prop="remark" :label="t('purchaseReceipt.remark')" min-width="120" />
           </el-table>
         </div>
@@ -466,7 +503,14 @@ import {
   type PurchaseReceiptItem
 } from '@/api/purchase'
 import { printPurchaseReceipt } from '@/utils/bizPrint'
-import { getProduct, getProductByBarcode, getWarehouses, type Warehouse } from '@/api/masterdata'
+import {
+  getLocations,
+  getProduct,
+  getProductByBarcode,
+  getWarehouses,
+  type Location,
+  type Warehouse
+} from '@/api/masterdata'
 import { BarcodeScanField, PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { incrementScannedLine } from '@/utils/barcode'
 import { hydrateProductLineLabels } from '@/utils/productLines'
@@ -527,6 +571,7 @@ const linkedOrder = ref<PurchaseOrder>()
 // 可用订单列表
 const availableOrders = ref<PurchaseOrder[]>([])
 const warehouses = ref<Warehouse[]>([])
+const locations = ref<Location[]>([])
 
 // 表单数据
 const form = reactive<PurchaseReceiptCreateRequest>({
@@ -540,6 +585,15 @@ const receiptQuantityTotal = computed(() => form.items.reduce(
   (total, item) => total + Number(item.quantity || 0),
   0
 ))
+const locationsForWarehouse = computed(() => {
+  if (!form.warehouseId) return locations.value
+  return locations.value.filter((location) => String(location.warehouseId) === String(form.warehouseId))
+})
+const locationLabel = (locationId?: string | number | null) => {
+  if (locationId == null || locationId === '') return '-'
+  const location = locations.value.find((item) => String(item.id) === String(locationId))
+  return location ? `${location.locationCode} ${location.locationName}` : String(locationId)
+}
 
 // 表单验证规则
 const formRules = computed<FormRules>(() => ({
@@ -641,9 +695,15 @@ const handleEdit = async (row: PurchaseReceipt) => {
       receivedQuantity: 0,
       quantity: item.quantity,
       qty: item.qty ?? item.quantity,
+      locationId: item.locationId ?? undefined,
+      serialNos: item.serialNos || '',
+      lotNo: item.lotNo || '',
+      productionDate: item.productionDate || '',
+      expiryDate: item.expiryDate || '',
       remark: item.remark || ''
     }))
     form.items = await hydrateProductLineLabels(receiptItems, getProduct)
+    await loadLocations(form.warehouseId)
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('purchaseReceipt.message.receiptLoadFailed'))
@@ -664,6 +724,11 @@ const handleOrderChange = async (orderId: string | number) => {
       orderedQuantity: item.quantity,
       receivedQuantity: item.receivedQty || 0,
       quantity: Math.max(0, item.quantity - (item.receivedQty || 0)),
+      locationId: undefined,
+      serialNos: '',
+      lotNo: '',
+      productionDate: '',
+      expiryDate: '',
       remark: ''
     }))
     form.items = await hydrateProductLineLabels(orderItems, getProduct)
@@ -861,10 +926,32 @@ const loadWarehouses = async () => {
   warehouses.value = response.records
 }
 
+const loadLocations = async (warehouseId?: string | number) => {
+  try {
+    const page = await getLocations({
+      pageNo: 1,
+      pageSize: 500,
+      status: 'ACTIVE',
+      warehouseId: warehouseId || undefined
+    })
+    locations.value = page.records || []
+  } catch {
+    locations.value = []
+  }
+}
+
+const handleWarehouseChange = async (warehouseId?: string | number) => {
+  form.items.forEach((item) => {
+    item.locationId = undefined
+  })
+  await loadLocations(warehouseId)
+}
+
 // 初始化
 onMounted(() => {
   handleQuery()
   loadWarehouses().catch(() => ElMessage.error(t('purchaseReceipt.message.warehousesLoadFailed')))
+  loadLocations().catch(() => undefined)
 })
 </script>
 

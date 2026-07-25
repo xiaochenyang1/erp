@@ -219,6 +219,11 @@ export interface SalesDeliveryItem {
   taxRate?: number
   taxAmount?: number
   returnedQty?: number
+  lotNo?: string
+  productionDate?: string
+  expiryDate?: string
+  locationId?: string | number | null
+  serialNos?: string
   remark?: string
 }
 
@@ -276,6 +281,7 @@ const normalizeSalesDeliveryItem = (item: SalesDeliveryItem): SalesDeliveryItem 
   orderItemId: item.orderItemId ?? item.orderLineId,
   orderLineId: item.orderLineId ?? item.orderItemId,
   productId: String(item.productId),
+  locationId: item.locationId != null ? String(item.locationId) : item.locationId,
   quantity: item.quantity ?? item.qty ?? 0
 })
 
@@ -296,12 +302,17 @@ const toSalesDeliveryPayload = (data: SalesDeliveryCreateRequest) => ({
   warehouseId: data.warehouseId,
   deliveryDate: data.deliveryDate,
   remark: data.remark,
-    carrierName: data.carrierName,
-    trackingNo: data.trackingNo,
-    logisticsStatus: data.logisticsStatus,
+  carrierName: data.carrierName,
+  trackingNo: data.trackingNo,
+  logisticsStatus: data.logisticsStatus,
   lines: data.items.map((item) => ({
     orderLineId: item.orderLineId ?? item.orderItemId,
     qty: item.quantity,
+    lotNo: item.lotNo || undefined,
+    productionDate: item.productionDate || undefined,
+    expiryDate: item.expiryDate || undefined,
+    locationId: item.locationId || undefined,
+    serialNos: item.serialNos || undefined,
     remark: item.remark
   }))
 })
