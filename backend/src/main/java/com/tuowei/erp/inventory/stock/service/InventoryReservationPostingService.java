@@ -46,15 +46,12 @@ public class InventoryReservationPostingService {
         LocalDateTime now = audit.now();
 
         for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId());
-            if (balance == null || qtyAvailable(balance).compareTo(scaledQty) < 0) {
+            List<InventoryBalanceEntity> balances = listBalances(
+                    audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId());
+            if (totalAvailable(balances).compareTo(scaledQty) < 0) {
                 throw new IllegalArgumentException(shortageMessage);
             }
-
-            balance.setQtyReserved(ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyReserved()).add(scaledQty)));
-            balance.setUpdatedBy(audit.userId());
-            balance.setUpdatedTime(now);
-            if (inventoryBalanceMapper.updateById(balance) != 1) {
+            if (!allocateReserved(balances, scaledQty, audit, now)) {
                 continue;
             }
 
@@ -115,11 +112,6 @@ public class InventoryReservationPostingService {
                 throw new IllegalArgumentException("销售出库数量超过销售订单预占数量");
             }
 
-            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), reservation.getWarehouseId(), reservation.getProductId());
-            if (balance == null) {
-                throw new IllegalArgumentException("库存预占对应的库存余额不存在");
-            }
-
             BigDecimal remainingQtyBefore = ScalePrecision.quantity(reservation.getRemainingQty());
             BigDecimal newRemainingQty = ScalePrecision.quantity(remainingQtyBefore.subtract(scaledQty));
             reservation.setReleasedQty(ScalePrecision.quantity(ScalePrecision.zeroDefault(reservation.getReleasedQty()).add(scaledQty)));
@@ -131,27 +123,22 @@ public class InventoryReservationPostingService {
                 continue;
             }
 
-            BigDecimal currentReserved = ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyReserved()));
-            if (currentReserved.compareTo(scaledQty) < 0) {
+            List<InventoryBalanceEntity> balances = listBalances(
+                    audit.companyId(), audit.accountBookId(), reservation.getWarehouseId(), reservation.getProductId());
+            if (!releaseReserved(balances, scaledQty, audit, now)) {
                 throw new IllegalArgumentException("库存预占余额不足，不能释放预占");
             }
-            balance.setQtyReserved(ScalePrecision.quantity(currentReserved.subtract(scaledQty)));
-            balance.setUpdatedBy(audit.userId());
-            balance.setUpdatedTime(now);
-            if (inventoryBalanceMapper.updateById(balance) == 1) {
-                insertReservationEvent(
-                        reservation,
-                        "RELEASE",
-                        scaledQty,
-                        remainingQtyBefore,
-                        newRemainingQty,
-                        audit,
-                        null,
-                        now
-                );
-                return;
-            }
-            throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
+            insertReservationEvent(
+                    reservation,
+                    "RELEASE",
+                    scaledQty,
+                    remainingQtyBefore,
+                    newRemainingQty,
+                    audit,
+                    null,
+                    now
+            );
+            return;
         }
 
         throw new BusinessConflictException("库存预占已被其他操作修改，请重试");
@@ -176,8 +163,9 @@ public class InventoryReservationPostingService {
                 throw new IllegalArgumentException("人工释放数量超过库存预占剩余数量");
             }
 
-            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), reservation.getWarehouseId(), reservation.getProductId());
-            if (balance == null) {
+            List<InventoryBalanceEntity> balances = listBalances(
+                    audit.companyId(), audit.accountBookId(), reservation.getWarehouseId(), reservation.getProductId());
+            if (balances.isEmpty()) {
                 throw new IllegalArgumentException("库存预占对应的库存余额不存在");
             }
 
@@ -191,27 +179,20 @@ public class InventoryReservationPostingService {
                 continue;
             }
 
-            BigDecimal currentReserved = ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyReserved()));
-            if (currentReserved.compareTo(scaledQty) < 0) {
+            if (!releaseReserved(balances, scaledQty, audit, now)) {
                 throw new IllegalArgumentException("库存预占余额不足，不能释放预占");
             }
-            balance.setQtyReserved(ScalePrecision.quantity(currentReserved.subtract(scaledQty)));
-            balance.setUpdatedBy(audit.userId());
-            balance.setUpdatedTime(now);
-            if (inventoryBalanceMapper.updateById(balance) == 1) {
-                insertReservationEvent(
-                        reservation,
-                        "MANUAL_RELEASE",
-                        scaledQty,
-                        remainingQtyBefore,
-                        newRemainingQty,
-                        audit,
-                        reason,
-                        now
-                );
-                return;
-            }
-            throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
+            insertReservationEvent(
+                    reservation,
+                    "MANUAL_RELEASE",
+                    scaledQty,
+                    remainingQtyBefore,
+                    newRemainingQty,
+                    audit,
+                    reason,
+                    now
+            );
+            return;
         }
 
         throw new BusinessConflictException("库存预占已被其他操作修改，请刷新后重试");
@@ -248,8 +229,9 @@ public class InventoryReservationPostingService {
                 throw new IllegalArgumentException("生产退料数量超过已领料数量");
             }
 
-            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), reservation.getWarehouseId(), reservation.getProductId());
-            if (balance == null) {
+            List<InventoryBalanceEntity> balances = listBalances(
+                    audit.companyId(), audit.accountBookId(), reservation.getWarehouseId(), reservation.getProductId());
+            if (balances.isEmpty()) {
                 throw new IllegalArgumentException("库存预占对应的库存余额不存在");
             }
 
@@ -264,23 +246,20 @@ public class InventoryReservationPostingService {
                 continue;
             }
 
-            balance.setQtyReserved(ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyReserved()).add(scaledQty)));
-            balance.setUpdatedBy(audit.userId());
-            balance.setUpdatedTime(now);
-            if (inventoryBalanceMapper.updateById(balance) == 1) {
-                insertReservationEvent(
-                        reservation,
-                        "RESTORE",
-                        scaledQty,
-                        remainingQtyBefore,
-                        newRemainingQty,
-                        audit,
-                        reason,
-                        now
-                );
-                return;
+            if (!allocateReserved(balances, scaledQty, audit, now)) {
+                throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
             }
-            throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
+            insertReservationEvent(
+                    reservation,
+                    "RESTORE",
+                    scaledQty,
+                    remainingQtyBefore,
+                    newRemainingQty,
+                    audit,
+                    reason,
+                    now
+            );
+            return;
         }
 
         throw new BusinessConflictException("库存预占已被其他操作修改，请重试");
@@ -301,16 +280,78 @@ public class InventoryReservationPostingService {
         );
     }
 
-    private InventoryBalanceEntity selectBalance(Long companyId, Long accountBookId, Long warehouseId, Long productId) {
-        // 预留仍按仓库汇总维度操作：优先默认库位行，兼容未拆分前的单行余额。
-        InventoryBalanceEntity preferred = inventoryBalanceMapper.selectOne(new LambdaQueryWrapper<InventoryBalanceEntity>()
+    private BigDecimal totalAvailable(List<InventoryBalanceEntity> balances) {
+        BigDecimal total = ScalePrecision.quantity(BigDecimal.ZERO);
+        for (InventoryBalanceEntity balance : balances) {
+            total = ScalePrecision.quantity(total.add(qtyAvailable(balance)));
+        }
+        return total;
+    }
+
+    private List<InventoryBalanceEntity> listBalances(Long companyId, Long accountBookId, Long warehouseId, Long productId) {
+        // 仓库级预占：跨库位余额汇总可用量，并按行 id 顺序分摊 reserved，避免只命中第一行导致假缺货。
+        return inventoryBalanceMapper.selectList(new LambdaQueryWrapper<InventoryBalanceEntity>()
                 .eq(InventoryBalanceEntity::getCompanyId, companyId)
                 .eq(InventoryBalanceEntity::getAccountBookId, accountBookId)
                 .eq(InventoryBalanceEntity::getWarehouseId, warehouseId)
                 .eq(InventoryBalanceEntity::getProductId, productId)
-                .orderByAsc(InventoryBalanceEntity::getId)
-                .last("limit 1"));
-        return preferred;
+                .orderByAsc(InventoryBalanceEntity::getId));
+    }
+
+    private boolean allocateReserved(
+            List<InventoryBalanceEntity> balances,
+            BigDecimal qty,
+            AuditMetadata audit,
+            LocalDateTime now
+    ) {
+        BigDecimal remaining = ScalePrecision.quantity(qty);
+        for (InventoryBalanceEntity balance : balances) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            BigDecimal available = qtyAvailable(balance);
+            if (available.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal take = available.min(remaining);
+            balance.setQtyReserved(ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyReserved()).add(take)));
+            balance.setUpdatedBy(audit.userId());
+            balance.setUpdatedTime(now);
+            if (inventoryBalanceMapper.updateById(balance) != 1) {
+                return false;
+            }
+            remaining = ScalePrecision.quantity(remaining.subtract(take));
+        }
+        return remaining.compareTo(BigDecimal.ZERO) <= 0;
+    }
+
+    private boolean releaseReserved(
+            List<InventoryBalanceEntity> balances,
+            BigDecimal qty,
+            AuditMetadata audit,
+            LocalDateTime now
+    ) {
+        BigDecimal remaining = ScalePrecision.quantity(qty);
+        // 释放时从后往前扣减 reserved，尽量先回冲后分配的库位行。
+        for (int i = balances.size() - 1; i >= 0; i--) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            InventoryBalanceEntity balance = balances.get(i);
+            BigDecimal reserved = ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyReserved()));
+            if (reserved.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal take = reserved.min(remaining);
+            balance.setQtyReserved(ScalePrecision.quantity(reserved.subtract(take)));
+            balance.setUpdatedBy(audit.userId());
+            balance.setUpdatedTime(now);
+            if (inventoryBalanceMapper.updateById(balance) != 1) {
+                return false;
+            }
+            remaining = ScalePrecision.quantity(remaining.subtract(take));
+        }
+        return remaining.compareTo(BigDecimal.ZERO) <= 0;
     }
 
     private InventoryReservationEntity findReservation(String sourceType, Long sourceLineId, Long companyId, Long accountBookId) {

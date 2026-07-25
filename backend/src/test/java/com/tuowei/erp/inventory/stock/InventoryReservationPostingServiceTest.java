@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -64,7 +65,7 @@ class InventoryReservationPostingServiceTest {
         balance.setQtyReserved(new BigDecimal("2.0000"));
         balance.setAmountOnHand(new BigDecimal("100.00"));
         balance.setVersion(0);
-        when(inventoryBalanceMapper.selectOne(any())).thenReturn(balance);
+        when(inventoryBalanceMapper.selectList(any())).thenReturn(List.of(balance));
         when(inventoryBalanceMapper.updateById(balance)).thenReturn(1);
 
         InventoryReservationCommand command = new InventoryReservationCommand(
@@ -90,7 +91,7 @@ class InventoryReservationPostingServiceTest {
         @SuppressWarnings({"unchecked", "rawtypes"})
         ArgumentCaptor<LambdaQueryWrapper<InventoryBalanceEntity>> balanceLookupCaptor =
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(inventoryBalanceMapper).selectOne(balanceLookupCaptor.capture());
+        verify(inventoryBalanceMapper).selectList(balanceLookupCaptor.capture());
         assertTenantScoped(balanceLookupCaptor.getValue());
 
         assertThat(balance.getQtyReserved()).isEqualByComparingTo("5.3333");
@@ -124,6 +125,56 @@ class InventoryReservationPostingServiceTest {
         assertThat(event.getRemainingQtyBefore()).isEqualByComparingTo("0.0000");
         assertThat(event.getRemainingQtyAfter()).isEqualByComparingTo("3.3333");
         assertThat(event.getReason()).isEqualTo("reserve test");
+    }
+
+
+    @Test
+    void reserveAggregatesAvailableQtyAcrossLocations() {
+        InventoryReservationPostingService service = new InventoryReservationPostingService(
+                inventoryBalanceMapper,
+                inventoryReservationMapper,
+                inventoryReservationEventMapper
+        );
+        InventoryBalanceEntity first = new InventoryBalanceEntity();
+        first.setId(1L);
+        first.setCompanyId(1L);
+        first.setAccountBookId(2L);
+        first.setWarehouseId(10L);
+        first.setProductId(20L);
+        first.setLocationId(100L);
+        first.setQtyOnHand(new BigDecimal("2.0000"));
+        first.setQtyReserved(new BigDecimal("0.0000"));
+        first.setVersion(0);
+
+        InventoryBalanceEntity second = new InventoryBalanceEntity();
+        second.setId(2L);
+        second.setCompanyId(1L);
+        second.setAccountBookId(2L);
+        second.setWarehouseId(10L);
+        second.setProductId(20L);
+        second.setLocationId(200L);
+        second.setQtyOnHand(new BigDecimal("5.0000"));
+        second.setQtyReserved(new BigDecimal("1.0000"));
+        second.setVersion(0);
+
+        when(inventoryBalanceMapper.selectList(any())).thenReturn(List.of(first, second));
+        when(inventoryBalanceMapper.updateById(any(InventoryBalanceEntity.class))).thenReturn(1);
+
+        InventoryReservationCommand command = new InventoryReservationCommand(
+                10L,
+                20L,
+                "SALES_ORDER",
+                30L,
+                "SO-LOC",
+                41L,
+                new BigDecimal("4.0000"),
+                "multi-location reserve"
+        );
+        AuditMetadata audit = new AuditMetadata(900L, 1L, 2L, LocalDateTime.of(2026, 6, 2, 9, 30));
+        service.reserve(command, audit, "库存不足");
+
+        assertThat(first.getQtyReserved()).isEqualByComparingTo("2.0000");
+        assertThat(second.getQtyReserved()).isEqualByComparingTo("3.0000");
     }
 
     private void assertTenantScoped(AbstractWrapper<?, ?, ?> wrapper) {
