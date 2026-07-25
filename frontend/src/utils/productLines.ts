@@ -5,6 +5,8 @@ export interface ProductLabelLine {
   lotControlled?: boolean
   shelfLifeControlled?: boolean
   serialControlled?: boolean
+  auxUnitName?: string | null
+  conversionFactor?: number | null
   lotNo?: string | null
   expiryDate?: string | null
   serialNos?: string | null
@@ -18,6 +20,8 @@ export interface ProductLabels {
   lotControlled?: boolean
   shelfLifeControlled?: boolean
   serialControlled?: boolean
+  auxUnitName?: string | null
+  conversionFactor?: number | null
 }
 
 export interface ProductControlValidationIssue {
@@ -54,8 +58,11 @@ export async function hydrateProductLineLabels<T extends ProductLabelLine>(
       line.lotControlled === undefined
       || line.shelfLifeControlled === undefined
       || line.serialControlled === undefined
+    const needsAux =
+      (line.auxUnitName == null || line.auxUnitName === '')
+      || line.conversionFactor == null
 
-    if (!needsLabels && !needsControlFlags) {
+    if (!needsLabels && !needsControlFlags && !needsAux) {
       return line
     }
 
@@ -68,18 +75,50 @@ export async function hydrateProductLineLabels<T extends ProductLabelLine>(
 
     try {
       const product = await request
+      const factor = product.conversionFactor != null ? Number(product.conversionFactor) : null
       return {
         ...line,
         productCode: line.productCode || product.productCode,
         productName: line.productName || product.productName,
         lotControlled: line.lotControlled ?? Boolean(product.lotControlled),
         shelfLifeControlled: line.shelfLifeControlled ?? Boolean(product.shelfLifeControlled),
-        serialControlled: line.serialControlled ?? Boolean(product.serialControlled)
+        serialControlled: line.serialControlled ?? Boolean(product.serialControlled),
+        auxUnitName: line.auxUnitName || product.auxUnitName || undefined,
+        conversionFactor: line.conversionFactor ?? (factor != null && factor > 0 ? factor : undefined)
       }
     } catch {
       return line
     }
   }))
+}
+
+/** Convert base-unit quantity to auxiliary packaging quantity when conversion is known. */
+export function formatAuxQuantity(
+  baseQty?: number | null,
+  conversionFactor?: number | null,
+  auxUnitName?: string | null
+): string {
+  const qty = Number(baseQty ?? 0)
+  const factor = Number(conversionFactor ?? 0)
+  if (!(factor > 0) || !auxUnitName) {
+    return '-'
+  }
+  const aux = Number((qty / factor).toFixed(4))
+  return `${aux} ${auxUnitName}`
+}
+
+/** Compact serial capture progress for document line editors. */
+export function serialCaptureProgress(
+  serialNos?: string | null,
+  quantity?: number | null
+): { count: number; expected: number; complete: boolean } {
+  const count = parseSerialNos(serialNos).length
+  const expected = Math.max(0, Math.round(Number(quantity ?? 0)))
+  return {
+    count,
+    expected,
+    complete: expected > 0 && count === expected
+  }
 }
 
 /** Split free-text serial capture into unique serial numbers. */

@@ -285,6 +285,11 @@
               />
             </template>
           </el-table-column>
+          <el-table-column :label="t('salesDelivery.auxQty')" width="120" align="center">
+            <template #default="{ row }">
+              {{ formatAuxQuantity(row.quantity ?? row.qty, row.conversionFactor, row.auxUnitName) }}
+            </template>
+          </el-table-column>
           <el-table-column :label="t('salesDelivery.location')" width="160">
             <template #default="{ row }">
               <el-select
@@ -304,15 +309,24 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column :label="t('salesDelivery.serialNos')" min-width="180">
+          <el-table-column :label="t('salesDelivery.serialNos')" min-width="220">
             <template #default="{ row }">
               <el-input
                 v-model="row.serialNos"
+                type="textarea"
+                :rows="row.serialControlled ? 2 : 1"
                 :placeholder="row.serialControlled
                   ? t('salesDelivery.serialNosPlaceholder')
                   : t('salesDelivery.remarkPlaceholder')"
                 :disabled="isView || row.serialControlled === false"
               />
+              <div
+                v-if="row.serialControlled"
+                class="serial-progress"
+                :class="{ 'serial-progress--ok': serialCaptureProgress(row.serialNos, row.quantity ?? row.qty).complete }"
+              >
+                {{ t('salesDelivery.serialProgress', serialCaptureProgress(row.serialNos, row.quantity ?? row.qty)) }}
+              </div>
             </template>
           </el-table-column>
           <el-table-column :label="t('salesDelivery.lotNo')" width="140">
@@ -407,7 +421,12 @@ import {
 } from '@/api/masterdata'
 import { BarcodeScanField } from '@/components/common'
 import { incrementScannedLine } from '@/utils/barcode'
-import { hydrateProductLineLabels, validateProductControlLines } from '@/utils/productLines'
+import {
+  formatAuxQuantity,
+  hydrateProductLineLabels,
+  serialCaptureProgress,
+  validateProductControlLines
+} from '@/utils/productLines'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
 
 const route = useRoute()
@@ -741,6 +760,8 @@ const handleOrderChange = async () => {
       orderedQuantity: item.quantity,
       deliveredQuantity: item.deliveredQuantity || 0,
       quantity: Math.max(0, item.quantity - (item.deliveredQuantity || 0)),
+      auxUnitName: item.auxUnitName || '',
+      conversionFactor: item.conversionFactor != null ? Number(item.conversionFactor) : undefined,
       locationId: undefined,
       serialNos: '',
       lotNo: '',
@@ -943,5 +964,15 @@ onMounted(() => {
   .scan-toolbar__reset {
     width: 100%;
   }
+}
+
+.serial-progress {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.2;
+}
+.serial-progress--ok {
+  color: var(--el-color-success);
 }
 </style>
