@@ -1128,36 +1128,97 @@ export interface MrpSuggestionLine {
   reason?: string
 }
 
+export interface MrpSuggestionLine {
+  id?: string | number
+  runId?: string | number
+  lineNo?: number
+  productId: string | number
+  productCode?: string
+  productName?: string
+  suggestionType: string
+  demandQty: number
+  onHandQty: number
+  openSupplyQty: number
+  netQty: number
+  bomId?: string | number | null
+  reason?: string
+  status?: string
+  convertedBizType?: string | null
+  convertedBizId?: string | number | null
+  convertedBizNo?: string | null
+  convertedTime?: string | null
+}
+
 export interface MrpRunResult {
+  id?: string | number
+  runNo?: string
   asOfDate: string
+  status?: string
   purchaseCount: number
   productionCount: number
+  createdTime?: string
   purchaseLines: MrpSuggestionLine[]
   productionLines: MrpSuggestionLine[]
 }
 
+export interface MrpRunSummary {
+  id: string | number
+  runNo: string
+  asOfDate: string
+  status: string
+  purchaseCount: number
+  productionCount: number
+  createdTime?: string
+}
+
+const normalizeMrpLine = (line: MrpSuggestionLine): MrpSuggestionLine => ({
+  ...line,
+  id: line.id != null ? String(line.id) : line.id,
+  runId: line.runId != null ? String(line.runId) : line.runId,
+  productId: String(line.productId),
+  bomId: line.bomId != null ? String(line.bomId) : line.bomId,
+  demandQty: Number(line.demandQty ?? 0),
+  onHandQty: Number(line.onHandQty ?? 0),
+  openSupplyQty: Number(line.openSupplyQty ?? 0),
+  netQty: Number(line.netQty ?? 0),
+  convertedBizId: line.convertedBizId != null ? String(line.convertedBizId) : line.convertedBizId
+})
+
+const normalizeMrpRun = (r: MrpRunResult): MrpRunResult => ({
+  ...r,
+  id: r.id != null ? String(r.id) : r.id,
+  purchaseCount: Number(r.purchaseCount ?? 0),
+  productionCount: Number(r.productionCount ?? 0),
+  purchaseLines: (r.purchaseLines || []).map(normalizeMrpLine),
+  productionLines: (r.productionLines || []).map(normalizeMrpLine)
+})
+
 export const runMrpPlan = () => {
-  return request.post<MrpRunResult>('/inventory/mrp/run').then((r) => ({
-    ...r,
-    purchaseCount: Number(r.purchaseCount ?? 0),
-    productionCount: Number(r.productionCount ?? 0),
-    purchaseLines: (r.purchaseLines || []).map((l) => ({
-      ...l,
-      productId: String(l.productId),
-      bomId: l.bomId != null ? String(l.bomId) : l.bomId,
-      demandQty: Number(l.demandQty ?? 0),
-      onHandQty: Number(l.onHandQty ?? 0),
-      openSupplyQty: Number(l.openSupplyQty ?? 0),
-      netQty: Number(l.netQty ?? 0)
-    })),
-    productionLines: (r.productionLines || []).map((l) => ({
-      ...l,
-      productId: String(l.productId),
-      bomId: l.bomId != null ? String(l.bomId) : l.bomId,
-      demandQty: Number(l.demandQty ?? 0),
-      onHandQty: Number(l.onHandQty ?? 0),
-      openSupplyQty: Number(l.openSupplyQty ?? 0),
-      netQty: Number(l.netQty ?? 0)
+  return request.post<MrpRunResult>('/inventory/mrp/run').then(normalizeMrpRun)
+}
+
+export const getMrpRuns = (params?: { pageNo?: number; pageSize?: number; status?: string }) => {
+  return request.get<PageResponse<MrpRunSummary>>('/inventory/mrp/runs', { params }).then((page) => ({
+    ...page,
+    records: (page.records || []).map((item) => ({
+      ...item,
+      id: String(item.id),
+      purchaseCount: Number(item.purchaseCount ?? 0),
+      productionCount: Number(item.productionCount ?? 0)
     }))
   }))
+}
+
+export const getMrpRun = (id: string | number) => {
+  return request.get<MrpRunResult>(`/inventory/mrp/runs/${id}`).then(normalizeMrpRun)
+}
+
+export const convertMrpLine = (
+  runId: string | number,
+  lineId: string | number,
+  data?: { supplierId?: string | number; finishedWarehouseId?: string | number; materialWarehouseId?: string | number }
+) => {
+  return request
+    .post<MrpSuggestionLine>(`/inventory/mrp/runs/${runId}/lines/${lineId}/convert`, data || {})
+    .then(normalizeMrpLine)
 }

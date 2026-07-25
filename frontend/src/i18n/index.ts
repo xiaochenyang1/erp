@@ -156,10 +156,10 @@ const coreMessages = {
       message: { loadFailed: '加载检验单失败', sourcesLoadFailed: '加载来源单据失败', detailLoadFailed: '加载检验单详情失败', created: '创建成功', submitConfirm: '确认提交检验单“{no}”吗？', submitted: '已提交', saved: '保存成功', judged: '判定完成', cancelConfirm: '确认作废检验单“{no}”吗？', cancelled: '已作废', exported: '导出成功', exportFailed: '导出失败', exportFile: 'quality_inspections_{date}.csv', prompt: '提示' }
     },
     inventoryMrp: {
-      title: '轻量 MRP', description: '独立需求=销售未发货+安全库存；供应=现存量+在途采购+在制；有 BOM 建议生产并展开材料采购', run: '运行计划',
+      title: '轻量 MRP', history: '刷新历史', historyTitle: 'MRP运行历史', runNo: '运行号', asOfDate: '业务日', status: '状态', purchaseCount: '采购建议数', productionCount: '生产建议数', createdTime: '创建时间', open: '打开', lineStatus: '行状态', convertedDoc: '已转单据', actions: '操作', convertPo: '转采购', convertMo: '转生产', description: '独立需求=销售未发货+安全库存；供应=现存量+在途采购+在制；有 BOM 建议生产并展开材料采购', run: '运行计划',
       summary: '运行日 {date} · 采购建议 {purchaseCount} · 生产建议 {productionCount}', productionSuggestions: '生产建议', purchaseSuggestions: '采购建议',
       productCode: '编码', productName: '品名', demandQty: '需求', onHandQty: '现存量', openSupplyQty: '在途/在制', netQty: '净需求', reason: '原因',
-      message: { succeeded: 'MRP 运行完成', failed: 'MRP 运行失败' }
+      message: { succeeded: 'MRP 运行完成', failed: 'MRP 运行失败', loadFailed: '加载计划失败', convertFailed: '转单失败', convertedPo: '已转采购订单 {orderNo}', convertedMo: '已转生产订单 {orderNo}' }
     },
     inventoryReplenishment: {
       suggestionNo: '建议编号', suggestionNoPlaceholder: '请输入建议编号', statusLabel: '状态', all: '全部', warehouse: '仓库', selectWarehouse: '请选择仓库', product: '产品', selectProduct: '请选择产品', supplier: '供应商', selectSupplier: '请选择供应商', createdAt: '创建时间', rangeSeparator: '至', startTime: '开始时间', endTime: '结束时间', search: '查询', reset: '重置',
@@ -338,10 +338,10 @@ const coreMessages = {
       message: { loadFailed: 'Failed to load inspections', sourcesLoadFailed: 'Failed to load source documents', detailLoadFailed: 'Failed to load inspection details', created: 'Inspection created', submitConfirm: 'Submit inspection “{no}”?', submitted: 'Inspection submitted', saved: 'Inspection saved', judged: 'Inspection judged', cancelConfirm: 'Cancel inspection “{no}”?', cancelled: 'Inspection cancelled', exported: 'Export complete', exportFailed: 'Export failed', exportFile: 'quality_inspections_{date}.csv', prompt: 'Confirmation' }
     },
     inventoryMrp: {
-      title: 'MRP Lite', description: 'Independent demand = undelivered sales + safety stock; supply = on hand + open purchases + work in progress. Products with a BOM generate production suggestions and expanded material purchases.', run: 'Run plan',
+      title: 'MRP Lite', history: 'Refresh history', historyTitle: 'MRP run history', runNo: 'Run no.', asOfDate: 'As-of date', status: 'Status', purchaseCount: 'Purchase lines', productionCount: 'Production lines', createdTime: 'Created', open: 'Open', lineStatus: 'Line status', convertedDoc: 'Converted doc', actions: 'Actions', convertPo: 'To PO', convertMo: 'To MO', description: 'Independent demand = undelivered sales + safety stock; supply = on hand + open purchases + work in progress. Products with a BOM generate production suggestions and expanded material purchases.', run: 'Run plan',
       summary: 'As of {date} · {purchaseCount} purchase suggestions · {productionCount} production suggestions', productionSuggestions: 'Production suggestions', purchaseSuggestions: 'Purchase suggestions',
       productCode: 'Code', productName: 'Product', demandQty: 'Demand', onHandQty: 'On hand', openSupplyQty: 'Open supply', netQty: 'Net demand', reason: 'Reason',
-      message: { succeeded: 'MRP run completed', failed: 'MRP run failed' }
+      message: { succeeded: 'MRP run completed', failed: 'MRP run failed', loadFailed: 'Failed to load plan', convertFailed: 'Conversion failed', convertedPo: 'Converted to purchase order {orderNo}', convertedMo: 'Converted to production order {orderNo}' }
     },
     inventoryReplenishment: {
       suggestionNo: 'Suggestion no.', suggestionNoPlaceholder: 'Enter a suggestion no.', statusLabel: 'Status', all: 'All', warehouse: 'Warehouse', selectWarehouse: 'Select a warehouse', product: 'Product', selectProduct: 'Select a product', supplier: 'Supplier', selectSupplier: 'Select a supplier', createdAt: 'Created', rangeSeparator: 'to', startTime: 'Start time', endTime: 'End time', search: 'Search', reset: 'Reset',

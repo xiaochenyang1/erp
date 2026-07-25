@@ -28,6 +28,7 @@ public interface InventoryPermissionCodes {
     String INVENTORY_REPLENISHMENT_CONVERT = "inventory:replenishment:convert";
     String INVENTORY_MRP_VIEW = "inventory:mrp:view";
     String INVENTORY_MRP_RUN = "inventory:mrp:run";
+    String INVENTORY_MRP_CONVERT = "inventory:mrp:convert";
 
     String HAS_INVENTORY_STOCK_VIEW = "hasAuthority('" + INVENTORY_STOCK_VIEW + "')";
     String HAS_INVENTORY_ADJUSTMENT_VIEW = "hasAuthority('" + INVENTORY_ADJUSTMENT_VIEW + "')";
@@ -55,4 +56,5 @@ public interface InventoryPermissionCodes {
     String HAS_INVENTORY_REPLENISHMENT_CONVERT = "hasAuthority('" + INVENTORY_REPLENISHMENT_CONVERT + "')";
     String HAS_INVENTORY_MRP_VIEW = "hasAuthority('" + INVENTORY_MRP_VIEW + "')";
     String HAS_INVENTORY_MRP_RUN = "hasAuthority('" + INVENTORY_MRP_RUN + "')";
+    String HAS_INVENTORY_MRP_CONVERT = "hasAuthority('" + INVENTORY_MRP_CONVERT + "')";
 }
