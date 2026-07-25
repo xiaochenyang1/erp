@@ -556,7 +556,22 @@
         </el-table-column>
         <el-table-column prop="lotNo" :label="$t('inventoryStocks.lotNo')" min-width="140" />
         <el-table-column prop="bizType" :label="$t('inventoryStocks.businessType')" width="140" />
-        <el-table-column prop="bizNo" :label="$t('inventoryStocks.businessNo')" min-width="150" />
+        <el-table-column prop="bizNo" :label="$t('inventoryStocks.businessNo')" min-width="150">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.documentRoute"
+              link
+              type="primary"
+              @click="openTraceDocument(row.documentRoute)"
+            >
+              {{ row.bizNo }}
+            </el-button>
+            <span v-else>{{ row.bizNo }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="documentLabel" :label="$t('inventoryStocks.documentType')" min-width="120">
+          <template #default="{ row }">{{ row.documentLabel || row.bizType }}</template>
+        </el-table-column>
         <el-table-column prop="direction" :label="$t('inventoryStocks.direction')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.direction === 'IN' ? 'success' : 'warning'">{{ directionLabel(row.direction) }}</el-tag>
@@ -667,6 +682,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Download, Refresh, Search, Warning } from '@element-plus/icons-vue'
@@ -688,6 +704,7 @@ import { downloadBlob } from '@/utils/download'
 
 const route = useRoute()
 const { t } = useI18n()
+const router = useRouter()
 
 const {
   applyStockScope,
@@ -905,6 +922,11 @@ const resetLotAlertQuery = () => {
   lotAlertQuery.warningDays = 30
   lotAlertQuery.status = undefined
   handleLotAlertQuery()
+}
+
+const openTraceDocument = (route: string) => {
+  if (!route) return
+  router.push(route)
 }
 
 const handleOpenLotTrace = (row: InventoryLotBalance) => {

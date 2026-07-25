@@ -19,6 +19,8 @@ public record InventoryLotTraceResponse(
         BigDecimal amount,
         BigDecimal unitCost,
         LocalDateTime occurredTime,
-        String remark
+        String remark,
+        String documentRoute,
+        String documentLabel
 ) {
 }

@@ -92,6 +92,8 @@ export interface InventoryLotTrace {
   unitCost: number
   occurredTime?: string
   remark?: string
+  documentRoute?: string | null
+  documentLabel?: string | null
 }
 
 export interface InventoryLotExpiryAlert {
@@ -217,7 +219,9 @@ const normalizeInventoryLotTrace = (item: InventoryLotTrace): InventoryLotTrace 
   bizLineId: item.bizLineId != null ? String(item.bizLineId) : undefined,
   qty: Number(item.qty ?? 0),
   amount: Number(item.amount ?? 0),
-  unitCost: Number(item.unitCost ?? 0)
+  unitCost: Number(item.unitCost ?? 0),
+  documentRoute: item.documentRoute || null,
+  documentLabel: item.documentLabel || null
 })
 
 const normalizeInventoryLotExpiryAlert = (item: InventoryLotExpiryAlert): InventoryLotExpiryAlert => ({
