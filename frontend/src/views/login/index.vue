@@ -88,8 +88,9 @@
           </el-form-item>
 
           <el-form-item>
-            <el-checkbox v-model="rememberMe">{{ $t('login.remember') }}</el-checkbox>
-            <el-link type="primary" :underline="false" style="float: right">{{ $t('login.forgot') }}</el-link>
+            <el-link type="primary" :underline="false" class="forgot-password" @click="showPasswordResetHint">
+              {{ $t('login.forgot') }}
+            </el-link>
           </el-form-item>
 
           <el-form-item>
@@ -110,7 +111,7 @@
             <span class="divider-text">{{ $t('login.testAccount') }}</span>
           </el-divider>
           <div class="test-accounts">
-            <el-tag type="success" size="small">admin / LocalAdmin123（已填充）</el-tag>
+            <el-tag type="success" size="small">{{ $t('login.prefilledTestAccount') }}</el-tag>
           </div>
         </div>
       </div>
@@ -121,8 +122,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { User, Lock, Management, Monitor, DataAnalysis, DocumentChecked } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '@/store/modules/user'
 import { useAppStore } from '@/store/modules/app'
 
@@ -130,6 +132,7 @@ import { useAppStore } from '@/store/modules/app'
 const userStore = useUserStore()
 const appStore = useAppStore()
 const { t } = useI18n()
+const router = useRouter()
 
 // 表单引用
 const loginFormRef = ref<FormInstance>()
@@ -140,11 +143,12 @@ const loginForm = reactive({
   password: 'LocalAdmin123'
 })
 
-// 记住密码
-const rememberMe = ref(false)
-
 // 加载状态
 const loading = ref(false)
+
+const showPasswordResetHint = () => {
+  ElMessage.info(t('login.passwordResetHint'))
+}
 
 // 功能特性
 const features = computed(() => [
@@ -184,6 +188,7 @@ const handleLogin = async () => {
     loading.value = true
     try {
       await userStore.doLogin(loginForm)
+      await router.push('/')
     } catch (error) {
       console.error('登录失败:', error)
     } finally {
@@ -390,6 +395,10 @@ const handleLogin = async () => {
 
 .login-form {
   margin-bottom: 20px;
+}
+
+.forgot-password {
+  margin-left: auto;
 }
 
 .login-form :deep(.el-input__wrapper) {

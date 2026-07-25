@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
-import router from '@/router'
+import { invalidateAuthSession } from '@/utils/authSession'
 import { readDisplayPreferences } from '@/utils/locale'
 
 // API响应数据结构
@@ -95,12 +95,8 @@ const flushQueue = (token: string | null) => {
 }
 
 const clearAuthAndRedirect = () => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('refreshToken')
+  invalidateAuthSession()
   flushQueue(null)
-  if (router.currentRoute.value.path !== '/login') {
-    router.push('/login')
-  }
 }
 
 // 用裸 axios 调刷新接口：不走业务拦截器，也避免与 auth.ts 形成循环依赖

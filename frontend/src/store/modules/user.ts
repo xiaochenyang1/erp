@@ -2,10 +2,10 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { login, logout, getUserInfo, type LoginRequest, type UserInfo } from '@/api/auth'
 import { useMenuStore } from '@/store/modules/menu'
-import router from '@/router'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '@/store/modules/app'
 import { isSupportedLocale } from '@/i18n'
+import { redirectToLogin } from '@/utils/authSession'
 import { isSupportedTimeZone } from '@/utils/locale'
 
 export const useUserStore = defineStore('user', () => {
@@ -13,6 +13,15 @@ export const useUserStore = defineStore('user', () => {
   const token = ref<string>(localStorage.getItem('token') || '')
   const userInfo = ref<UserInfo | null>(null)
   const permissions = ref<string[]>([])
+
+  const clearSessionState = () => {
+    token.value = ''
+    userInfo.value = null
+    permissions.value = []
+    localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
+    useMenuStore().reset()
+  }
 
   // 登录
   const doLogin = async (loginData: LoginRequest) => {
@@ -27,9 +36,6 @@ export const useUserStore = defineStore('user', () => {
       permissions.value = res.permissions || []
 
       ElMessage.success('登录成功')
-
-      // 跳转到首页
-      router.push('/')
 
       return res
     } catch (error) {
@@ -49,6 +55,7 @@ export const useUserStore = defineStore('user', () => {
       if (isSupportedTimeZone(info.timeZone)) appStore.setTimeZone(info.timeZone)
       return info
     } catch (error) {
+      clearSessionState()
       console.error('获取用户信息失败:', error)
       throw error
     }
@@ -64,18 +71,8 @@ export const useUserStore = defineStore('user', () => {
     } catch (error) {
       console.error('登出失败:', error)
     } finally {
-      // 清除本地数据
-      token.value = ''
-      userInfo.value = null
-      permissions.value = []
-      localStorage.removeItem('token')
-      localStorage.removeItem('refreshToken')
-
-      // 清空运行时菜单，避免换账号后残留上一用户的菜单
-      useMenuStore().reset()
-
-      // 跳转到登录页
-      router.push('/login')
+      clearSessionState()
+      redirectToLogin()
       ElMessage.success('已退出登录')
     }
   }
@@ -90,6 +87,7 @@ export const useUserStore = defineStore('user', () => {
     token,
     userInfo,
     permissions,
+    clearSessionState,
     doLogin,
     getUserInfo: getUserInfo2,
     doLogout,

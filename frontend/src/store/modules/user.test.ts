@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-// user store 依赖 router / element-plus / auth API，测试只关心权限状态与登录态，
+// user store 依赖 element-plus / auth API，测试只关心权限状态与登录态，
 // 把这些副作用依赖 mock 掉。
-vi.mock('@/router', () => ({ default: { push: vi.fn() } }))
 vi.mock('element-plus', () => ({ ElMessage: { success: vi.fn(), error: vi.fn() } }))
 const loginMock = vi.fn()
 const getUserInfoMock = vi.fn()
@@ -14,6 +13,7 @@ vi.mock('@/api/auth', () => ({
 }))
 
 import { useUserStore } from '@/store/modules/user'
+import { useMenuStore } from '@/store/modules/menu'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -59,5 +59,31 @@ describe('user store', () => {
     expect(localStorage.getItem('locale')).toBe('en-US')
     expect(localStorage.getItem('timeZone')).toBe('UTC')
     expect(document.documentElement.lang).toBe('en-US')
+  })
+
+  it('getUserInfo 失败时清空用户、权限和上一账号的运行时菜单', async () => {
+    const failure = new Error('user info unavailable')
+    getUserInfoMock.mockRejectedValue(failure)
+    const store = useUserStore()
+    const menuStore = useMenuStore()
+    store.token = 'stale-access'
+    store.userInfo = { id: '1', username: 'previous-user' }
+    store.permissions = ['finance:receipt:view']
+    menuStore.menuTree = [{ id: '10', menuType: 'MENU', path: '/finance/payments' }]
+    menuStore.loaded = true
+    localStorage.setItem('token', 'stale-access')
+    localStorage.setItem('refreshToken', 'stale-refresh')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(store.getUserInfo()).rejects.toBe(failure)
+
+    consoleError.mockRestore()
+    expect(store.token).toBe('')
+    expect(store.userInfo).toBeNull()
+    expect(store.permissions).toEqual([])
+    expect(menuStore.menuTree).toEqual([])
+    expect(menuStore.loaded).toBe(false)
+    expect(localStorage.getItem('token')).toBeNull()
+    expect(localStorage.getItem('refreshToken')).toBeNull()
   })
 })
