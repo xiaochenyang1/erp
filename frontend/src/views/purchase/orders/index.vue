@@ -242,6 +242,10 @@
             <el-table-column :label="t('purchaseOrder.unitPriceCny')" width="140">
               <template #default="{ row }">
                 <el-input-number v-model="row.price" :min="0" :precision="2" :controls="false" style="width: 100%" @change="calculateAmount(row)" />
+                <div v-if="row.maxPrice != null" class="price-hint">
+                  {{ t('purchaseOrder.maximumPrice', { amount: formatMoney(row.maxPrice) }) }}
+                  <span v-if="row.priceLevel">· {{ row.priceLevel === 'SUPPLIER' ? t('purchaseOrder.supplierPrice') : t('purchaseOrder.generalPrice') }}</span>
+                </div>
               </template>
             </el-table-column>
             <el-table-column :label="t('purchaseOrder.amountCny')" width="140" align="right">
@@ -443,6 +447,7 @@ import {
   rejectPurchaseOrder,
   tracePurchaseOrder,
   exportPurchaseOrders,
+  resolvePurchasePrice,
   type PurchaseOrder,
   type PurchaseOrderQuery,
   type PurchaseOrderSaveRequest,
@@ -863,14 +868,45 @@ const handleRemoveItem = (index: number) => {
 }
 
 // 商品变更
-const handleProductChange = (index: number) => {
-  const item = form.items[index]
+const handleProductChange = async (index: number) => {
+  const item = form.items[index] as PurchaseOrderItem & { maxPrice?: number | null; priceLevel?: string | null }
   const product = products.value.find(product => String(product.id) === String(item.productId))
   item.productCode = product?.productCode
   item.productName = product?.productName
   item.price = Number(product?.purchasePrice ?? 0)
   item.taxRate = Number(product?.taxRate ?? 0) > 1 ? Number(product?.taxRate ?? 0) / 100 : Number(product?.taxRate ?? 0)
   calculateAmount(item)
+  await applyResolvedPrice(item)
+}
+
+const applyResolvedPrice = async (
+  item: PurchaseOrderItem & { maxPrice?: number | null; priceLevel?: string | null }
+) => {
+  if (!item.productId) {
+    item.maxPrice = null
+    item.priceLevel = null
+    return
+  }
+  try {
+    const resolved = await resolvePurchasePrice({
+      productId: item.productId,
+      supplierId: form.supplierId || undefined,
+      bizDate: form.orderDate || undefined
+    })
+    if (resolved.matched) {
+      if (resolved.listPrice != null) {
+        item.price = Number(resolved.listPrice)
+      }
+      item.maxPrice = resolved.maxPrice != null ? Number(resolved.maxPrice) : null
+      item.priceLevel = resolved.matchLevel || null
+      calculateAmount(item)
+      return
+    }
+  } catch {
+    // Keep the product master price when resolve fails.
+  }
+  item.maxPrice = null
+  item.priceLevel = null
 }
 
 // 计算金额
@@ -1229,5 +1265,11 @@ onMounted(() => {
 .detail-section .section-title .el-icon {
   color: #1e40af;
   font-size: 16px;
+}
+.price-hint {
+  margin-top: 4px;
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.3;
 }
 </style>

@@ -91,6 +91,7 @@ public class PurchaseOrderService {
     private final PaymentMapper paymentMapper;
     private final VoucherMapper voucherMapper;
     private final WorkflowService workflowService;
+    private final PurchasePriceEvaluator purchasePriceEvaluator;
 
     public PurchaseOrderService(
             PurchaseOrderMapper purchaseOrderMapper,
@@ -110,7 +111,8 @@ public class PurchaseOrderService {
             PaymentAllocationMapper paymentAllocationMapper,
             PaymentMapper paymentMapper,
             VoucherMapper voucherMapper,
-            WorkflowService workflowService
+            WorkflowService workflowService,
+            PurchasePriceEvaluator purchasePriceEvaluator
     ) {
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
@@ -130,6 +132,7 @@ public class PurchaseOrderService {
         this.paymentMapper = paymentMapper;
         this.voucherMapper = voucherMapper;
         this.workflowService = workflowService;
+        this.purchasePriceEvaluator = purchasePriceEvaluator;
     }
 
     @Transactional
@@ -152,6 +155,13 @@ public class PurchaseOrderService {
     ) {
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = requireActiveSupplier(request.supplierId(), audit.companyId(), audit.accountBookId());
+        purchasePriceEvaluator.assertLinesWithinMaxPrice(
+                audit.companyId(),
+                audit.accountBookId(),
+                supplier.getId(),
+                request.orderDate(),
+                request.lines()
+        );
         OrderTotals totals = calculateTotals(request.lines());
         LocalDateTime now = audit.now();
 
@@ -297,6 +307,13 @@ public class PurchaseOrderService {
 
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = requireActiveSupplier(request.supplierId(), audit.companyId(), audit.accountBookId());
+        purchasePriceEvaluator.assertLinesWithinMaxPrice(
+                audit.companyId(),
+                audit.accountBookId(),
+                supplier.getId(),
+                request.orderDate(),
+                request.lines()
+        );
         OrderTotals totals = calculateTotals(request.lines());
         LocalDateTime now = audit.now();
 
@@ -328,6 +345,23 @@ public class PurchaseOrderService {
         if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许提交审批");
         }
+        List<PurchaseOrderLineEntity> existingLines = loadOrderLines(entity);
+        List<PurchaseOrderLineRequest> lineRequests = existingLines.stream()
+                .map(line -> new PurchaseOrderLineRequest(
+                        line.getProductId(),
+                        line.getQty(),
+                        line.getPrice(),
+                        line.getTaxRate(),
+                        line.getRemark()
+                ))
+                .toList();
+        purchasePriceEvaluator.assertLinesWithinMaxPrice(
+                entity.getCompanyId(),
+                entity.getAccountBookId(),
+                entity.getSupplierId(),
+                entity.getOrderDate(),
+                lineRequests
+        );
         PurchaseOrderResponse response = transitionWorkflowStatus(entity, "SUBMITTED", "IN_APPROVAL");
         workflowService.submit("PURCHASE_ORDER", entity.getId(), entity.getOrderNo(), "采购订单 " + entity.getOrderNo(), request.remark());
         return response;

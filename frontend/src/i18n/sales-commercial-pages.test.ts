@@ -6,6 +6,7 @@ import { salesCommercialPageMessages } from './sales-commercial-pages'
 
 const pages = {
   salesPrice: 'src/views/sales/prices/index.vue',
+  purchasePrice: 'src/views/purchase/prices/index.vue',
   salesQuote: 'src/views/sales/quotes/index.vue'
 } as const
 
@@ -39,6 +40,8 @@ describe('sales price and quote localization', () => {
 
   it('provides representative English commercial copy', () => {
     expect(salesCommercialPageMessages['en-US'].salesPrice.customerSpecific).toBe('Customer-specific')
+    expect(salesCommercialPageMessages['en-US'].purchasePrice.supplierSpecific).toBe('Supplier-specific')
+    expect(salesCommercialPageMessages['zh-CN'].purchasePrice.maxPrice).toBe('最高价')
     expect(salesCommercialPageMessages['en-US'].salesPrice.validation.minAboveList)
       .toBe('Minimum price cannot exceed list price')
     expect(salesCommercialPageMessages['en-US'].salesQuote.statusValue.converted).toBe('Converted')

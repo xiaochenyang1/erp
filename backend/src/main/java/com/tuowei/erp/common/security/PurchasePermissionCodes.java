@@ -27,6 +27,9 @@ public interface PurchasePermissionCodes {
     String PURCHASE_INQUIRY_VIEW = "purchase:inquiry:view";
     String PURCHASE_INQUIRY_MANAGE = "purchase:inquiry:manage";
 
+    String PURCHASE_PRICE_VIEW = "purchase:price:view";
+    String PURCHASE_PRICE_MANAGE = "purchase:price:manage";
+
     String HAS_PURCHASE_ORDER_VIEW = "hasAuthority('" + PURCHASE_ORDER_VIEW + "')";
     String HAS_PURCHASE_ORDER_CREATE = "hasAuthority('" + PURCHASE_ORDER_CREATE + "')";
     String HAS_PURCHASE_ORDER_UPDATE = "hasAuthority('" + PURCHASE_ORDER_UPDATE + "')";
@@ -51,4 +54,7 @@ public interface PurchasePermissionCodes {
 
     String HAS_PURCHASE_INQUIRY_VIEW = "hasAuthority('" + PURCHASE_INQUIRY_VIEW + "')";
     String HAS_PURCHASE_INQUIRY_MANAGE = "hasAuthority('" + PURCHASE_INQUIRY_MANAGE + "')";
+
+    String HAS_PURCHASE_PRICE_VIEW = "hasAuthority('" + PURCHASE_PRICE_VIEW + "')";
+    String HAS_PURCHASE_PRICE_MANAGE = "hasAuthority('" + PURCHASE_PRICE_MANAGE + "')";
 }

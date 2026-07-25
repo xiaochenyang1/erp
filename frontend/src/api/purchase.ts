@@ -851,3 +851,98 @@ export const convertPurchaseInquiryToPurchaseOrder = (id: string | number) => {
 export const cancelPurchaseInquiry = (id: string | number) => {
   return request.post<PurchaseInquiry>(`/purchase/inquiries/${id}/cancel`).then(normalizeInquiry)
 }
+
+export interface PurchasePrice {
+  id: string | number
+  supplierId?: string | number | null
+  supplierName?: string
+  productId: string | number
+  productCode?: string
+  productName?: string
+  listPrice: number
+  maxPrice: number
+  effectiveFrom: string
+  effectiveTo?: string | null
+  status: 'ACTIVE' | 'INACTIVE' | string
+  remark?: string
+}
+
+export interface PurchasePriceQuery extends PageQuery {
+  supplierId?: string | number
+  productId?: string | number
+  status?: string
+  keyword?: string
+}
+
+export interface PurchasePriceSaveRequest {
+  supplierId?: string | number | null
+  productId: string | number
+  listPrice: number
+  maxPrice: number
+  effectiveFrom: string
+  effectiveTo?: string | null
+  status?: string
+  remark?: string
+}
+
+export interface PurchasePriceResolve {
+  productId: string | number
+  supplierId?: string | number | null
+  bizDate: string
+  matched: boolean
+  matchLevel: 'SUPPLIER' | 'PRODUCT' | 'NONE' | string
+  priceId?: string | number | null
+  listPrice?: number | null
+  maxPrice?: number | null
+}
+
+const normalizePurchasePrice = (price: PurchasePrice): PurchasePrice => ({
+  ...price,
+  id: String(price.id),
+  supplierId: price.supplierId != null ? String(price.supplierId) : price.supplierId,
+  productId: String(price.productId),
+  listPrice: Number(price.listPrice ?? 0),
+  maxPrice: Number(price.maxPrice ?? 0)
+})
+
+export const getPurchasePrices = (params: PurchasePriceQuery) => {
+  return request.get<PageResponse<PurchasePrice>>('/purchase/prices', { params }).then((page) => ({
+    ...page,
+    records: (page.records || []).map(normalizePurchasePrice)
+  }))
+}
+
+export const getPurchasePrice = (id: string | number) => {
+  return request.get<PurchasePrice>(`/purchase/prices/${id}`).then(normalizePurchasePrice)
+}
+
+export const createPurchasePrice = (data: PurchasePriceSaveRequest) => {
+  return request.post<PurchasePrice>('/purchase/prices', data).then(normalizePurchasePrice)
+}
+
+export const updatePurchasePrice = (id: string | number, data: PurchasePriceSaveRequest) => {
+  return request.put<PurchasePrice>(`/purchase/prices/${id}`, data).then(normalizePurchasePrice)
+}
+
+export const enablePurchasePrice = (id: string | number) => {
+  return request.post<PurchasePrice>(`/purchase/prices/${id}/enable`).then(normalizePurchasePrice)
+}
+
+export const disablePurchasePrice = (id: string | number) => {
+  return request.post<PurchasePrice>(`/purchase/prices/${id}/disable`).then(normalizePurchasePrice)
+}
+
+export const resolvePurchasePrice = (params: {
+  productId: string | number
+  supplierId?: string | number
+  bizDate?: string
+}) => {
+  return request.get<PurchasePriceResolve>('/purchase/prices/resolve', { params }).then((res) => ({
+    ...res,
+    productId: String(res.productId),
+    supplierId: res.supplierId != null ? String(res.supplierId) : res.supplierId,
+    priceId: res.priceId != null ? String(res.priceId) : res.priceId,
+    listPrice: res.listPrice != null ? Number(res.listPrice) : res.listPrice,
+    maxPrice: res.maxPrice != null ? Number(res.maxPrice) : res.maxPrice
+  }))
+}

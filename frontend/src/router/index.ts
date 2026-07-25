@@ -134,6 +134,16 @@ const routes: RouteRecordRaw[] = [
               icon: 'Tickets',
               permission: 'purchase:inquiry:view'
             }
+          },
+          {
+            path: 'prices',
+            name: 'PurchasePrices',
+            component: () => import('@/views/purchase/prices/index.vue'),
+            meta: {
+              title: '采购价目',
+              icon: 'PriceTag',
+              permission: 'purchase:price:view'
+            }
           }
         ]
       },

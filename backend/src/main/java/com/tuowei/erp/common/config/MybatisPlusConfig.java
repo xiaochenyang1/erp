@@ -113,7 +113,8 @@ public class MybatisPlusConfig {
             "pur_inquiry_line",
             "pur_inquiry_quote",
             "pur_inquiry_quote_line",
-            "md_sales_price"
+            "md_sales_price",
+            "md_purchase_price"
     );
 
     private static final Map<String, String> TENANT_TABLE_EXEMPTIONS = Map.of(

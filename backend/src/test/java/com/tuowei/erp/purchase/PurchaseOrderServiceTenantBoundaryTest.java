@@ -27,6 +27,7 @@ import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderNumberService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderInquirySource;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
+import com.tuowei.erp.purchase.order.service.PurchasePriceEvaluator;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
@@ -263,7 +264,8 @@ class PurchaseOrderServiceTenantBoundaryTest {
                 paymentAllocationMapper,
                 paymentMapper,
                 voucherMapper,
-                workflowService
+                workflowService,
+                mock(PurchasePriceEvaluator.class)
         );
     }
 
