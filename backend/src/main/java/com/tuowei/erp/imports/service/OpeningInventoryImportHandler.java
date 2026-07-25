@@ -11,11 +11,14 @@ import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
+import com.tuowei.erp.masterdata.location.mapper.LocationMapper;
+import com.tuowei.erp.masterdata.location.model.LocationEntity;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -27,6 +30,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
 
     private final WarehouseMapper warehouseMapper;
     private final ProductMapper productMapper;
+    private final LocationMapper locationMapper;
     private final InventoryBalanceMapper inventoryBalanceMapper;
     private final InventoryTransactionMapper inventoryTransactionMapper;
     private final InventoryPostingService inventoryPostingService;
@@ -35,6 +39,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
             ImportValidationSupport support,
             WarehouseMapper warehouseMapper,
             ProductMapper productMapper,
+            LocationMapper locationMapper,
             InventoryBalanceMapper inventoryBalanceMapper,
             InventoryTransactionMapper inventoryTransactionMapper,
             InventoryPostingService inventoryPostingService
@@ -42,6 +47,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
         super(support);
         this.warehouseMapper = warehouseMapper;
         this.productMapper = productMapper;
+        this.locationMapper = locationMapper;
         this.inventoryBalanceMapper = inventoryBalanceMapper;
         this.inventoryTransactionMapper = inventoryTransactionMapper;
         this.inventoryPostingService = inventoryPostingService;
@@ -58,6 +64,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
         Map<String, Object> normalized = support.linkedMap();
         String warehouseCode = support.required(raw, "warehouse_code", errors);
         String productCode = support.required(raw, "product_code", errors);
+        String locationCode = support.optionalText(raw, "location_code");
         BigDecimal qtyOnHand = support.quantity(raw, "qty_on_hand", errors);
         BigDecimal amountOnHand = support.amount(raw, "amount_on_hand", errors);
         LocalDate openingDate = support.date(raw, "opening_date", errors);
@@ -72,6 +79,7 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
         }
         WarehouseEntity warehouse = null;
         ProductEntity product = null;
+        LocationEntity location = null;
         if (warehouseCode != null) {
             warehouse = warehouseMapper.selectOne(new LambdaQueryWrapper<WarehouseEntity>()
                     .eq(WarehouseEntity::getCompanyId, context.companyId())
@@ -94,6 +102,33 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
                 errors.add(new ImportRowErrorResponse("product_code", "商品不存在或已停用"));
             }
         }
+        if (warehouse != null) {
+            if (StringUtils.hasText(locationCode)) {
+                location = locationMapper.selectOne(new LambdaQueryWrapper<LocationEntity>()
+                        .eq(LocationEntity::getCompanyId, context.companyId())
+                        .eq(LocationEntity::getAccountBookId, context.accountBookId())
+                        .eq(LocationEntity::getWarehouseId, warehouse.getId())
+                        .eq(LocationEntity::getLocationCode, locationCode.trim())
+                        .eq(LocationEntity::getStatus, "ACTIVE")
+                        .eq(LocationEntity::getDeletedFlag, 0)
+                        .last("limit 1"));
+                if (location == null) {
+                    errors.add(new ImportRowErrorResponse("location_code", "库位不存在或已停用"));
+                }
+            } else {
+                location = locationMapper.selectOne(new LambdaQueryWrapper<LocationEntity>()
+                        .eq(LocationEntity::getCompanyId, context.companyId())
+                        .eq(LocationEntity::getAccountBookId, context.accountBookId())
+                        .eq(LocationEntity::getWarehouseId, warehouse.getId())
+                        .eq(LocationEntity::getIsDefault, 1)
+                        .eq(LocationEntity::getStatus, "ACTIVE")
+                        .eq(LocationEntity::getDeletedFlag, 0)
+                        .last("limit 1"));
+                if (location == null) {
+                    errors.add(new ImportRowErrorResponse("location_code", "仓库缺少默认库位，请先维护库位主数据或填写 location_code"));
+                }
+            }
+        }
         if (product != null) {
             if (lotControlled(product) && lotNo == null) {
                 errors.add(new ImportRowErrorResponse("lot_no", "启用批次管理的商品必须填写批次号"));
@@ -106,23 +141,29 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
             }
         }
         if (warehouseCode != null && productCode != null) {
-            String duplicateKey = warehouseCode + "|" + productCode
+            String locationKey = location == null
+                    ? (locationCode == null ? "" : locationCode.trim())
+                    : location.getLocationCode();
+            String duplicateKey = warehouseCode + "|" + productCode + "|" + locationKey
                     + (product != null && lotControlled(product) ? "|" + lotNo : "");
             support.duplicateInFile(seen(context, "openingInventory"), duplicateKey, "product_code", errors);
         }
-        if (warehouse != null && product != null) {
+        if (warehouse != null && product != null && location != null) {
             InventoryBalanceEntity balance = inventoryBalanceMapper.selectOne(new LambdaQueryWrapper<InventoryBalanceEntity>()
                     .eq(InventoryBalanceEntity::getCompanyId, context.companyId())
                     .eq(InventoryBalanceEntity::getAccountBookId, context.accountBookId())
                     .eq(InventoryBalanceEntity::getWarehouseId, warehouse.getId())
-                    .eq(InventoryBalanceEntity::getProductId, product.getId()));
+                    .eq(InventoryBalanceEntity::getProductId, product.getId())
+                    .eq(InventoryBalanceEntity::getLocationId, location.getId())
+                    .last("limit 1"));
             if (balance != null && (support.scaleQuantity(balance.getQtyOnHand()).compareTo(BigDecimal.ZERO) != 0
                     || support.scaleAmount(balance.getAmountOnHand()).compareTo(BigDecimal.ZERO) != 0)) {
-                errors.add(new ImportRowErrorResponse("product_code", "该仓库商品已有库存余额，不能导入期初库存"));
+                errors.add(new ImportRowErrorResponse("product_code", "该仓库库位商品已有库存余额，不能导入期初库存"));
             }
         }
         normalized.put("warehouseId", warehouse == null ? null : warehouse.getId());
         normalized.put("productId", product == null ? null : product.getId());
+        normalized.put("locationId", location == null ? null : location.getId());
         normalized.put("qtyOnHand", qtyOnHand);
         normalized.put("amountOnHand", amountOnHand);
         normalized.put("openingDate", openingDate == null ? null : openingDate.toString());
@@ -157,7 +198,8 @@ public class OpeningInventoryImportHandler extends AbstractImportHandler {
                     dateValue(normalized, "openingDate"),
                     text(normalized, "lotNo"),
                     dateValue(normalized, "productionDate"),
-                    dateValue(normalized, "expiryDate")
+                    dateValue(normalized, "expiryDate"),
+                    longValue(normalized, "locationId")
             ), audit);
         }
         return rows.size();

@@ -189,8 +189,8 @@ class InitialImportControllerTest {
         seedOpenPeriod();
         seedWarehouse(880301L, "IMP-WH-LOT");
         seedLotProduct(880401L, "IMP-PROD-LOT");
-        String csv = "warehouse_code,product_code,qty_on_hand,amount_on_hand,opening_date,lot_no,production_date,expiry_date,remark\n"
-                + "IMP-WH-LOT,IMP-PROD-LOT,7.0000,70.00,2026-05-19,OPEN-LOT-A,2026-01-01,2026-12-31,期初批次库存\n";
+        String csv = "warehouse_code,product_code,location_code,qty_on_hand,amount_on_hand,opening_date,lot_no,production_date,expiry_date,remark\n"
+                + "IMP-WH-LOT,IMP-PROD-LOT,MAIN,7.0000,70.00,2026-05-19,OPEN-LOT-A,2026-01-01,2026-12-31,期初批次库存\n";
 
         ImportJobResponse preview = importJobService.preview("OPENING_INVENTORY", csvFile("opening-inventory-lot.csv", csv));
         Assertions.assertThat(preview.status()).isEqualTo("VALIDATED");
@@ -201,15 +201,23 @@ class InitialImportControllerTest {
         Assertions.assertThat(committed.committedRows()).isEqualTo(1);
 
         Map<String, Object> lot = jdbcTemplate.queryForMap("""
-                select lot_no, production_date, expiry_date, qty_on_hand, amount_on_hand
+                select lot_no, production_date, expiry_date, qty_on_hand, amount_on_hand, location_id
                 from inv_lot_balance
                 where warehouse_id = ? and product_id = ? and lot_no = 'OPEN-LOT-A'
                 """, 880301L, 880401L);
-        Assertions.assertThat(lot.get("LOT_NO")).isEqualTo("OPEN-LOT-A");
-        Assertions.assertThat(dateValue(lot.get("PRODUCTION_DATE"))).isEqualTo(LocalDate.of(2026, 1, 1));
-        Assertions.assertThat(dateValue(lot.get("EXPIRY_DATE"))).isEqualTo(LocalDate.of(2026, 12, 31));
-        Assertions.assertThat((BigDecimal) lot.get("QTY_ON_HAND")).isEqualByComparingTo("7.0000");
-        Assertions.assertThat((BigDecimal) lot.get("AMOUNT_ON_HAND")).isEqualByComparingTo("70.00");
+        Assertions.assertThat(String.valueOf(lot.get("LOT_NO") != null ? lot.get("LOT_NO") : lot.get("lot_no")))
+                .isEqualTo("OPEN-LOT-A");
+        Assertions.assertThat(dateValue(lot.get("PRODUCTION_DATE") != null ? lot.get("PRODUCTION_DATE") : lot.get("production_date")))
+                .isEqualTo(LocalDate.of(2026, 1, 1));
+        Assertions.assertThat(dateValue(lot.get("EXPIRY_DATE") != null ? lot.get("EXPIRY_DATE") : lot.get("expiry_date")))
+                .isEqualTo(LocalDate.of(2026, 12, 31));
+        Object qty = lot.get("QTY_ON_HAND") != null ? lot.get("QTY_ON_HAND") : lot.get("qty_on_hand");
+        Object amount = lot.get("AMOUNT_ON_HAND") != null ? lot.get("AMOUNT_ON_HAND") : lot.get("amount_on_hand");
+        Object locationId = lot.get("LOCATION_ID") != null ? lot.get("LOCATION_ID") : lot.get("location_id");
+        Assertions.assertThat(new BigDecimal(qty.toString())).isEqualByComparingTo("7.0000");
+        Assertions.assertThat(new BigDecimal(amount.toString())).isEqualByComparingTo("70.00");
+        Assertions.assertThat(locationId).isNotNull();
+        Assertions.assertThat(new BigDecimal(locationId.toString())).isEqualByComparingTo(String.valueOf(880301L + 500000000000000000L));
     }
 
     private void seedOpenPeriod() {

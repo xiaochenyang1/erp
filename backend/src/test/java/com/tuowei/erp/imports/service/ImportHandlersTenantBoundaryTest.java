@@ -18,6 +18,8 @@ import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
+import com.tuowei.erp.masterdata.location.mapper.LocationMapper;
+import com.tuowei.erp.masterdata.location.model.LocationEntity;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
@@ -62,6 +64,7 @@ class ImportHandlersTenantBoundaryTest {
         initTableInfo(ReceivableEntity.class);
         initTableInfo(PayableEntity.class);
         initTableInfo(InventoryBalanceEntity.class);
+        initTableInfo(LocationEntity.class);
     }
 
     @Test
@@ -351,21 +354,25 @@ class ImportHandlersTenantBoundaryTest {
     void openingInventoryImportScopesWarehouseProductAndBalanceLookupsByCompanyAndAccountBook() {
         WarehouseMapper warehouseMapper = mock(WarehouseMapper.class);
         ProductMapper productMapper = mock(ProductMapper.class);
+        LocationMapper locationMapper = mock(LocationMapper.class);
         InventoryBalanceMapper inventoryBalanceMapper = mock(InventoryBalanceMapper.class);
         when(warehouseMapper.selectOne(any())).thenReturn(activeWarehouse());
         when(productMapper.selectOne(any())).thenReturn(activeProduct());
+        when(locationMapper.selectOne(any())).thenReturn(activeLocation());
         when(inventoryBalanceMapper.selectOne(any())).thenReturn(null);
 
         new OpeningInventoryImportHandler(
                 support(),
                 warehouseMapper,
                 productMapper,
+                locationMapper,
                 inventoryBalanceMapper,
                 mock(InventoryTransactionMapper.class),
                 mock(InventoryPostingService.class)
         ).validate(1, Map.of(
                 "warehouse_code", "W001",
                 "product_code", "P001",
+                "location_code", "MAIN",
                 "qty_on_hand", "1.0000",
                 "amount_on_hand", "10.00",
                 "opening_date", "2026-06-08"
@@ -380,6 +387,11 @@ class ImportHandlersTenantBoundaryTest {
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
         verify(productMapper).selectOne(productWrapper.capture());
         assertTenantScoped(productWrapper.getValue());
+
+        ArgumentCaptor<LambdaQueryWrapper<LocationEntity>> locationWrapper =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(locationMapper).selectOne(locationWrapper.capture());
+        assertTenantScoped(locationWrapper.getValue());
 
         ArgumentCaptor<LambdaQueryWrapper<InventoryBalanceEntity>> balanceWrapper =
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
@@ -451,6 +463,20 @@ class ImportHandlersTenantBoundaryTest {
         entity.setDeletedFlag(0);
         entity.setLotControlled(0);
         entity.setShelfLifeControlled(0);
+        return entity;
+    }
+
+    private LocationEntity activeLocation() {
+        LocationEntity entity = new LocationEntity();
+        entity.setId(4501L);
+        entity.setCompanyId(COMPANY_ID);
+        entity.setAccountBookId(ACCOUNT_BOOK_ID);
+        entity.setWarehouseId(4301L);
+        entity.setLocationCode("MAIN");
+        entity.setLocationName("默认库位");
+        entity.setIsDefault(1);
+        entity.setStatus("ACTIVE");
+        entity.setDeletedFlag(0);
         return entity;
     }
 
