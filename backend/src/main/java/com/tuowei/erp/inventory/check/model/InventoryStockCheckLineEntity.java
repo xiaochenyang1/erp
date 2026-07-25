@@ -28,6 +28,7 @@ public class InventoryStockCheckLineEntity {
     private String lotNo;
     private LocalDate productionDate;
     private LocalDate expiryDate;
+    private String serialNos;
     private String remark;
     private Long createdBy;
     private LocalDateTime createdTime;
@@ -66,6 +67,8 @@ public class InventoryStockCheckLineEntity {
     public void setProductionDate(LocalDate productionDate) { this.productionDate = productionDate; }
     public LocalDate getExpiryDate() { return expiryDate; }
     public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
+    public String getSerialNos() { return serialNos; }
+    public void setSerialNos(String serialNos) { this.serialNos = serialNos; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
     public Long getCreatedBy() { return createdBy; }

@@ -101,6 +101,7 @@ class InventoryStockCheckUpdateControllerTest {
                         null,
                         null,
                         null,
+                        null,
                         "counted"
                 ))
         );

@@ -14,10 +14,11 @@ public record InventoryStockCheckLineRequest(
         LocalDate productionDate,
         LocalDate expiryDate,
         Long locationId,
+        String serialNos,
         String remark
 ) {
     public InventoryStockCheckLineRequest(Long productId, BigDecimal actualQty, BigDecimal unitCost, String remark) {
-        this(productId, actualQty, unitCost, null, null, null, null, remark);
+        this(productId, actualQty, unitCost, null, null, null, null, null, remark);
     }
 
     public InventoryStockCheckLineRequest(
@@ -29,6 +30,19 @@ public record InventoryStockCheckLineRequest(
             LocalDate expiryDate,
             String remark
     ) {
-        this(productId, actualQty, unitCost, lotNo, productionDate, expiryDate, null, remark);
+        this(productId, actualQty, unitCost, lotNo, productionDate, expiryDate, null, null, remark);
+    }
+
+    public InventoryStockCheckLineRequest(
+            Long productId,
+            BigDecimal actualQty,
+            BigDecimal unitCost,
+            String lotNo,
+            LocalDate productionDate,
+            LocalDate expiryDate,
+            Long locationId,
+            String remark
+    ) {
+        this(productId, actualQty, unitCost, lotNo, productionDate, expiryDate, locationId, null, remark);
     }
 }

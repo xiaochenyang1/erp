@@ -120,6 +120,7 @@ export const operationsPageMessages = {
       warehouse: '仓库',
       location: '库位',
       lotNo: '批次号',
+      serialNos: '序列号',
       productionDate: '生产日期',
       expiryDate: '失效日期',
       statusLabel: '状态',
@@ -147,6 +148,7 @@ export const operationsPageMessages = {
       ,
         expiryDate: '失效日期',
         productionDate: '生产日期',
+        serialNos: '多个序列号用逗号/分号/换行分隔',
         lotNo: '请输入批次号'},
       status: { counted: '已盘点', adjusted: '已调整', cancelled: '已取消' },
       action: {
@@ -576,6 +578,7 @@ export const operationsPageMessages = {
       warehouse: 'Warehouse',
       location: 'Location',
       lotNo: 'Lot no.',
+      serialNos: 'Serial nos.',
       productionDate: 'Production date',
       expiryDate: 'Expiry date',
       statusLabel: 'Status',
@@ -603,6 +606,7 @@ export const operationsPageMessages = {
       ,
         expiryDate: 'Expiry date',
         productionDate: 'Production date',
+        serialNos: 'Separate serials with comma, semicolon, or newline',
         lotNo: 'Enter a lot no.'},
       status: { counted: 'Counted', adjusted: 'Adjusted', cancelled: 'Cancelled' },
       action: {

@@ -16,6 +16,7 @@ public record InventoryStockCheckLineResponse(
         String lotNo,
         LocalDate productionDate,
         LocalDate expiryDate,
+        String serialNos,
         String remark
 ) {
 }

@@ -253,6 +253,15 @@
               <el-input v-model="row.lotNo" :placeholder="$t('inventoryChecks.placeholder.lotNo')" :disabled="isView" />
             </template>
           </el-table-column>
+          <el-table-column :label="$t('inventoryChecks.serialNos')" min-width="180">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.serialNos"
+                :placeholder="$t('inventoryChecks.placeholder.serialNos')"
+                :disabled="isView"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="$t('inventoryChecks.productionDate')" width="150">
             <template #default="{ row }">
               <el-date-picker v-model="row.productionDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('inventoryChecks.placeholder.productionDate')" :disabled="isView" style="width: 100%" />
@@ -566,6 +575,7 @@ const handleWarehouseChange = async () => {
       lotNo: stock.lotNo || '',
       productionDate: stock.productionDate || '',
       expiryDate: stock.expiryDate || '',
+      serialNos: '',
       bookQuantity: stock.quantity,
       actualQuantity: undefined,
       difference: undefined,
@@ -586,6 +596,7 @@ const handleAddItem = () => {
     lotNo: '',
     productionDate: '',
     expiryDate: '',
+    serialNos: '',
     bookQuantity: 0,
     actualQuantity: undefined,
     difference: undefined,

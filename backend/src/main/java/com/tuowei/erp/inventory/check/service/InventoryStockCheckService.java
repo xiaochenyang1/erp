@@ -127,6 +127,7 @@ public class InventoryStockCheckService {
             line.setLotNo(requestLine.lotNo());
             line.setProductionDate(requestLine.productionDate());
             line.setExpiryDate(requestLine.expiryDate());
+            line.setSerialNos(requestLine.serialNos());
             line.setRemark(requestLine.remark());
             fillCreateAudit(line, audit, now);
             lineMapper.insert(line);
@@ -159,7 +160,7 @@ public class InventoryStockCheckService {
                         line.getProductionDate(),
                         line.getExpiryDate(),
                         line.getLocationId(),
-                        null,
+                        line.getSerialNos(),
                         line.getRemark()
                 ))
                 .toList();
@@ -222,6 +223,7 @@ public class InventoryStockCheckService {
             if (requestLine.locationId() != null) {
                 line.setLocationId(requestLine.locationId());
             }
+            line.setSerialNos(requestLine.serialNos());
             line.setRemark(requestLine.remark());
             line.setUpdatedBy(audit.userId());
             line.setUpdatedTime(audit.now());
@@ -375,6 +377,7 @@ public class InventoryStockCheckService {
                         line.getLotNo(),
                         line.getProductionDate(),
                         line.getExpiryDate(),
+                        line.getSerialNos(),
                         line.getRemark()
                 ))
                 .toList();

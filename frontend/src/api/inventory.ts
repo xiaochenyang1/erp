@@ -636,6 +636,7 @@ export interface InventoryCheckItem {
   lotNo?: string
   productionDate?: string
   expiryDate?: string
+  serialNos?: string
   remark?: string
 }
 
@@ -652,6 +653,7 @@ export interface InventoryCheckLineResponse {
   lotNo?: string
   productionDate?: string
   expiryDate?: string
+  serialNos?: string
   remark?: string
 }
 
@@ -737,6 +739,7 @@ const toStockCheckLinePayload = (item: InventoryCheckItem) => ({
   productionDate: item.productionDate,
   expiryDate: item.expiryDate,
   locationId: item.locationId || undefined,
+  serialNos: item.serialNos || undefined,
   remark: item.remark
 })
 
@@ -756,6 +759,7 @@ const normalizeInventoryCheck = (check: InventoryCheck): InventoryCheck => {
       lotNo: line.lotNo,
       productionDate: line.productionDate,
       expiryDate: line.expiryDate,
+      serialNos: line.serialNos,
       remark: line.remark
     }))
   }
