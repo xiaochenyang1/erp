@@ -50,9 +50,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('financeReportPages.common.summary')" min-width="180" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="320" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="380" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">{{ $t('financeReportPages.common.view') }}</el-button>
+            <el-button link type="primary" @click="handlePrint(row)">{{ $t('financeReportPages.common.print') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'finance:voucher:manage'"
@@ -316,6 +317,7 @@ import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { formatLocalizedNumber } from '@/utils/locale'
+import { printVoucher } from '@/utils/bizPrint'
 import {
   approveManualVoucher,
   cancelManualVoucher,
@@ -649,6 +651,21 @@ const openDetail = async (row: ManualVoucher) => {
     detailVisible.value = true
   } catch {
     ElMessage.error(t('financeReportPages.manualVouchers.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: ManualVoucher) => {
+  try {
+    const detail = await getManualVoucher(row.id)
+    printVoucher({
+      ...detail,
+      sourceType: 'MANUAL',
+      sourceTypeLabel: t('financeReportPages.manualVouchers.title'),
+      statusLabel: statusLabel(detail.status),
+      entries: detail.lines || []
+    })
+  } catch {
+    ElMessage.error(t('financeReportPages.manualVouchers.message.printLoadFailed'))
   }
 }
 

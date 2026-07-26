@@ -626,7 +626,8 @@ export const financeReportPageMessages = {
           cancelFailed: '作废失败',
           rejected: '已驳回',
           rejectFailed: '驳回失败',
-          detailLoadFailed: '加载凭证详情失败'
+          detailLoadFailed: '加载凭证详情失败',
+          printLoadFailed: '加载打印数据失败'
         }
       },
       reports: {
@@ -1021,7 +1022,8 @@ export const financeReportPageMessages = {
           postTitle: 'Post voucher', posted: 'Voucher posted', postFailed: 'Failed to post the voucher',
           deleteConfirm: 'Delete draft voucher {no}?', deleteTitle: 'Delete draft', deleted: 'Voucher deleted',
           deleteFailed: 'Failed to delete the voucher', cancelled: 'Voucher voided and reversal created', cancelFailed: 'Failed to void the voucher',
-          rejected: 'Voucher rejected', rejectFailed: 'Failed to reject the voucher', detailLoadFailed: 'Failed to load voucher details'
+          rejected: 'Voucher rejected', rejectFailed: 'Failed to reject the voucher', detailLoadFailed: 'Failed to load voucher details',
+          printLoadFailed: 'Failed to load print data'
         }
       },
       reports: {
