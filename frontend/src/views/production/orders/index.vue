@@ -118,7 +118,7 @@
               {{ t('productionOrder.release') }}
             </el-button>
             <el-button
-              v-if="row.status === 'RELEASED'"
+              v-if="row.status === 'RELEASED' || row.status === 'MATERIAL_ISSUED'"
               v-permission="'production:order:issue'"
               type="primary"
               link
@@ -547,6 +547,109 @@
       </template>
     </el-dialog>
 
+
+    <!-- 生产领料对话框 -->
+    <el-dialog v-model="issueDialogVisible" :title="t('productionOrder.issueTitle')" width="980px">
+      <el-form :model="issueForm" label-width="110px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item :label="t('productionOrder.issueDate')">
+              <el-date-picker
+                v-model="issueForm.issueDate"
+                type="date"
+                :placeholder="t('productionOrder.selectDate')"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('productionOrder.remark')">
+              <el-input v-model="issueForm.remark" :placeholder="t('productionOrder.remarkPlaceholder')" clearable />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-table :data="issueForm.materials" border stripe>
+          <el-table-column prop="materialCode" :label="t('productionOrder.materialCode')" width="140" />
+          <el-table-column prop="materialName" :label="t('productionOrder.materialName')" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="requiredQuantity" :label="t('productionOrder.requiredQuantity')" width="110" align="right" />
+          <el-table-column prop="issuedQuantity" :label="t('productionOrder.issuedQuantity')" width="110" align="right" />
+          <el-table-column :label="t('productionOrder.remainingQuantity')" width="110" align="right">
+            <template #default="{ row }">{{ row.remainingQty }}</template>
+          </el-table-column>
+          <el-table-column :label="t('productionOrder.currentIssue')" width="170">
+            <template #default="{ row }">
+              <el-input-number
+                v-model="row.issueQty"
+                :min="0"
+                :max="row.remainingQty"
+                :precision="2"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('productionOrder.lotNo')" width="140">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.lotNo"
+                clearable
+                :placeholder="row.lotControlled
+                  ? t('productionOrder.lotNoPlaceholder')
+                  : t('productionOrder.remarkPlaceholder')"
+                :disabled="row.lotControlled === false"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('productionOrder.location')" width="160">
+            <template #default="{ row }">
+              <el-select v-model="row.locationId" clearable filterable :placeholder="t('productionOrder.selectLocation')" style="width: 100%">
+                <el-option
+                  v-for="location in materialLocations"
+                  :key="location.id"
+                  :label="`${location.locationCode} ${location.locationName}`"
+                  :value="location.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('productionOrder.serialNos')" min-width="200">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.serialNos"
+                type="textarea"
+                :rows="row.serialControlled ? 2 : 1"
+                clearable
+                :placeholder="row.serialControlled
+                  ? t('productionOrder.serialNosPlaceholder')
+                  : t('productionOrder.remarkPlaceholder')"
+                :disabled="row.serialControlled === false"
+              />
+              <div
+                v-if="row.serialControlled"
+                class="serial-progress"
+                :class="{ 'serial-progress--ok': serialCaptureProgress(row.serialNos, row.issueQty).complete }"
+              >
+                {{ t('productionOrder.serialProgress', serialCaptureProgress(row.serialNos, row.issueQty)) }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('productionOrder.remark')" min-width="160">
+            <template #default="{ row }">
+              <el-input v-model="row.remark" clearable />
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-form>
+      <template #footer>
+        <el-button @click="issueDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleConfirmIssueMaterials">
+          {{ t('productionOrder.confirmIssue') }}
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 生产退料对话框 -->
     <el-dialog v-model="returnDialogVisible" :title="t('productionOrder.materialReturnTitle')" width="980px">
       <el-form :model="returnForm" label-width="110px">
@@ -761,6 +864,21 @@ interface ReturnMaterialRow extends ProductionOrderMaterial {
   remark?: string
 }
 
+interface IssueMaterialRow extends ProductionOrderMaterial {
+  remainingQty: number
+  issueQty: number
+  lotNo?: string
+  locationId?: string | number
+  serialNos?: string
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  serialControlled?: boolean
+  productCode?: string
+  productName?: string
+  quantity?: number
+  remark?: string
+}
+
 interface ProductControlFlags {
   lotControlled?: boolean
   shelfLifeControlled?: boolean
@@ -886,6 +1004,14 @@ const returnForm = reactive({
   returnDate: '',
   remark: '',
   materials: [] as ReturnMaterialRow[]
+})
+
+const issueDialogVisible = ref(false)
+const issueForm = reactive({
+  orderId: '' as string | number,
+  issueDate: '',
+  remark: '',
+  materials: [] as IssueMaterialRow[]
 })
 
 const productControlFromOptions = (productId?: string | number): ProductControlFlags => {
@@ -1072,19 +1198,101 @@ const handleRelease = async (row: ProductionOrder) => {
 // 领料
 const handleIssue = async (row: ProductionOrder) => {
   try {
-    await ElMessageBox.confirm(t('productionOrder.message.issueConfirm', { orderNo: row.orderNo }), t('productionOrder.message.prompt'), {
-      type: 'warning'
-    })
-    await issueProductionOrder(row.id, {
-      issueDate: row.planStartDate || formatBusinessDate(),
-      remark: t('productionOrder.issueRemark')
+    const order = await getProductionOrder(row.id)
+    const issuableMaterials = (order.materials || [])
+      .map((material) => {
+        const remainingQty = Math.max(
+          Number(material.requiredQuantity || 0) - Number(material.issuedQuantity || 0),
+          0
+        )
+        const productId = material.materialProductId ?? material.materialId
+        const controls = productControlFromOptions(productId)
+        return {
+          ...material,
+          remainingQty,
+          issueQty: remainingQty,
+          lotNo: '',
+          locationId: undefined,
+          serialNos: '',
+          remark: '',
+          productCode: controls.productCode || material.materialCode,
+          productName: controls.productName || material.materialName,
+          lotControlled: controls.lotControlled,
+          shelfLifeControlled: controls.shelfLifeControlled,
+          serialControlled: controls.serialControlled
+        } as IssueMaterialRow
+      })
+      .filter((material) => Number(material.remainingQty || 0) > 0)
+
+    if (issuableMaterials.length === 0) {
+      ElMessage.warning(t('productionOrder.message.noIssuableMaterials'))
+      return
+    }
+
+    issueForm.orderId = order.id
+    issueForm.issueDate = order.actualStartDate || order.planStartDate || formatBusinessDate()
+    issueForm.remark = t('productionOrder.issueRemark')
+    issueForm.materials = issuableMaterials
+    issueDialogVisible.value = true
+    void loadMaterialLocations(order.materialWarehouseId || order.warehouseId)
+  } catch (error) {
+    ElMessage.error(t('productionOrder.message.issuableLoadFailed'))
+  }
+}
+
+const handleConfirmIssueMaterials = async () => {
+  const selectedMaterials = issueForm.materials.filter((material) => Number(material.issueQty || 0) > 0)
+  if (selectedMaterials.length === 0) {
+    ElMessage.warning(t('productionOrder.validation.issueQuantity'))
+    return
+  }
+
+  const controlIssues = validateProductControlLines(selectedMaterials.map((material) => ({
+    productId: material.materialProductId ?? material.materialId,
+    productCode: material.productCode || material.materialCode,
+    productName: material.productName || material.materialName,
+    quantity: material.issueQty,
+    lotNo: material.lotNo,
+    serialNos: material.serialNos,
+    lotControlled: material.lotControlled,
+    shelfLifeControlled: material.shelfLifeControlled,
+    serialControlled: material.serialControlled
+  })))
+  if (controlIssues.length > 0) {
+    const issue = controlIssues[0]
+    const product = issue.productCode || issue.productName || String(issue.productId)
+    ElMessage.warning(t(`productionOrder.validation.${issue.messageKey}`, {
+      line: issue.index + 1,
+      product,
+      expected: issue.expectedSerialCount,
+      actual: issue.actualSerialCount
+    }))
+    return
+  }
+
+  const lines = selectedMaterials.map((material) => ({
+    orderMaterialId: material.id,
+    issueQty: material.issueQty,
+    lotNo: material.lotNo || undefined,
+    locationId: material.locationId || undefined,
+    serialNos: material.serialNos || undefined,
+    remark: material.remark || undefined
+  }))
+
+  submitLoading.value = true
+  try {
+    await issueProductionOrder(issueForm.orderId, {
+      issueDate: issueForm.issueDate,
+      remark: issueForm.remark || undefined,
+      lines
     })
     ElMessage.success(t('productionOrder.message.issued'))
+    issueDialogVisible.value = false
     loadData()
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('productionOrder.message.issueFailed'))
-    }
+    ElMessage.error(t('productionOrder.message.issueFailed'))
+  } finally {
+    submitLoading.value = false
   }
 }
 
