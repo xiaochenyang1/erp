@@ -768,7 +768,12 @@ const messageSource = {
       scanComplete: ['扫描完成，命中 {count} 条', 'Scan complete with {count} hits'],
       disabled: ['规则已停用', 'Rule disabled'],
       enabled: ['规则已启用', 'Rule enabled'],
-      saved: ['规则配置已保存', 'Rule configuration saved']
+      saved: ['规则配置已保存', 'Rule configuration saved'],
+      rulesLoadFailed: ['加载异常规则失败', 'Failed to load exception rules'],
+      hitsLoadFailed: ['加载规则命中失败', 'Failed to load rule hits'],
+      scanFailed: ['扫描失败', 'Scan failed'],
+      toggleFailed: ['启停规则失败', 'Failed to toggle the rule'],
+      saveFailed: ['保存规则配置失败', 'Failed to save rule configuration']
     }
   },
   exceptionSlaPolicy: {

@@ -185,7 +185,7 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         class="pagination"
-        @size-change="handleRulePageChange"
+        @size-change="handleRuleSizeChange"
         @current-change="handleRulePageChange"
       />
     </el-card>
@@ -280,7 +280,7 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         class="pagination"
-        @size-change="handleHitPageChange"
+        @size-change="handleHitSizeChange"
         @current-change="handleHitPageChange"
       />
     </el-card>
@@ -349,7 +349,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -366,7 +366,6 @@ import {
   Tickets,
   Warning
 } from '@element-plus/icons-vue'
-import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   disableExceptionRule,
   enableExceptionRule,
@@ -375,86 +374,93 @@ import {
   scanAllExceptionRules,
   scanExceptionRule,
   updateExceptionRule,
-  type ExceptionRule,
-  type ExceptionRuleHit,
-  type ExceptionRuleHitQuery,
-  type ExceptionRuleQuery,
-  type ExceptionRuleScanResult,
-  type ExceptionRuleUpdateRequest
+  type ExceptionRuleHit
 } from '@/api/exceptionRule'
-
-type Option = { label: string; value: string }
-type EnabledFilter = '' | 'true' | 'false'
+import { useExceptionRulePresentation } from '@/composables/useExceptionRulePresentation'
+import { useExceptionRuleList } from '@/composables/useExceptionRuleList'
+import { useExceptionRuleForm } from '@/composables/useExceptionRuleForm'
 
 const router = useRouter()
 const { t } = useI18n()
-
-const ruleTypeOptions = computed<Option[]>(() => [
-  { label: t('exceptionRule.ruleTypes.lowStock'), value: 'LOW_STOCK' },
-  { label: t('exceptionRule.ruleTypes.receivableOverdue'), value: 'RECEIVABLE_OVERDUE' },
-  { label: t('exceptionRule.ruleTypes.payableOverdue'), value: 'PAYABLE_OVERDUE' },
-  { label: t('exceptionRule.ruleTypes.operationFailure'), value: 'OPERATION_FAILURE' }
-])
-
-const thresholdUnitOptions = computed<Option[]>(() => [
-  { label: t('exceptionRule.units.quantity'), value: 'QTY' },
-  { label: t('exceptionRule.units.days'), value: 'DAYS' },
-  { label: t('exceptionRule.units.minutes'), value: 'MINUTES' },
-  { label: t('exceptionRule.units.count'), value: 'COUNT' }
-])
-
-const priorityOptions = computed<Option[]>(() => [
-  { label: t('exceptionRule.priorities.low'), value: 'LOW' },
-  { label: t('exceptionRule.priorities.medium'), value: 'MEDIUM' },
-  { label: t('exceptionRule.priorities.high'), value: 'HIGH' },
-  { label: t('exceptionRule.priorities.urgent'), value: 'URGENT' }
-])
-
-const ruleQueryForm = reactive({
-  keyword: '',
-  ruleType: '',
-  enabled: '' as EnabledFilter
-})
-
-const hitQueryForm = reactive<ExceptionRuleHitQuery>({
-  ruleType: '',
-  sourceNo: '',
-  ticketId: undefined
-})
-
-const rulePagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const hitPagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const ruleLoading = ref(false)
-const hitLoading = ref(false)
-const scanAllLoading = ref(false)
-const scanRuleLoadingId = ref<string>()
-const toggleLoadingId = ref<string>()
-const editSubmitting = ref(false)
-
-const ruleData = ref<ExceptionRule[]>([])
-const hitData = ref<ExceptionRuleHit[]>([])
-const scanResults = ref<ExceptionRuleScanResult[]>([])
-
-const editDialogVisible = ref(false)
 const editFormRef = ref<FormInstance>()
-const editTarget = ref<ExceptionRule>()
-const editForm = reactive<ExceptionRuleUpdateRequest>({
-  thresholdValue: undefined,
-  thresholdUnit: '',
-  priority: '',
-  assigneeUserId: undefined,
-  scheduleIntervalMinutes: 60,
-  remark: ''
+
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
+}
+
+const {
+  handleHitPageChange,
+  handleHitQuery,
+  handleHitReset,
+  handleHitSizeChange,
+  handleRulePageChange,
+  handleRuleQuery,
+  handleRuleReset,
+  handleRuleSizeChange,
+  handleScanAll,
+  handleScanRule,
+  handleToggleRule,
+  hitData,
+  hitLoading,
+  hitPagination,
+  hitQueryForm,
+  loadHits,
+  loadRules,
+  ruleData,
+  ruleLoading,
+  rulePagination,
+  ruleQueryForm,
+  scanAllLoading,
+  scanResults,
+  scanRuleLoadingId,
+  toggleLoadingId,
+  totalScanDuplicates,
+  totalScanHits,
+  totalScanTickets
+} = useExceptionRuleList(t, {
+  getRules: getExceptionRules,
+  getHits: getExceptionRuleHits,
+  scanRule: scanExceptionRule,
+  scanAll: scanAllExceptionRules,
+  enableRule: enableExceptionRule,
+  disableRule: disableExceptionRule,
+  ...notify
+})
+
+const {
+  formatDateTime,
+  priorityLabel,
+  priorityOptions,
+  priorityType,
+  ruleTypeLabel,
+  ruleTypeOptions,
+  scanStatusLabel,
+  scanStatusType,
+  summaryItems,
+  thresholdLabel,
+  thresholdUnitOptions
+} = useExceptionRulePresentation(t, ruleData, {
+  circleCheck: CircleCheck,
+  circleClose: CircleClose,
+  warning: Warning,
+  tickets: Tickets,
+  finished: Finished
+})
+
+const {
+  editDialogVisible,
+  editForm,
+  editSubmitting,
+  editTarget,
+  handleSaveEdit: saveEdit,
+  openEditDialog
+} = useExceptionRuleForm(t, {
+  updateRule: updateExceptionRule,
+  onSubmitted: loadRules,
+  onError: notify.onError,
+  onSuccess: notify.onSuccess
 })
 
 const editRules = computed<FormRules>(() => ({
@@ -464,189 +470,10 @@ const editRules = computed<FormRules>(() => ({
   scheduleIntervalMinutes: [{ required: true, message: t('exceptionRule.validation.scanInterval'), trigger: 'blur' }]
 }))
 
-const summaryItems = computed(() => [
-  {
-    label: t('exceptionRule.summary.enabledRules'),
-    value: ruleData.value.filter((item) => item.enabled).length,
-    icon: CircleCheck,
-    tone: 'green'
-  },
-  {
-    label: t('exceptionRule.summary.disabledRules'),
-    value: ruleData.value.filter((item) => !item.enabled).length,
-    icon: CircleClose,
-    tone: 'gray'
-  },
-  {
-    label: t('exceptionRule.summary.recentHits'),
-    value: ruleData.value.reduce((sum, item) => sum + (item.lastHitCount || 0), 0),
-    icon: Warning,
-    tone: 'orange'
-  },
-  {
-    label: t('exceptionRule.summary.newTickets'),
-    value: ruleData.value.reduce((sum, item) => sum + (item.lastTicketCreatedCount || 0), 0),
-    icon: Tickets,
-    tone: 'blue'
-  },
-  {
-    label: t('exceptionRule.summary.scanFailures'),
-    value: ruleData.value.filter((item) => item.lastScanStatus === 'FAILED').length,
-    icon: Finished,
-    tone: 'red'
-  }
-])
-
-const totalScanHits = computed(() => scanResults.value.reduce((sum, item) => sum + item.hitCount, 0))
-const totalScanTickets = computed(() => scanResults.value.reduce((sum, item) => sum + item.ticketCreatedCount, 0))
-const totalScanDuplicates = computed(() => scanResults.value.reduce((sum, item) => sum + item.duplicateTicketCount, 0))
-
-const loadRules = async () => {
-  ruleLoading.value = true
-  try {
-    const page = await getExceptionRules(buildRuleQueryParams())
-    ruleData.value = page.records || []
-    rulePagination.total = page.total || 0
-  } finally {
-    ruleLoading.value = false
-  }
-}
-
-const loadHits = async () => {
-  hitLoading.value = true
-  try {
-    const page = await getExceptionRuleHits(buildHitQueryParams())
-    hitData.value = page.records || []
-    hitPagination.total = page.total || 0
-  } finally {
-    hitLoading.value = false
-  }
-}
-
-const buildRuleQueryParams = (): ExceptionRuleQuery => ({
-  keyword: ruleQueryForm.keyword?.trim() || undefined,
-  ruleType: ruleQueryForm.ruleType || undefined,
-  enabled: ruleQueryForm.enabled === '' ? undefined : ruleQueryForm.enabled === 'true',
-  pageNo: rulePagination.page,
-  pageSize: rulePagination.size
-})
-
-const buildHitQueryParams = (): ExceptionRuleHitQuery => ({
-  ruleType: hitQueryForm.ruleType || undefined,
-  sourceNo: hitQueryForm.sourceNo?.trim() || undefined,
-  ticketId: normalizeOptionalId(hitQueryForm.ticketId),
-  pageNo: hitPagination.page,
-  pageSize: hitPagination.size
-})
-
-const handleRuleQuery = () => {
-  rulePagination.page = 1
-  loadRules()
-}
-
-const handleRuleReset = () => {
-  ruleQueryForm.keyword = ''
-  ruleQueryForm.ruleType = ''
-  ruleQueryForm.enabled = ''
-  rulePagination.page = 1
-  loadRules()
-}
-
-const handleRulePageChange = () => {
-  loadRules()
-}
-
-const handleHitQuery = () => {
-  hitPagination.page = 1
-  loadHits()
-}
-
-const handleHitReset = () => {
-  hitQueryForm.ruleType = ''
-  hitQueryForm.sourceNo = ''
-  hitQueryForm.ticketId = undefined
-  hitPagination.page = 1
-  loadHits()
-}
-
-const handleHitPageChange = () => {
-  loadHits()
-}
-
-const handleScanRule = async (row: ExceptionRule) => {
-  if (!row.enabled) {
-    ElMessage.warning(t('exceptionRule.message.ruleDisabled'))
-    return
-  }
-  scanRuleLoadingId.value = row.id
-  try {
-    const result = await scanExceptionRule(row.id)
-    scanResults.value = [result]
-    ElMessage.success(t('exceptionRule.message.scanComplete', { count: result.hitCount }))
-    await Promise.all([loadRules(), loadHits()])
-  } finally {
-    scanRuleLoadingId.value = undefined
-  }
-}
-
-const handleScanAll = async () => {
-  scanAllLoading.value = true
-  try {
-    scanResults.value = await scanAllExceptionRules()
-    ElMessage.success(t('exceptionRule.message.scanComplete', { count: totalScanHits.value }))
-    await Promise.all([loadRules(), loadHits()])
-  } finally {
-    scanAllLoading.value = false
-  }
-}
-
-const handleToggleRule = async (row: ExceptionRule) => {
-  toggleLoadingId.value = row.id
-  try {
-    if (row.enabled) {
-      await disableExceptionRule(row.id)
-      ElMessage.success(t('exceptionRule.message.disabled'))
-    } else {
-      await enableExceptionRule(row.id)
-      ElMessage.success(t('exceptionRule.message.enabled'))
-    }
-    await loadRules()
-  } finally {
-    toggleLoadingId.value = undefined
-  }
-}
-
-const openEditDialog = (row: ExceptionRule) => {
-  editTarget.value = row
-  editForm.thresholdValue = Number(row.thresholdValue || 0)
-  editForm.thresholdUnit = row.thresholdUnit
-  editForm.priority = row.priority
-  editForm.assigneeUserId = row.assigneeUserId
-  editForm.scheduleIntervalMinutes = row.scheduleIntervalMinutes || 60
-  editForm.remark = row.remark || ''
-  editDialogVisible.value = true
-}
-
 const handleSaveEdit = async () => {
-  if (!editTarget.value) return
   const valid = await editFormRef.value?.validate().catch(() => false)
   if (!valid) return
-  editSubmitting.value = true
-  try {
-    await updateExceptionRule(editTarget.value.id, {
-      thresholdValue: editForm.thresholdValue,
-      thresholdUnit: editForm.thresholdUnit,
-      priority: editForm.priority,
-      assigneeUserId: normalizeOptionalId(editForm.assigneeUserId),
-      scheduleIntervalMinutes: editForm.scheduleIntervalMinutes,
-      remark: editForm.remark?.trim() || undefined
-    })
-    ElMessage.success(t('exceptionRule.message.saved'))
-    editDialogVisible.value = false
-    await loadRules()
-  } finally {
-    editSubmitting.value = false
-  }
+  await saveEdit()
 }
 
 const openTicket = (row: ExceptionRuleHit) => {
@@ -654,59 +481,6 @@ const openTicket = (row: ExceptionRuleHit) => {
     path: '/exception-tickets',
     query: row.sourceNo ? { sourceNo: row.sourceNo } : undefined
   })
-}
-
-const ruleTypeLabel = (value?: string) => {
-  return ruleTypeOptions.value.find((item) => item.value === value)?.label || value || '-'
-}
-
-const priorityLabel = (value?: string) => {
-  return priorityOptions.value.find((item) => item.value === value)?.label || value || '-'
-}
-
-const thresholdUnitLabel = (value?: string) => {
-  return thresholdUnitOptions.value.find((item) => item.value === value)?.label || value || '-'
-}
-
-const thresholdLabel = (row: ExceptionRule) => {
-  return `${row.thresholdValue ?? 0} ${thresholdUnitLabel(row.thresholdUnit)}`
-}
-
-const priorityType = (value?: string) => {
-  const typeMap: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
-    LOW: 'info',
-    MEDIUM: 'primary',
-    HIGH: 'warning',
-    URGENT: 'danger'
-  }
-  return value ? typeMap[value] || 'info' : 'info'
-}
-
-const scanStatusLabel = (value?: string) => {
-  const labels: Record<string, string> = {
-    SUCCESS: t('exceptionRule.scanStatuses.success'),
-    FAILED: t('exceptionRule.scanStatuses.failed'),
-    SKIPPED: t('exceptionRule.scanStatuses.skipped')
-  }
-  return value ? labels[value] || value : '-'
-}
-
-const scanStatusType = (value?: string) => {
-  const typeMap: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
-    SUCCESS: 'success',
-    FAILED: 'danger',
-    SKIPPED: 'info'
-  }
-  return value ? typeMap[value] || 'info' : 'info'
-}
-
-const formatDateTime = (value?: string) => {
-  return formatLocalizedDateTime(value) || '-'
-}
-
-const normalizeOptionalId = (value?: string | number) => {
-  const normalized = value == null ? '' : String(value).trim()
-  return normalized || undefined
 }
 
 onMounted(async () => {
