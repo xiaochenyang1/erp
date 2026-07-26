@@ -162,8 +162,8 @@
         :total="pagination.total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadData"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
         style="margin-top: 20px; justify-content: flex-end"
       />
     </el-card>
@@ -339,10 +339,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { formatBusinessDate, formatLocalizedNumber } from '@/utils/locale'
 import { printExpense } from '@/utils/bizPrint'
 import {
   CircleCheck,
@@ -369,53 +368,103 @@ import {
   rejectExpense,
   reverseExpense,
   submitExpense,
-  updateExpense,
-  type AccountSubject,
-  type Expense,
-  type ExpenseReconciliation
+  updateExpense
 } from '@/api/finance'
+import { useExpensePresentation } from '@/composables/useExpensePresentation'
+import { useExpenseList } from '@/composables/useExpenseList'
+import { useExpenseForm } from '@/composables/useExpenseForm'
 
 const { t } = useI18n()
-let queryForm = reactive({
-  status: '',
-  dateFrom: '',
-  dateTo: ''
-})
-const dateRange = ref<string[]>([])
-const loading = ref(false)
-const tableData = ref<Expense[]>([])
-const subjectOptions = ref<AccountSubject[]>([])
-const dialogVisible = ref(false)
-const submitLoading = ref(false)
+
 const formRef = ref<FormInstance>()
-const viewDialogVisible = ref(false)
-const viewData = ref<Expense>({} as Expense)
-const rejectDialogVisible = ref(false)
-const reconciliationDialogVisible = ref(false)
-const reconciliationLoading = ref(false)
-const reconciliationData = ref<ExpenseReconciliation>()
 
-const pagination = reactive({
-  pageNo: 1,
-  pageSize: 20,
-  total: 0
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
+}
+
+const {
+  dateRange,
+  handleApprove,
+  handleCancel,
+  handlePageChange,
+  handlePost,
+  handlePrint,
+  handleQuery,
+  handleReconciliation,
+  handleReset,
+  handleReverse,
+  handleSizeChange,
+  handleSubmit,
+  handleView,
+  loadData,
+  loadSubjects,
+  loading,
+  pagination,
+  queryForm,
+  reconciliationData,
+  reconciliationDialogVisible,
+  reconciliationLoading,
+  subjectOptions,
+  tableData,
+  viewData,
+  viewDialogVisible
+} = useExpenseList(t, {
+  getExpenses,
+  getExpense,
+  getSubjectTree: getAccountSubjectTree,
+  getReconciliation: getExpenseReconciliation,
+  submitExpense,
+  approveExpense,
+  postExpense,
+  reverseExpense,
+  cancelExpense,
+  printExpense,
+  decoratePrint: (detail) => ({
+    ...detail,
+    subjectName: rawSubjectName(detail.subjectId) || String(detail.subjectId),
+    paymentSubjectName: rawSubjectName(detail.paymentSubjectId) || String(detail.paymentSubjectId)
+  }),
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  onError: notify.onError,
+  onSuccess: notify.onSuccess
 })
 
-const formData = reactive({
-  id: '' as string | number,
-  subjectId: '',
-  paymentSubjectId: '',
-  expenseDate: '',
-  amount: 0,
-  remark: ''
-})
-const dialogTitle = computed(() => formData.id
-  ? t('financeReportPages.expenses.editTitle')
-  : t('financeReportPages.expenses.createTitle'))
+const {
+  checkLabel,
+  checkTagType,
+  expenseSubjects,
+  formatAmount,
+  getStatusLabel,
+  getStatusType,
+  paymentSubjects,
+  rawSubjectName,
+  reconciliationPassed,
+  subjectLabel,
+  subjectName
+} = useExpensePresentation(t, { subjects: subjectOptions, reconciliation: reconciliationData })
 
-const rejectForm = reactive({
-  id: '' as string | number,
-  reason: ''
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleAdd,
+  handleConfirmReject,
+  handleEdit,
+  handleReject,
+  handleSave: save,
+  rejectDialogVisible,
+  rejectForm,
+  resetForm,
+  submitLoading
+} = useExpenseForm(t, {
+  getExpense,
+  createExpense,
+  updateExpense,
+  rejectExpense,
+  onSubmitted: loadData,
+  ...notify
 })
 
 const formRules = computed<FormRules>(() => ({
@@ -425,250 +474,11 @@ const formRules = computed<FormRules>(() => ({
   amount: [{ required: true, message: t('financeReportPages.expenses.validation.amount'), trigger: 'blur' }]
 }))
 
-const subjectMap = computed(() => new Map(subjectOptions.value.map((subject) => [String(subject.id), subject])))
-const expenseSubjects = computed(() => subjectOptions.value.filter((subject) => subject.status === 'ACTIVE' && subject.category === 'EXPENSE'))
-const paymentSubjects = computed(() =>
-  subjectOptions.value.filter((subject) => subject.status === 'ACTIVE' && ['ASSET', 'LIABILITY'].includes(String(subject.category)))
-)
-const reconciliationPassed = computed(() => {
-  const data = reconciliationData.value
-  if (!data) return false
-  const reversalPassed = !data.reversed || (data.reversalVoucherBalanced && data.reversalAmountMatched)
-  return !data.voucherMissing && !data.entriesMissing && data.voucherBalanced && data.amountMatched && data.voucherLinkedToExpense && reversalPassed
-})
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getExpenses({
-      pageNo: pagination.pageNo,
-      pageSize: pagination.pageSize,
-      status: queryForm.status || undefined,
-      dateFrom: queryForm.dateFrom || undefined,
-      dateTo: queryForm.dateTo || undefined
-    })
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.expenses.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadSubjects = async () => {
-  try {
-    const subjects = await getAccountSubjectTree()
-    subjectOptions.value = flattenSubjects(subjects || [])
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.expenses.message.subjectsLoadFailed'))
-  }
-}
-
-const handleQuery = () => {
-  if (dateRange.value?.length === 2) {
-    queryForm.dateFrom = dateRange.value[0]
-    queryForm.dateTo = dateRange.value[1]
-  } else {
-    queryForm.dateFrom = ''
-    queryForm.dateTo = ''
-  }
-  pagination.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  Object.assign(queryForm, { status: '', dateFrom: '', dateTo: '' })
-  dateRange.value = []
-  pagination.pageNo = 1
-  loadData()
-}
-
-const handleAdd = () => {
-  resetForm()
-  formData.expenseDate = today()
-  dialogVisible.value = true
-}
-
-const handleEdit = async (row: Expense) => {
-  try {
-    const expense = await getExpense(row.id)
-    Object.assign(formData, {
-      id: expense.id,
-      subjectId: String(expense.subjectId),
-      paymentSubjectId: String(expense.paymentSubjectId),
-      expenseDate: expense.expenseDate,
-      amount: Number(expense.amount || 0),
-      remark: expense.remark || ''
-    })
-    dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.expenses.message.detailLoadFailed'))
-  }
-}
-
-const handleView = async (row: Expense) => {
-  try {
-    viewData.value = await getExpense(row.id)
-    viewDialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.expenses.message.detailLoadFailed'))
-  }
-}
-
-const handlePrint = async (row: Expense) => {
-  try {
-    const detail = await getExpense(row.id)
-    const expenseSubject = subjectOptions.value.find((subject) => String(subject.id) === String(detail.subjectId))
-    const paymentSubject = subjectOptions.value.find((subject) => String(subject.id) === String(detail.paymentSubjectId))
-    printExpense({
-      ...detail,
-      subjectName: expenseSubject?.subjectName || expenseSubject?.name || detail.subjectId,
-      paymentSubjectName: paymentSubject?.subjectName || paymentSubject?.name || detail.paymentSubjectId
-    })
-  } catch {
-    ElMessage.error(t('financeReportPages.expenses.message.printLoadFailed'))
-  }
-}
-
-const handleReconciliation = async (row: Expense) => {
-  reconciliationDialogVisible.value = true
-  reconciliationLoading.value = true
-  reconciliationData.value = undefined
-  try {
-    reconciliationData.value = await getExpenseReconciliation(row.id)
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.expenses.message.reconciliationLoadFailed'))
-  } finally {
-    reconciliationLoading.value = false
-  }
-}
-
-const handleSubmit = async (row: Expense) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.expenses.message.submitConfirm', { no: row.expenseNo }),
-      t('financeReportPages.common.prompt'),
-      { type: 'warning' }
-    )
-    await submitExpense(row.id)
-    ElMessage.success(t('financeReportPages.expenses.message.submitted'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.submitFailed'))
-  }
-}
-
-const handleApprove = async (row: Expense) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.expenses.message.approveConfirm', { no: row.expenseNo }),
-      t('financeReportPages.common.prompt'),
-      { type: 'warning' }
-    )
-    await approveExpense(row.id)
-    ElMessage.success(t('financeReportPages.expenses.message.approved'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.approveFailed'))
-  }
-}
-
-const handlePost = async (row: Expense) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.expenses.message.postConfirm', { no: row.expenseNo }),
-      t('financeReportPages.common.prompt'),
-      { type: 'warning' }
-    )
-    await postExpense(row.id)
-    ElMessage.success(t('financeReportPages.expenses.message.posted'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.postFailed'))
-  }
-}
-
-const handleReverse = async (row: Expense) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.expenses.message.reverseConfirm', { no: row.expenseNo }),
-      t('financeReportPages.common.prompt'),
-      { type: 'warning' }
-    )
-    await reverseExpense(row.id)
-    ElMessage.success(t('financeReportPages.expenses.message.reversed'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.reverseFailed'))
-  }
-}
-
-const handleCancel = async (row: Expense) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.expenses.message.cancelConfirm', { no: row.expenseNo }),
-      t('financeReportPages.common.prompt'),
-      { type: 'warning' }
-    )
-    await cancelExpense(row.id)
-    ElMessage.success(t('financeReportPages.expenses.message.cancelled'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') ElMessage.error(t('financeReportPages.expenses.message.cancelFailed'))
-  }
-}
-
-const handleReject = (row: Expense) => {
-  rejectForm.id = row.id
-  rejectForm.reason = ''
-  rejectDialogVisible.value = true
-}
-
-const handleConfirmReject = async () => {
-  if (!rejectForm.reason.trim()) {
-    ElMessage.warning(t('financeReportPages.expenses.message.rejectReasonRequired'))
-    return
-  }
-  submitLoading.value = true
-  try {
-    await rejectExpense(rejectForm.id, rejectForm.reason)
-    ElMessage.success(t('financeReportPages.expenses.message.rejected'))
-    rejectDialogVisible.value = false
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.expenses.message.rejectFailed'))
-  } finally {
-    submitLoading.value = false
-  }
-}
-
 const handleSave = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    submitLoading.value = true
-    try {
-      const payload = {
-        expenseDate: formData.expenseDate,
-        subjectId: formData.subjectId,
-        paymentSubjectId: formData.paymentSubjectId,
-        amount: formData.amount,
-        remark: formData.remark
-      }
-      if (formData.id) {
-        await updateExpense(formData.id, payload)
-      } else {
-        await createExpense(payload)
-      }
-      ElMessage.success(t('financeReportPages.expenses.message.saved'))
-      dialogVisible.value = false
-      loadData()
-    } catch (error) {
-      ElMessage.error(t('financeReportPages.expenses.message.saveFailed'))
-    } finally {
-      submitLoading.value = false
-    }
+    await save()
   })
 }
 
@@ -676,63 +486,6 @@ const handleDialogClose = () => {
   formRef.value?.clearValidate()
   resetForm()
 }
-
-const resetForm = () => {
-  Object.assign(formData, {
-    id: '',
-    subjectId: '',
-    paymentSubjectId: '',
-    expenseDate: '',
-    amount: 0,
-    remark: ''
-  })
-}
-
-const flattenSubjects = (subjects: AccountSubject[]): AccountSubject[] =>
-  subjects.flatMap((subject) => [subject, ...flattenSubjects(subject.children || [])])
-
-const subjectLabel = (subject: AccountSubject) => `${subject.code || subject.subjectCode} - ${subject.name || subject.subjectName}`
-
-const subjectName = (id?: string | number) => {
-  if (id == null) return '-'
-  const subject = subjectMap.value.get(String(id))
-  return subject ? subjectLabel(subject) : t('financeReportPages.expenses.subjectFallback', { id })
-}
-
-const formatAmount = (amount?: number) =>
-  formatLocalizedNumber(Number(amount || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-const checkLabel = (passed: boolean) => passed
-  ? t('financeReportPages.common.normal')
-  : t('financeReportPages.common.abnormal')
-
-const checkTagType = (passed: boolean): 'success' | 'danger' => (passed ? 'success' : 'danger')
-
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    DRAFT: t('financeReportPages.expenses.status.draft'),
-    PENDING: t('financeReportPages.expenses.status.pending'),
-    APPROVED: t('financeReportPages.expenses.status.approved'),
-    REJECTED: t('financeReportPages.expenses.status.rejected'),
-    POSTED: t('financeReportPages.expenses.status.posted'),
-    CANCELLED: t('financeReportPages.expenses.status.cancelled')
-  }
-  return map[status] || status
-}
-
-const getStatusType = (status: string) => {
-  const map: Record<string, 'success' | 'warning' | 'info' | 'danger' | 'primary'> = {
-    DRAFT: 'info',
-    PENDING: 'warning',
-    APPROVED: 'success',
-    REJECTED: 'danger',
-    POSTED: 'primary',
-    CANCELLED: 'info'
-  }
-  return map[status] || 'info'
-}
-
-const today = () => formatBusinessDate()
 
 onMounted(() => {
   loadSubjects()

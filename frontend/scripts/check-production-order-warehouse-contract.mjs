@@ -50,7 +50,13 @@ const dictView = readFileSync(resolve(root, 'src/views/system/dicts/index.vue'),
 const configView = readFileSync(resolve(root, 'src/views/system/configs/index.vue'), 'utf8')
 const salesReturnView = readFileSync(resolve(root, 'src/views/sales/returns/index.vue'), 'utf8')
 const financeApi = readFileSync(resolve(root, 'src/api/finance.ts'), 'utf8')
-const expenseView = readFileSync(resolve(root, 'src/views/finance/expenses/index.vue'), 'utf8')
+// 费用页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const expenseView = [
+  'src/views/finance/expenses/index.vue',
+  'src/composables/useExpensePresentation.ts',
+  'src/composables/useExpenseList.ts',
+  'src/composables/useExpenseForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const voucherView = readFileSync(resolve(root, 'src/views/finance/vouchers/index.vue'), 'utf8')
 const subjectView = readFileSync(resolve(root, 'src/views/finance/subjects/index.vue'), 'utf8')
 const ledgerView = readFileSync(resolve(root, 'src/views/finance/ledger/index.vue'), 'utf8')
