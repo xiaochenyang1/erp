@@ -330,3 +330,62 @@ export function printInventoryCheck(doc: any) {
   })
   printHtml(`库存盘点单 ${doc.checkNo}`, html)
 }
+
+export function printQcInspection(doc: any) {
+  const lines = doc.lines || doc.items || []
+  const html = buildDocPrintHtml({
+    title: '质检单',
+    docNo: doc.inspectionNo,
+    fields: [
+      ['检验类型', doc.inspectionType || '-'],
+      ['检验日期', doc.inspectionDate || '-'],
+      ['状态', doc.status || '-'],
+      ['来源收货', doc.receiptId || '-'],
+      ['来源发货', doc.deliveryId || '-'],
+      ['生产工单', doc.productionOrderId || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '商品ID', '检验数', '合格', '不合格', '原因', '备注'],
+    rows: lines.map((line: any, index: number) => [
+      String(line.lineNo ?? index + 1),
+      escapeHtml(line.productCode || line.productId || ''),
+      qty(line.inspectedQty ?? line.quantity ?? line.qty),
+      qty(line.qualifiedQty),
+      qty(line.unqualifiedQty),
+      escapeHtml(line.defectReason || ''),
+      escapeHtml(line.remark || '')
+    ]),
+    totals: [
+      ['检验合计', qty(doc.totalQty)],
+      ['合格合计', qty(doc.qualifiedQty)],
+      ['不合格合计', qty(doc.unqualifiedQty)]
+    ]
+  })
+  printHtml(`质检单 ${doc.inspectionNo}`, html)
+}
+
+export function printPurchaseInquiry(doc: any) {
+  const lines = doc.lines || doc.items || []
+  const html = buildDocPrintHtml({
+    title: '采购询价单',
+    docNo: doc.inquiryNo,
+    fields: [
+      ['标题', doc.title || '-'],
+      ['询价日期', doc.inquiryDate || '-'],
+      ['状态', doc.status || '-'],
+      ['中标供应商', doc.selectedSupplierName || doc.selectedSupplierId || '-'],
+      ['转采购订单', doc.convertedOrderNo || doc.convertedOrderId || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '数量', '备注'],
+    rows: lines.map((line: any, index: number) => [
+      String(index + 1),
+      escapeHtml(line.productCode || line.productId || ''),
+      escapeHtml(line.productName || ''),
+      qty(line.quantity ?? line.qty),
+      escapeHtml(line.remark || '')
+    ]),
+    totals: [['明细行数', String(lines.length)]]
+  })
+  printHtml(`采购询价单 ${doc.inquiryNo}`, html)
+}

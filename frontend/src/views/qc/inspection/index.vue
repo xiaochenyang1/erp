@@ -54,9 +54,10 @@
         <el-table-column prop="totalQty" :label="t('qcInspection.inspectedQuantity')" width="110" align="right" />
         <el-table-column prop="qualifiedQty" :label="t('qcInspection.qualifiedQuantity')" width="110" align="right" />
         <el-table-column prop="unqualifiedQty" :label="t('qcInspection.unqualifiedQuantity')" width="110" align="right" />
-        <el-table-column :label="t('qcInspection.actions')" width="340" fixed="right">
+        <el-table-column :label="t('qcInspection.actions')" width="400" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">{{ t('qcInspection.detail') }}</el-button>
+            <el-button link type="primary" @click="handlePrint(row)">{{ t('qcInspection.print') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'qc:inspection:update'"
@@ -288,6 +289,7 @@ import {
 import { getPurchaseReceipts, type PurchaseReceipt } from '@/api/purchase'
 import { getSalesDeliveries, type SalesDelivery } from '@/api/sales'
 import { downloadBlob } from '@/utils/download'
+import { printQcInspection } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 
@@ -705,6 +707,15 @@ const handleView = async (row: QcInspection) => {
     detailVisible.value = true
   } catch {
     ElMessage.error(t('qcInspection.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: QcInspection) => {
+  try {
+    const detail = await getQcInspection(row.id)
+    printQcInspection(detail)
+  } catch {
+    ElMessage.error(t('qcInspection.message.printLoadFailed'))
   }
 }
 

@@ -451,7 +451,7 @@ export const operationsPageMessages = {
       },
       quoteStatus: { pending: '待选', selected: '已中标', rejected: '未中标' },
       action: {
-        search: '查询', reset: '重置', create: '新建询价单', view: '详情', edit: '编辑',
+        search: '查询', reset: '重置', create: '新建询价单', view: '详情', print: '打印', edit: '编辑',
         submit: '提交', addQuote: '录入报价', selectWinner: '选定中标',
         createPurchaseOrder: '生成采购订单', viewPrefill: '查看预填', void: '作废',
         addLine: '添加行', delete: '删除', cancel: '取消', save: '保存', confirm: '确定',
@@ -477,7 +477,8 @@ export const operationsPageMessages = {
         voidConfirm: '确认作废询价单“{no}”吗？', voided: '已作废', quoteAdded: '报价已录入',
         winnerSelected: '已选定中标报价', orderCreated: '已创建采购订单草稿 {no}',
         createOrderConfirm: '确认根据询价单“{no}”创建采购订单草稿吗？',
-        copied: '已复制到剪贴板', copyFailed: '复制失败，请手动选择文本'
+        copied: '已复制到剪贴板', copyFailed: '复制失败，请手动选择文本',
+        printLoadFailed: '加载打印数据失败'
       }
     }
   },
@@ -942,7 +943,7 @@ export const operationsPageMessages = {
       },
       quoteStatus: { pending: 'Pending', selected: 'Selected', rejected: 'Rejected' },
       action: {
-        search: 'Search', reset: 'Reset', create: 'New inquiry', view: 'Details', edit: 'Edit',
+        search: 'Search', reset: 'Reset', create: 'New inquiry', view: 'Details', print: 'Print', edit: 'Edit',
         submit: 'Submit', addQuote: 'Add quote', selectWinner: 'Select winner',
         createPurchaseOrder: 'Create purchase order', viewPrefill: 'View prefill', void: 'Void',
         addLine: 'Add line', delete: 'Delete', cancel: 'Cancel', save: 'Save', confirm: 'Confirm',
@@ -968,7 +969,8 @@ export const operationsPageMessages = {
         quoteAdded: 'Quote added', winnerSelected: 'Winning quote selected',
         orderCreated: 'Purchase order draft {no} created',
         createOrderConfirm: 'Create a purchase order draft from inquiry “{no}”?',
-        copied: 'Copied to clipboard', copyFailed: 'Copy failed. Select and copy the text manually'
+        copied: 'Copied to clipboard', copyFailed: 'Copy failed. Select and copy the text manually',
+        printLoadFailed: 'Failed to load print data'
       }
     }
   }

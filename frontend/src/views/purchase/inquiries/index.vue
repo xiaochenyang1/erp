@@ -51,9 +51,10 @@
         <el-table-column prop="convertedOrderNo" :label="$t('purchaseInquiryOps.purchaseOrder')" min-width="160">
           <template #default="{ row }">{{ row.convertedOrderNo || '-' }}</template>
         </el-table-column>
-        <el-table-column :label="$t('purchaseInquiryOps.actions')" width="420" fixed="right">
+        <el-table-column :label="$t('purchaseInquiryOps.actions')" width="480" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">{{ $t('purchaseInquiryOps.action.view') }}</el-button>
+            <el-button link type="primary" @click="handlePrint(row)">{{ $t('purchaseInquiryOps.action.print') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'purchase:inquiry:manage'"
@@ -369,6 +370,7 @@ import {
 } from '@/api/purchase'
 import { getProducts, getSuppliers, type Product, type Supplier } from '@/api/masterdata'
 import { useUserStore } from '@/store/modules/user'
+import { printPurchaseInquiry } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 
@@ -799,6 +801,29 @@ const handleView = async (row: PurchaseInquiry) => {
     detailVisible.value = true
   } catch {
     // 拦截器已提示
+  }
+}
+
+const handlePrint = async (row: PurchaseInquiry) => {
+  try {
+    await loadOptions()
+    const detail = await getPurchaseInquiry(row.id)
+    const productMap = new Map(products.value.map((product) => [String(product.id), product]))
+    const supplier = suppliers.value.find((item) => String(item.id) === String(detail.selectedSupplierId))
+    printPurchaseInquiry({
+      ...detail,
+      selectedSupplierName: supplier?.supplierName || supplier?.name || detail.selectedSupplierId,
+      lines: (detail.lines || []).map((line) => {
+        const product = productMap.get(String(line.productId))
+        return {
+          ...line,
+          productCode: line.productCode || product?.productCode || product?.code || line.productId,
+          productName: line.productName || product?.productName || product?.name || ''
+        }
+      })
+    })
+  } catch {
+    ElMessage.error(t('purchaseInquiryOps.message.printLoadFailed'))
   }
 }
 
