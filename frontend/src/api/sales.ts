@@ -240,6 +240,8 @@ export interface SalesDeliveryQuery extends PageQuery {
   orderId?: string | number
   customerId?: string | number
   status?: string
+  logisticsStatus?: string
+  trackingNo?: string
   startDate?: string
   endDate?: string
 }

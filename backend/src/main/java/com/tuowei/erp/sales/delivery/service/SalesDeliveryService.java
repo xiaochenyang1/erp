@@ -195,6 +195,7 @@ public class SalesDeliveryService {
                 safeQuery.getWarehouseId(),
                 status,
                 normalizeNullableText(safeQuery.getLogisticsStatus()),
+                normalizeNullableText(safeQuery.getTrackingNo()),
                 safeQuery.getDeliveryDateFrom(),
                 safeQuery.getDeliveryDateTo()
         );
@@ -638,6 +639,7 @@ public class SalesDeliveryService {
             Long warehouseId,
             String status,
             String logisticsStatus,
+            String trackingNo,
             LocalDate deliveryDateFrom,
             LocalDate deliveryDateTo
     ) {
@@ -657,6 +659,9 @@ public class SalesDeliveryService {
         }
         if (StringUtils.hasText(logisticsStatus)) {
             wrapper.eq(SalesDeliveryEntity::getLogisticsStatus, logisticsStatus.trim().toUpperCase(java.util.Locale.ROOT));
+        }
+        if (StringUtils.hasText(trackingNo)) {
+            wrapper.like(SalesDeliveryEntity::getTrackingNo, trackingNo.trim());
         }
         if (deliveryDateFrom != null) {
             wrapper.ge(SalesDeliveryEntity::getDeliveryDate, deliveryDateFrom);

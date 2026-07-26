@@ -47,6 +47,27 @@
             <el-option :label="t('salesDelivery.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
+        <el-form-item :label="t('salesDelivery.logisticsStatus')">
+          <el-select
+            v-model="queryParams.logisticsStatus"
+            :placeholder="t('salesDelivery.selectLogisticsStatus')"
+            clearable
+            style="width: 160px"
+          >
+            <el-option :label="t('salesDelivery.logistics.pendingShip')" value="PENDING_SHIP" />
+            <el-option :label="t('salesDelivery.logistics.pickedUp')" value="PICKED_UP" />
+            <el-option :label="t('salesDelivery.logistics.inTransit')" value="IN_TRANSIT" />
+            <el-option :label="t('salesDelivery.logistics.delivered')" value="DELIVERED" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('salesDelivery.trackingNo')">
+          <el-input
+            v-model="queryParams.trackingNo"
+            :placeholder="t('salesDelivery.trackingPlaceholder')"
+            clearable
+            style="width: 180px"
+          />
+        </el-form-item>
         <el-form-item :label="t('salesDelivery.dateRange')">
           <el-date-picker
             v-model="dateRange"
@@ -101,7 +122,13 @@
         </el-table-column>
         <el-table-column prop="carrierName" :label="t('salesDelivery.carrierName')" width="120" show-overflow-tooltip />
         <el-table-column prop="trackingNo" :label="t('salesDelivery.trackingNo')" width="140" show-overflow-tooltip />
-        <el-table-column prop="logisticsStatus" :label="t('salesDelivery.logisticsStatus')" width="120" />
+        <el-table-column prop="logisticsStatus" :label="t('salesDelivery.logisticsStatus')" width="130">
+          <template #default="{ row }">
+            <el-tag :type="logisticsStatusType(row.logisticsStatus)" size="small">
+              {{ logisticsStatusLabel(row.logisticsStatus) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="remark" :label="t('salesDelivery.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="t('salesDelivery.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="t('salesDelivery.createdAt')" width="190">
@@ -224,13 +251,13 @@
           </el-col>
         </el-row>
         <el-form-item :label="t('salesDelivery.carrierName')">
-          <el-input v-model="formData.carrierName" :placeholder="t('salesDelivery.carrierPlaceholder')" />
+          <el-input v-model="formData.carrierName" :placeholder="t('salesDelivery.carrierPlaceholder')" :disabled="isView" />
         </el-form-item>
         <el-form-item :label="t('salesDelivery.trackingNo')">
-          <el-input v-model="formData.trackingNo" :placeholder="t('salesDelivery.trackingPlaceholder')" />
+          <el-input v-model="formData.trackingNo" :placeholder="t('salesDelivery.trackingPlaceholder')" :disabled="isView" />
         </el-form-item>
         <el-form-item :label="t('salesDelivery.logisticsStatus')">
-          <el-select v-model="formData.logisticsStatus" style="width:100%">
+          <el-select v-model="formData.logisticsStatus" style="width:100%" :disabled="isView">
             <el-option :label="t('salesDelivery.logistics.pendingShip')" value="PENDING_SHIP" />
             <el-option :label="t('salesDelivery.logistics.pickedUp')" value="PICKED_UP" />
             <el-option :label="t('salesDelivery.logistics.inTransit')" value="IN_TRANSIT" />
@@ -444,10 +471,14 @@ const queryParams = reactive<SalesDeliveryQuery>({
   orderId: undefined,
   customerId: undefined,
   status: '',
+  logisticsStatus: '',
+  trackingNo: '',
   startDate: '',
   endDate: ''
 })
 queryParams.deliveryNo = readQueryString('keyword')
+queryParams.logisticsStatus = readQueryString('logisticsStatus')
+queryParams.trackingNo = readQueryString('trackingNo')
 
 // 日期范围
 const dateRange = ref<[string, string] | null>(null)
@@ -588,6 +619,8 @@ const handleReset = () => {
   queryParams.orderId = undefined
   queryParams.customerId = undefined
   queryParams.status = ''
+  queryParams.logisticsStatus = ''
+  queryParams.trackingNo = ''
   dateRange.value = null
   queryParams.startDate = ''
   queryParams.endDate = ''
@@ -713,6 +746,26 @@ const handleCancel = async (row: SalesDelivery) => {
 }
 
 // 过账
+
+const logisticsStatusLabel = (status?: string) => {
+  const key = {
+    PENDING_SHIP: 'pendingShip',
+    PICKED_UP: 'pickedUp',
+    IN_TRANSIT: 'inTransit',
+    DELIVERED: 'delivered'
+  }[String(status || 'PENDING_SHIP')]
+  return key ? t(`salesDelivery.logistics.${key}`) : (status || '-')
+}
+
+const logisticsStatusType = (status?: string) => {
+  return ({
+    PENDING_SHIP: 'info',
+    PICKED_UP: 'warning',
+    IN_TRANSIT: 'primary',
+    DELIVERED: 'success'
+  }[String(status || 'PENDING_SHIP')] || 'info') as 'info' | 'warning' | 'primary' | 'success'
+}
+
 const advanceLogistics = async (row: any) => {
   const order = ['PENDING_SHIP','PICKED_UP','IN_TRANSIT','DELIVERED']
   const current = row.logisticsStatus || 'PENDING_SHIP'
