@@ -133,7 +133,7 @@
             >
               {{ t('salesDelivery.post') }}
             </el-button>
-            <el-button v-if=\"row.status==='POSTED'\" v-permission=\"'sales:delivery:update'\" link type=\"primary\" @click=\"advanceLogistics(row)\">{{ t('salesDelivery.advanceLogistics') }}</el-button>
+            <el-button v-if="row.status==='POSTED'" v-permission="'sales:delivery:update'" link type="primary" @click="advanceLogistics(row)">{{ t('salesDelivery.advanceLogistics') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'sales:delivery:cancel'"

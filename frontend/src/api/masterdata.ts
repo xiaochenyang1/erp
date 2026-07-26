@@ -22,6 +22,13 @@ export interface Product extends Omit<ProductContract, 'id' | 'status'> {
   unit?: string               // 别名
   unitPrice?: number          // 别名
   costPrice?: number          // 别名
+  // Generated OpenAPI contract may lag behind backend product control flags.
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  inspectionRequired?: boolean
+  serialControlled?: boolean
+  auxUnitName?: string
+  conversionFactor?: number | null
 }
 
 export interface ProductQuery extends PageQuery, Omit<ProductQueryContract, 'pageNo' | 'pageSize'> {

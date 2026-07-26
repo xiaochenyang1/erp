@@ -30,7 +30,7 @@ export const operationsPageMessages = {
         adjustmentNo: '请输入调整单号',
         warehouse: '请选择仓库',
         location: '请选择库位',
-        serialNos: '多个序列号用逗号分隔',
+        serialNos: '多个序列号用逗号/分号/换行分隔',
         adjustmentType: '请选择调整类型',
         status: '请选择状态',
         startDate: '开始日期',
@@ -51,8 +51,13 @@ export const operationsPageMessages = {
       },
       validation: {
         warehouse: '请选择仓库', adjustmentDate: '请选择调整日期',
-        adjustmentType: '请选择调整类型', itemRequired: '请至少添加一条调整明细'
+        adjustmentType: '请选择调整类型', itemRequired: '请至少添加一条调整明细',
+        lotRequired: '第 {line} 行（{product}）启用批次管理，请填写批次号',
+        expiryRequired: '第 {line} 行（{product}）启用效期管理，请填写失效日期',
+        serialRequired: '第 {line} 行（{product}）启用序列号管理，请录入序列号',
+        serialCountMismatch: '第 {line} 行（{product}）序列号数量应为 {expected}，当前 {actual}'
       },
+      serialProgress: '已录 {count}/{expected}',
       message: {
         loadFailed: '加载数据失败', warehousesLoadFailed: '加载仓库列表失败',
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
@@ -105,8 +110,13 @@ export const operationsPageMessages = {
       validation: {
         fromWarehouse: '请选择调出仓库', toWarehouse: '请选择调入仓库',
         transferDate: '请选择调拨日期', warehousesDifferent: '调出仓库和调入仓库不能相同',
-        itemRequired: '请至少添加一条调拨明细'
+        itemRequired: '请至少添加一条调拨明细',
+        lotRequired: '第 {line} 行（{product}）启用批次管理，请填写批次号',
+        expiryRequired: '第 {line} 行（{product}）启用效期管理，请填写失效日期',
+        serialRequired: '第 {line} 行（{product}）启用序列号管理，请录入序列号',
+        serialCountMismatch: '第 {line} 行（{product}）序列号数量应为 {expected}，当前 {actual}'
       },
+      serialProgress: '已录 {count}/{expected}',
       message: {
         loadFailed: '加载数据失败', warehousesLoadFailed: '加载仓库列表失败',
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
@@ -378,8 +388,13 @@ export const operationsPageMessages = {
       },
       validation: {
         salesDelivery: '请选择销售发货单', returnDate: '请选择退货日期',
-        itemRequired: '请至少添加一条退货明细', quantityRequired: '请输入退货数量'
+        itemRequired: '请至少添加一条退货明细', quantityRequired: '请输入退货数量',
+        lotRequired: '第 {line} 行（{product}）启用批次管理，请填写批次号',
+        expiryRequired: '第 {line} 行（{product}）启用效期管理，请填写失效日期',
+        serialRequired: '第 {line} 行（{product}）启用序列号管理，请录入序列号',
+        serialCountMismatch: '第 {line} 行（{product}）序列号数量应为 {expected}，当前 {actual}'
       },
+      serialProgress: '已录 {count}/{expected}',
       dialog: { create: '新增销售退货', view: '查看销售退货', edit: '编辑销售退货' },
       message: {
         loadFailed: '加载数据失败', deliveriesLoadFailed: '加载销售发货单失败',
@@ -488,7 +503,7 @@ export const operationsPageMessages = {
         adjustmentNo: 'Enter an adjustment no.',
         warehouse: 'Select a warehouse',
         location: 'Select a location',
-        serialNos: 'Separate multiple serials with commas',
+        serialNos: 'Separate serials with comma, semicolon, or newline',
         adjustmentType: 'Select an adjustment type',
         status: 'Select a status',
         startDate: 'Start date',
@@ -509,8 +524,13 @@ export const operationsPageMessages = {
       },
       validation: {
         warehouse: 'Select a warehouse', adjustmentDate: 'Select an adjustment date',
-        adjustmentType: 'Select an adjustment type', itemRequired: 'Add at least one adjustment line'
+        adjustmentType: 'Select an adjustment type', itemRequired: 'Add at least one adjustment line',
+        lotRequired: 'Line {line} ({product}) is lot-controlled; enter a lot no.',
+        expiryRequired: 'Line {line} ({product}) is shelf-life controlled; enter an expiry date',
+        serialRequired: 'Line {line} ({product}) is serial-controlled; enter serial nos.',
+        serialCountMismatch: 'Line {line} ({product}) expects {expected} serials, got {actual}'
       },
+      serialProgress: '{count}/{expected} captured',
       message: {
         loadFailed: 'Failed to load data', warehousesLoadFailed: 'Failed to load warehouses',
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
@@ -563,8 +583,13 @@ export const operationsPageMessages = {
       validation: {
         fromWarehouse: 'Select the source warehouse', toWarehouse: 'Select the destination warehouse',
         transferDate: 'Select a transfer date', warehousesDifferent: 'Source and destination warehouses must be different',
-        itemRequired: 'Add at least one transfer line'
+        itemRequired: 'Add at least one transfer line',
+        lotRequired: 'Line {line} ({product}) is lot-controlled; enter a lot no.',
+        expiryRequired: 'Line {line} ({product}) is shelf-life controlled; enter an expiry date',
+        serialRequired: 'Line {line} ({product}) is serial-controlled; enter serial nos.',
+        serialCountMismatch: 'Line {line} ({product}) expects {expected} serials, got {actual}'
       },
+      serialProgress: '{count}/{expected} captured',
       message: {
         loadFailed: 'Failed to load data', warehousesLoadFailed: 'Failed to load warehouses',
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
@@ -844,8 +869,13 @@ export const operationsPageMessages = {
       },
       validation: {
         salesDelivery: 'Select a sales delivery', returnDate: 'Select a return date',
-        itemRequired: 'Add at least one return line', quantityRequired: 'Enter a return quantity'
+        itemRequired: 'Add at least one return line', quantityRequired: 'Enter a return quantity',
+        lotRequired: 'Line {line} ({product}) is lot-controlled; enter a lot no.',
+        expiryRequired: 'Line {line} ({product}) is shelf-life controlled; enter an expiry date',
+        serialRequired: 'Line {line} ({product}) is serial-controlled; enter serial nos.',
+        serialCountMismatch: 'Line {line} ({product}) expects {expected} serials, got {actual}'
       },
+      serialProgress: '{count}/{expected} captured',
       dialog: { create: 'New sales return', view: 'View sales return', edit: 'Edit sales return' },
       message: {
         loadFailed: 'Failed to load data', deliveriesLoadFailed: 'Failed to load sales deliveries',

@@ -490,6 +490,9 @@ export interface InventoryAdjustmentItem {
   expiryDate?: string
   locationId?: string | number | null
   serialNos?: string
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  serialControlled?: boolean
   reason?: string
   remark?: string
 }
@@ -798,6 +801,9 @@ export interface InventoryTransferItem {
   fromLocationId?: string | number | null
   toLocationId?: string | number | null
   serialNos?: string
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  serialControlled?: boolean
   remark?: string
 }
 

@@ -275,28 +275,57 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column :label="$t('salesReturnOps.serialNos')" min-width="160">
+          <el-table-column :label="$t('salesReturnOps.serialNos')" min-width="220">
             <template #default="{ row }">
               <el-input
                 v-model="row.serialNos"
-                :placeholder="$t('salesReturnOps.placeholder.serialNos')"
-                :disabled="isView"
+                type="textarea"
+                :rows="row.serialControlled ? 2 : 1"
+                :placeholder="row.serialControlled
+                  ? $t('salesReturnOps.placeholder.serialNos')
+                  : $t('salesReturnOps.placeholder.reason')"
+                :disabled="isView || row.serialControlled === false"
               />
+              <div
+                v-if="row.serialControlled"
+                class="serial-progress"
+                :class="{ 'serial-progress--ok': serialCaptureProgress(row.serialNos, row.quantity).complete }"
+              >
+                {{ $t('salesReturnOps.serialProgress', serialCaptureProgress(row.serialNos, row.quantity)) }}
+              </div>
             </template>
           </el-table-column>
           <el-table-column :label="$t('salesReturnOps.lotNo')" width="130">
             <template #default="{ row }">
-              <el-input v-model="row.lotNo" :placeholder="$t('salesReturnOps.placeholder.lotNo')" :disabled="isView" />
+              <el-input
+                v-model="row.lotNo"
+                :placeholder="row.lotControlled
+                  ? $t('salesReturnOps.placeholder.lotNo')
+                  : $t('salesReturnOps.placeholder.reason')"
+                :disabled="isView || row.lotControlled === false"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="$t('salesReturnOps.productionDate')" width="150">
             <template #default="{ row }">
-              <el-date-picker v-model="row.productionDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" :disabled="isView" />
+              <el-date-picker
+                v-model="row.productionDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+                :disabled="isView || row.lotControlled === false"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="$t('salesReturnOps.expiryDate')" width="150">
             <template #default="{ row }">
-              <el-date-picker v-model="row.expiryDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" :disabled="isView" />
+              <el-date-picker
+                v-model="row.expiryDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+                :disabled="isView || (row.shelfLifeControlled === false && row.lotControlled === false)"
+              />
             </template>
           </el-table-column>
 
@@ -363,6 +392,11 @@ import {
   type SalesDelivery
 } from '@/api/sales'
 import { getLocations, getProducts, type Location, type Product } from '@/api/masterdata'
+import {
+  hydrateProductLineLabels,
+  serialCaptureProgress,
+  validateProductControlLines
+} from '@/utils/productLines'
 import { formatBusinessDate, formatLocalizedCurrency } from '@/utils/locale'
 
 const { t } = useI18n()
@@ -566,6 +600,10 @@ const handleEdit = async (row: SalesReturn) => {
       expiryDate: item.expiryDate || '',
       reason: item.reason || item.remark || ''
     }))
+    formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('salesReturnOps.message.returnLoadFailed'))
@@ -636,6 +674,10 @@ const handleDeliveryChange = async () => {
       expiryDate: item.expiryDate || '',
       reason: ''
     })).filter(item => item.quantity > 0)
+    formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
   } catch (error) {
     ElMessage.error(t('salesReturnOps.message.deliveryDetailLoadFailed'))
   }
@@ -704,6 +746,23 @@ const handleSubmit = async () => {
         return
       }
 
+      formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
+        const product = products.value.find((item) => String(item.id) === String(productId))
+        return product || {}
+      })
+      const controlIssues = validateProductControlLines(formData.items)
+      if (controlIssues.length > 0) {
+        const issue = controlIssues[0]
+        const product = issue.productCode || issue.productName || String(issue.productId)
+        ElMessage.warning(t(`salesReturnOps.validation.${issue.messageKey}`, {
+          line: issue.index + 1,
+          product,
+          expected: issue.expectedSerialCount,
+          actual: issue.actualSerialCount
+        }))
+        return
+      }
+
       submitLoading.value = true
       try {
         if (editingId.value) {
@@ -760,5 +819,15 @@ onMounted(async () => {
     margin-top: 20px;
     justify-content: flex-end;
   }
+}
+
+.serial-progress {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.2;
+}
+.serial-progress--ok {
+  color: var(--el-color-success);
 }
 </style>

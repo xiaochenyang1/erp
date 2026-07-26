@@ -217,24 +217,57 @@
                 </el-select>
               </template>
             </el-table-column>
-            <el-table-column :label="t('purchaseReturn.serialNos')" min-width="160">
+            <el-table-column :label="t('purchaseReturn.serialNos')" min-width="220">
               <template #default="{ row }">
-                <el-input v-model="row.serialNos" :placeholder="t('purchaseReturn.serialNosPlaceholder')" />
+                <el-input
+                  v-model="row.serialNos"
+                  type="textarea"
+                  :rows="row.serialControlled ? 2 : 1"
+                  :placeholder="row.serialControlled
+                    ? t('purchaseReturn.serialNosPlaceholder')
+                    : t('purchaseReturn.optional')"
+                  :disabled="row.serialControlled === false"
+                />
+                <div
+                  v-if="row.serialControlled"
+                  class="serial-progress"
+                  :class="{ 'serial-progress--ok': serialCaptureProgress(row.serialNos, row.quantity).complete }"
+                >
+                  {{ t('purchaseReturn.serialProgress', serialCaptureProgress(row.serialNos, row.quantity)) }}
+                </div>
               </template>
             </el-table-column>
           <el-table-column :label="t('purchaseReturn.lotNo')" width="130">
             <template #default="{ row }">
-              <el-input v-model="row.lotNo" :placeholder="t('purchaseReturn.lotNoPlaceholder')"  />
+              <el-input
+                v-model="row.lotNo"
+                :placeholder="row.lotControlled
+                  ? t('purchaseReturn.lotNoPlaceholder')
+                  : t('purchaseReturn.optional')"
+                :disabled="row.lotControlled === false"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="t('purchaseReturn.productionDate')" width="150">
             <template #default="{ row }">
-              <el-date-picker v-model="row.productionDate" type="date" value-format="YYYY-MM-DD" style="width: 100%"  />
+              <el-date-picker
+                v-model="row.productionDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :disabled="row.lotControlled === false"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="t('purchaseReturn.expiryDate')" width="150">
             <template #default="{ row }">
-              <el-date-picker v-model="row.expiryDate" type="date" value-format="YYYY-MM-DD" style="width: 100%"  />
+              <el-date-picker
+                v-model="row.expiryDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :disabled="row.shelfLifeControlled === false && row.lotControlled === false"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
 
@@ -463,6 +496,11 @@ import {
   type PurchaseReceipt
 } from '@/api/purchase'
 import { getLocations, getProducts, type Location, type Product } from '@/api/masterdata'
+import {
+  hydrateProductLineLabels,
+  serialCaptureProgress,
+  validateProductControlLines
+} from '@/utils/productLines'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
@@ -624,8 +662,15 @@ const handleReceiptChange = async () => {
       taxAmount: item.taxAmount || 0,
       locationId: item.locationId ?? undefined,
       serialNos: item.serialNos || '',
+      lotNo: item.lotNo || '',
+      productionDate: item.productionDate || '',
+      expiryDate: item.expiryDate || '',
       remark: ''
     }))
+    form.items = await hydrateProductLineLabels(form.items, async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
   }
 }
 
@@ -671,6 +716,10 @@ const handleEdit = async (row: PurchaseReturn) => {
       serialNos: item.serialNos || '',
       remark: item.reason || item.remark || ''
     }))
+    form.items = await hydrateProductLineLabels(form.items, async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('purchaseReturn.message.returnLoadFailed'))
@@ -778,6 +827,23 @@ const handleSubmitForm = async () => {
 
     if (form.items.length === 0) {
       ElMessage.warning(t('purchaseReturn.validation.receipt'))
+      return
+    }
+
+    form.items = await hydrateProductLineLabels(form.items, async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
+    const controlIssues = validateProductControlLines(form.items)
+    if (controlIssues.length > 0) {
+      const issue = controlIssues[0]
+      const product = issue.productCode || issue.productName || String(issue.productId)
+      ElMessage.warning(t(`purchaseReturn.validation.${issue.messageKey}`, {
+        line: issue.index + 1,
+        product,
+        expected: issue.expectedSerialCount,
+        actual: issue.actualSerialCount
+      }))
       return
     }
 
@@ -1107,5 +1173,15 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   color: #64748b;
+}
+
+.serial-progress {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.2;
+}
+.serial-progress--ok {
+  color: var(--el-color-success);
 }
 </style>

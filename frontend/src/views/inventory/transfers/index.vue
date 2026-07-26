@@ -301,28 +301,61 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column :label="$t('inventoryTransfers.serialNos')" min-width="150">
+          <el-table-column :label="$t('inventoryTransfers.serialNos')" min-width="220">
             <template #default="{ row }">
               <el-input
                 v-model="row.serialNos"
-                :placeholder="$t('inventoryTransfers.placeholder.serialNos')"
-                :disabled="isView"
+                type="textarea"
+                :rows="row.serialControlled ? 2 : 1"
+                :placeholder="row.serialControlled
+                  ? $t('inventoryTransfers.placeholder.serialNos')
+                  : $t('inventoryTransfers.placeholder.remark')"
+                :disabled="isView || row.serialControlled === false"
               />
+              <div
+                v-if="row.serialControlled"
+                class="serial-progress"
+                :class="{ 'serial-progress--ok': serialCaptureProgress(row.serialNos, row.quantity).complete }"
+              >
+                {{ $t('inventoryTransfers.serialProgress', serialCaptureProgress(row.serialNos, row.quantity)) }}
+              </div>
             </template>
           </el-table-column>
           <el-table-column :label="$t('inventoryTransfers.lotNo')" width="130">
             <template #default="{ row }">
-              <el-input v-model="row.lotNo" :placeholder="$t('inventoryTransfers.placeholder.lotNo')" :disabled="isView" />
+              <el-input
+                v-model="row.lotNo"
+                :placeholder="row.lotControlled
+                  ? $t('inventoryTransfers.placeholder.lotNo')
+                  : $t('inventoryTransfers.placeholder.remark')"
+                :disabled="isView || row.lotControlled === false"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="$t('inventoryTransfers.productionDate')" width="150">
             <template #default="{ row }">
-              <el-date-picker v-model="row.productionDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('inventoryTransfers.placeholder.productionDate')" :disabled="isView" style="width: 100%" />
+              <el-date-picker
+                v-model="row.productionDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :placeholder="$t('inventoryTransfers.placeholder.productionDate')"
+                :disabled="isView || row.lotControlled === false"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="$t('inventoryTransfers.expiryDate')" width="150">
             <template #default="{ row }">
-              <el-date-picker v-model="row.expiryDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('inventoryTransfers.placeholder.expiryDate')" :disabled="isView" style="width: 100%" />
+              <el-date-picker
+                v-model="row.expiryDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :placeholder="row.shelfLifeControlled
+                  ? $t('inventoryTransfers.placeholder.expiryDate')
+                  : $t('inventoryTransfers.placeholder.remark')"
+                :disabled="isView || (row.shelfLifeControlled === false && row.lotControlled === false)"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
 
@@ -376,6 +409,11 @@ import {
 } from '@/api/inventory'
 import { getLocations, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
 import { getProducts } from '@/api/masterdata'
+import {
+  hydrateProductLineLabels,
+  serialCaptureProgress,
+  validateProductControlLines
+} from '@/utils/productLines'
 import { formatBusinessDate } from '@/utils/locale'
 
 const { t } = useI18n()
@@ -527,6 +565,10 @@ const handleView = async (row: InventoryTransfer) => {
   try {
     const data = await getInventoryTransfer(row.id)
     Object.assign(formData, data)
+    formData.items = await hydrateProductLineLabels(formData.items || [], async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('inventoryTransfers.message.detailLoadFailed'))
@@ -583,6 +625,9 @@ const handleAddItem = () => {
     lotNo: '',
     productionDate: '',
     expiryDate: '',
+    lotControlled: undefined,
+    shelfLifeControlled: undefined,
+    serialControlled: undefined,
     remark: ''
   })
 }
@@ -593,13 +638,20 @@ const handleDeleteItem = (index: number) => {
 }
 
 // 产品变化
-const handleProductChange = (index: number) => {
+const handleProductChange = async (index: number) => {
   const item = formData.items[index]
-  const product = products.value.find(p => p.id === item.productId)
+  const product = products.value.find(p => String(p.id) === String(item.productId))
   if (product) {
     item.productCode = product.code || product.productCode || ''
     item.productName = product.name || product.productName || ''
     item.unitCost = product.purchasePrice ?? item.unitCost ?? 0
+    item.lotControlled = Boolean(product.lotControlled)
+    item.shelfLifeControlled = Boolean(product.shelfLifeControlled)
+    item.serialControlled = Boolean(product.serialControlled)
+  }
+  if (item.productId) {
+    const [hydrated] = await hydrateProductLineLabels([item], async () => product || {})
+    Object.assign(item, hydrated)
   }
 }
 
@@ -629,6 +681,23 @@ const handleSubmit = async () => {
 
       if (formData.items.length === 0) {
         ElMessage.warning(t('inventoryTransfers.validation.itemRequired'))
+        return
+      }
+
+      formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
+        const product = products.value.find((item) => String(item.id) === String(productId))
+        return product || {}
+      })
+      const controlIssues = validateProductControlLines(formData.items)
+      if (controlIssues.length > 0) {
+        const issue = controlIssues[0]
+        const product = issue.productCode || issue.productName || String(issue.productId)
+        ElMessage.warning(t(`inventoryTransfers.validation.${issue.messageKey}`, {
+          line: issue.index + 1,
+          product,
+          expected: issue.expectedSerialCount,
+          actual: issue.actualSerialCount
+        }))
         return
       }
 
@@ -677,5 +746,15 @@ onMounted(async () => {
     margin-top: 20px;
     justify-content: flex-end;
   }
+}
+
+.serial-progress {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.2;
+}
+.serial-progress--ok {
+  color: var(--el-color-success);
 }
 </style>
