@@ -820,9 +820,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, View } from '@element-plus/icons-vue'
 import {
   getProductionOrders,
@@ -851,6 +851,7 @@ import { useProductionOrderProductControls } from '@/composables/useProductionOr
 import { useProductionOrderOperations } from '@/composables/useProductionOrderOperations'
 import { useProductionOrderCompletion } from '@/composables/useProductionOrderCompletion'
 import { useProductionOrderMaterials } from '@/composables/useProductionOrderMaterials'
+import { useProductionOrderForm } from '@/composables/useProductionOrderForm'
 
 const { t } = useI18n()
 
@@ -877,7 +878,6 @@ const pagination = reactive({
 const productOptions = ref<Product[]>([])
 const warehouseOptions = ref<Warehouse[]>([])
 const allBomOptions = ref<BOM[]>([])
-const bomOptions = ref<BOM[]>([])
 const finishedLocations = ref<Location[]>([])
 const materialLocations = ref<Location[]>([])
 const {
@@ -961,34 +961,35 @@ const {
   onWarning: (message) => ElMessage.warning(message),
   onCompleted: () => loadData()
 })
-
-// 新增/编辑对话框
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const submitLoading = ref(false)
-const formRef = ref<FormInstance>()
-const formData = reactive({
-  id: undefined as string | number | undefined,
-  productId: undefined as string | number | undefined,
-  bomId: undefined as string | number | undefined,
-  planQuantity: 1,
-  materialWarehouseId: undefined as string | number | undefined,
-  finishedWarehouseId: undefined as string | number | undefined,
-  planStartDate: '',
-  planEndDate: '',
-  priority: 'NORMAL',
-  remark: ''
+const {
+  bomLabel,
+  bomOptions,
+  dialogTitle,
+  dialogVisible,
+  formData,
+  formRef,
+  formRules,
+  getProgressColor,
+  handleAdd,
+  handleCancel,
+  handleDialogClose,
+  handleEdit,
+  handleProductChange,
+  handleRelease,
+  handleSubmit,
+  submitLoading
+} = useProductionOrderForm(t, {
+  allBomOptions,
+  loadOrder: getProductionOrder,
+  createOrder: createProductionOrder,
+  updateOrder: updateProductionOrder,
+  releaseOrder: releaseProductionOrder,
+  cancelOrder: cancelProductionOrder,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onCompleted: () => loadData()
 })
-
-const formRules = computed<FormRules>(() => ({
-  productId: [{ required: true, message: t('productionOrder.validation.product'), trigger: 'change' }],
-  bomId: [{ required: true, message: t('productionOrder.validation.bom'), trigger: 'change' }],
-  planQuantity: [{ required: true, message: t('productionOrder.validation.quantity'), trigger: 'blur' }],
-  materialWarehouseId: [{ required: true, message: t('productionOrder.validation.materialWarehouse'), trigger: 'change' }],
-  finishedWarehouseId: [{ required: true, message: t('productionOrder.validation.finishedWarehouse'), trigger: 'change' }],
-  planStartDate: [{ required: true, message: t('productionOrder.validation.startDate'), trigger: 'change' }],
-  planEndDate: [{ required: true, message: t('productionOrder.validation.endDate'), trigger: 'change' }]
-}))
 
 // 查看对话框
 const viewDialogVisible = ref(false)
@@ -1081,53 +1082,6 @@ const handleReset = () => {
   loadData()
 }
 
-const resetFormData = () => {
-  Object.assign(formData, {
-    id: undefined,
-    productId: undefined,
-    bomId: undefined,
-    planQuantity: 1,
-    materialWarehouseId: undefined,
-    finishedWarehouseId: undefined,
-    planStartDate: '',
-    planEndDate: '',
-    priority: 'NORMAL',
-    remark: ''
-  })
-  bomOptions.value = allBomOptions.value
-}
-
-// 新增
-const handleAdd = () => {
-  resetFormData()
-  dialogTitle.value = t('productionOrder.dialog.create')
-  dialogVisible.value = true
-}
-
-// 编辑
-const handleEdit = async (row: ProductionOrder) => {
-  try {
-    const order = await getProductionOrder(row.id)
-    Object.assign(formData, {
-      id: order.id,
-      productId: order.productId,
-      bomId: order.bomId,
-      planQuantity: order.planQuantity,
-      materialWarehouseId: order.materialWarehouseId,
-      finishedWarehouseId: order.finishedWarehouseId,
-      planStartDate: order.planStartDate,
-      planEndDate: order.planEndDate,
-      priority: order.priority,
-      remark: order.remark || ''
-    })
-    bomOptions.value = allBomOptions.value.filter(b => String(b.productId) === String(order.productId))
-    dialogTitle.value = t('productionOrder.dialog.edit')
-    dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('productionOrder.message.orderLoadFailed'))
-  }
-}
-
 // 查看
 const handleView = async (row: ProductionOrder) => {
   try {
@@ -1146,89 +1100,6 @@ const handlePrint = async (row: ProductionOrder) => {
   } catch {
     ElMessage.error(t('productionOrder.message.printLoadFailed'))
   }
-}
-
-// 下达
-const handleRelease = async (row: ProductionOrder) => {
-  try {
-    await ElMessageBox.confirm(t('productionOrder.message.releaseConfirm', { orderNo: row.orderNo }), t('productionOrder.message.prompt'), {
-      type: 'warning'
-    })
-    await releaseProductionOrder(row.id)
-    ElMessage.success(t('productionOrder.message.released'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('productionOrder.message.releaseFailed'))
-    }
-  }
-}
-
-// 取消
-const handleCancel = async (row: ProductionOrder) => {
-  try {
-    await ElMessageBox.confirm(t('productionOrder.message.cancelConfirm', { orderNo: row.orderNo }), t('productionOrder.message.prompt'), {
-      type: 'warning'
-    })
-    await cancelProductionOrder(row.id)
-    ElMessage.success(t('productionOrder.message.cancelled'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('productionOrder.message.cancelFailed'))
-    }
-  }
-}
-
-// 产品变化
-const handleProductChange = (productId: string | number) => {
-  formData.bomId = undefined
-  bomOptions.value = allBomOptions.value.filter(b => String(b.productId) === String(productId))
-}
-
-const bomLabel = (bom: BOM) => {
-  const code = bom.bomCode || bom.bomNo || `BOM${bom.id}`
-  return `${code} - ${t('productionOrder.baseQuantity', { quantity: bom.baseQty })} - ${bom.status}`
-}
-
-// 提交
-const handleSubmit = async () => {
-  if (!formRef.value) return
-
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    submitLoading.value = true
-    try {
-      if (formData.id) {
-        await updateProductionOrder(formData.id, formData)
-        ElMessage.success(t('productionOrder.message.updated'))
-      } else {
-        await createProductionOrder(formData)
-        ElMessage.success(t('productionOrder.message.created'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch (error) {
-      ElMessage.error(t(formData.id ? 'productionOrder.message.updateFailed' : 'productionOrder.message.createFailed'))
-    } finally {
-      submitLoading.value = false
-    }
-  })
-}
-
-// 对话框关闭
-const handleDialogClose = () => {
-  formRef.value?.resetFields()
-  resetFormData()
-}
-
-// 获取进度条颜色
-const getProgressColor = (rate: number) => {
-  if (rate < 0.3) return '#909399'
-  if (rate < 0.7) return '#e6a23c'
-  if (rate < 1) return '#409eff'
-  return '#67c23a'
 }
 
 onMounted(() => {

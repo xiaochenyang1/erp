@@ -54,9 +54,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="t('productionRouting.remark')" min-width="150" show-overflow-tooltip />
-        <el-table-column :label="t('productionRouting.actions')" width="240" align="center" fixed="right">
+        <el-table-column :label="t('productionRouting.actions')" width="300" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleView(row)">{{ t('productionRouting.view') }}</el-button>
+            <el-button type="primary" link @click="handlePrint(row)">{{ t('productionRouting.print') }}</el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
               v-permission="'production:routing:update'"
@@ -245,6 +246,7 @@ import {
   type WorkCenter,
   type BOM
 } from '@/api/production'
+import { printProductionRouting } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 
@@ -361,6 +363,21 @@ const handleView = async (row: Routing) => {
     viewDialogVisible.value = true
   } catch {
     ElMessage.error(t('productionRouting.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: Routing) => {
+  try {
+    const detail = await getRouting(row.id)
+    printProductionRouting({
+      ...detail,
+      operations: (detail.operations || []).map((operation) => ({
+        ...operation,
+        workCenterName: operation.workCenterName || workCenterLabel(operation)
+      }))
+    })
+  } catch {
+    ElMessage.error(t('productionRouting.message.printLoadFailed'))
   }
 }
 

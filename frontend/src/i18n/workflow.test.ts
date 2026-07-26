@@ -136,5 +136,7 @@ describe('production routing localization', () => {
     expect(i18n.global.t('productionRouting.validation.operationRequired', { line: 2 })).toBe('Operation 2: code, name, work center, and standard time are required')
     expect(i18n.global.t('productionRouting.message.enableConfirm', { name: 'Assembly' })).toBe('Enable routing “Assembly”?')
     expect(i18n.global.t('productionRouting.message.optionsLoadFailed')).toBe('Failed to load work center and BOM options')
+    expect(i18n.global.t('productionRouting.print')).toBe('Print')
+    expect(i18n.global.t('productionRouting.message.printLoadFailed')).toBe('Failed to load print data')
   })
 })

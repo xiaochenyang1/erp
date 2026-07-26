@@ -227,6 +227,41 @@ export function printProductionBom(bom: any) {
   printHtml(`生产BOM ${bom.bomCode || bom.bomNo || bom.id || ''}`, html)
 }
 
+export function printProductionRouting(routing: any) {
+  const operations = routing.operations || []
+  const html = buildDocPrintHtml({
+    title: '工艺路线',
+    docNo: routing.routingCode || routing.id || 'routing',
+    fields: [
+      ['路线编码', routing.routingCode || routing.id || '-'],
+      ['路线名称', routing.routingName || '-'],
+      ['BOM', routing.bomNo || routing.bomId || '-'],
+      ['状态', routing.status || '-'],
+      ['工序数', String(operations.length)],
+      ['备注', routing.remark || '-']
+    ],
+    columns: ['序', '工序编码', '工序名称', '工作中心', '标准工时(分)', '备注'],
+    rows: operations.map((operation: any, index: number) => [
+      String(operation.lineNo ?? index + 1),
+      escapeHtml(operation.operationCode || ''),
+      escapeHtml(operation.operationName || ''),
+      escapeHtml(
+        operation.workCenterName
+          || operation.workCenterCode
+          || operation.workCenterId
+          || ''
+      ),
+      qty(operation.standardMinutes),
+      escapeHtml(operation.remark || '')
+    ]),
+    totals: [
+      ['工序数', String(operations.length)],
+      ['总标准工时', qty(operations.reduce((sum: number, op: any) => sum + Number(op.standardMinutes || 0), 0))]
+    ]
+  })
+  printHtml(`工艺路线 ${routing.routingCode || routing.id || ''}`, html)
+}
+
 export function printSalesQuote(quote: any) {
   const lines = quote.lines || quote.items || []
   const html = buildDocPrintHtml({
