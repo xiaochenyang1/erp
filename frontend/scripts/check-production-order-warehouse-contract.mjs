@@ -62,7 +62,13 @@ const subjectView = readFileSync(resolve(root, 'src/views/finance/subjects/index
 const ledgerView = readFileSync(resolve(root, 'src/views/finance/ledger/index.vue'), 'utf8')
 const financePeriodView = readFileSync(resolve(root, 'src/views/finance/periods/index.vue'), 'utf8')
 const fundApi = readFileSync(resolve(root, 'src/api/fund.ts'), 'utf8')
-const fundView = readFileSync(resolve(root, 'src/views/finance/funds/index.vue'), 'utf8')
+// 资金页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const fundView = [
+  'src/views/finance/funds/index.vue',
+  'src/composables/useFundPresentation.ts',
+  'src/composables/useFundList.ts',
+  'src/composables/useFundForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const masterdataApi = readFileSync(resolve(root, 'src/api/masterdata.ts'), 'utf8')
 const barcodeScanField = readFileSync(resolve(root, 'src/components/common/BarcodeScanField.vue'), 'utf8')
 const barcodeUtils = readFileSync(resolve(root, 'src/utils/barcode.ts'), 'utf8')
@@ -800,8 +806,10 @@ for (const fragment of [
   'selectedStatementDetail',
   'const handleViewAccount = async (row: FundAccount) =>',
   'const handleViewStatement = async (row: BankStatement) =>',
-  'await getFundAccount(row.id)',
-  'await getBankStatement(row.id)',
+  'getAccount: getFundAccount',
+  'getStatement: getBankStatement',
+  'await options.getAccount(row.id)',
+  'await options.getStatement(row.id)',
   'financeReportPages.funds.accountDetail',
   'financeReportPages.funds.statementDetail',
   'handleViewAccount(row)',
@@ -812,8 +820,10 @@ for (const fragment of [
   'const submitMatch = async () =>',
   'const handleUnmatch = async (row: BankStatement) =>',
   "matchForm.bizType = row.direction === 'IN' ? 'RECEIPT' : 'PAYMENT'",
-  'await matchBankStatement(selectedStatement.value.id, matchForm)',
-  'await unmatchBankStatement(row.id, value)'
+  'matchStatement: matchBankStatement',
+  'unmatchStatement: unmatchBankStatement',
+  'await options.matchStatement(selectedStatement.value.id, { ...matchForm })',
+  'await options.unmatchStatement(row.id, reason)'
 ]) {
   if (!fundView.includes(fragment)) {
     errors.push(`资金对账页缺少匹配/取消匹配契约片段: ${fragment}`)

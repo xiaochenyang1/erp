@@ -20,7 +20,7 @@
               </el-select>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" :icon="Search" @click="loadAccounts">{{ $t('financeReportPages.common.search') }}</el-button>
+              <el-button type="primary" :icon="Search" @click="searchAccounts">{{ $t('financeReportPages.common.search') }}</el-button>
               <el-button :icon="Refresh" @click="resetAccountQuery">{{ $t('financeReportPages.common.reset') }}</el-button>
               <el-button v-permission="'finance:fund:manage'" type="primary" :icon="Plus" @click="openAccountDialog">{{ $t('financeReportPages.funds.newAccount') }}</el-button>
             </el-form-item>
@@ -67,7 +67,7 @@
             :total="accountTotal"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            @size-change="loadAccounts"
+            @size-change="searchAccounts"
             @current-change="loadAccounts"
             style="margin-top: 20px; justify-content: flex-end"
           />
@@ -100,7 +100,7 @@
               </el-select>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" :icon="Search" @click="loadStatements">{{ $t('financeReportPages.common.search') }}</el-button>
+              <el-button type="primary" :icon="Search" @click="searchStatements">{{ $t('financeReportPages.common.search') }}</el-button>
               <el-button :icon="Refresh" @click="resetStatementQuery">{{ $t('financeReportPages.common.reset') }}</el-button>
               <el-button v-permission="'finance:fund:manage'" type="primary" :icon="Plus" @click="openStatementDialog">{{ $t('financeReportPages.funds.newStatement') }}</el-button>
             </el-form-item>
@@ -156,7 +156,7 @@
             :total="statementTotal"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            @size-change="loadStatements"
+            @size-change="searchStatements"
             @current-change="loadStatements"
             style="margin-top: 20px; justify-content: flex-end"
           />
@@ -301,7 +301,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
@@ -313,71 +313,124 @@ import {
   getFundAccount,
   getFundAccounts,
   matchBankStatement,
-  unmatchBankStatement,
-  type BankStatement,
-  type BankStatementQuery,
-  type FundAccount,
-  type FundAccountQuery
+  unmatchBankStatement
 } from '@/api/fund'
-import { formatBusinessDate, formatLocalizedNumber } from '@/utils/locale'
+import { useFundPresentation } from '@/composables/useFundPresentation'
+import { useFundList } from '@/composables/useFundList'
+import { useFundForm } from '@/composables/useFundForm'
 
 const { t } = useI18n()
 const activeTab = ref('accounts')
 
-const accountQuery = reactive<FundAccountQuery>({ pageNo: 1, pageSize: 20, keyword: '', accountType: '', status: '' })
-const statementQuery = reactive<BankStatementQuery>({ pageNo: 1, pageSize: 20, fundAccountId: undefined, direction: '', status: '' })
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
 
-const accountLoading = ref(false)
-const statementLoading = ref(false)
-const accountData = ref<FundAccount[]>([])
-const allAccounts = ref<FundAccount[]>([])
-const statementData = ref<BankStatement[]>([])
-const accountTotal = ref(0)
-const statementTotal = ref(0)
-
-const accountDialogVisible = ref(false)
-const statementDialogVisible = ref(false)
-const matchDialogVisible = ref(false)
-const accountSubmitting = ref(false)
-const statementSubmitting = ref(false)
-const matchSubmitting = ref(false)
 const accountFormRef = ref<FormInstance>()
 const statementFormRef = ref<FormInstance>()
 const matchFormRef = ref<FormInstance>()
-const selectedStatement = ref<BankStatement | null>(null)
-const selectedAccount = ref<FundAccount>()
-const selectedStatementDetail = ref<BankStatement>()
-const accountDetailVisible = ref(false)
-const statementDetailVisible = ref(false)
-const detailLoading = ref(false)
 
-const accountForm = reactive({
-  accountCode: '',
-  accountName: '',
-  accountType: 'BANK',
-  bankName: '',
-  bankAccountNo: '',
-  currencyCode: 'CNY',
-  openingBalance: 0,
-  remark: ''
+const {
+  accountData,
+  accountDetailVisible,
+  accountLoading,
+  accountQuery,
+  accountTotal,
+  allAccounts,
+  detailLoading,
+  handleViewAccount,
+  handleViewStatement,
+  loadAccounts,
+  loadStatementTab,
+  loadStatements,
+  resetAccountQuery,
+  resetStatementQuery,
+  searchAccounts,
+  searchStatements,
+  selectedAccount,
+  selectedStatementDetail,
+  statementData,
+  statementDetailVisible,
+  statementLoading,
+  statementQuery,
+  statementTotal
+} = useFundList(t, {
+  getAccounts: getFundAccounts,
+  getAccount: getFundAccount,
+  getStatements: getBankStatements,
+  getStatement: getBankStatement,
+  ...notify
 })
 
-const statementForm = reactive({
-  fundAccountId: '' as string | number,
-  externalTxnNo: '',
-  transactionDate: '',
-  direction: 'IN',
-  amount: 0,
-  counterpartyName: '',
-  summary: '',
-  remark: ''
+const {
+  accountName,
+  accountStatusLabel,
+  accountTypeLabel,
+  businessTypeLabel,
+  formatMoney,
+  statementDirectionLabel,
+  statementStatusLabel
+} = useFundPresentation(t, allAccounts)
+
+const {
+  accountDialogVisible,
+  accountForm,
+  accountSubmitting,
+  handleUnmatch,
+  matchDialogVisible,
+  matchForm,
+  matchSubmitting,
+  openAccountDialog,
+  openMatchDialog,
+  openStatementDialog,
+  resetAccountForm: resetAccountFormState,
+  resetMatchForm: resetMatchFormState,
+  resetStatementForm: resetStatementFormState,
+  submitAccount: submitAccountRequest,
+  submitMatch: submitMatchRequest,
+  submitStatement: submitStatementRequest
+} = useFundForm(t, {
+  createAccount: createFundAccount,
+  createStatement: createBankStatement,
+  matchStatement: matchBankStatement,
+  unmatchStatement: unmatchBankStatement,
+  prompt: (message, title, options) => ElMessageBox.prompt(message, title, options),
+  onAccountSubmitted: loadAccounts,
+  onStatementSubmitted: loadStatements,
+  ...notify
 })
 
-const matchForm = reactive({
-  bizType: 'RECEIPT',
-  bizId: '',
-  remark: ''
-})
+/** Element form state lives with the template, so validation stays in the page. */
+const resetAccountForm = () => {
+  accountFormRef.value?.clearValidate()
+  resetAccountFormState()
+}
+
+const resetStatementForm = () => {
+  statementFormRef.value?.clearValidate()
+  resetStatementFormState()
+}
+
+const resetMatchForm = () => {
+  matchFormRef.value?.clearValidate()
+  resetMatchFormState()
+}
+
+const submitAccount = async () => {
+  if (!(await accountFormRef.value?.validate().catch(() => false))) return
+  await submitAccountRequest()
+}
+
+const submitStatement = async () => {
+  if (!(await statementFormRef.value?.validate().catch(() => false))) return
+  await submitStatementRequest()
+}
+
+const submitMatch = async () => {
+  if (!(await matchFormRef.value?.validate().catch(() => false))) return
+  await submitMatchRequest()
+}
 
 const accountRules = computed<FormRules>(() => ({
   accountCode: [{ required: true, message: t('financeReportPages.funds.validation.accountCode'), trigger: 'blur' }],
@@ -399,258 +452,11 @@ const matchRules = computed<FormRules>(() => ({
   bizId: [{ required: true, message: t('financeReportPages.funds.validation.businessId'), trigger: 'blur' }]
 }))
 
-const accountMap = computed(() => new Map(allAccounts.value.map((item) => [String(item.id), item])))
-
-const loadAccounts = async () => {
-  accountLoading.value = true
-  try {
-    const res = await getFundAccounts(accountQuery)
-    accountData.value = res.records || []
-    accountTotal.value = res.total || 0
-    await loadAllAccounts()
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.funds.message.accountsLoadFailed'))
-  } finally {
-    accountLoading.value = false
-  }
-}
-
-const loadAllAccounts = async () => {
-  const res = await getFundAccounts({ pageNo: 1, pageSize: 200, status: 'ENABLED' })
-  allAccounts.value = res.records || []
-}
-
-const loadStatements = async () => {
-  statementLoading.value = true
-  try {
-    const res = await getBankStatements(statementQuery)
-    statementData.value = res.records || []
-    statementTotal.value = res.total || 0
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.funds.message.statementsLoadFailed'))
-  } finally {
-    statementLoading.value = false
-  }
-}
-
-const resetAccountQuery = () => {
-  Object.assign(accountQuery, { pageNo: 1, keyword: '', accountType: '', status: '' })
-  loadAccounts()
-}
-
-const resetStatementQuery = () => {
-  Object.assign(statementQuery, { pageNo: 1, fundAccountId: undefined, direction: '', status: '' })
-  loadStatements()
-}
-
-const openAccountDialog = () => {
-  resetAccountForm()
-  accountDialogVisible.value = true
-}
-
-const openStatementDialog = () => {
-  resetStatementForm()
-  statementForm.transactionDate = today()
-  statementDialogVisible.value = true
-}
-
-const openMatchDialog = (row: BankStatement) => {
-  selectedStatement.value = row
-  resetMatchForm()
-  matchForm.bizType = row.direction === 'IN' ? 'RECEIPT' : 'PAYMENT'
-  matchDialogVisible.value = true
-}
-
-const handleViewAccount = async (row: FundAccount) => {
-  accountDetailVisible.value = true
-  selectedAccount.value = undefined
-  detailLoading.value = true
-  try {
-    selectedAccount.value = await getFundAccount(row.id)
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.funds.message.accountDetailLoadFailed'))
-    accountDetailVisible.value = false
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const handleViewStatement = async (row: BankStatement) => {
-  statementDetailVisible.value = true
-  selectedStatementDetail.value = undefined
-  detailLoading.value = true
-  try {
-    selectedStatementDetail.value = await getBankStatement(row.id)
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.funds.message.statementDetailLoadFailed'))
-    statementDetailVisible.value = false
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const submitAccount = async () => {
-  if (!accountFormRef.value) return
-  await accountFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    accountSubmitting.value = true
-    try {
-      await createFundAccount(accountForm)
-      ElMessage.success(t('financeReportPages.funds.message.accountCreated'))
-      accountDialogVisible.value = false
-      loadAccounts()
-    } catch (error) {
-      ElMessage.error(t('financeReportPages.funds.message.accountCreateFailed'))
-    } finally {
-      accountSubmitting.value = false
-    }
-  })
-}
-
-const submitStatement = async () => {
-  if (!statementFormRef.value) return
-  await statementFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    statementSubmitting.value = true
-    try {
-      await createBankStatement(statementForm)
-      ElMessage.success(t('financeReportPages.funds.message.statementCreated'))
-      statementDialogVisible.value = false
-      loadStatements()
-    } catch (error) {
-      ElMessage.error(t('financeReportPages.funds.message.statementCreateFailed'))
-    } finally {
-      statementSubmitting.value = false
-    }
-  })
-}
-
-const submitMatch = async () => {
-  if (!matchFormRef.value || !selectedStatement.value) return
-  await matchFormRef.value.validate(async (valid) => {
-    if (!valid || !selectedStatement.value) return
-    matchSubmitting.value = true
-    try {
-      await matchBankStatement(selectedStatement.value.id, matchForm)
-      ElMessage.success(t('financeReportPages.funds.message.matched'))
-      matchDialogVisible.value = false
-      loadStatements()
-    } catch (error) {
-      ElMessage.error(t('financeReportPages.funds.message.matchFailed'))
-    } finally {
-      matchSubmitting.value = false
-    }
-  })
-}
-
-const handleUnmatch = async (row: BankStatement) => {
-  try {
-    const { value } = await ElMessageBox.prompt(
-      t('financeReportPages.funds.message.unmatchPrompt'),
-      t('financeReportPages.funds.message.unmatchTitle'),
-      {
-        inputValue: t('financeReportPages.funds.message.unmatchDefaultReason'),
-        inputPattern: /\S+/,
-        inputErrorMessage: t('financeReportPages.funds.validation.unmatchReason')
-      }
-    )
-    await unmatchBankStatement(row.id, value)
-    ElMessage.success(t('financeReportPages.funds.message.unmatched'))
-    loadStatements()
-  } catch (error) {
-    if (error !== 'cancel') ElMessage.error(t('financeReportPages.funds.message.unmatchFailed'))
-  }
-}
-
-const resetAccountForm = () => {
-  accountFormRef.value?.clearValidate()
-  Object.assign(accountForm, {
-    accountCode: '',
-    accountName: '',
-    accountType: 'BANK',
-    bankName: '',
-    bankAccountNo: '',
-    currencyCode: 'CNY',
-    openingBalance: 0,
-    remark: ''
-  })
-}
-
-const resetStatementForm = () => {
-  statementFormRef.value?.clearValidate()
-  Object.assign(statementForm, {
-    fundAccountId: '',
-    externalTxnNo: '',
-    transactionDate: '',
-    direction: 'IN',
-    amount: 0,
-    counterpartyName: '',
-    summary: '',
-    remark: ''
-  })
-}
-
-const resetMatchForm = () => {
-  matchFormRef.value?.clearValidate()
-  Object.assign(matchForm, { bizType: 'RECEIPT', bizId: '', remark: '' })
-}
-
-const accountName = (id: string | number) => {
-  const account = accountMap.value.get(String(id))
-  return account
-    ? `${account.accountCode} - ${account.accountName}`
-    : t('financeReportPages.funds.accountFallback', { id })
-}
-
-const accountTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    BANK: t('financeReportPages.funds.accountType.bank'),
-    CASH: t('financeReportPages.funds.accountType.cash')
-  }
-  return map[type] || type
-}
-
-const accountStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    ENABLED: t('financeReportPages.funds.enabled'),
-    DISABLED: t('financeReportPages.funds.disabled')
-  }
-  return map[status] || status
-}
-
-const statementDirectionLabel = (direction: string) => {
-  const map: Record<string, string> = {
-    IN: t('financeReportPages.funds.income'),
-    OUT: t('financeReportPages.funds.expense')
-  }
-  return map[direction] || direction
-}
-
-const statementStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    MATCHED: t('financeReportPages.funds.matched'),
-    UNMATCHED: t('financeReportPages.funds.unmatched')
-  }
-  return map[status] || status
-}
-
-const businessTypeLabel = (type?: string) => {
-  if (type === 'RECEIPT') return t('financeReportPages.funds.receipt')
-  if (type === 'PAYMENT') return t('financeReportPages.funds.payment')
-  return type || '-'
-}
-
-const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2
-})
-const today = () => formatBusinessDate()
-
 watch(activeTab, (tab) => {
   if (tab === 'accounts') {
     loadAccounts()
   } else {
-    loadAllAccounts().then(loadStatements)
+    loadStatementTab()
   }
 })
 
