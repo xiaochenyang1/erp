@@ -84,8 +84,8 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         style="margin-top: 20px; justify-content: flex-end"
-        @size-change="handleQuery"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -115,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, Edit } from '@element-plus/icons-vue'
@@ -125,176 +125,83 @@ import {
   createWorkCenter,
   updateWorkCenter,
   enableWorkCenter,
-  disableWorkCenter,
-  type WorkCenter
+  disableWorkCenter
 } from '@/api/production'
 import { printProductionWorkCenter } from '@/utils/bizPrint'
+import { useProductionWorkCenterPresentation } from '@/composables/useProductionWorkCenterPresentation'
+import { useProductionWorkCenterList } from '@/composables/useProductionWorkCenterList'
+import { useProductionWorkCenterForm } from '@/composables/useProductionWorkCenterForm'
 
 const { t } = useI18n()
-
-const queryForm = reactive({
-  keyword: '',
-  status: ''
-})
-
-const loading = ref(false)
-const tableData = ref<WorkCenter[]>([])
-
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
-const formData = reactive({
-  id: undefined as string | number | undefined,
-  workCenterCode: '',
-  workCenterName: '',
-  remark: ''
+
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  handleDisable,
+  handleEnable,
+  handlePageChange,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loading,
+  pagination,
+  queryForm,
+  tableData
+} = useProductionWorkCenterList(t, {
+  getWorkCenters,
+  getWorkCenter,
+  enableWorkCenter,
+  disableWorkCenter,
+  printWorkCenter: printProductionWorkCenter,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  ...notify
 })
-const isEdit = computed(() => formData.id != null)
+
+const {
+  getStatusLabel,
+  getStatusType
+} = useProductionWorkCenterPresentation(t)
+
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleAdd,
+  handleEdit,
+  handleSubmit: submit,
+  isEdit,
+  resetForm,
+  submitLoading
+} = useProductionWorkCenterForm(t, {
+  createWorkCenter,
+  updateWorkCenter,
+  onSubmitted: loadData,
+  ...notify
+})
 
 const formRules = computed<FormRules>(() => ({
   workCenterCode: [{ required: true, message: t('productionWorkCenter.validation.code'), trigger: 'blur' }],
   workCenterName: [{ required: true, message: t('productionWorkCenter.validation.name'), trigger: 'blur' }]
 }))
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getWorkCenters({
-      ...queryForm,
-      pageNo: pagination.page,
-      pageSize: pagination.size
-    })
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    console.error(t('productionWorkCenter.message.loadFailed'), error)
-    ElMessage.error(t('productionWorkCenter.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.keyword = ''
-  queryForm.status = ''
-  pagination.page = 1
-  loadData()
-}
-
-const handleAdd = () => {
-  dialogTitle.value = t('productionWorkCenter.dialog.create')
-  dialogVisible.value = true
-}
-
-const handleEdit = (row: WorkCenter) => {
-  dialogTitle.value = t('productionWorkCenter.dialog.edit')
-  Object.assign(formData, {
-    id: row.id,
-    workCenterCode: row.workCenterCode,
-    workCenterName: row.workCenterName,
-    remark: row.remark || ''
-  })
-  dialogVisible.value = true
-}
-
-const handlePrint = async (row: WorkCenter) => {
-  try {
-    const detail = await getWorkCenter(row.id)
-    printProductionWorkCenter(detail)
-  } catch {
-    ElMessage.error(t('productionWorkCenter.message.printLoadFailed'))
-  }
-}
-
-const handleEnable = async (row: WorkCenter) => {
-  try {
-    await ElMessageBox.confirm(t('productionWorkCenter.message.enableConfirm', { name: row.workCenterName }), t('productionWorkCenter.message.prompt'), { type: 'warning' })
-  } catch {
-    return
-  }
-  try {
-    await enableWorkCenter(row.id)
-    ElMessage.success(t('productionWorkCenter.message.enabled'))
-    loadData()
-  } catch {
-    // 拦截器已提示
-  }
-}
-
-const handleDisable = async (row: WorkCenter) => {
-  try {
-    await ElMessageBox.confirm(t('productionWorkCenter.message.disableConfirm', { name: row.workCenterName }), t('productionWorkCenter.message.prompt'), { type: 'warning' })
-  } catch {
-    return
-  }
-  try {
-    await disableWorkCenter(row.id)
-    ElMessage.success(t('productionWorkCenter.message.disabled'))
-    loadData()
-  } catch {
-    // 拦截器已提示
-  }
-}
-
 const handleSubmit = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    submitLoading.value = true
-    try {
-      if (formData.id != null) {
-        await updateWorkCenter(formData.id, {
-          workCenterName: formData.workCenterName,
-          remark: formData.remark
-        })
-        ElMessage.success(t('productionWorkCenter.message.updated'))
-      } else {
-        await createWorkCenter({
-          workCenterCode: formData.workCenterCode,
-          workCenterName: formData.workCenterName,
-          remark: formData.remark
-        })
-        ElMessage.success(t('productionWorkCenter.message.created'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch {
-      // 拦截器已提示
-    } finally {
-      submitLoading.value = false
-    }
+    await submit()
   })
 }
 
 const handleDialogClose = () => {
   formRef.value?.resetFields()
-  Object.assign(formData, {
-    id: undefined,
-    workCenterCode: '',
-    workCenterName: '',
-    remark: ''
-  })
+  resetForm()
 }
-
-const getStatusLabel = (status: string) => ({
-  ACTIVE: t('productionWorkCenter.status.active'),
-  DISABLED: t('productionWorkCenter.status.disabled')
-}[status] || status)
-const getStatusType = (status: string) =>
-  (({ ACTIVE: 'success', DISABLED: 'danger' } as Record<string, string>)[status] || 'info') as
-    'primary' | 'success' | 'warning' | 'info' | 'danger'
 
 onMounted(loadData)
 </script>
