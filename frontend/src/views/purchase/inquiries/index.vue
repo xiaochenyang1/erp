@@ -347,10 +347,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
 import {
   getPurchaseInquiries,
   getPurchaseInquiry,
@@ -364,139 +363,65 @@ import {
   cancelPurchaseInquiry,
   type PurchaseInquiry,
   type PurchaseInquiryLine,
-  type PurchaseInquiryQuery,
   type PurchaseInquiryQuote,
   type PurchaseInquiryPoPrefill
 } from '@/api/purchase'
-import { getProducts, getSuppliers, type Product, type Supplier } from '@/api/masterdata'
+import { getProducts, getSuppliers } from '@/api/masterdata'
 import { useUserStore } from '@/store/modules/user'
 import { printPurchaseInquiry } from '@/utils/bizPrint'
+import { usePurchaseInquiryPresentation } from '@/composables/usePurchaseInquiryPresentation'
+import { usePurchaseInquiryList } from '@/composables/usePurchaseInquiryList'
 
 const { t } = useI18n()
-
-const loading = ref(false)
-const submitting = ref(false)
-const creatingPo = ref(false)
-const optionsLoading = ref(false)
-const tableData = ref<PurchaseInquiry[]>([])
-const total = ref(0)
-const current = ref<PurchaseInquiry>()
-const products = ref<Product[]>([])
-const suppliers = ref<Supplier[]>([])
 const userStore = useUserStore()
 const canConvertToPurchaseOrder = computed(() =>
   userStore.hasPermission('purchase:inquiry:manage')
   && userStore.hasPermission('purchase:order:create'))
 
-const searchForm = reactive<PurchaseInquiryQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  keyword: '',
-  status: ''
+const {
+  handleCancel,
+  handlePageChange,
+  handlePrint,
+  handleReset,
+  handleSearch,
+  handleSizeChange,
+  handleSubmit,
+  loadData,
+  loadOptions,
+  loading,
+  optionsLoading,
+  products,
+  searchForm,
+  suppliers,
+  tableData,
+  total
+} = usePurchaseInquiryList(t, {
+  getInquiries: getPurchaseInquiries,
+  getInquiry: getPurchaseInquiry,
+  submitInquiry: submitPurchaseInquiry,
+  cancelInquiry: cancelPurchaseInquiry,
+  getProducts,
+  getSuppliers,
+  printInquiry: printPurchaseInquiry,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
 
-const statusText = (status: string) =>
-  ({
-    DRAFT: t('purchaseInquiryOps.status.draft'),
-    SUBMITTED: t('purchaseInquiryOps.status.submitted'),
-    CLOSED: t('purchaseInquiryOps.status.closed'),
-    CONVERTED: t('purchaseInquiryOps.status.converted'),
-    CANCELLED: t('purchaseInquiryOps.status.cancelled')
-  }[status] || status)
+const {
+  inquiryLineProductLabel,
+  productLabel,
+  productLabelById,
+  quoteStatusText,
+  statusText,
+  statusType,
+  supplierLabel,
+  supplierLabelByEntity
+} = usePurchaseInquiryPresentation(t, products, suppliers)
 
-const quoteStatusText = (status: string) =>
-  ({
-    PENDING: t('purchaseInquiryOps.quoteStatus.pending'),
-    SELECTED: t('purchaseInquiryOps.quoteStatus.selected'),
-    REJECTED: t('purchaseInquiryOps.quoteStatus.rejected')
-  }[status] || status)
-
-const statusType = (status: string) =>
-  ({ DRAFT: 'info', SUBMITTED: 'warning', CLOSED: 'success', CONVERTED: 'success', CANCELLED: 'danger' }[status] || 'info') as
-    | 'info'
-    | 'warning'
-    | 'success'
-    | 'danger'
-
-const productLabel = (product: Product) =>
-  `${product.productCode || ''} ${product.productName || ''}`.trim() || String(product.id)
-
-const productLabelById = (productId?: string | number | null) => {
-  if (productId == null || productId === '') return '-'
-  const found = products.value.find((item) => String(item.id) === String(productId))
-  return found ? productLabel(found) : String(productId)
-}
-
-const supplierLabelByEntity = (supplier: Supplier) =>
-  supplier.supplierName || supplier.name || String(supplier.id)
-
-const supplierLabel = (supplierId?: string | number | null) => {
-  if (supplierId == null || supplierId === '') return '-'
-  const found = suppliers.value.find((item) => String(item.id) === String(supplierId))
-  return found ? supplierLabelByEntity(found) : String(supplierId)
-}
-
-const inquiryLineProductLabel = (
-  inquiryLineId: string | number,
-  inquiryLines: PurchaseInquiryLine[]
-) => {
-  const line = inquiryLines.find((item) => String(item.id) === String(inquiryLineId))
-  return line
-    ? productLabelById(line.productId)
-    : t('purchaseInquiryOps.inquiryLineFallback', { id: String(inquiryLineId) })
-}
-
-const loadOptions = async () => {
-  optionsLoading.value = true
-  try {
-    const [productPage, supplierPage] = await Promise.all([
-      getProducts({ pageNo: 1, pageSize: 200, status: 'ACTIVE' }),
-      getSuppliers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    ])
-    products.value = productPage.records || []
-    suppliers.value = supplierPage.records || []
-  } catch {
-    // 拦截器已提示
-  } finally {
-    optionsLoading.value = false
-  }
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getPurchaseInquiries(searchForm)
-    tableData.value = res.records
-    total.value = res.total
-  } catch {
-    // 拦截器已提示
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleSearch = () => {
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  searchForm.keyword = ''
-  searchForm.status = ''
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const handlePageChange = (page: number) => {
-  searchForm.pageNo = page
-  loadData()
-}
-
-const handleSizeChange = (size: number) => {
-  searchForm.pageSize = size
-  searchForm.pageNo = 1
-  loadData()
-}
+const submitting = ref(false)
+const creatingPo = ref(false)
+const current = ref<PurchaseInquiry>()
 
 const today = () => {
   const d = new Date()
