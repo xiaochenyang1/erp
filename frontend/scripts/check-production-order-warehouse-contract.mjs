@@ -78,7 +78,9 @@ const importsApi = existsSync(importsApiPath) ? readFileSync(importsApiPath, 'ut
 const importsView = existsSync(importsViewPath) ? readFileSync(importsViewPath, 'utf8') : ''
 const inventoryStockView = readFileSync(resolve(root, 'src/views/inventory/stocks/index.vue'), 'utf8')
 const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInventoryStockDetails.ts'), 'utf8')
-const inventoryStockFeature = `${inventoryStockView}\n${inventoryStockDetails}`
+const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInventoryStockActions.ts'), 'utf8')
+const inventoryStockResources = readFileSync(resolve(root, 'src/composables/useInventoryStockResources.ts'), 'utf8')
+const inventoryStockFeature = `${inventoryStockView}\n${inventoryStockDetails}\n${inventoryStockActions}\n${inventoryStockResources}`
 const inventoryAlertView = readFileSync(resolve(root, 'src/views/inventory/alerts/index.vue'), 'utf8')
 const inventoryOptionViews = [
   {
@@ -2584,10 +2586,10 @@ for (const fragment of [
   'request.get<InventoryLotBalance>(`/inventory/lot-balances/${id}`).then(normalizeInventoryLotBalance)',
   'export const getInventoryTransaction = (id: string | number)',
   'request.get<InventoryTransaction>(`/inventory/transactions/${id}`).then(normalizeInventoryTransaction)',
-  'export interface InventoryLotBalance {\n  id: string',
-  'export interface InventoryLotTrace {\n  id: string',
+  'export interface InventoryLotBalance {\n  locationId?: string\n\n  id: string',
+  'export interface InventoryLotTrace {\n  locationId?: string\n\n  id: string',
   'export interface InventoryLotExpiryAlert {\n  id: string',
-  'export interface InventoryTransaction {\n  id: string',
+  'export interface InventoryTransaction {\n  locationId?: string\n\n  id: string',
   'warehouseId: string',
   'productId: string',
   'bizLineId?: string',

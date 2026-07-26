@@ -705,22 +705,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search, Warning } from '@element-plus/icons-vue'
 import {
-  checkInventoryReservations,
   exportInventoryStocks,
-  manualReleaseInventoryReservation,
-  type InventoryLotBalance,
-  type InventoryReservation,
-  type InventoryReservationCheckIssue,
   type InventoryStock,
 } from '@/api/inventory'
 import { getLocations, getProducts, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
+import { useInventoryStockActions } from '@/composables/useInventoryStockActions'
 import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails'
 import { useInventoryStockQueries } from '@/composables/useInventoryStockQueries'
 import { useInventoryStockPresentation } from '@/composables/useInventoryStockPresentation'
@@ -752,18 +748,6 @@ const locationsForQuery = computed(() => {
   if (!queryParams.warehouseId) return locations.value
   return locations.value.filter((location) => String(location.warehouseId) === String(queryParams.warehouseId))
 })
-const reservationDialogVisible = ref(false)
-const releaseDialogVisible = ref(false)
-const checkDialogVisible = ref(false)
-const lotBalanceDialogVisible = ref(false)
-const transactionDialogVisible = ref(false)
-const lotAlertDialogVisible = ref(false)
-const lotTraceDialogVisible = ref(false)
-const checkLoading = ref(false)
-const releasing = ref(false)
-const selectedReservation = ref<InventoryReservation>()
-const checkIssues = ref<InventoryReservationCheckIssue[]>([])
-const releaseFormRef = ref<FormInstance>()
 
 const {
   detailLoading,
@@ -825,31 +809,59 @@ const {
   ElMessage.error(t(messageKey))
 })
 
-const releaseForm = reactive({
-  qty: 0,
-  reason: ''
+const {
+  checkDialogVisible,
+  checkIssues,
+  checkLoading,
+  handleLotAlertQuery,
+  handleLotBalanceQuery,
+  handleOpenLotAlerts,
+  handleOpenLotBalances,
+  handleOpenLotTrace,
+  handleOpenReservations,
+  handleOpenTransactions,
+  handleReservationCheck,
+  handleReservationQuery,
+  handleTransactionQuery,
+  lotAlertDialogVisible,
+  lotBalanceDialogVisible,
+  lotTraceDialogVisible,
+  openReleaseDialog,
+  releaseDialogVisible,
+  releaseForm,
+  releaseFormRef,
+  releaseRules,
+  releasing,
+  reservationDialogVisible,
+  resetLotAlertQuery,
+  resetLotBalanceQuery,
+  resetReservationQuery,
+  resetTransactionQuery,
+  selectedReservation,
+  submitManualRelease,
+  transactionDialogVisible
+} = useInventoryStockActions({
+  queryParams,
+  reservationQuery,
+  lotBalanceQuery,
+  transactionQuery,
+  lotAlertQuery,
+  lotTraceQuery
+}, {
+  loadData,
+  loadLotAlerts,
+  loadLotBalances,
+  loadLotTrace,
+  loadReservations,
+  loadReservationSummary,
+  loadTransactions
+}, {
+  applyStockScope,
+  reservationDetail,
+  t,
+  onError: (messageKey) => ElMessage.error(t(messageKey)),
+  onSuccess: (messageKey) => ElMessage.success(t(messageKey))
 })
-
-const validateReleaseQty = (_rule: unknown, value: number, callback: (error?: Error) => void) => {
-  const qty = Number(value)
-  if (!Number.isFinite(qty) || qty <= 0) {
-    callback(new Error(t('inventoryStocks.validation.releasePositive')))
-    return
-  }
-  if (selectedReservation.value && qty > Number(selectedReservation.value.remainingQty)) {
-    callback(new Error(t('inventoryStocks.validation.releaseMaximum')))
-    return
-  }
-  callback()
-}
-
-const releaseRules: FormRules = {
-  qty: [{ validator: validateReleaseQty, trigger: 'blur' }],
-  reason: [
-    { required: true, message: t('inventoryStocks.validation.releaseReason'), trigger: 'blur' },
-    { max: 255, message: t('inventoryStocks.validation.releaseReasonLength'), trigger: 'blur' }
-  ]
-}
 
 const {
   directionLabel,
@@ -903,151 +915,9 @@ const handleExport = async () => {
   }
 }
 
-const handleOpenLotBalances = (row?: InventoryStock) => {
-  applyStockScope(lotBalanceQuery, row)
-  lotBalanceQuery.lotNo = undefined
-  lotBalanceDialogVisible.value = true
-  loadLotBalances()
-}
-
-const handleLotBalanceQuery = () => {
-  lotBalanceQuery.pageNo = 1
-  loadLotBalances()
-}
-
-const resetLotBalanceQuery = () => {
-  lotBalanceQuery.lotNo = undefined
-  lotBalanceQuery.expiringWithinDays = undefined
-  handleLotBalanceQuery()
-}
-
-const handleOpenTransactions = (row?: InventoryStock) => {
-  applyStockScope(transactionQuery, row)
-  transactionQuery.bizNo = undefined
-  transactionQuery.direction = undefined
-  transactionDialogVisible.value = true
-  loadTransactions()
-}
-
-const handleTransactionQuery = () => {
-  transactionQuery.pageNo = 1
-  loadTransactions()
-}
-
-const resetTransactionQuery = () => {
-  transactionQuery.bizNo = undefined
-  transactionQuery.direction = undefined
-  handleTransactionQuery()
-}
-
-const handleOpenLotAlerts = (row?: InventoryStock) => {
-  applyStockScope(lotAlertQuery, row)
-  lotAlertQuery.lotNo = undefined
-  lotAlertDialogVisible.value = true
-  loadLotAlerts()
-}
-
-const handleLotAlertQuery = () => {
-  lotAlertQuery.pageNo = 1
-  loadLotAlerts()
-}
-
-const resetLotAlertQuery = () => {
-  lotAlertQuery.lotNo = undefined
-  lotAlertQuery.warningDays = 30
-  lotAlertQuery.status = undefined
-  handleLotAlertQuery()
-}
-
 const openTraceDocument = (route: string) => {
   if (!route) return
   router.push(route)
-}
-
-const handleOpenLotTrace = (row: InventoryLotBalance) => {
-  Object.assign(lotTraceQuery, {
-    pageNo: 1,
-    pageSize: 10,
-    warehouseId: row.warehouseId,
-    productId: row.productId,
-    lotNo: row.lotNo,
-    direction: undefined
-  })
-  lotTraceDialogVisible.value = true
-  loadLotTrace()
-}
-
-const handleOpenReservations = (row: InventoryStock) => {
-  Object.assign(reservationQuery, {
-    pageNo: 1,
-    pageSize: 10,
-    warehouseId: row.warehouseId,
-    productId: row.productId,
-    status: 'ACTIVE',
-    sourceNo: undefined
-  })
-  reservationDialogVisible.value = true
-  loadReservationSummary()
-  loadReservations()
-}
-
-const handleReservationQuery = () => {
-  reservationQuery.pageNo = 1
-  loadReservationSummary()
-  loadReservations()
-}
-
-const resetReservationQuery = () => {
-  reservationQuery.pageNo = 1
-  reservationQuery.status = undefined
-  reservationQuery.sourceNo = undefined
-  loadReservationSummary()
-  loadReservations()
-}
-
-const openReleaseDialog = (row: InventoryReservation) => {
-  selectedReservation.value = row
-  releaseForm.qty = Number(row.remainingQty)
-  releaseForm.reason = ''
-  releaseFormRef.value?.clearValidate()
-  releaseDialogVisible.value = true
-}
-
-const submitManualRelease = async () => {
-  if (!releaseFormRef.value || !selectedReservation.value) return
-  await releaseFormRef.value.validate()
-
-  releasing.value = true
-  try {
-    const detail = await manualReleaseInventoryReservation(selectedReservation.value.id, {
-      qty: releaseForm.qty,
-      reason: releaseForm.reason.trim()
-    })
-    reservationDetail.value = detail
-    releaseDialogVisible.value = false
-    ElMessage.success(t('inventoryStocks.message.released'))
-    await loadReservations()
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('inventoryStocks.message.releaseFailed'))
-  } finally {
-    releasing.value = false
-  }
-}
-
-const handleReservationCheck = async () => {
-  checkDialogVisible.value = true
-  checkLoading.value = true
-  try {
-    checkIssues.value = await checkInventoryReservations({
-      warehouseId: queryParams.warehouseId,
-      productId: queryParams.productId
-    })
-  } catch (error) {
-    ElMessage.error(t('inventoryStocks.message.reservationCheckFailed'))
-  } finally {
-    checkLoading.value = false
-  }
 }
 
 onMounted(async () => {
