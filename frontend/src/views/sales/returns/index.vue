@@ -376,10 +376,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
 import {
   getSalesReturns,
   getSalesReturn,
@@ -388,21 +387,17 @@ import {
   postSalesReturn,
   cancelSalesReturn,
   getSalesDeliveries,
-  getSalesDelivery,
-  type SalesReturnCreateRequest,
-  type SalesReturn,
-  type SalesDelivery
+  getSalesDelivery
 } from '@/api/sales'
 import { getLocations, getProducts } from '@/api/masterdata'
 import {
-  hydrateProductLineLabels,
-  serialCaptureProgress,
-  validateProductControlLines
+  serialCaptureProgress
 } from '@/utils/productLines'
 import { printSalesReturn } from '@/utils/bizPrint'
 import { formatBusinessDate } from '@/utils/locale'
 import { useSalesReturnPresentation } from '@/composables/useSalesReturnPresentation'
 import { useSalesReturnList } from '@/composables/useSalesReturnList'
+import { useSalesReturnForm } from '@/composables/useSalesReturnForm'
 
 const { t } = useI18n()
 
@@ -442,26 +437,37 @@ const {
   onSuccess: (message) => ElMessage.success(message)
 })
 
-// 对话框
-const dialogVisible = ref(false)
-const submitLoading = ref(false)
-const dialogTitle = ref('')
-const isView = ref(false)
-const editingId = ref<string | number>('')
-const formRef = ref<FormInstance>()
-
-// 表单数据
-const formData = reactive<SalesReturnCreateRequest>({
-  deliveryId: '',
-  returnDate: '',
-  items: [],
-  remark: ''
+const {
+  dialogTitle,
+  dialogVisible,
+  editingId,
+  formData,
+  formRef,
+  formRules,
+  handleCreate,
+  handleDeleteItem,
+  handleDeliveryChange,
+  handleEdit,
+  handleQuantityChange,
+  handleSubmit,
+  handleView,
+  isView,
+  submitLoading,
+  totalAmount: totalAmountFn,
+  totalQuantity: totalQuantityFn
+} = useSalesReturnForm(t, {
+  products,
+  deliveries,
+  getDelivery: getSalesDelivery,
+  getReturn: getSalesReturn,
+  createReturn: createSalesReturn,
+  updateReturn: updateSalesReturn,
+  formatBusinessDate,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => loadData()
 })
-
-const formRules: FormRules = {
-  deliveryId: [{ required: true, message: t('salesReturnOps.validation.salesDelivery'), trigger: 'change' }],
-  returnDate: [{ required: true, message: t('salesReturnOps.validation.returnDate'), trigger: 'change' }]
-}
 
 const {
   deliveryCustomerNameById,
@@ -474,192 +480,8 @@ const {
   selectedDelivery
 } = useSalesReturnPresentation(deliveries, locations, () => formData.deliveryId)
 
-const totalQuantity = computed(() => {
-  return formData.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
-})
-
-const totalAmount = computed(() => {
-  return formData.items.reduce((sum, item) => sum + (item.amount || 0), 0)
-})
-
-const handleCreate = () => {
-  resetForm()
-  dialogTitle.value = t('salesReturnOps.dialog.create')
-  dialogVisible.value = true
-}
-
-const handleView = async (row: SalesReturn) => {
-  try {
-    const data = await getSalesReturn(row.id)
-    dialogTitle.value = t('salesReturnOps.dialog.view')
-    isView.value = true
-    editingId.value = ''
-    Object.assign(formData, data)
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('salesReturnOps.message.detailLoadFailed'))
-  }
-}
-
-const handleEdit = async (row: SalesReturn) => {
-  try {
-    const detail = await getSalesReturn(row.id)
-    dialogTitle.value = t('salesReturnOps.dialog.edit')
-    isView.value = false
-    editingId.value = detail.id
-    const existing = deliveries.value.find(d => String(d.id) === String(detail.deliveryId))
-    if (!existing) {
-      deliveries.value = [{
-        id: detail.deliveryId,
-        deliveryNo: detail.deliveryNo,
-        customerName: detail.customerName,
-        warehouseName: detail.warehouseName
-      } as SalesDelivery, ...deliveries.value]
-    }
-    formData.deliveryId = detail.deliveryId
-    formData.returnDate = detail.returnDate
-    formData.remark = detail.remark || ''
-    formData.items = (detail.items || detail.lines || []).map(item => ({
-      deliveryLineId: item.deliveryLineId,
-      orderLineId: item.orderLineId,
-      productId: item.productId,
-      productCode: item.productCode,
-      productName: item.productName,
-      quantity: Number(item.quantity ?? item.qty ?? 0),
-      price: Number(item.price ?? 0),
-      taxRate: Number(item.taxRate ?? 0),
-      amount: Number(item.amount ?? 0),
-      taxAmount: Number(item.taxAmount ?? 0),
-      locationId: item.locationId ?? undefined,
-      serialNos: item.serialNos || '',
-      lotNo: item.lotNo || '',
-      productionDate: item.productionDate || '',
-      expiryDate: item.expiryDate || '',
-      reason: item.reason || item.remark || ''
-    }))
-    formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
-      const product = products.value.find((item) => String(item.id) === String(productId))
-      return product || {}
-    })
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('salesReturnOps.message.returnLoadFailed'))
-  }
-}
-
-const handleDeliveryChange = async () => {
-  if (!formData.deliveryId) {
-    formData.items = []
-    return
-  }
-
-  try {
-    const delivery = await getSalesDelivery(formData.deliveryId)
-    formData.items = delivery.items.map(item => ({
-      ...productInfoById(item.productId),
-      deliveryLineId: item.id,
-      orderLineId: item.orderLineId,
-      productId: item.productId,
-      productCode: item.productCode || productInfoById(item.productId).productCode,
-      productName: item.productName || productInfoById(item.productId).productName,
-      quantity: item.quantity - (item.returnedQty || 0),
-      price: item.price || 0,
-      taxRate: item.taxRate || 0,
-      amount: (item.quantity - (item.returnedQty || 0)) * (item.price || 0),
-      taxAmount: 0,
-      locationId: item.locationId ?? undefined,
-      serialNos: item.serialNos || '',
-      lotNo: item.lotNo || '',
-      productionDate: item.productionDate || '',
-      expiryDate: item.expiryDate || '',
-      reason: ''
-    })).filter(item => item.quantity > 0)
-    formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
-      const product = products.value.find((item) => String(item.id) === String(productId))
-      return product || {}
-    })
-  } catch {
-    ElMessage.error(t('salesReturnOps.message.deliveryDetailLoadFailed'))
-  }
-}
-
-const handleDeleteItem = (index: number) => {
-  formData.items.splice(index, 1)
-}
-
-const handleQuantityChange = (index: number) => {
-  const item = formData.items[index]
-  item.amount = (item.quantity || 0) * (item.price || 0)
-}
-
-const productInfoById = (productId: string | number) => {
-  const product = products.value.find(item => String(item.id) === String(productId))
-  return {
-    productCode: product?.code || product?.productCode || '',
-    productName: product?.name || product?.productName || ''
-  }
-}
-
-const handleSubmit = async () => {
-  if (!formRef.value) return
-
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    if (formData.items.length === 0) {
-      ElMessage.warning(t('salesReturnOps.validation.itemRequired'))
-      return
-    }
-
-    const hasQuantity = formData.items.some(item => item.quantity > 0)
-    if (!hasQuantity) {
-      ElMessage.warning(t('salesReturnOps.validation.quantityRequired'))
-      return
-    }
-
-    formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
-      const product = products.value.find((item) => String(item.id) === String(productId))
-      return product || {}
-    })
-    const controlIssues = validateProductControlLines(formData.items)
-    if (controlIssues.length > 0) {
-      const issue = controlIssues[0]
-      const product = issue.productCode || issue.productName || String(issue.productId)
-      ElMessage.warning(t(`salesReturnOps.validation.${issue.messageKey}`, {
-        line: issue.index + 1,
-        product,
-        expected: issue.expectedSerialCount,
-        actual: issue.actualSerialCount
-      }))
-      return
-    }
-
-    submitLoading.value = true
-    try {
-      if (editingId.value) {
-        await updateSalesReturn(editingId.value, formData)
-      } else {
-        await createSalesReturn(formData)
-      }
-      ElMessage.success(t('salesReturnOps.message.success'))
-      dialogVisible.value = false
-      loadData()
-    } catch {
-      ElMessage.error(t(editingId.value ? 'salesReturnOps.message.updateFailed' : 'salesReturnOps.message.failed'))
-    } finally {
-      submitLoading.value = false
-    }
-  })
-}
-
-const resetForm = () => {
-  editingId.value = ''
-  isView.value = false
-  formData.deliveryId = ''
-  formData.returnDate = formatBusinessDate()
-  formData.items = []
-  formData.remark = ''
-  formRef.value?.clearValidate()
-}
+const totalQuantity = computed(() => totalQuantityFn())
+const totalAmount = computed(() => totalAmountFn())
 
 onMounted(async () => {
   await loadOptions()
