@@ -91,8 +91,8 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         style="margin-top: 20px; justify-content: flex-end"
-        @size-change="handleQuery"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -228,7 +228,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, Edit, View, Delete } from '@element-plus/icons-vue'
@@ -241,45 +241,88 @@ import {
   disableRouting,
   getWorkCenters,
   getBOMs,
-  type Routing,
-  type RoutingOperation,
-  type WorkCenter,
-  type BOM
+  type Routing
 } from '@/api/production'
 import { printProductionRouting } from '@/utils/bizPrint'
+import { useProductionRoutingPresentation } from '@/composables/useProductionRoutingPresentation'
+import { useProductionRoutingList } from '@/composables/useProductionRoutingList'
+import { useProductionRoutingForm } from '@/composables/useProductionRoutingForm'
 
 const { t } = useI18n()
 
-const queryForm = reactive({
-  keyword: '',
-  status: ''
-})
-
-const loading = ref(false)
-const tableData = ref<Routing[]>([])
-
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const workCenterOptions = ref<WorkCenter[]>([])
-const bomOptions = ref<BOM[]>([])
-
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
-const formData = reactive({
-  id: undefined as string | number | undefined,
-  routingCode: '',
-  routingName: '',
-  bomId: undefined as string | number | undefined,
-  remark: '',
-  operations: [] as RoutingOperation[]
+
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
+}
+
+const {
+  bomOptions,
+  handleDisable,
+  handleEnable,
+  handlePageChange,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  handleView,
+  loadData,
+  loadOptions,
+  loading,
+  pagination,
+  queryForm,
+  tableData,
+  viewData,
+  viewDialogVisible,
+  workCenterOptions
+} = useProductionRoutingList(t, {
+  getRoutings,
+  getRouting,
+  getWorkCenters,
+  getBOMs,
+  enableRouting,
+  disableRouting,
+  printRouting: printProductionRouting,
+  decoratePrint: (detail) => ({
+    ...detail,
+    operations: (detail.operations || []).map((operation) => ({
+      ...operation,
+      workCenterName: operation.workCenterName || workCenterLabel(operation)
+    }))
+  } as Routing),
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  onError: notify.onError,
+  onSuccess: notify.onSuccess
 })
-const isEdit = computed(() => formData.id != null)
+
+const {
+  bomLabel,
+  getStatusLabel,
+  getStatusType,
+  workCenterLabel
+} = useProductionRoutingPresentation(t, { workCenters: workCenterOptions })
+
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleAdd,
+  handleAddOperation,
+  handleDeleteOperation,
+  handleEdit,
+  handleSubmit: submit,
+  isEdit,
+  resetForm,
+  submitLoading
+} = useProductionRoutingForm(t, {
+  getRouting,
+  createRouting,
+  updateRouting,
+  onSubmitted: loadData,
+  ...notify
+})
 
 const formRules = computed<FormRules>(() => ({
   routingCode: [{ required: true, message: t('productionRouting.validation.code'), trigger: 'blur' }],
@@ -287,227 +330,18 @@ const formRules = computed<FormRules>(() => ({
   bomId: [{ required: true, message: t('productionRouting.validation.bom'), trigger: 'change' }]
 }))
 
-const viewDialogVisible = ref(false)
-const viewData = ref<Routing>({} as Routing)
-
-const loadOptions = async () => {
-  try {
-    const [wcRes, bomRes] = await Promise.all([
-      getWorkCenters({ pageNo: 1, pageSize: 200, status: 'ACTIVE' }),
-      getBOMs({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    ])
-    workCenterOptions.value = wcRes.records || []
-    bomOptions.value = bomRes.records || []
-  } catch (error) {
-    console.error(t('productionRouting.message.optionsLoadFailed'), error)
-    ElMessage.error(t('productionRouting.message.optionsLoadFailed'))
-  }
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getRoutings({
-      ...queryForm,
-      pageNo: pagination.page,
-      pageSize: pagination.size
-    })
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    console.error(t('productionRouting.message.loadFailed'), error)
-    ElMessage.error(t('productionRouting.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.keyword = ''
-  queryForm.status = ''
-  pagination.page = 1
-  loadData()
-}
-
-const handleAdd = () => {
-  dialogTitle.value = t('productionRouting.dialog.create')
-  dialogVisible.value = true
-}
-
-const handleEdit = async (row: Routing) => {
-  dialogTitle.value = t('productionRouting.dialog.edit')
-  try {
-    const res = await getRouting(row.id)
-    Object.assign(formData, {
-      id: res.id,
-      routingCode: res.routingCode,
-      routingName: res.routingName,
-      bomId: res.bomId,
-      remark: res.remark || '',
-      operations: (res.operations || []).map((op) => ({ ...op }))
-    })
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('productionRouting.message.detailLoadFailed'))
-  }
-}
-
-const handleView = async (row: Routing) => {
-  try {
-    viewData.value = await getRouting(row.id)
-    viewDialogVisible.value = true
-  } catch {
-    ElMessage.error(t('productionRouting.message.detailLoadFailed'))
-  }
-}
-
-const handlePrint = async (row: Routing) => {
-  try {
-    const detail = await getRouting(row.id)
-    printProductionRouting({
-      ...detail,
-      operations: (detail.operations || []).map((operation) => ({
-        ...operation,
-        workCenterName: operation.workCenterName || workCenterLabel(operation)
-      }))
-    })
-  } catch {
-    ElMessage.error(t('productionRouting.message.printLoadFailed'))
-  }
-}
-
-const handleAddOperation = () => {
-  formData.operations.push({
-    operationCode: '',
-    operationName: '',
-    workCenterId: '',
-    standardMinutes: 1,
-    remark: ''
-  })
-}
-
-const handleDeleteOperation = (index: number) => {
-  formData.operations.splice(index, 1)
-}
-
-const handleEnable = async (row: Routing) => {
-  try {
-    await ElMessageBox.confirm(t('productionRouting.message.enableConfirm', { name: row.routingName }), t('productionRouting.message.prompt'), { type: 'warning' })
-  } catch {
-    return
-  }
-  try {
-    await enableRouting(row.id)
-    ElMessage.success(t('productionRouting.message.enabled'))
-    loadData()
-  } catch {
-    // 拦截器已提示
-  }
-}
-
-const handleDisable = async (row: Routing) => {
-  try {
-    await ElMessageBox.confirm(t('productionRouting.message.disableConfirm', { name: row.routingName }), t('productionRouting.message.prompt'), { type: 'warning' })
-  } catch {
-    return
-  }
-  try {
-    await disableRouting(row.id)
-    ElMessage.success(t('productionRouting.message.disabled'))
-    loadData()
-  } catch {
-    // 拦截器已提示
-  }
-}
-
 const handleSubmit = async () => {
   if (!formRef.value) return
-  if (formData.operations.length === 0) {
-    ElMessage.warning(t('productionRouting.validation.operations'))
-    return
-  }
-  for (const [i, op] of formData.operations.entries()) {
-    if (!op.operationCode || !op.operationName || !op.workCenterId || !op.standardMinutes) {
-      ElMessage.warning(t('productionRouting.validation.operationRequired', { line: i + 1 }))
-      return
-    }
-  }
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    submitLoading.value = true
-    try {
-      const operations = formData.operations.map((op) => ({
-        operationCode: op.operationCode,
-        operationName: op.operationName,
-        workCenterId: op.workCenterId,
-        standardMinutes: op.standardMinutes,
-        remark: op.remark
-      }))
-      if (formData.id != null) {
-        await updateRouting(formData.id, {
-          routingName: formData.routingName,
-          remark: formData.remark,
-          operations
-        })
-        ElMessage.success(t('productionRouting.message.updated'))
-      } else {
-        await createRouting({
-          routingCode: formData.routingCode,
-          routingName: formData.routingName,
-          bomId: formData.bomId!,
-          remark: formData.remark,
-          operations
-        })
-        ElMessage.success(t('productionRouting.message.created'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch {
-      // 拦截器已提示
-    } finally {
-      submitLoading.value = false
-    }
+    await submit()
   })
 }
 
 const handleDialogClose = () => {
   formRef.value?.resetFields()
-  Object.assign(formData, {
-    id: undefined,
-    routingCode: '',
-    routingName: '',
-    bomId: undefined,
-    remark: '',
-    operations: []
-  })
+  resetForm()
 }
-
-const bomLabel = (bom: BOM) => {
-  const code = bom.bomCode || bom.bomNo || ''
-  const name = bom.productName || ''
-  return code && name ? `${code} - ${name}` : code || name || `BOM${bom.id}`
-}
-
-const workCenterLabel = (op: RoutingOperation) => {
-  if (op.workCenterCode || op.workCenterName) {
-    return `${op.workCenterCode || ''} ${op.workCenterName || ''}`.trim()
-  }
-  const wc = workCenterOptions.value.find((w) => String(w.id) === String(op.workCenterId))
-  return wc ? `${wc.workCenterCode} - ${wc.workCenterName}` : op.workCenterId || '-'
-}
-
-const getStatusLabel = (status: string) => ({
-  ACTIVE: t('productionRouting.status.active'),
-  DISABLED: t('productionRouting.status.disabled')
-}[status] || status)
-const getStatusType = (status: string) =>
-  (({ ACTIVE: 'success', DISABLED: 'danger' } as Record<string, string>)[status] || 'info') as
-    'primary' | 'success' | 'warning' | 'info' | 'danger'
 
 onMounted(() => {
   loadOptions()
