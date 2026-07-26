@@ -322,7 +322,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ShoppingBag,
@@ -344,15 +344,14 @@ import {
   updateSupplier,
   deleteSupplier,
   enableSupplier,
-  exportSuppliers,
-  type Supplier,
-  type SupplierSaveRequest
+  exportSuppliers
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
 import { useSupplierPresentation } from '@/composables/useSupplierPresentation'
 import { useSupplierList } from '@/composables/useSupplierList'
+import { useSupplierForm } from '@/composables/useSupplierForm'
 
 const appStore = useAppStore()
 const userStore = useUserStore()
@@ -561,109 +560,22 @@ const {
 
 const activeCount = computed(() => countActive(tableData.value))
 
-// 对话框
-const dialogVisible = ref(false)
-const dialogTitle = computed(() => (formData.id ? texts.value.editSupplier : texts.value.createSupplier))
-const submitting = ref(false)
-
-// 表单数据
-const formData = reactive<SupplierSaveRequest & { id?: string }>({
-  code: '',
-  name: '',
-  contact: '',
-  mobile: '',
-  email: '',
-  settlementMethod: 'BANK_TRANSFER',
-  address: '',
-  creditPeriod: undefined,
-  status: 'ACTIVE',
-  remark: ''
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  formRules,
+  handleCreate,
+  handleEdit,
+  handleSubmit,
+  submitting
+} = useSupplierForm(texts, {
+  createSupplier,
+  updateSupplier,
+  onSuccess: (message) => ElMessage.success(message),
+  onError: (message) => ElMessage.error(message),
+  onCompleted: () => loadData()
 })
-
-const formRules = computed(() => ({
-  code: [
-    { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
-    { min: 2, max: 50, message: texts.value.validationCodeLength, trigger: 'blur' }
-  ],
-  name: [
-    { required: true, message: texts.value.validationEnterName, trigger: 'blur' },
-    { min: 2, max: 100, message: texts.value.validationNameLength, trigger: 'blur' }
-  ],
-  settlementMethod: [{ required: true, message: texts.value.validationSettlementMethod, trigger: 'change' }],
-  mobile: [
-    { pattern: /^1[3-9]\d{9}$/, message: texts.value.validationMobile, trigger: 'blur' }
-  ],
-  email: [
-    { type: 'email', message: texts.value.validationEmail, trigger: 'blur' }
-  ]
-}))
-
-const handleCreate = () => {
-  Object.assign(formData, {
-    id: undefined,
-    code: '',
-    name: '',
-    contact: '',
-    mobile: '',
-    email: '',
-    settlementMethod: 'BANK_TRANSFER',
-    address: '',
-    creditPeriod: undefined,
-    status: 'ACTIVE',
-    remark: ''
-  })
-  dialogVisible.value = true
-}
-
-const handleEdit = (row: Supplier) => {
-  Object.assign(formData, {
-    id: row.id,
-    code: row.supplierCode || row.code,
-    name: row.supplierName || row.name,
-    contact: row.contactName || row.contact,
-    mobile: row.contactPhone || row.mobile,
-    email: row.email,
-    settlementMethod: row.settlementMethod || 'BANK_TRANSFER',
-    address: row.address,
-    creditPeriod: hasCreditPeriod(row.creditPeriod) ? Number(row.creditPeriod) : undefined,
-    status: row.status,
-    remark: row.remark
-  })
-  dialogVisible.value = true
-}
-
-const handleSubmit = async (values: any) => {
-  submitting.value = true
-  try {
-    const payload = {
-      supplierCode: values.code,
-      supplierName: values.name,
-      contactName: values.contact,
-      contactPhone: values.mobile,
-      email: values.email,
-      settlementMethod: values.settlementMethod || 'BANK_TRANSFER',
-      creditPeriod: hasCreditPeriod(values.creditPeriod) ? Number(values.creditPeriod) : undefined,
-      address: values.address,
-      status: values.status,
-      remark: values.remark
-    }
-
-    if (formData.id) {
-      await updateSupplier(formData.id, payload)
-      ElMessage.success(texts.value.updateSuccess)
-    } else {
-      await createSupplier(payload)
-      ElMessage.success(texts.value.createSuccess)
-    }
-    dialogVisible.value = false
-    loadData()
-  } catch (error) {
-    console.error(error)
-    ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
-  } finally {
-    submitting.value = false
-  }
-}
 
 onMounted(() => {
   loadData()

@@ -405,7 +405,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Box, View, Edit, Delete, CircleCheck, Download, Refresh, Plus } from '@element-plus/icons-vue'
 import {
@@ -416,16 +416,14 @@ import {
   updateProduct,
   deleteProduct,
   enableProduct,
-  exportProducts,
-  type Product,
-  type ProductStockSummary,
-  type ProductSaveRequest
+  exportProducts
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard, TableColumnSetting } from '@/components/common'
 import { useTablePreference } from '@/composables/useTablePreference'
 import { useAppStore } from '@/store/modules/app'
 import { useProductPresentation } from '@/composables/useProductPresentation'
 import { useProductList } from '@/composables/useProductList'
+import { useProductForm } from '@/composables/useProductForm'
 
 const appStore = useAppStore()
 const PRODUCT_TEXTS = {
@@ -753,143 +751,22 @@ const handleColumnVisibleUpdate = (nextValue: Record<string, boolean>) => {
   }
 }
 
-// 对话框
-const dialogVisible = ref(false)
-const dialogTitle = computed(() => (formData.id ? texts.value.editProduct : texts.value.createProduct))
-const submitting = ref(false)
-
-// 表单数据
-const formData = reactive<ProductSaveRequest & { id?: string }>({
-  code: '',
-  name: '',
-  productType: 'PHYSICAL',
-  categoryName: '',
-  specifications: '',
-  unit: '',
-  auxUnitName: '',
-  conversionFactor: undefined,
-  unitPrice: undefined,
-  costPrice: undefined,
-  taxRate: 13,
-  barcode: '',
-  status: 'ACTIVE',
-  inspectionRequired: false,
-  serialControlled: false,
-  lotControlled: false,
-  shelfLifeControlled: false,
-  remark: ''
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  formRules,
+  handleCreate,
+  handleEdit,
+  handleSubmit,
+  submitting
+} = useProductForm(texts, {
+  createProduct,
+  updateProduct,
+  onSuccess: (message) => ElMessage.success(message),
+  onError: (message) => ElMessage.error(message),
+  onCompleted: () => loadData()
 })
-
-watch(() => formData.auxUnitName, (value) => {
-  if (!value) {
-    formData.conversionFactor = undefined
-  }
-})
-
-const formRules = computed(() => ({
-  code: [
-    { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
-    { min: 2, max: 50, message: texts.value.validationCodeLength, trigger: 'blur' }
-  ],
-  name: [
-    { required: true, message: texts.value.validationEnterName, trigger: 'blur' },
-    { min: 2, max: 100, message: texts.value.validationNameLength, trigger: 'blur' }
-  ],
-  productType: [{ required: true, message: texts.value.validationProductType, trigger: 'change' }],
-  categoryName: [{ required: true, message: texts.value.validationCategory, trigger: 'blur' }],
-  unit: [{ required: true, message: texts.value.validationUnit, trigger: 'change' }],
-  conversionFactor: [{
-    validator: (_rule: any, value: number | undefined | null, callback: (error?: Error) => void) => {
-      if (!formData.auxUnitName) {
-        callback()
-        return
-      }
-      if (value == null || !Number.isFinite(Number(value)) || Number(value) <= 0) {
-        callback(new Error(texts.value.validationConversionFactor))
-        return
-      }
-      callback()
-    },
-    trigger: 'blur'
-  }],
-  unitPrice: [{ required: true, message: texts.value.validationSalePrice, trigger: 'blur' }],
-  costPrice: [{ required: true, message: texts.value.validationCostPrice, trigger: 'blur' }],
-  taxRate: [{ required: true, message: texts.value.validationTaxRate, trigger: 'blur' }]
-}))
-
-const handleCreate = () => {
-  Object.assign(formData, {
-    id: undefined,
-    code: '',
-    name: '',
-    productType: 'PHYSICAL',
-    categoryName: '',
-    specifications: '',
-    unit: '',
-    auxUnitName: '',
-    conversionFactor: undefined,
-    unitPrice: undefined,
-    costPrice: undefined,
-    taxRate: 13,
-    barcode: '',
-    status: 'ACTIVE',
-    inspectionRequired: false,
-    serialControlled: false,
-    lotControlled: false,
-    shelfLifeControlled: false,
-    remark: ''
-  })
-  dialogVisible.value = true
-}
-
-const handleEdit = (row: Product) => {
-  Object.assign(formData, {
-    id: String(row.id),
-    code: row.code || row.productCode || '',
-    name: row.name || row.productName || '',
-    productType: row.productType || 'PHYSICAL',
-    categoryName: row.categoryName || '',
-    specifications: row.specifications || row.specification || '',
-    unit: row.unit || row.unitName || '',
-    auxUnitName: row.auxUnitName || '',
-    conversionFactor: row.conversionFactor,
-    unitPrice: row.unitPrice ?? row.salePrice,
-    costPrice: row.costPrice ?? row.purchasePrice,
-    taxRate: row.taxRate ?? 13,
-    barcode: row.barcode || '',
-    status: row.status || 'ACTIVE',
-    inspectionRequired: !!row.inspectionRequired,
-    serialControlled: !!row.serialControlled,
-    lotControlled: !!row.lotControlled,
-    shelfLifeControlled: !!row.shelfLifeControlled,
-    remark: row.remark || ''
-  })
-  dialogVisible.value = true
-}
-
-const handleSubmit = async (values: any) => {
-  submitting.value = true
-  try {
-    const payload = {
-      ...formData,
-      ...values
-    }
-    if (formData.id) {
-      await updateProduct(formData.id, payload)
-      ElMessage.success(texts.value.updateSuccess)
-    } else {
-      await createProduct(payload)
-      ElMessage.success(texts.value.createSuccess)
-    }
-    dialogVisible.value = false
-    await loadData()
-  } catch (error) {
-    console.error(error)
-    ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
-  } finally {
-    submitting.value = false
-  }
-}
 
 onMounted(() => {
   loadData()

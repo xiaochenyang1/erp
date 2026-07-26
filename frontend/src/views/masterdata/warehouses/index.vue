@@ -312,7 +312,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Opportunity,
@@ -334,9 +334,7 @@ import {
   updateWarehouse,
   deleteWarehouse,
   enableWarehouse,
-  exportWarehouses,
-  type Warehouse,
-  type WarehouseSaveRequest
+  exportWarehouses
 } from '@/api/masterdata'
 import {
   getDeptTree,
@@ -347,6 +345,7 @@ import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
 import { useWarehousePresentation } from '@/composables/useWarehousePresentation'
 import { useWarehouseList } from '@/composables/useWarehouseList'
+import { useWarehouseForm } from '@/composables/useWarehouseForm'
 
 const appStore = useAppStore()
 const userStore = useUserStore()
@@ -538,96 +537,22 @@ const activeCount = computed(() => countActive(tableData.value))
 const deptLabel = (id?: string | number) => resolveDeptFromOptions(deptOptions.value, id)
 const managerLabel = (id?: string | number) => resolveManagerFromOptions(userOptions.value, id)
 
-// 对话框
-const dialogVisible = ref(false)
-const dialogTitle = computed(() => (formData.id ? texts.value.editWarehouse : texts.value.createWarehouse))
-const submitting = ref(false)
-
-// 表单数据
-const formData = reactive<WarehouseSaveRequest & { id?: string }>({
-  code: '',
-  name: '',
-  deptId: undefined as string | undefined,
-  managerUserId: undefined as string | undefined,
-  address: '',
-  status: 'ACTIVE',
-  remark: ''
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  formRules,
+  handleCreate,
+  handleEdit,
+  handleSubmit,
+  submitting
+} = useWarehouseForm(texts, {
+  createWarehouse,
+  updateWarehouse,
+  onSuccess: (message) => ElMessage.success(message),
+  onError: (message) => ElMessage.error(message),
+  onCompleted: () => loadData()
 })
-
-const formRules = computed(() => ({
-  code: [
-    { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
-    { min: 2, max: 50, message: texts.value.validationCodeLength, trigger: 'blur' }
-  ],
-  name: [
-    { required: true, message: texts.value.validationEnterName, trigger: 'blur' },
-    { min: 2, max: 100, message: texts.value.validationNameLength, trigger: 'blur' }
-  ],
-  deptId: [
-    { required: true, message: texts.value.validationDepartment, trigger: 'change' }
-  ],
-  managerUserId: [
-    { required: true, message: texts.value.validationManager, trigger: 'change' }
-  ]
-}))
-
-const handleCreate = () => {
-  Object.assign(formData, {
-    id: undefined,
-    code: '',
-    name: '',
-    deptId: undefined as string | undefined,
-    managerUserId: undefined as string | undefined,
-    address: '',
-    status: 'ACTIVE',
-    remark: ''
-  })
-  dialogVisible.value = true
-}
-
-const handleEdit = (row: Warehouse) => {
-  Object.assign(formData, {
-    id: row.id,
-    code: row.warehouseCode || row.code,
-    name: row.warehouseName || row.name,
-    deptId: row.deptId,
-    managerUserId: row.managerUserId,
-    address: row.address,
-    status: row.status,
-    remark: row.remark
-  })
-  dialogVisible.value = true
-}
-
-const handleSubmit = async (values: any) => {
-  submitting.value = true
-  try {
-    const payload = {
-      warehouseCode: values.code,
-      warehouseName: values.name,
-      deptId: values.deptId,
-      managerUserId: values.managerUserId,
-      address: values.address,
-      status: values.status,
-      remark: values.remark
-    }
-
-    if (formData.id) {
-      await updateWarehouse(formData.id, payload)
-      ElMessage.success(texts.value.updateSuccess)
-    } else {
-      await createWarehouse(payload)
-      ElMessage.success(texts.value.createSuccess)
-    }
-    dialogVisible.value = false
-    loadData()
-  } catch (error) {
-    console.error(error)
-    ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
-  } finally {
-    submitting.value = false
-  }
-}
 
 onMounted(() => {
   loadOptions()
