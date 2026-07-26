@@ -405,7 +405,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Box, View, Edit, Delete, CircleCheck, Download, Refresh, Plus } from '@element-plus/icons-vue'
 import {
@@ -419,14 +419,13 @@ import {
   exportProducts,
   type Product,
   type ProductStockSummary,
-  type ProductQuery,
   type ProductSaveRequest
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard, TableColumnSetting } from '@/components/common'
-import { downloadBlob } from '@/utils/download'
 import { useTablePreference } from '@/composables/useTablePreference'
 import { useAppStore } from '@/store/modules/app'
-import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import { useProductPresentation } from '@/composables/useProductPresentation'
+import { useProductList } from '@/composables/useProductList'
 
 const appStore = useAppStore()
 const PRODUCT_TEXTS = {
@@ -661,80 +660,92 @@ const PRODUCT_TEXTS = {
 } as const
 const texts = computed(() => PRODUCT_TEXTS[appStore.locale as keyof typeof PRODUCT_TEXTS])
 const displayPreferences = computed(() => ({
-  locale: appStore.locale,
-  timeZone: appStore.timeZone
+  locale: appStore.locale
 }))
-const interpolate = (template: string, params: Record<string, string | number>) =>
-  template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
-const joinNames = (items: string[]) => (appStore.locale === 'en-US' ? items.join(', ') : items.join('、'))
-const labelWithCount = (label: string, count: number) => (count > 0 ? `${label} (${count})` : label)
-const formatCurrency = (value?: number | string | null) => {
-  const amount = Number(value)
-  if (!Number.isFinite(amount)) return '-'
-  return formatLocalizedCurrency(amount, {}, displayPreferences.value)
-}
-const formatDateTime = (value?: string | null) => (
-  value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
-)
-const formatNumber = (value?: number | string | null) => (
-  formatLocalizedNumber(Number(value || 0), { maximumFractionDigits: 2 }, displayPreferences.value)
-)
-const productTypeOptions = computed(() => ([
-  { label: texts.value.physicalProduct, value: 'PHYSICAL' },
-  { label: texts.value.goodsProduct, value: 'GOODS' },
-  { label: texts.value.serviceProduct, value: 'SERVICE' }
-]))
-const unitOptions = computed(() => ([
-  { label: texts.value.unitPiece, value: '个' },
-  { label: texts.value.unitMachine, value: '台' },
-  { label: texts.value.unitItem, value: '件' },
-  { label: texts.value.unitBox, value: '箱' },
-  { label: 'kg', value: 'kg' },
-  { label: 'm', value: 'm' }
-]))
-const formatUnit = (value?: string | null) => (
-  unitOptions.value.find((option) => option.value === value)?.label || value || '-'
-)
+
+const {
+  activeCount: countActive,
+  formatCurrency,
+  formatDateTime,
+  formatNumber,
+  formatUnit,
+  interpolate,
+  joinNames,
+  labelWithCount,
+  productTypeOptions,
+  unitOptions
+} = useProductPresentation(texts)
+
+const {
+  batchRunning,
+  currentRow,
+  detailVisible,
+  handleBatchDisable,
+  handleBatchEnable,
+  handleDelete,
+  handleEnable,
+  handleExport,
+  handleExportSelected,
+  handlePageChange,
+  handleReset,
+  handleSearch,
+  handleSelectionChange,
+  handleView,
+  loadData,
+  loading,
+  searchForm,
+  selectedRows,
+  stockSummary,
+  tableData,
+  total
+} = useProductList(texts, {
+  getProducts,
+  getProduct,
+  getStockSummary: getProductStockSummary,
+  enableProduct,
+  deleteProduct,
+  exportProducts,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  interpolate,
+  joinNames: (items, locale) => joinNames(items, locale),
+  formatUnit,
+  formatCurrency,
+  locale: computed(() => appStore.locale)
+})
+
+const activeCount = computed(() => countActive(tableData.value))
 
 // 列自定义 + 查询条件记忆（localStorage 持久化）。code/name/操作 为固定列，其余可显隐。
 const productColumns = [
-  { prop: 'categoryName', label: 'categoryName' },
-  { prop: 'specifications', label: 'specifications' },
-  { prop: 'unit', label: 'unit' },
-  { prop: 'auxUnitName', label: 'auxUnitName' },
-  { prop: 'conversionFactor', label: 'conversionFactor' },
-  { prop: 'unitPrice', label: 'unitPrice' },
-  { prop: 'costPrice', label: 'costPrice' },
-  { prop: 'status', label: 'status' }
+  { prop: 'categoryName', labelKey: 'productCategory' },
+  { prop: 'specifications', labelKey: 'specification' },
+  { prop: 'unit', labelKey: 'unit' },
+  { prop: 'auxUnitName', labelKey: 'auxUnit' },
+  { prop: 'unitPrice', labelKey: 'salePrice' },
+  { prop: 'costPrice', labelKey: 'costPrice' },
+  { prop: 'status', labelKey: 'status' }
 ]
 const productColumnOptions = computed(() => ([
   { prop: 'categoryName', label: texts.value.productCategory },
   { prop: 'specifications', label: texts.value.specification },
   { prop: 'unit', label: texts.value.unit },
   { prop: 'auxUnitName', label: texts.value.auxUnit },
-  { prop: 'conversionFactor', label: texts.value.conversionFactor },
   { prop: 'unitPrice', label: texts.value.salePrice },
   { prop: 'costPrice', label: texts.value.costPrice },
   { prop: 'status', label: texts.value.status }
 ]))
-
 const {
-  searchForm,
   columnVisible,
-  isColumnVisible,
   setColumnVisible,
-  resetColumns
-} = useTablePreference<ProductQuery>('masterdata:products', {
-  defaultSearchForm: {
-    pageNo: 1,
-    pageSize: 20,
-    code: '',
-    name: '',
-    status: ''
-  },
-  persistentSearchKeys: ['code', 'name', 'status', 'pageSize'],
-  columns: productColumns
+  searchForm: preferredSearchForm
+} = useTablePreference('masterdata.products', {
+  defaultColumnVisible: Object.fromEntries(productColumns.map((column) => [column.prop, true])),
+  defaultSearchForm: searchForm
 })
+Object.assign(searchForm, preferredSearchForm)
 
 const handleColumnVisibleUpdate = (nextValue: Record<string, boolean>) => {
   for (const [prop, visible] of Object.entries(nextValue)) {
@@ -742,152 +753,10 @@ const handleColumnVisibleUpdate = (nextValue: Record<string, boolean>) => {
   }
 }
 
-// 表格数据
-const tableData = ref<Product[]>([])
-const total = ref(0)
-const loading = ref(false)
-const selectedRows = ref<Product[]>([])
-const handleSelectionChange = (rows: Product[]) => {
-  selectedRows.value = rows
-}
-
-type BatchActionOptions<T> = {
-  itemLabel: (item: T) => string
-  confirmTitle: string
-  confirmText: string
-  successText: (success: number) => string
-  partialText: (success: number, failed: string[]) => string
-  onDone?: () => void | Promise<void>
-}
-
-const useBatchAction = <T,>() => {
-  const running = ref(false)
-
-  const run = async (
-    rows: T[],
-    action: (row: T) => Promise<unknown>,
-    options: BatchActionOptions<T>
-  ) => {
-    if (rows.length === 0 || running.value) return
-    await ElMessageBox.confirm(options.confirmText, options.confirmTitle, {
-      confirmButtonText: texts.value.confirm,
-      cancelButtonText: texts.value.cancel,
-      type: 'warning'
-    })
-
-    running.value = true
-    let success = 0
-    const failed: string[] = []
-    try {
-      for (const row of rows) {
-        try {
-          await action(row)
-          success += 1
-        } catch {
-          failed.push(options.itemLabel(row))
-        }
-      }
-      if (failed.length === 0) {
-        ElMessage.success(options.successText(success))
-      } else {
-        ElMessage.warning(options.partialText(success, failed))
-      }
-      await options.onDone?.()
-    } finally {
-      running.value = false
-    }
-  }
-
-  return { running, run }
-}
-
-const exportSelectedRowsToCsv = (
-  filename: string,
-  headers: string[],
-  rows: Array<Array<string | number>>
-) => {
-  const escapeCell = (value: string | number) => `"${String(value ?? '').replace(/"/g, '""')}"`
-  const csv = [headers, ...rows].map((row) => row.map(escapeCell).join(',')).join('\r\n')
-  downloadBlob(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }), `${filename}.csv`)
-}
-
-// 批量启用/停用：复用单条 enable/disable 端点循环执行，汇总成功/失败（后端暂无批量端点）
-const { running: batchRunning, run: runBatch } = useBatchAction<Product>()
-const batchItemLabel = (row: Product) => row.name || row.productName || row.code || row.productCode || row.id
-
-const handleBatchEnable = () => {
-  const rows = selectedRows.value
-  runBatch(rows, (row) => enableProduct(row.id), {
-    itemLabel: batchItemLabel,
-    confirmTitle: texts.value.batchEnableTitle,
-    confirmText: interpolate(texts.value.batchEnableConfirm, { count: rows.length }),
-    successText: (success) => interpolate(texts.value.batchEnableSuccess, { count: success }),
-    partialText: (success, failed) => interpolate(texts.value.batchEnablePartial, {
-      success,
-      failedCount: failed.length,
-      failed: joinNames(failed)
-    }),
-    onDone: loadData
-  })
-}
-
-const handleBatchDisable = () => {
-  const rows = selectedRows.value
-  runBatch(rows, (row) => deleteProduct(row.id), {
-    itemLabel: batchItemLabel,
-    confirmTitle: texts.value.batchDisableTitle,
-    confirmText: interpolate(texts.value.batchDisableConfirm, { count: rows.length }),
-    successText: (success) => interpolate(texts.value.batchDisableSuccess, { count: success }),
-    partialText: (success, failed) => interpolate(texts.value.batchDisablePartial, {
-      success,
-      failedCount: failed.length,
-      failed: joinNames(failed)
-    }),
-    onDone: loadData
-  })
-}
-
-const handleExportSelected = () => {
-  const rows = selectedRows.value
-  if (rows.length === 0) return
-  const headers = [
-    texts.value.productCode,
-    texts.value.productName,
-    texts.value.productCategory,
-    texts.value.specification,
-    texts.value.unit,
-    texts.value.auxUnit,
-    texts.value.conversionFactor,
-    texts.value.salePrice,
-    texts.value.costPrice,
-    texts.value.status
-  ]
-  const lines = rows.map((row) => [
-    row.code || '',
-    row.name || '',
-    row.categoryName ?? '',
-    row.specifications ?? '',
-    formatUnit(row.unit),
-    formatUnit(row.auxUnitName),
-    row.conversionFactor != null && row.auxUnitName ? row.conversionFactor : '',
-    row.unitPrice != null ? formatCurrency(row.unitPrice) : '',
-    row.costPrice != null ? formatCurrency(row.costPrice) : '',
-    row.status === 'ACTIVE' ? texts.value.active : texts.value.inactive
-  ])
-  exportSelectedRowsToCsv(interpolate(texts.value.selectedExportFilename, { count: rows.length }), headers, lines)
-}
-const activeCount = computed(() => {
-  if (!tableData.value || !Array.isArray(tableData.value)) return 0
-  return tableData.value.filter(item => item.status === 'ACTIVE').length
-})
-
 // 对话框
 const dialogVisible = ref(false)
 const dialogTitle = computed(() => (formData.id ? texts.value.editProduct : texts.value.createProduct))
 const submitting = ref(false)
-const detailVisible = ref(false)
-const currentRow = ref<Product>()
-const stockSummary = ref<ProductStockSummary>()
 
 // 表单数据
 const formData = reactive<ProductSaveRequest & { id?: string }>({
@@ -911,7 +780,6 @@ const formData = reactive<ProductSaveRequest & { id?: string }>({
   remark: ''
 })
 
-// 表单验证规则
 watch(() => formData.auxUnitName, (value) => {
   if (!value) {
     formData.conversionFactor = undefined
@@ -949,55 +817,6 @@ const formRules = computed(() => ({
   taxRate: [{ required: true, message: texts.value.validationTaxRate, trigger: 'blur' }]
 }))
 
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getProducts(searchForm)
-    // 适配后端返回的数据结构
-    const products = res.records.map(item => ({
-      ...item,
-      code: item.productCode,
-      name: item.productName,
-      specifications: item.specification,
-      unit: item.unitName,
-      unitPrice: item.salePrice,
-      costPrice: item.purchasePrice
-    }))
-
-    tableData.value = products
-    total.value = res.total
-  } catch (error) {
-    console.error('加载数据失败:', error)
-    ElMessage.error(texts.value.loadFailed)
-  } finally {
-    loading.value = false
-  }
-}
-
-// 搜索
-const handleSearch = () => {
-  searchForm.pageNo = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  searchForm.code = ''
-  searchForm.name = ''
-  searchForm.status = ''
-  searchForm.pageNo = 1
-  loadData()
-}
-
-// 分页
-const handlePageChange = (page: number, size: number) => {
-  searchForm.pageNo = page
-  searchForm.pageSize = size
-  loadData()
-}
-
-// 新增
 const handleCreate = () => {
   Object.assign(formData, {
     id: undefined,
@@ -1023,116 +842,52 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-// 编辑
 const handleEdit = (row: Product) => {
   Object.assign(formData, {
-    id: row.id,
-    code: row.productCode ?? row.code,
-    name: row.productName ?? row.name,
-    productType: row.productType ?? 'PHYSICAL',
-    categoryName: row.categoryName,
-    specifications: row.specification ?? row.specifications,
-    unit: row.unitName ?? row.unit,
+    id: String(row.id),
+    code: row.code || row.productCode || '',
+    name: row.name || row.productName || '',
+    productType: row.productType || 'PHYSICAL',
+    categoryName: row.categoryName || '',
+    specifications: row.specifications || row.specification || '',
+    unit: row.unit || row.unitName || '',
     auxUnitName: row.auxUnitName || '',
-    conversionFactor: row.conversionFactor != null ? Number(row.conversionFactor) : undefined,
-    unitPrice: row.salePrice ?? row.unitPrice,
-    costPrice: row.purchasePrice ?? row.costPrice,
+    conversionFactor: row.conversionFactor,
+    unitPrice: row.unitPrice ?? row.salePrice,
+    costPrice: row.costPrice ?? row.purchasePrice,
     taxRate: row.taxRate ?? 13,
     barcode: row.barcode || '',
-    status: row.status,
-    inspectionRequired: row.inspectionRequired ?? false,
-    serialControlled: row.serialControlled ?? false,
-    lotControlled: row.lotControlled ?? false,
-    shelfLifeControlled: row.shelfLifeControlled ?? false,
-    remark: row.remark
+    status: row.status || 'ACTIVE',
+    inspectionRequired: !!row.inspectionRequired,
+    serialControlled: !!row.serialControlled,
+    lotControlled: !!row.lotControlled,
+    shelfLifeControlled: !!row.shelfLifeControlled,
+    remark: row.remark || ''
   })
   dialogVisible.value = true
 }
 
-// 查看
-const handleView = async (row: Product) => {
-  try {
-    currentRow.value = await getProduct(row.id)
-    stockSummary.value = await getProductStockSummary(row.id)
-    detailVisible.value = true
-  } catch {
-    ElMessage.error(texts.value.loadDetailFailed)
-  }
-}
-
-// 删除
-const handleDelete = async (row: Product) => {
-  try {
-    await ElMessageBox.confirm(
-      interpolate(texts.value.confirmDelete, { name: row.name || row.productName || '' }),
-      texts.value.confirmTitle,
-      {
-        confirmButtonText: texts.value.delete,
-        cancelButtonText: texts.value.cancel,
-        type: 'warning'
-      }
-    )
-
-    await deleteProduct(row.id)
-    ElMessage.success(texts.value.deleteSuccess)
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(texts.value.deleteFailed)
-    }
-  }
-}
-
-const handleEnable = async (row: Product) => {
-  try {
-    await ElMessageBox.confirm(
-      interpolate(texts.value.confirmEnable, { name: row.name || row.productName || '' }),
-      texts.value.confirmTitle,
-      {
-        confirmButtonText: texts.value.enable,
-        cancelButtonText: texts.value.cancel,
-        type: 'warning'
-      }
-    )
-    await enableProduct(row.id)
-    ElMessage.success(texts.value.enableSuccess)
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(texts.value.enableFailed)
-    }
-  }
-}
-
-// 提交
 const handleSubmit = async (values: any) => {
   submitting.value = true
   try {
+    const payload = {
+      ...formData,
+      ...values
+    }
     if (formData.id) {
-      await updateProduct(formData.id, values)
+      await updateProduct(formData.id, payload)
       ElMessage.success(texts.value.updateSuccess)
     } else {
-      await createProduct(values)
+      await createProduct(payload)
       ElMessage.success(texts.value.createSuccess)
     }
     dialogVisible.value = false
-    loadData()
+    await loadData()
   } catch (error) {
-    console.error('提交失败:', error)
+    console.error(error)
     ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
   } finally {
     submitting.value = false
-  }
-}
-
-// 导出
-const handleExport = async () => {
-  try {
-    const blob = await exportProducts(searchForm)
-    downloadBlob(blob, `${texts.value.exportFilename}_${Date.now()}.csv`)
-    ElMessage.success(texts.value.exportSuccess)
-  } catch (error) {
-    ElMessage.error(texts.value.exportFailed)
   }
 }
 
