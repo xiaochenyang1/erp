@@ -41,7 +41,13 @@ const financePaymentView = [
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const systemLogView = readFileSync(resolve(root, 'src/views/system/logs/index.vue'), 'utf8')
 const systemApi = readFileSync(resolve(root, 'src/api/system.ts'), 'utf8')
-const systemUserView = readFileSync(resolve(root, 'src/views/system/users/index.vue'), 'utf8')
+// 用户管理页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const systemUserView = [
+  'src/views/system/users/index.vue',
+  'src/composables/useSystemUserPresentation.ts',
+  'src/composables/useSystemUserList.ts',
+  'src/composables/useSystemUserForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const userStore = readFileSync(resolve(root, 'src/store/modules/user.ts'), 'utf8')
 const layoutView = readFileSync(resolve(root, 'src/layout/index.vue'), 'utf8')
 const observabilityApi = readFileSync(resolve(root, 'src/api/observability.ts'), 'utf8')
@@ -1406,7 +1412,7 @@ for (const fragment of [
   'handleAssignRoles(row)',
   'const handleAssignRoles = async (row: User) =>',
   'const submitRoleAssignment = async () =>',
-  'await assignUserRoles(currentUserId.value, selectedRoleIds.value)'
+  'await options.assignUserRoles(currentUserId.value, selectedRoleIds.value)'
 ]) {
   if (!systemUserView.includes(fragment)) {
     errors.push(`系统用户页缺少真实用户角色分配片段: ${fragment}`)
@@ -1658,7 +1664,7 @@ const systemEnableViewContracts = [
   {
     name: '系统用户页',
     content: systemUserView,
-    fragments: ['enableUser,', 'const handleEnable = async (row: User) =>', 'await enableUser(row.id)', 'systemUsers.enable']
+    fragments: ['enableUser,', 'const handleEnable = async (row: User) =>', 'await options.enableUser(row.id)', 'systemUsers.enable']
   },
   {
     name: '系统角色页',
@@ -1947,11 +1953,11 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  'type UserForm = {\n  id?: string',
-  'await updateUser(formData.id,',
-  'await createUser(payload)',
-  'await deleteUser(row.id)',
-  'await resetUserPassword(row.id, value)'
+  'export interface SystemUserFormState {\n  id?: string',
+  'await options.updateUser(formData.id,',
+  'await options.createUser({',
+  'await options.deleteUser(row.id)',
+  'await options.resetUserPassword(row.id, value)'
 ]) {
   if (!systemUserView.includes(fragment)) {
     errors.push(`系统用户页缺少真实用户 API 调用兼容片段: ${fragment}`)

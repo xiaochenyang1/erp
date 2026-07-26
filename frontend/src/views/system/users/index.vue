@@ -101,8 +101,8 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleQuery"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -241,9 +241,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Key, Plus, Refresh, Search, UserFilled } from '@element-plus/icons-vue'
 import {
   assignUserDataScope,
@@ -251,110 +252,108 @@ import {
   createUser,
   deleteUser,
   enableUser,
-  getDeptTree,
   getAllPosts,
   getAllRoles,
   getAssignedUserDataScope,
   getAssignedUserRoles,
+  getDeptTree,
   getUser,
   getUsers,
   resetUserPassword,
-  updateUser,
-  type Dept,
-  type Post,
-  type Role,
-  type User,
-  type UserQuery
+  updateUser
 } from '@/api/system'
-import { getWarehouses, type Warehouse } from '@/api/masterdata'
+import { getWarehouses } from '@/api/masterdata'
+import { useSystemUserPresentation } from '@/composables/useSystemUserPresentation'
+import { useSystemUserList } from '@/composables/useSystemUserList'
+import { useSystemUserForm } from '@/composables/useSystemUserForm'
 
 const { t } = useI18n()
+const formRef = ref<FormInstance>()
 
-type UserForm = {
-  id?: string
-  username: string
-  password?: string
-  employeeNo?: string
-  realName: string
-  email?: string
-  mobile?: string
-  avatar?: string
-  deptId?: string | number
-  postId?: string | number
-  remark?: string
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
 }
 
-const queryParams = reactive<UserQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  keyword: '',
-  deptId: undefined,
-  postId: undefined,
-  status: ''
+const {
+  depts,
+  handleDisable,
+  handleEnable,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleResetPassword,
+  handleSizeChange,
+  loadData,
+  loadOptions,
+  loading,
+  posts,
+  queryParams,
+  roles,
+  tableData,
+  total
+} = useSystemUserList(t, {
+  getUsers,
+  getDeptTree,
+  getAllPosts,
+  getAllRoles,
+  deleteUser,
+  enableUser,
+  resetUserPassword,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  prompt: (message, title, options) => ElMessageBox.prompt(message, title, options as any),
+  ...notify
 })
 
-const loading = ref(false)
-const submitLoading = ref(false)
-const tableData = ref<User[]>([])
-const total = ref(0)
-const depts = ref<Dept[]>([])
-const posts = ref<Post[]>([])
-const roles = ref<Role[]>([])
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const formRef = ref<FormInstance>()
-const roleDialogVisible = ref(false)
-const roleLoading = ref(false)
-const roleSubmitLoading = ref(false)
-const dataScopeDialogVisible = ref(false)
-const dataScopeLoading = ref(false)
-const dataScopeSubmitLoading = ref(false)
-const warehouses = ref<Warehouse[]>([])
-const dataScopeForm = reactive({
-  hasAllScope: false,
-  deptScoped: false,
-  postScoped: false,
-  selfScoped: false,
-  warehouseIds: [] as string[]
-})
-const effectiveScope = reactive({
-  hasAllScope: false,
-  deptScoped: false,
-  postScoped: false,
-  selfScoped: false,
-  warehouseIds: [] as string[]
-})
-const effectiveScopeSummary = computed(() => {
-  if (effectiveScope.hasAllScope) {
-    return { tags: [t('systemUsers.allData')] }
-  }
-  const tags: string[] = []
-  if (effectiveScope.deptScoped) tags.push(t('systemUsers.ownDepartment'))
-  if (effectiveScope.postScoped) tags.push(t('systemUsers.ownPost'))
-  if (effectiveScope.selfScoped) tags.push(t('systemUsers.selfOnly'))
-  for (const id of effectiveScope.warehouseIds) {
-    const warehouse = warehouses.value.find((item) => String(item.id) === String(id))
-    tags.push(warehouse
-      ? t('systemUsers.warehouseScopeTag', { warehouse: warehouseOptionLabel(warehouse) })
-      : t('systemUsers.warehouseFallback', { id }))
-  }
-  return { tags }
-})
-const currentUserId = ref<string | number>('')
-const currentUsername = ref('')
-const selectedRoleIds = ref<string[]>([])
+const {
+  deptName,
+  flatDepts,
+  postName,
+  roleNames,
+  statusText,
+  statusType,
+  warehouseOptionLabel
+} = useSystemUserPresentation(t, { depts, posts })
 
-const formData = reactive<UserForm>({
-  username: '',
-  password: '',
-  employeeNo: '',
-  realName: '',
-  email: '',
-  mobile: '',
-  avatar: '',
-  deptId: undefined,
-  postId: undefined,
-  remark: ''
+const {
+  currentUsername,
+  dataScopeDialogVisible,
+  dataScopeForm,
+  dataScopeLoading,
+  dataScopeSubmitLoading,
+  dialogTitle,
+  dialogVisible,
+  effectiveScopeSummary,
+  formData,
+  handleAssignDataScope,
+  handleAssignRoles,
+  handleCreate,
+  handleEdit,
+  handleSubmit: saveUser,
+  resetForm: resetFormState,
+  roleDialogVisible,
+  roleLoading,
+  roleSubmitLoading,
+  selectedRoleIds,
+  submitDataScopeAssignment,
+  submitLoading,
+  submitRoleAssignment,
+  warehouses
+} = useSystemUserForm(t, {
+  getUser,
+  createUser,
+  updateUser,
+  getAllRoles,
+  getAssignedUserRoles,
+  assignUserRoles,
+  getWarehouses,
+  getAssignedUserDataScope,
+  assignUserDataScope,
+  roles,
+  warehouseOptionLabel,
+  onSubmitted: loadData,
+  ...notify
 })
 
 const formRules = computed<FormRules>(() => ({
@@ -364,329 +363,22 @@ const formRules = computed<FormRules>(() => ({
   email: [{ type: 'email', message: t('systemUsers.validation.email'), trigger: 'blur' }]
 }))
 
-const flatDepts = computed(() => {
-  const result: Dept[] = []
-  const walk = (items: Dept[]) => {
-    items.forEach((item) => {
-      result.push(item)
-      if (item.children?.length) {
-        walk(item.children)
-      }
-    })
-  }
-  walk(depts.value)
-  return result
-})
-
-const deptMap = computed(() => new Map(flatDepts.value.map((item) => [String(item.id), item.name])))
-const postMap = computed(() => new Map(posts.value.map((item) => [String(item.id), item.name])))
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const page = await getUsers(queryParams)
-    tableData.value = page.records
-    total.value = page.total
-  } catch (error) {
-    console.error(t('systemUsers.message.loadFailed'), error)
-    ElMessage.error(t('systemUsers.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadOptions = async () => {
-  const [deptTree, postList, roleList] = await Promise.all([getDeptTree(), getAllPosts(), getAllRoles()])
-  depts.value = deptTree
-  posts.value = postList
-  roles.value = roleList
-}
-
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.deptId = undefined
-  queryParams.postId = undefined
-  queryParams.status = ''
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleCreate = () => {
-  dialogTitle.value = t('systemUsers.dialog.add')
-  resetForm()
-  dialogVisible.value = true
-}
-
-const handleEdit = async (row: User) => {
-  dialogTitle.value = t('systemUsers.dialog.edit')
-  try {
-    const user = await getUser(row.id)
-    Object.assign(formData, {
-      id: user.id,
-      username: user.username,
-      password: '',
-      employeeNo: user.employeeNo || '',
-      realName: user.realName,
-      email: user.email || '',
-      mobile: user.mobile || '',
-      avatar: user.avatar || '',
-      deptId: user.deptId,
-      postId: user.postId,
-      remark: user.remark || ''
-    })
-    dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('systemUsers.message.detailLoadFailed'))
-  }
-}
-
-const handleAssignRoles = async (row: User) => {
-  currentUserId.value = row.id
-  currentUsername.value = row.username
-  roleDialogVisible.value = true
-  roleLoading.value = true
-  selectedRoleIds.value = []
-  try {
-    if (roles.value.length === 0) {
-      roles.value = await getAllRoles()
-    }
-    const assignment = await getAssignedUserRoles(row.id)
-    selectedRoleIds.value = assignment.roleIds
-  } catch (error) {
-    ElMessage.error(t('systemUsers.message.rolesLoadFailed'))
-  } finally {
-    roleLoading.value = false
-  }
-}
-
-const submitRoleAssignment = async () => {
-  if (selectedRoleIds.value.length === 0) {
-    ElMessage.warning(t('systemUsers.message.roleRequired'))
-    return
-  }
-  roleSubmitLoading.value = true
-  try {
-    await assignUserRoles(currentUserId.value, selectedRoleIds.value)
-    ElMessage.success(t('systemUsers.message.rolesSaved'))
-    roleDialogVisible.value = false
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('systemUsers.message.rolesSaveFailed'))
-  } finally {
-    roleSubmitLoading.value = false
-  }
-}
-
-const applyEffectiveScope = (scope: {
-  effectiveHasAllScope?: boolean
-  effectiveDeptScoped?: boolean
-  effectivePostScoped?: boolean
-  effectiveSelfScoped?: boolean
-  effectiveWarehouseIds?: string[]
-}) => {
-  effectiveScope.hasAllScope = !!scope.effectiveHasAllScope
-  effectiveScope.deptScoped = !!scope.effectiveDeptScoped
-  effectiveScope.postScoped = !!scope.effectivePostScoped
-  effectiveScope.selfScoped = !!scope.effectiveSelfScoped
-  effectiveScope.warehouseIds = scope.effectiveWarehouseIds || []
-}
-
-const resetDataScopeForm = () => {
-  dataScopeForm.hasAllScope = false
-  dataScopeForm.deptScoped = false
-  dataScopeForm.postScoped = false
-  dataScopeForm.selfScoped = false
-  dataScopeForm.warehouseIds = []
-  effectiveScope.hasAllScope = false
-  effectiveScope.deptScoped = false
-  effectiveScope.postScoped = false
-  effectiveScope.selfScoped = false
-  effectiveScope.warehouseIds = []
-}
-
-const handleAssignDataScope = async (row: User) => {
-  currentUserId.value = row.id
-  currentUsername.value = row.username
-  dataScopeDialogVisible.value = true
-  dataScopeLoading.value = true
-  try {
-    if (!warehouses.value.length) {
-      const page = await getWarehouses({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-      warehouses.value = page.records || []
-    }
-    const scope = await getAssignedUserDataScope(row.id)
-    dataScopeForm.hasAllScope = !!scope.hasAllScope
-    dataScopeForm.deptScoped = !!scope.deptScoped
-    dataScopeForm.postScoped = !!scope.postScoped
-    dataScopeForm.selfScoped = !!scope.selfScoped
-    dataScopeForm.warehouseIds = scope.warehouseIds || []
-    applyEffectiveScope(scope)
-  } catch (error) {
-    resetDataScopeForm()
-    ElMessage.error(t('systemUsers.message.dataScopeLoadFailed'))
-  } finally {
-    dataScopeLoading.value = false
-  }
-}
-
-const submitDataScopeAssignment = async () => {
-  if (!currentUserId.value) return
-  dataScopeSubmitLoading.value = true
-  try {
-    const saved = await assignUserDataScope(currentUserId.value, {
-      hasAllScope: dataScopeForm.hasAllScope,
-      deptScoped: dataScopeForm.deptScoped,
-      postScoped: dataScopeForm.postScoped,
-      selfScoped: dataScopeForm.selfScoped,
-      warehouseIds: dataScopeForm.warehouseIds
-    })
-    applyEffectiveScope(saved)
-    ElMessage.success(t('systemUsers.message.dataScopeSaved'))
-    dataScopeDialogVisible.value = false
-  } catch (error) {
-    ElMessage.error(t('systemUsers.message.dataScopeSaveFailed'))
-  } finally {
-    dataScopeSubmitLoading.value = false
-  }
-}
-
 const handleSubmit = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    submitLoading.value = true
-    try {
-      const payload = {
-        username: formData.username,
-        password: formData.password,
-        employeeNo: formData.employeeNo,
-        realName: formData.realName,
-        email: formData.email || undefined,
-        mobile: formData.mobile,
-        avatar: formData.avatar || undefined,
-        deptId: formData.deptId,
-        postId: formData.postId,
-        remark: formData.remark
-      }
-      if (formData.id) {
-        await updateUser(formData.id, {
-          employeeNo: payload.employeeNo,
-          realName: payload.realName,
-          email: payload.email,
-          mobile: payload.mobile,
-          avatar: payload.avatar,
-          deptId: payload.deptId,
-          postId: payload.postId,
-          remark: payload.remark
-        })
-        ElMessage.success(t('systemUsers.message.updateSuccess'))
-      } else {
-        await createUser(payload)
-        ElMessage.success(t('systemUsers.message.createSuccess'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch (error) {
-      ElMessage.error(t('systemUsers.message.saveFailed'))
-    } finally {
-      submitLoading.value = false
-    }
+    await saveUser()
   })
-}
-
-const handleDisable = async (row: User) => {
-  try {
-    await ElMessageBox.confirm(t('systemUsers.message.disableConfirm', { username: row.username }), t('systemUsers.prompt'), { type: 'warning' })
-    await deleteUser(row.id)
-    ElMessage.success(t('systemUsers.message.disableSuccess'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemUsers.message.disableFailed'))
-    }
-  }
-}
-
-const handleEnable = async (row: User) => {
-  try {
-    await ElMessageBox.confirm(t('systemUsers.message.enableConfirm', { username: row.username }), t('systemUsers.prompt'), { type: 'warning' })
-    await enableUser(row.id)
-    ElMessage.success(t('systemUsers.message.enableSuccess'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemUsers.message.enableFailed'))
-    }
-  }
-}
-
-const handleResetPassword = async (row: User) => {
-  try {
-    const { value } = await ElMessageBox.prompt(t('systemUsers.message.newPassword'), t('systemUsers.message.resetPasswordTitle', { username: row.username }), {
-      inputType: 'password',
-      inputPlaceholder: t('systemUsers.message.passwordRule'),
-      confirmButtonText: t('systemUsers.confirm'),
-      cancelButtonText: t('systemUsers.cancel')
-    })
-    await resetUserPassword(row.id, value)
-    ElMessage.success(t('systemUsers.message.passwordReset'))
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemUsers.message.passwordResetFailed'))
-    }
-  }
 }
 
 const resetForm = () => {
   formRef.value?.clearValidate()
-  Object.assign(formData, {
-    id: undefined,
-    username: '',
-    password: '',
-    employeeNo: '',
-    realName: '',
-    email: '',
-    mobile: '',
-    avatar: '',
-    deptId: undefined,
-    postId: undefined,
-    remark: ''
-  })
-}
-
-const deptName = (id?: string) => (id ? deptMap.value.get(String(id)) || t('systemUsers.departmentFallback', { id }) : '-')
-const postName = (id?: string) => (id ? postMap.value.get(String(id)) || t('systemUsers.postFallback', { id }) : '-')
-const roleNames = (items?: Role[]) => (items?.length
-  ? items.map((role) => role.name || role.code).join(t('systemUsers.listSeparator'))
-  : '-')
-const warehouseOptionLabel = (warehouse: Warehouse) => {
-  const name = warehouse.name || warehouse.warehouseName || t('systemUsers.warehouseFallback', { id: warehouse.id })
-  const code = warehouse.code || warehouse.warehouseCode
-  return code ? t('systemUsers.warehouseOption', { name, code }) : name
-}
-const statusText = (status: string) => ({
-  ACTIVE: t('systemUsers.active'),
-  INACTIVE: t('systemUsers.inactive'),
-  LOCKED: t('systemUsers.locked')
-}[status] || status)
-const statusType = (status: string) => {
-  if (status === 'ACTIVE') return 'success'
-  if (status === 'LOCKED') return 'warning'
-  return 'info'
+  resetFormState()
 }
 
 onMounted(async () => {
-  try {
-    await loadOptions()
-  } catch (error) {
-    console.error(t('systemUsers.message.optionsLoadFailed'), error)
-  }
-  loadData()
+  await loadOptions()
+  await loadData()
 })
 </script>
 
