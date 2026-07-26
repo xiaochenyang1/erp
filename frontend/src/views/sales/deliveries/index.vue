@@ -428,8 +428,8 @@ import {
   createSalesDelivery,
   updateSalesDelivery,
   cancelSalesDelivery,
-  postSalesDelivery, updateSalesDeliveryLogistics,
-  type SalesDeliveryQuery,
+  postSalesDelivery,
+  updateSalesDeliveryLogistics,
   type SalesDeliveryCreateRequest,
   type SalesDelivery,
   type SalesDeliveryItem
@@ -441,10 +441,7 @@ import {
   getLocations,
   getProduct,
   getProductByBarcode,
-  getWarehouses,
-  type Customer,
-  type Location,
-  type Warehouse
+  getWarehouses
 } from '@/api/masterdata'
 import { BarcodeScanField } from '@/components/common'
 import { incrementScannedLine } from '@/utils/barcode'
@@ -455,6 +452,8 @@ import {
   validateProductControlLines
 } from '@/utils/productLines'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
+import { useSalesDeliveryPresentation } from '@/composables/useSalesDeliveryPresentation'
+import { useSalesDeliveryList } from '@/composables/useSalesDeliveryList'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -463,40 +462,45 @@ const readQueryString = (key: string) => {
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
 }
 
-// 查询参数
-const queryParams = reactive<SalesDeliveryQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  deliveryNo: '',
-  orderId: undefined,
-  customerId: undefined,
-  status: '',
-  logisticsStatus: '',
-  trackingNo: '',
-  startDate: '',
-  endDate: ''
+const {
+  advanceLogistics,
+  customers,
+  dateRange,
+  handleCancel,
+  handlePost,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  loadData,
+  loadLocations,
+  loadOptions,
+  loadOrders,
+  loading,
+  locations,
+  orders,
+  queryParams,
+  tableData,
+  total,
+  warehouses
+} = useSalesDeliveryList(t, {
+  getDeliveries: getSalesDeliveries,
+  getDelivery: getSalesDelivery,
+  cancelDelivery: cancelSalesDelivery,
+  postDelivery: postSalesDelivery,
+  updateLogistics: updateSalesDeliveryLogistics,
+  getCustomers,
+  getWarehouses,
+  getOrders: getSalesOrders,
+  getLocations,
+  printDelivery: printSalesDelivery,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  initialDeliveryNo: readQueryString('keyword'),
+  initialLogisticsStatus: readQueryString('logisticsStatus'),
+  initialTrackingNo: readQueryString('trackingNo'),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onInfo: (message) => ElMessage.info(message)
 })
-queryParams.deliveryNo = readQueryString('keyword')
-queryParams.logisticsStatus = readQueryString('logisticsStatus')
-queryParams.trackingNo = readQueryString('trackingNo')
-
-// 日期范围
-const dateRange = ref<[string, string] | null>(null)
-
-// 表格数据
-const loading = ref(false)
-const tableData = ref<SalesDelivery[]>([])
-const total = ref(0)
-
-// 客户列表
-const customers = ref<Customer[]>([])
-
-// 仓库列表
-const warehouses = ref<Warehouse[]>([])
-const locations = ref<Location[]>([])
-
-// 订单列表（已审批的订单）
-const orders = ref<SalesOrder[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -519,14 +523,17 @@ const formData = reactive<SalesDeliveryCreateRequest>({
   trackingNo: '',
   logisticsStatus: 'PENDING_SHIP'
 })
+
+const {
+  logisticsStatusLabel,
+  logisticsStatusType,
+  locationsForWarehouse
+} = useSalesDeliveryPresentation(t, locations, () => formData.warehouseId)
+
 const deliveryQuantityTotal = computed(() => formData.items.reduce(
   (total, item) => total + Number(item.quantity || 0),
   0
 ))
-const locationsForWarehouse = computed(() => {
-  if (!formData.warehouseId) return locations.value
-  return locations.value.filter((location) => String(location.warehouseId) === String(formData.warehouseId))
-})
 
 // 表单验证规则
 const formRules = computed<FormRules>(() => ({
@@ -535,54 +542,6 @@ const formRules = computed<FormRules>(() => ({
   deliveryDate: [{ required: true, message: t('salesDelivery.validation.date'), trigger: 'change' }]
 }))
 
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await getSalesDeliveries(queryParams)
-    tableData.value = response.records
-    total.value = response.total
-  } catch (error) {
-    ElMessage.error(t('salesDelivery.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// 加载客户列表
-const loadCustomers = async () => {
-  try {
-    const response = await getCustomers({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-    customers.value = response.records
-  } catch (error) {
-    ElMessage.error(t('salesDelivery.message.customersLoadFailed'))
-  }
-}
-
-// 加载仓库列表
-const loadWarehouses = async () => {
-  try {
-    const response = await getWarehouses({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-    warehouses.value = response.records
-  } catch (error) {
-    ElMessage.error(t('salesDelivery.message.warehousesLoadFailed'))
-  }
-}
-
-const loadLocations = async (warehouseId?: string | number) => {
-  try {
-    const page = await getLocations({
-      pageNo: 1,
-      pageSize: 500,
-      status: 'ACTIVE',
-      warehouseId: warehouseId || undefined
-    })
-    locations.value = page.records || []
-  } catch {
-    locations.value = []
-  }
-}
-
 const handleWarehouseChange = async (warehouseId?: string | number) => {
   formData.items.forEach((item) => {
     item.locationId = undefined
@@ -590,58 +549,11 @@ const handleWarehouseChange = async (warehouseId?: string | number) => {
   await loadLocations(warehouseId)
 }
 
-// 加载订单列表
-const loadOrders = async () => {
-  try {
-    const response = await getSalesOrders({ pageNo: 1, pageSize: 1000, status: 'APPROVED' })
-    orders.value = response.records
-  } catch (error) {
-    ElMessage.error(t('salesDelivery.message.ordersLoadFailed'))
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  if (dateRange.value) {
-    queryParams.startDate = dateRange.value[0]
-    queryParams.endDate = dateRange.value[1]
-  } else {
-    queryParams.startDate = ''
-    queryParams.endDate = ''
-  }
-  queryParams.pageNo = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  queryParams.deliveryNo = ''
-  queryParams.orderId = undefined
-  queryParams.customerId = undefined
-  queryParams.status = ''
-  queryParams.logisticsStatus = ''
-  queryParams.trackingNo = ''
-  dateRange.value = null
-  queryParams.startDate = ''
-  queryParams.endDate = ''
-  handleQuery()
-}
-
 // 新增
 const handleCreate = () => {
   resetForm()
   dialogTitle.value = t('salesDelivery.dialog.create')
   dialogVisible.value = true
-}
-
-// 查看
-const handlePrint = async (row: any) => {
-  try {
-    const detail = await getSalesDelivery(row.id)
-    printSalesDelivery(detail)
-  } catch {
-    ElMessage.error(t('salesDelivery.message.printLoadFailed'))
-  }
 }
 
 const handleView = async (row: SalesDelivery) => {
@@ -652,7 +564,7 @@ const handleView = async (row: SalesDelivery) => {
     editingId.value = ''
     Object.assign(formData, data)
     dialogVisible.value = true
-  } catch (error) {
+  } catch {
     ElMessage.error(t('salesDelivery.message.detailLoadFailed'))
   }
 }
@@ -722,78 +634,8 @@ const handleEdit = async (row: SalesDelivery) => {
     formData.items = await hydrateProductLineLabels(deliveryItems, getProduct)
     await loadLocations(formData.warehouseId)
     dialogVisible.value = true
-  } catch (error) {
+  } catch {
     ElMessage.error(t('salesDelivery.message.deliveryLoadFailed'))
-  }
-}
-
-// 取消
-const handleCancel = async (row: SalesDelivery) => {
-  try {
-    await ElMessageBox.confirm(t('salesDelivery.message.cancelConfirm'), t('salesDelivery.message.prompt'), {
-      confirmButtonText: t('common.confirm'),
-      cancelButtonText: t('common.cancel'),
-      type: 'warning'
-    })
-    await cancelSalesDelivery(row.id)
-    ElMessage.success(t('salesDelivery.message.cancelled'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('salesDelivery.message.cancelFailed'))
-    }
-  }
-}
-
-// 过账
-
-const logisticsStatusLabel = (status?: string) => {
-  const key = {
-    PENDING_SHIP: 'pendingShip',
-    PICKED_UP: 'pickedUp',
-    IN_TRANSIT: 'inTransit',
-    DELIVERED: 'delivered'
-  }[String(status || 'PENDING_SHIP')]
-  return key ? t(`salesDelivery.logistics.${key}`) : (status || '-')
-}
-
-const logisticsStatusType = (status?: string) => {
-  return ({
-    PENDING_SHIP: 'info',
-    PICKED_UP: 'warning',
-    IN_TRANSIT: 'primary',
-    DELIVERED: 'success'
-  }[String(status || 'PENDING_SHIP')] || 'info') as 'info' | 'warning' | 'primary' | 'success'
-}
-
-const advanceLogistics = async (row: any) => {
-  const order = ['PENDING_SHIP','PICKED_UP','IN_TRANSIT','DELIVERED']
-  const current = row.logisticsStatus || 'PENDING_SHIP'
-  const idx = order.indexOf(current)
-  const next = order[Math.min(idx+1, order.length-1)]
-  if (next === current) {
-    ElMessage.info(t('salesDelivery.message.logisticsDone'))
-    return
-  }
-  await updateSalesDeliveryLogistics(row.id, { logisticsStatus: next, carrierName: row.carrierName, trackingNo: row.trackingNo })
-  ElMessage.success(t('salesDelivery.message.logisticsUpdated'))
-  handleQuery()
-}
-
-const handlePost = async (row: SalesDelivery) => {
-  try {
-    await ElMessageBox.confirm(t('salesDelivery.message.postConfirm'), t('salesDelivery.message.prompt'), {
-      confirmButtonText: t('common.confirm'),
-      cancelButtonText: t('common.cancel'),
-      type: 'warning'
-    })
-    await postSalesDelivery(row.id)
-    ElMessage.success(t('salesDelivery.message.posted'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('salesDelivery.message.postFailed'))
-    }
   }
 }
 
@@ -823,19 +665,14 @@ const handleOrderChange = async () => {
       remark: ''
     }))
     formData.items = await hydrateProductLineLabels(orderItems, getProduct)
-    if (order.warehouseId) {
-      formData.warehouseId = order.warehouseId
-      await loadLocations(order.warehouseId)
-    }
-  } catch (error) {
+  } catch {
     ElMessage.error(t('salesDelivery.message.orderDetailLoadFailed'))
   }
 }
 
 const getDeliveryMaximum = (item: SalesDeliveryItem) => Math.max(
-  Number(item.quantity || 0),
-  Number(item.orderedQuantity || 0) - Number(item.deliveredQuantity || 0),
-  0
+  0,
+  Number(item.orderedQuantity || 0) - Number(item.deliveredQuantity || 0)
 )
 
 const resetScanQuantities = async () => {
@@ -847,7 +684,6 @@ const resetScanQuantities = async () => {
     })
     formData.items.forEach((item) => {
       item.quantity = 0
-      item.qty = 0
     })
     scanFeedback.value = t('salesDelivery.scan.resetDone')
   } catch (error: any) {
@@ -875,7 +711,6 @@ const handleBarcodeScan = async (barcode: string) => {
       ElMessage.warning(t('salesDelivery.scan.atMaximum', { code: product.productCode }))
       return
     }
-    formData.items[result.index].qty = result.quantity
     scanFeedback.value = `${product.productCode} · ${result.quantity}`
   } catch (error) {
     ElMessage.warning(error instanceof Error ? error.message : t('salesDelivery.scan.lookupFailed'))
@@ -887,55 +722,46 @@ const handleBarcodeScan = async (barcode: string) => {
 // 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return
-
   await formRef.value.validate(async (valid) => {
-    if (valid) {
-      if (formData.items.length === 0) {
-        ElMessage.warning(t('salesDelivery.validation.lineRequired'))
-        return
-      }
+    if (!valid) return
+    if (!formData.items.length) {
+      ElMessage.warning(t('salesDelivery.validation.order'))
+      return
+    }
 
-      // 检查发货数量
-      const hasQuantity = formData.items.some(item => item.quantity > 0)
-      if (!hasQuantity) {
-        ElMessage.warning(t('salesDelivery.validation.quantityRequired'))
-        return
-      }
+    formData.items = await hydrateProductLineLabels(formData.items, getProduct)
+    const controlIssues = validateProductControlLines(formData.items)
+    if (controlIssues.length > 0) {
+      const issue = controlIssues[0]
+      const product = issue.productCode || issue.productName || String(issue.productId)
+      ElMessage.warning(t(`salesDelivery.validation.${issue.messageKey}`, {
+        line: issue.index + 1,
+        product,
+        expected: issue.expectedSerialCount,
+        actual: issue.actualSerialCount
+      }))
+      return
+    }
 
-      const controlIssues = validateProductControlLines(formData.items)
-      if (controlIssues.length > 0) {
-        const issue = controlIssues[0]
-        const product = issue.productCode || issue.productName || String(issue.productId)
-        ElMessage.warning(t(`salesDelivery.validation.${issue.messageKey}`, {
-          line: issue.index + 1,
-          product,
-          expected: issue.expectedSerialCount,
-          actual: issue.actualSerialCount
-        }))
-        return
+    submitLoading.value = true
+    try {
+      if (editingId.value) {
+        await updateSalesDelivery(editingId.value, formData)
+        ElMessage.success(t('salesDelivery.message.updated'))
+      } else {
+        await createSalesDelivery(formData)
+        ElMessage.success(t('salesDelivery.message.created'))
       }
-
-      submitLoading.value = true
-      try {
-        if (editingId.value) {
-          await updateSalesDelivery(editingId.value, formData)
-          ElMessage.success(t('salesDelivery.message.updated'))
-        } else {
-          await createSalesDelivery(formData)
-          ElMessage.success(t('salesDelivery.message.created'))
-        }
-        dialogVisible.value = false
-        loadData()
-      } catch (error) {
-        ElMessage.error(editingId.value ? t('salesDelivery.message.updateFailed') : t('salesDelivery.message.createFailed'))
-      } finally {
-        submitLoading.value = false
-      }
+      dialogVisible.value = false
+      loadData()
+    } catch {
+      ElMessage.error(editingId.value ? t('salesDelivery.message.updateFailed') : t('salesDelivery.message.createFailed'))
+    } finally {
+      submitLoading.value = false
     }
   })
 }
 
-// 重置表单（含编辑态，避免取消后下次新建误走 PUT）
 const resetForm = () => {
   editingId.value = ''
   isView.value = false
@@ -948,15 +774,12 @@ const resetForm = () => {
   formData.trackingNo = ''
   formData.logisticsStatus = 'PENDING_SHIP'
   scanFeedback.value = ''
-  formRef.value?.clearValidate()
+  formRef.value?.resetFields()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadOptions()
   loadData()
-  loadCustomers()
-  loadWarehouses()
-  loadLocations()
-  loadOrders()
 })
 </script>
 
