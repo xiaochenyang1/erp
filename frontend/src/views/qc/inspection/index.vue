@@ -213,7 +213,7 @@
 
     <!-- 判定检验单 -->
     <el-dialog v-model="judgeVisible" :title="t('qcInspection.dialog.judge')" width="820px">
-      <div class="dialog-sub">{{ t('qcInspection.judgeHint', { no: current?.inspectionNo || '' }) }}</div>
+      <div class="dialog-sub">{{ t('qcInspection.judgeHint', { no: judgingInspectionNo || '' }) }}</div>
       <el-table :data="judgeLines" border size="small">
         <el-table-column prop="lineNo" :label="t('qcInspection.line')" width="60" />
         <el-table-column prop="productId" :label="t('qcInspection.productId')" min-width="150" />
@@ -269,7 +269,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
@@ -281,454 +281,106 @@ import {
   submitQcInspection,
   judgeQcInspection,
   cancelQcInspection,
-  exportQcInspections,
-  type QcInspection,
-  type QcInspectionQuery,
-  type QcInspectionType
+  exportQcInspections
 } from '@/api/qc'
-import { getPurchaseReceipts, type PurchaseReceipt } from '@/api/purchase'
-import { getSalesDeliveries, type SalesDelivery } from '@/api/sales'
+import { getPurchaseReceipts } from '@/api/purchase'
+import { getSalesDeliveries } from '@/api/sales'
 import { downloadBlob } from '@/utils/download'
 import { printQcInspection } from '@/utils/bizPrint'
+import { useQcInspectionPresentation } from '@/composables/useQcInspectionPresentation'
+import { useQcInspectionList } from '@/composables/useQcInspectionList'
+import { useQcInspectionCreate } from '@/composables/useQcInspectionCreate'
+import { useQcInspectionEdit } from '@/composables/useQcInspectionEdit'
 
 const { t } = useI18n()
 
-const loading = ref(false)
-const submitting = ref(false)
-const tableData = ref<QcInspection[]>([])
-const total = ref(0)
-const current = ref<QcInspection>()
+const {
+  inspectionTypeText,
+  sourceDocumentId,
+  sourceDocumentLabel,
+  sourceDocumentText,
+  statusText,
+  statusType
+} = useQcInspectionPresentation(t)
 
-const searchForm = reactive<QcInspectionQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  keyword: '',
-  status: '',
-  inspectionType: ''
+const {
+  current,
+  detailVisible,
+  handleCancel,
+  handleExport,
+  handlePageChange,
+  handlePrint,
+  handleReset,
+  handleSearch,
+  handleSizeChange,
+  handleSubmit,
+  handleView,
+  loadData,
+  loading,
+  searchForm,
+  tableData,
+  total
+} = useQcInspectionList(t, {
+  getInspections: getQcInspections,
+  getInspection: getQcInspection,
+  submitInspection: submitQcInspection,
+  cancelInspection: cancelQcInspection,
+  exportInspections: exportQcInspections,
+  printInspection: printQcInspection,
+  downloadBlob,
+  confirm: (message, title, options) =>
+    ElMessageBox.confirm(message, title, options as any),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
 
-const statusText = (status: string) => ({
-  DRAFT: t('qcInspection.status.draft'),
-  SUBMITTED: t('qcInspection.status.submitted'),
-  JUDGED: t('qcInspection.status.judged'),
-  CANCELLED: t('qcInspection.status.cancelled')
-}[status] || status)
-
-const inspectionTypeText = (type?: string) => ({
-  IQC: t('qcInspection.type.iqc'),
-  OQC: t('qcInspection.type.oqc'),
-  IPQC: t('qcInspection.type.ipqc')
-}[type || ''] || type || '-')
-
-const sourceDocumentLabel = (type?: string) => {
-  if (type === 'OQC') return t('qcInspection.salesDelivery')
-  if (type === 'IPQC') return t('qcInspection.productionOrderId')
-  return t('qcInspection.purchaseReceipt')
-}
-
-const sourceDocumentId = (inspection?: Partial<QcInspection>) => {
-  if (!inspection) return ''
-  if (inspection.inspectionType === 'OQC') return inspection.deliveryId
-  if (inspection.inspectionType === 'IPQC') return inspection.productionOrderId || inspection.orderId
-  return inspection.receiptId
-}
-
-const sourceDocumentText = (inspection: QcInspection) => {
-  const id = sourceDocumentId(inspection) || '-'
-  if (inspection.inspectionType === 'OQC') return t('qcInspection.sourceOutbound', { id })
-  if (inspection.inspectionType === 'IPQC') return t('qcInspection.sourceProduction', { id })
-  return t('qcInspection.sourceInbound', { id })
-}
-
-const statusType = (status: string) => ({
-  DRAFT: 'info',
-  SUBMITTED: 'warning',
-  JUDGED: 'success',
-  CANCELLED: 'danger'
-}[status] || 'info') as 'info' | 'warning' | 'success' | 'danger'
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getQcInspections(searchForm)
-    tableData.value = res.records
-    total.value = res.total
-  } catch {
-    ElMessage.error(t('qcInspection.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleSearch = () => {
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  searchForm.keyword = ''
-  searchForm.status = ''
-  searchForm.inspectionType = ''
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const handlePageChange = (page: number) => {
-  searchForm.pageNo = page
-  loadData()
-}
-
-const handleSizeChange = (size: number) => {
-  searchForm.pageSize = size
-  searchForm.pageNo = 1
-  loadData()
-}
-
-// ---- 新建 ----
-const createVisible = ref(false)
-const sourceLoading = ref(false)
-const draftReceipts = ref<PurchaseReceipt[]>([])
-const draftDeliveries = ref<SalesDelivery[]>([])
-const createForm = reactive<{
-  inspectionType: QcInspectionType
-  receiptId: string | number | ''
-  deliveryId: string | number | ''
-  productionOrderId: string
-  inspectionDate: string
-  remark: string
-}>({
-  inspectionType: 'IQC',
-  receiptId: '',
-  deliveryId: '',
-  productionOrderId: '',
-  inspectionDate: '',
-  remark: ''
+const {
+  confirmCreate,
+  createForm,
+  createVisible,
+  draftDeliveries,
+  draftReceipts,
+  handleCreate,
+  onCreateTypeChange,
+  sourceLoading,
+  submitting: createSubmitting
+} = useQcInspectionCreate(t, {
+  createInspection: createQcInspection,
+  getReceipts: getPurchaseReceipts,
+  getDeliveries: getSalesDeliveries,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onSubmitted: loadData
 })
 
-const today = () => {
-  const d = new Date()
-  const m = `${d.getMonth() + 1}`.padStart(2, '0')
-  const day = `${d.getDate()}`.padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
-
-const loadCreateSources = async () => {
-  if (createForm.inspectionType === 'IPQC') {
-    draftReceipts.value = []
-    draftDeliveries.value = []
-    return
-  }
-  sourceLoading.value = true
-  try {
-    if (createForm.inspectionType === 'OQC') {
-      const res = await getSalesDeliveries({ pageNo: 1, pageSize: 100, status: 'DRAFT' })
-      draftDeliveries.value = res.records
-    } else {
-      const res = await getPurchaseReceipts({ pageNo: 1, pageSize: 100, status: 'DRAFT' })
-      draftReceipts.value = res.records
-    }
-  } catch {
-    ElMessage.error(t('qcInspection.message.sourcesLoadFailed'))
-  } finally {
-    sourceLoading.value = false
-  }
-}
-
-const handleCreate = async () => {
-  createForm.inspectionType = 'IQC'
-  createForm.receiptId = ''
-  createForm.deliveryId = ''
-  createForm.productionOrderId = ''
-  createForm.inspectionDate = today()
-  createForm.remark = ''
-  createVisible.value = true
-  await loadCreateSources()
-}
-
-const onCreateTypeChange = async () => {
-  createForm.receiptId = ''
-  createForm.deliveryId = ''
-  createForm.productionOrderId = ''
-  await loadCreateSources()
-}
-
-const confirmCreate = async () => {
-  if (createForm.inspectionType === 'OQC') {
-    if (!createForm.deliveryId) {
-      ElMessage.warning(t('qcInspection.validation.delivery'))
-      return
-    }
-  } else if (createForm.inspectionType === 'IPQC') {
-    if (!createForm.productionOrderId.trim()) {
-      ElMessage.warning(t('qcInspection.validation.productionOrder'))
-      return
-    }
-  } else {
-    if (!createForm.receiptId) {
-      ElMessage.warning(t('qcInspection.validation.receipt'))
-      return
-    }
-  }
-  if (!createForm.inspectionDate) {
-    ElMessage.warning(t('qcInspection.validation.date'))
-    return
-  }
-  submitting.value = true
-  try {
-    await createQcInspection({
-      inspectionType: createForm.inspectionType,
-      receiptId: createForm.inspectionType === 'IQC' ? createForm.receiptId : undefined,
-      deliveryId: createForm.inspectionType === 'OQC' ? createForm.deliveryId : undefined,
-      productionOrderId: createForm.inspectionType === 'IPQC' ? createForm.productionOrderId : undefined,
-      inspectionDate: createForm.inspectionDate,
-      remark: createForm.remark || undefined
-    })
-    ElMessage.success(t('qcInspection.message.created'))
-    createVisible.value = false
-    loadData()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    submitting.value = false
-  }
-}
-
-// ---- 提交 ----
-const handleSubmit = async (row: QcInspection) => {
-  try {
-    await ElMessageBox.confirm(t('qcInspection.message.submitConfirm', { no: row.inspectionNo }), t('qcInspection.message.prompt'), { type: 'warning' })
-  } catch {
-    return
-  }
-  try {
-    await submitQcInspection(row.id)
-    ElMessage.success(t('qcInspection.message.submitted'))
-    loadData()
-  } catch {
-    // 拦截器已提示
-  }
-}
-
-// ---- 编辑草稿 ----
-const editVisible = ref(false)
-const editingId = ref<string | number | null>(null)
-const editingInspectionNo = ref('')
-const editForm = reactive<{
-  inspectionType: string
-  receiptId: string | number | ''
-  deliveryId: string | number | ''
-  productionOrderId: string
-  inspectionDate: string
-  remark: string
-}>({
-  inspectionType: 'IQC',
-  receiptId: '',
-  deliveryId: '',
-  productionOrderId: '',
-  inspectionDate: '',
-  remark: ''
+const {
+  confirmEdit,
+  confirmJudge,
+  editDialogTitle,
+  editForm,
+  editLines,
+  editSourceDocumentId,
+  editVisible,
+  editingInspectionNo,
+  handleEdit,
+  handleJudge,
+  judgeLines,
+  judgeVisible,
+  judgingInspectionNo,
+  submitting: editSubmitting
+} = useQcInspectionEdit(t, {
+  getInspection: getQcInspection,
+  updateInspection: updateQcInspection,
+  judgeInspection: judgeQcInspection,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onSubmitted: loadData
 })
-const editLines = ref<Array<{
-  lineId: string | number
-  lineNo: number
-  productId: string | number
-  inspectedQty: number
-  defectReason: string
-  remark: string
-}>>([])
 
-const editDialogTitle = computed(() => {
-  if (editForm.inspectionType === 'OQC') return t('qcInspection.dialog.editOqc')
-  if (editForm.inspectionType === 'IPQC') return t('qcInspection.dialog.editIpqc')
-  return t('qcInspection.dialog.editIqc')
-})
-const editSourceDocumentId = computed(() => {
-  if (editForm.inspectionType === 'OQC') return editForm.deliveryId
-  if (editForm.inspectionType === 'IPQC') return editForm.productionOrderId
-  return editForm.receiptId
-})
+const submitting = computed(() => createSubmitting.value || editSubmitting.value)
 const currentSourceDocumentId = computed(() => sourceDocumentId(current.value))
-
-const resetEditForm = () => {
-  editingId.value = null
-  editingInspectionNo.value = ''
-  editForm.inspectionType = 'IQC'
-  editForm.receiptId = ''
-  editForm.deliveryId = ''
-  editForm.productionOrderId = ''
-  editForm.inspectionDate = ''
-  editForm.remark = ''
-  editLines.value = []
-}
-
-const handleEdit = async (row: QcInspection) => {
-  if (row.status !== 'DRAFT') {
-    ElMessage.warning(t('qcInspection.validation.draftOnly'))
-    return
-  }
-  try {
-    const detail = await getQcInspection(row.id)
-    if (detail.status !== 'DRAFT') {
-      ElMessage.warning(t('qcInspection.validation.draftOnly'))
-      return
-    }
-    editingId.value = detail.id
-    editingInspectionNo.value = detail.inspectionNo
-    editForm.inspectionType = detail.inspectionType || 'IQC'
-    editForm.receiptId = detail.receiptId ?? ''
-    editForm.deliveryId = detail.deliveryId ?? ''
-    editForm.productionOrderId = String(detail.productionOrderId ?? detail.orderId ?? '')
-    editForm.inspectionDate = detail.inspectionDate
-    editForm.remark = detail.remark || ''
-    editLines.value = detail.lines.map((line) => ({
-      lineId: line.id,
-      lineNo: line.lineNo,
-      productId: line.productId,
-      inspectedQty: Number(line.inspectedQty ?? 0),
-      defectReason: line.defectReason || '',
-      remark: line.remark || ''
-    }))
-    editVisible.value = true
-  } catch {
-    ElMessage.error(t('qcInspection.message.detailLoadFailed'))
-  }
-}
-
-const confirmEdit = async () => {
-  if (editingId.value == null) {
-    ElMessage.warning(t('qcInspection.validation.editableMissing'))
-    return
-  }
-  if (!editForm.inspectionDate) {
-    ElMessage.warning(t('qcInspection.validation.date'))
-    return
-  }
-  for (const line of editLines.value) {
-    if (line.inspectedQty == null || Number(line.inspectedQty) < 0) {
-      ElMessage.warning(t('qcInspection.validation.negativeQuantity', { line: line.lineNo }))
-      return
-    }
-  }
-  submitting.value = true
-  try {
-    await updateQcInspection(editingId.value, {
-      inspectionDate: editForm.inspectionDate,
-      remark: editForm.remark?.trim() || undefined,
-      lines: editLines.value.map((line) => ({
-        lineId: line.lineId,
-        inspectedQty: Number(line.inspectedQty),
-        defectReason: line.defectReason?.trim() || undefined,
-        remark: line.remark?.trim() || undefined
-      }))
-    })
-    ElMessage.success(t('qcInspection.message.saved'))
-    editVisible.value = false
-    resetEditForm()
-    loadData()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    submitting.value = false
-  }
-}
-
-// ---- 判定 ----
-const judgeVisible = ref(false)
-const judgeLines = ref<Array<{ lineId: string | number; productId: string | number; lineNo: number; inspectedQty: number; qualifiedQty: number; unqualifiedQty: number; defectReason: string }>>([])
-
-const handleJudge = async (row: QcInspection) => {
-  try {
-    const detail = await getQcInspection(row.id)
-    current.value = detail
-    judgeLines.value = detail.lines.map((line) => ({
-      lineId: line.id,
-      productId: line.productId,
-      lineNo: line.lineNo,
-      inspectedQty: line.inspectedQty,
-      qualifiedQty: line.inspectedQty,
-      unqualifiedQty: 0,
-      defectReason: line.defectReason || ''
-    }))
-    judgeVisible.value = true
-  } catch {
-    ElMessage.error(t('qcInspection.message.detailLoadFailed'))
-  }
-}
-
-const confirmJudge = async () => {
-  for (const line of judgeLines.value) {
-    if (Number(line.qualifiedQty) + Number(line.unqualifiedQty) !== Number(line.inspectedQty)) {
-      ElMessage.warning(t('qcInspection.validation.judgeQuantity', { line: line.lineNo }))
-      return
-    }
-  }
-  if (!current.value) return
-  submitting.value = true
-  try {
-    await judgeQcInspection(current.value.id, {
-      lines: judgeLines.value.map((line) => ({
-        lineId: line.lineId,
-        qualifiedQty: line.qualifiedQty,
-        unqualifiedQty: line.unqualifiedQty,
-        defectReason: line.defectReason || undefined
-      }))
-    })
-    ElMessage.success(t('qcInspection.message.judged'))
-    judgeVisible.value = false
-    loadData()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    submitting.value = false
-  }
-}
-
-// ---- 作废 ----
-const handleCancel = async (row: QcInspection) => {
-  try {
-    await ElMessageBox.confirm(t('qcInspection.message.cancelConfirm', { no: row.inspectionNo }), t('qcInspection.message.prompt'), { type: 'warning' })
-  } catch {
-    return
-  }
-  try {
-    await cancelQcInspection(row.id)
-    ElMessage.success(t('qcInspection.message.cancelled'))
-    loadData()
-  } catch {
-    // 拦截器已提示
-  }
-}
-
-// ---- 详情 ----
-const detailVisible = ref(false)
-const handleView = async (row: QcInspection) => {
-  try {
-    current.value = await getQcInspection(row.id)
-    detailVisible.value = true
-  } catch {
-    ElMessage.error(t('qcInspection.message.detailLoadFailed'))
-  }
-}
-
-const handlePrint = async (row: QcInspection) => {
-  try {
-    const detail = await getQcInspection(row.id)
-    printQcInspection(detail)
-  } catch {
-    ElMessage.error(t('qcInspection.message.printLoadFailed'))
-  }
-}
-
-// ---- 导出 ----
-const handleExport = async () => {
-  try {
-    const blob = await exportQcInspections(searchForm)
-    downloadBlob(blob, t('qcInspection.message.exportFile', { date: today() }))
-    ElMessage.success(t('qcInspection.message.exported'))
-  } catch {
-    ElMessage.error(t('qcInspection.message.exportFailed'))
-  }
-}
 
 onMounted(loadData)
 </script>
