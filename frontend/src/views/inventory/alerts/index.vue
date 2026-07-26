@@ -385,348 +385,110 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  createInventoryReplenishmentSuggestion,
-  createInventoryAlertRule,
-  disableInventoryAlertRule,
-  enableInventoryAlertRule,
-  getInventoryAlertRules,
+  Search,
+  Refresh,
+  Setting,
+  Plus,
+  Warning,
+  WarningFilled,
+  InfoFilled,
+  CircleCheckFilled
+} from '@element-plus/icons-vue'
+import {
   getInventoryAlerts,
-  ignoreInventoryAlert,
-  reactivateInventoryAlert,
-  resolveInventoryAlert,
+  createInventoryAlertRule,
+  getInventoryAlertRules,
   updateInventoryAlertRule,
-  type InventoryAlertRule,
-  type InventoryAlertRuleCreateRequest,
-  type InventoryAlertQuery,
+  enableInventoryAlertRule,
+  disableInventoryAlertRule,
+  ignoreInventoryAlert,
+  resolveInventoryAlert,
+  reactivateInventoryAlert,
+  createInventoryReplenishmentSuggestion,
   type InventoryAlert
 } from '@/api/inventory'
-import { getWarehouses, type Warehouse } from '@/api/masterdata'
-import { getProducts, type Product } from '@/api/masterdata'
-import { getSuppliers, type Supplier } from '@/api/masterdata'
-import { formatLocalizedNumber } from '@/utils/locale'
+import { getWarehouses, getProducts, getSuppliers } from '@/api/masterdata'
+import { useInventoryAlertPresentation } from '@/composables/useInventoryAlertPresentation'
+import { useInventoryAlertList } from '@/composables/useInventoryAlertList'
 
 const router = useRouter()
 const { t } = useI18n()
 
-// 查询参数
-const queryParams = reactive<InventoryAlertQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  warehouseId: undefined,
-  productId: undefined,
-  alertType: '',
-  status: 'ACTIVE'
+const {
+  formatNumber,
+  alertTypeText,
+  alertTypeTag,
+  statusText,
+  statusTag
+} = useInventoryAlertPresentation(t)
+
+const {
+  currentAlert,
+  editingRuleId,
+  handleCreateRule,
+  handleCreateSuggestion,
+  handleDispose,
+  handleEditRule,
+  handleQuery,
+  handleReactivate,
+  handleReset,
+  handleToggleRule,
+  loadData,
+  loadProducts,
+  loadSuppliers,
+  loadWarehouses,
+  loading,
+  openRulesDrawer,
+  products,
+  queryParams,
+  resetRuleForm,
+  resetSuggestionForm,
+  ruleDialogVisible,
+  ruleForm,
+  ruleFormRef,
+  ruleRows,
+  ruleRules,
+  ruleSubmitLoading,
+  rulesDrawerVisible,
+  rulesLoading,
+  statistics,
+  submitRule,
+  submitSuggestion,
+  suggestionDialogVisible,
+  suggestionForm,
+  suggestionFormRef,
+  suggestionRules,
+  suggestionSubmitLoading,
+  suppliers,
+  tableData,
+  total,
+  warehouses
+} = useInventoryAlertList(t, {
+  getAlerts: getInventoryAlerts,
+  getRules: getInventoryAlertRules,
+  createRule: createInventoryAlertRule,
+  updateRule: updateInventoryAlertRule,
+  enableRule: enableInventoryAlertRule,
+  disableRule: disableInventoryAlertRule,
+  ignoreAlert: ignoreInventoryAlert,
+  resolveAlert: resolveInventoryAlert,
+  reactivateAlert: reactivateInventoryAlert,
+  createSuggestion: createInventoryReplenishmentSuggestion,
+  getWarehouses,
+  getProducts,
+  getSuppliers,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  prompt: (message, title, opts) => ElMessageBox.prompt(message, title, opts) as any,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
-// 表格数据
-const loading = ref(false)
-const tableData = ref<InventoryAlert[]>([])
-const total = ref(0)
-
-// 仓库列表
-const warehouses = ref<Warehouse[]>([])
-
-// 产品列表
-const products = ref<Product[]>([])
-
-// 供应商列表
-const suppliers = ref<Supplier[]>([])
-
-// 统计数据
-const statistics = reactive({
-  total: 0,
-  outOfStock: 0,
-  lowStock: 0,
-  shortageQty: 0
-})
-const ruleDialogVisible = ref(false)
-const ruleSubmitLoading = ref(false)
-const ruleFormRef = ref<FormInstance>()
-const ruleForm = reactive<InventoryAlertRuleCreateRequest>({
-  warehouseId: '',
-  productId: '',
-  minQty: 0,
-  remark: ''
-})
-const rulesDrawerVisible = ref(false)
-const rulesLoading = ref(false)
-const ruleRows = ref<InventoryAlertRule[]>([])
-const editingRuleId = ref('')
-const ruleRules: FormRules = {
-  warehouseId: [{ required: true, message: t('inventoryAlerts.validation.warehouse'), trigger: 'change' }],
-  productId: [{ required: true, message: t('inventoryAlerts.validation.product'), trigger: 'change' }],
-  minQty: [{ required: true, message: t('inventoryAlerts.validation.minimumStock'), trigger: 'blur' }]
-}
-const suggestionDialogVisible = ref(false)
-const suggestionSubmitLoading = ref(false)
-const suggestionFormRef = ref<FormInstance>()
-const currentAlert = ref<InventoryAlert>()
-const suggestionForm = reactive({
-  ruleId: '',
-  warehouseId: '',
-  productId: '',
-  supplierId: undefined as string | undefined,
-  suggestedQty: 0,
-  expectedArrivalDate: '',
-  remark: ''
-})
-const suggestionRules: FormRules = {
-  suggestedQty: [{ required: true, message: t('inventoryAlerts.validation.suggestedQuantity'), trigger: 'blur' }]
-}
-
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await getInventoryAlerts(queryParams)
-    tableData.value = response.records
-    total.value = response.total
-
-    // 更新统计数据
-    await loadStatistics()
-  } catch (error) {
-    ElMessage.error(t('inventoryAlerts.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// 加载统计数据
-const loadStatistics = async () => {
-  try {
-    // 获取所有预警
-    const allResponse = await getInventoryAlerts({
-      pageNo: 1,
-      pageSize: 1000
-    })
-
-    statistics.total = allResponse.total
-    statistics.outOfStock = allResponse.records.filter(
-      (item: InventoryAlert) => item.alertType === 'OUT_OF_STOCK'
-    ).length
-    statistics.lowStock = allResponse.records.filter(
-      (item: InventoryAlert) => item.alertType === 'LOW_STOCK'
-    ).length
-    statistics.shortageQty = allResponse.records.reduce(
-      (sum: number, item: InventoryAlert) => sum + Number(item.shortageQty || 0),
-      0
-    )
-  } catch {
-    ElMessage.warning(t('inventoryAlerts.message.statisticsLoadFailed'))
-  }
-}
-
-// 加载仓库列表
-const loadWarehouses = async () => {
-  try {
-    const response = await getWarehouses({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-    warehouses.value = response.records
-  } catch (error) {
-    ElMessage.error(t('inventoryAlerts.message.warehousesLoadFailed'))
-  }
-}
-
-// 加载产品列表
-const loadProducts = async () => {
-  try {
-    const response = await getProducts({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-    products.value = response.records
-  } catch (error) {
-    ElMessage.error(t('inventoryAlerts.message.productsLoadFailed'))
-  }
-}
-
-// 加载供应商列表
-const loadSuppliers = async () => {
-  try {
-    const response = await getSuppliers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    suppliers.value = response.records
-  } catch (error) {
-    ElMessage.error(t('inventoryAlerts.message.suppliersLoadFailed'))
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  queryParams.warehouseId = undefined
-  queryParams.productId = undefined
-  queryParams.alertType = ''
-  queryParams.status = 'ACTIVE'
-  handleQuery()
-}
-
-const handleCreateRule = async () => {
-  if (warehouses.value.length === 0) {
-    await loadWarehouses()
-  }
-  if (products.value.length === 0) {
-    await loadProducts()
-  }
-  resetRuleForm()
-  ruleDialogVisible.value = true
-}
-
-const submitRule = async () => {
-  if (!ruleFormRef.value) return
-  await ruleFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    ruleSubmitLoading.value = true
-    try {
-      if (editingRuleId.value) {
-        await updateInventoryAlertRule(editingRuleId.value, {
-          minQty: Number(ruleForm.minQty),
-          remark: ruleForm.remark
-        })
-        ElMessage.success(t('inventoryAlerts.message.ruleUpdated'))
-      } else {
-        await createInventoryAlertRule(ruleForm)
-        ElMessage.success(t('inventoryAlerts.message.ruleCreated'))
-      }
-      ruleDialogVisible.value = false
-      await loadData()
-      if (rulesDrawerVisible.value) {
-        await loadRules()
-      }
-    } catch (error) {
-      ElMessage.error(editingRuleId.value
-        ? t('inventoryAlerts.message.ruleUpdateFailed')
-        : t('inventoryAlerts.message.ruleCreateFailed'))
-    } finally {
-      ruleSubmitLoading.value = false
-    }
-  })
-}
-
-const resetRuleForm = () => {
-  ruleFormRef.value?.clearValidate()
-  editingRuleId.value = ''
-  Object.assign(ruleForm, {
-    warehouseId: '',
-    productId: '',
-    minQty: 0,
-    remark: ''
-  })
-}
-
-const openRulesDrawer = async () => {
-  rulesDrawerVisible.value = true
-  await loadRules()
-}
-
-const loadRules = async () => {
-  rulesLoading.value = true
-  try {
-    ruleRows.value = await getInventoryAlertRules({
-      warehouseId: queryParams.warehouseId,
-      productId: queryParams.productId
-    })
-  } catch {
-    ElMessage.error(t('inventoryAlerts.message.rulesLoadFailed'))
-  } finally {
-    rulesLoading.value = false
-  }
-}
-
-const handleEditRule = async (row: InventoryAlertRule) => {
-  if (warehouses.value.length === 0) await loadWarehouses()
-  if (products.value.length === 0) await loadProducts()
-  editingRuleId.value = row.id
-  Object.assign(ruleForm, {
-    warehouseId: row.warehouseId,
-    productId: row.productId,
-    minQty: Number(row.minQty || 0),
-    remark: row.remark || ''
-  })
-  ruleDialogVisible.value = true
-}
-
-const handleToggleRule = async (row: InventoryAlertRule, enable: boolean) => {
-  try {
-    if (enable) {
-      await enableInventoryAlertRule(row.id)
-      ElMessage.success(t('inventoryAlerts.message.ruleEnabled'))
-    } else {
-      await disableInventoryAlertRule(row.id)
-      ElMessage.success(t('inventoryAlerts.message.ruleDisabled'))
-    }
-    await loadRules()
-    await loadData()
-  } catch {
-    ElMessage.error(enable
-      ? t('inventoryAlerts.message.ruleEnableFailed')
-      : t('inventoryAlerts.message.ruleDisableFailed'))
-  }
-}
-
-const handleCreateSuggestion = async (row: InventoryAlert) => {
-  if (suppliers.value.length === 0) {
-    await loadSuppliers()
-  }
-  currentAlert.value = row
-  Object.assign(suggestionForm, {
-    ruleId: row.ruleId,
-    warehouseId: row.warehouseId,
-    productId: row.productId,
-    supplierId: undefined,
-    suggestedQty: Number(row.shortageQty || 0),
-    expectedArrivalDate: '',
-    remark: ''
-  })
-  suggestionDialogVisible.value = true
-}
-
-const submitSuggestion = async () => {
-  if (!suggestionFormRef.value) return
-  await suggestionFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    suggestionSubmitLoading.value = true
-    try {
-      await createInventoryReplenishmentSuggestion({
-        ruleId: suggestionForm.ruleId,
-        warehouseId: suggestionForm.warehouseId,
-        productId: suggestionForm.productId,
-        supplierId: suggestionForm.supplierId || undefined,
-        suggestedQty: suggestionForm.suggestedQty,
-        expectedArrivalDate: suggestionForm.expectedArrivalDate || undefined,
-        remark: suggestionForm.remark || undefined
-      })
-      ElMessage.success(t('inventoryAlerts.message.suggestionCreated'))
-      suggestionDialogVisible.value = false
-      loadData()
-    } catch (error) {
-      ElMessage.error(t('inventoryAlerts.message.suggestionCreateFailed'))
-    } finally {
-      suggestionSubmitLoading.value = false
-    }
-  })
-}
-
-const resetSuggestionForm = () => {
-  suggestionFormRef.value?.clearValidate()
-  currentAlert.value = undefined
-  Object.assign(suggestionForm, {
-    ruleId: '',
-    warehouseId: '',
-    productId: '',
-    supplierId: undefined,
-    suggestedQty: 0,
-    expectedArrivalDate: '',
-    remark: ''
-  })
-}
-
-// 查看库存
 const handleViewStock = (row: InventoryAlert) => {
   router.push({
     path: '/inventory/stocks',
@@ -736,74 +498,6 @@ const handleViewStock = (row: InventoryAlert) => {
     }
   })
 }
-
-// 处置预警：忽略 / 标记已处理
-const handleDispose = async (row: InventoryAlert, status: 'IGNORED' | 'RESOLVED') => {
-  const isIgnore = status === 'IGNORED'
-  try {
-    const { value } = await ElMessageBox.prompt(
-      t(isIgnore ? 'inventoryAlerts.message.ignoreConfirm' : 'inventoryAlerts.message.resolveConfirm', {
-        warehouse: row.warehouseName,
-        product: row.productName
-      }),
-      t(isIgnore ? 'inventoryAlerts.dialog.ignore' : 'inventoryAlerts.dialog.resolve'),
-      {
-        confirmButtonText: t('inventoryAlerts.action.confirm'),
-        cancelButtonText: t('inventoryAlerts.action.cancel'),
-        inputType: 'textarea',
-        inputPlaceholder: t('inventoryAlerts.placeholder.dispositionRemark'),
-        inputValue: ''
-      }
-    )
-    const payload = {
-      warehouseId: row.warehouseId,
-      productId: row.productId,
-      remark: value || undefined
-    }
-    if (status === 'IGNORED') {
-      await ignoreInventoryAlert(payload)
-    } else {
-      await resolveInventoryAlert(payload)
-    }
-    ElMessage.success(t(isIgnore ? 'inventoryAlerts.message.ignored' : 'inventoryAlerts.message.resolved'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t(isIgnore ? 'inventoryAlerts.message.ignoreFailed' : 'inventoryAlerts.message.resolveFailed'))
-    }
-  }
-}
-
-const handleReactivate = async (row: InventoryAlert) => {
-  try {
-    await ElMessageBox.confirm(
-      t('inventoryAlerts.message.reactivateConfirm', {
-        warehouse: row.warehouseName,
-        product: row.productName
-      }),
-      t('inventoryAlerts.dialog.reactivate'),
-      {
-        type: 'warning',
-        confirmButtonText: t('inventoryAlerts.action.reactivate'),
-        cancelButtonText: t('inventoryAlerts.action.cancel')
-      }
-    )
-    await reactivateInventoryAlert({
-      warehouseId: row.warehouseId,
-      productId: row.productId
-    })
-    ElMessage.success(t('inventoryAlerts.message.reactivated'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('inventoryAlerts.message.reactivateFailed'))
-    }
-  }
-}
-
-const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
-  maximumFractionDigits: 4
-})
 
 onMounted(() => {
   loadData()
