@@ -336,21 +336,17 @@ import {
   enableWarehouse,
   exportWarehouses,
   type Warehouse,
-  type WarehouseStockSummary,
-  type WarehouseQuery,
   type WarehouseSaveRequest
 } from '@/api/masterdata'
 import {
   getDeptTree,
-  getUsers,
-  type Dept,
-  type User
+  getUsers
 } from '@/api/system'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
-import { downloadBlob } from '@/utils/download'
 import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
-import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import { useWarehousePresentation } from '@/composables/useWarehousePresentation'
+import { useWarehouseList } from '@/composables/useWarehouseList'
 
 const appStore = useAppStore()
 const userStore = useUserStore()
@@ -492,46 +488,60 @@ const displayPreferences = computed(() => ({
   locale: appStore.locale,
   timeZone: appStore.timeZone
 }))
-const interpolate = (template: string, params: Record<string, string | number>) =>
-  template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
-const formatCurrency = (value?: number | string | null) => {
-  const amount = Number(value)
-  if (!Number.isFinite(amount)) return '-'
-  return formatLocalizedCurrency(amount, {}, displayPreferences.value)
-}
-const formatDateTime = (value?: string | null) => (
-  value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
-)
-const formatNumber = (value?: number | string | null) => (
-  formatLocalizedNumber(Number(value || 0), { maximumFractionDigits: 2 }, displayPreferences.value)
-)
 
-// 搜索表单
-const searchForm = reactive<WarehouseQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  code: '',
-  name: '',
-  deptId: undefined,
-  managerUserId: undefined,
-  status: ''
+const {
+  activeCount: countActive,
+  deptLabel: resolveDeptFromOptions,
+  formatCurrency,
+  formatDateTime,
+  formatNumber,
+  interpolate,
+  managerLabel: resolveManagerFromOptions,
+  userLabel
+} = useWarehousePresentation(displayPreferences)
+
+const {
+  currentRow,
+  deptOptions,
+  detailVisible,
+  handleDelete,
+  handleEnable,
+  handleExport,
+  handlePageChange,
+  handleReset,
+  handleSearch,
+  handleView,
+  loadData,
+  loadOptions,
+  loading,
+  searchForm,
+  stockSummary,
+  tableData,
+  total,
+  userOptions
+} = useWarehouseList(texts, {
+  getWarehouses,
+  getWarehouse,
+  getStockSummary: getWarehouseStockSummary,
+  enableWarehouse,
+  deleteWarehouse,
+  exportWarehouses,
+  getDeptTree,
+  getUsers,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  interpolate,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
 
-// 表格数据
-const tableData = ref<Warehouse[]>([])
-const total = ref(0)
-const loading = ref(false)
-const activeCount = computed(() => tableData.value.filter(item => item.status === 'ACTIVE').length)
-const deptOptions = ref<Dept[]>([])
-const userOptions = ref<User[]>([])
+const activeCount = computed(() => countActive(tableData.value))
+const deptLabel = (id?: string | number) => resolveDeptFromOptions(deptOptions.value, id)
+const managerLabel = (id?: string | number) => resolveManagerFromOptions(userOptions.value, id)
 
 // 对话框
 const dialogVisible = ref(false)
 const dialogTitle = computed(() => (formData.id ? texts.value.editWarehouse : texts.value.createWarehouse))
 const submitting = ref(false)
-const detailVisible = ref(false)
-const currentRow = ref<Warehouse>()
-const stockSummary = ref<WarehouseStockSummary>()
 
 // 表单数据
 const formData = reactive<WarehouseSaveRequest & { id?: string }>({
@@ -544,7 +554,6 @@ const formData = reactive<WarehouseSaveRequest & { id?: string }>({
   remark: ''
 })
 
-// 表单验证规则
 const formRules = computed(() => ({
   code: [
     { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
@@ -562,87 +571,6 @@ const formRules = computed(() => ({
   ]
 }))
 
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getWarehouses(searchForm)
-
-    // 适配后端返回的数据结构
-    const warehouses = res.records.map(item => ({
-      ...item,
-      code: item.warehouseCode,
-      name: item.warehouseName
-    }))
-
-    tableData.value = warehouses
-    total.value = res.total
-  } catch (error) {
-    console.error('加载数据失败:', error)
-    ElMessage.error(texts.value.loadFailed)
-  } finally {
-    loading.value = false
-  }
-}
-
-const flattenDepts = (items: Dept[]): Dept[] => {
-  return items.flatMap(item => [item, ...flattenDepts(item.children || [])])
-}
-
-const userLabel = (user: User) => {
-  return user.realName || user.username
-}
-
-const deptLabel = (id?: string | number) => {
-  if (id == null || id === '') return '-'
-  const dept = flattenDepts(deptOptions.value).find(item => item.id === String(id))
-  return dept?.name || String(id)
-}
-
-const managerLabel = (id?: string | number) => {
-  if (id == null || id === '') return '-'
-  const user = userOptions.value.find(item => item.id === String(id))
-  return user ? userLabel(user) : String(id)
-}
-
-const loadOptions = async () => {
-  try {
-    const [depts, users] = await Promise.all([
-      getDeptTree(),
-      getUsers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    ])
-    deptOptions.value = depts
-    userOptions.value = users.records
-  } catch {
-    ElMessage.error(texts.value.loadOptionsFailed)
-  }
-}
-
-// 搜索
-const handleSearch = () => {
-  searchForm.pageNo = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  searchForm.code = ''
-  searchForm.name = ''
-  searchForm.deptId = undefined
-  searchForm.managerUserId = undefined
-  searchForm.status = ''
-  searchForm.pageNo = 1
-  loadData()
-}
-
-// 分页
-const handlePageChange = (page: number, size: number) => {
-  searchForm.pageNo = page
-  searchForm.pageSize = size
-  loadData()
-}
-
-// 新增
 const handleCreate = () => {
   Object.assign(formData, {
     id: undefined,
@@ -657,7 +585,6 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-// 编辑
 const handleEdit = (row: Warehouse) => {
   Object.assign(formData, {
     id: row.id,
@@ -672,62 +599,6 @@ const handleEdit = (row: Warehouse) => {
   dialogVisible.value = true
 }
 
-// 查看
-const handleView = async (row: Warehouse) => {
-  try {
-    currentRow.value = await getWarehouse(row.id)
-    stockSummary.value = await getWarehouseStockSummary(row.id)
-    detailVisible.value = true
-  } catch {
-    ElMessage.error(texts.value.loadDetailFailed)
-  }
-}
-
-// 删除
-const handleDelete = async (row: Warehouse) => {
-  try {
-    await ElMessageBox.confirm(
-      interpolate(texts.value.confirmDelete, { name: row.warehouseName || row.name || '' }),
-      texts.value.confirmTitle,
-      {
-        confirmButtonText: texts.value.delete,
-        cancelButtonText: texts.value.cancel,
-        type: 'warning'
-      }
-    )
-
-    await deleteWarehouse(row.id)
-    ElMessage.success(texts.value.deleteSuccess)
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(texts.value.deleteFailed)
-    }
-  }
-}
-
-const handleEnable = async (row: Warehouse) => {
-  try {
-    await ElMessageBox.confirm(
-      interpolate(texts.value.confirmEnable, { name: row.warehouseName || row.name || '' }),
-      texts.value.confirmTitle,
-      {
-        confirmButtonText: texts.value.enable,
-        cancelButtonText: texts.value.cancel,
-        type: 'warning'
-      }
-    )
-    await enableWarehouse(row.id)
-    ElMessage.success(texts.value.enableSuccess)
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(texts.value.enableFailed)
-    }
-  }
-}
-
-// 提交
 const handleSubmit = async (values: any) => {
   submitting.value = true
   try {
@@ -751,21 +622,10 @@ const handleSubmit = async (values: any) => {
     dialogVisible.value = false
     loadData()
   } catch (error) {
-    console.error('提交失败:', error)
+    console.error(error)
     ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
   } finally {
     submitting.value = false
-  }
-}
-
-// 导出
-const handleExport = async () => {
-  try {
-    const blob = await exportWarehouses(searchForm)
-    downloadBlob(blob, `${texts.value.exportFilename}_${Date.now()}.csv`)
-    ElMessage.success(texts.value.exportSuccess)
-  } catch (error) {
-    ElMessage.error(texts.value.exportFailed)
   }
 }
 
