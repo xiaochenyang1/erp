@@ -114,7 +114,7 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleQuery"
-        @current-change="handleQuery"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -147,7 +147,7 @@
               <el-option
                 v-for="s in subjects"
                 :key="s.id"
-                :label="`${s.subjectCode} ${s.subjectName}`"
+                :label="subjectLabel(s)"
                 :value="s.id"
               />
             </el-select>
@@ -312,11 +312,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
+import { onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
-import { formatLocalizedNumber } from '@/utils/locale'
 import { printVoucher } from '@/utils/bizPrint'
 import {
   approveManualVoucher,
@@ -329,367 +328,107 @@ import {
   postManualVoucher,
   rejectManualVoucher,
   submitManualVoucher,
-  updateManualVoucher,
-  type AccountSubject,
-  type ManualVoucher,
-  type ManualVoucherQuery,
-  type ManualVoucherStatus
+  updateManualVoucher
 } from '@/api/finance'
+import { useManualVoucherPresentation } from '@/composables/useManualVoucherPresentation'
+import { useManualVoucherList } from '@/composables/useManualVoucherList'
+import { useManualVoucherForm } from '@/composables/useManualVoucherForm'
 
 const { t } = useI18n()
-const statusOptions = computed<Array<{ label: string; value: ManualVoucherStatus }>>(() => [
-  { label: t('financeReportPages.manualVouchers.status.draft'), value: 'DRAFT' },
-  { label: t('financeReportPages.manualVouchers.status.pending'), value: 'PENDING' },
-  { label: t('financeReportPages.manualVouchers.status.approved'), value: 'APPROVED' },
-  { label: t('financeReportPages.manualVouchers.status.posted'), value: 'POSTED' },
-  { label: t('financeReportPages.manualVouchers.status.cancelled'), value: 'CANCELLED' }
-])
 
-const queryForm = reactive<ManualVoucherQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  voucherNo: '',
-  status: '',
-  dateFrom: '',
-  dateTo: ''
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
+}
+
+const {
+  formatAmount,
+  statusLabel,
+  statusOptions,
+  statusTagType,
+  subjectLabel
+} = useManualVoucherPresentation(t)
+
+const {
+  cancelReason,
+  cancelVisible,
+  cancelling,
+  cancellingRow,
+  currentVoucher,
+  detailVisible,
+  handleApprove,
+  handleCancel,
+  handleDelete,
+  handlePageChange,
+  handlePost,
+  handlePrint,
+  handleQuery,
+  handleReject,
+  handleReset,
+  handleSubmit,
+  loadData,
+  loadSubjects,
+  loading,
+  openCancel,
+  openDetail,
+  openReject,
+  queryForm,
+  rejectReason,
+  rejectVisible,
+  rejecting,
+  subjects,
+  tableData,
+  total
+} = useManualVoucherList(t, {
+  getVouchers: getManualVouchers,
+  getVoucher: getManualVoucher,
+  getSubjects: getAccountSubjects,
+  submitVoucher: submitManualVoucher,
+  approveVoucher: approveManualVoucher,
+  postVoucher: postManualVoucher,
+  deleteVoucher: deleteManualVoucher,
+  cancelVoucher: cancelManualVoucher,
+  rejectVoucher: rejectManualVoucher,
+  printVoucher,
+  decoratePrint: (detail) => ({
+    ...detail,
+    sourceType: 'MANUAL',
+    sourceTypeLabel: t('financeReportPages.manualVouchers.title'),
+    statusLabel: statusLabel(detail.status),
+    entries: detail.lines || []
+  }),
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  ...notify
 })
 
-const loading = ref(false)
-const tableData = ref<ManualVoucher[]>([])
-const total = ref(0)
-const subjects = ref<AccountSubject[]>([])
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getManualVouchers(queryForm)
-    tableData.value = res.records
-    total.value = res.total
-  } catch {
-    ElMessage.error(t('financeReportPages.manualVouchers.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadSubjects = async () => {
-  try {
-    const res = await getAccountSubjects({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    subjects.value = res.records
-  } catch {
-    ElMessage.warning(t('financeReportPages.manualVouchers.message.subjectsLoadFailed'))
-  }
-}
-
-const handleQuery = () => {
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.voucherNo = ''
-  queryForm.status = ''
-  queryForm.dateFrom = ''
-  queryForm.dateTo = ''
-  queryForm.pageNo = 1
-  loadData()
-}
-
-// ---- 录入/编辑 ----
-const editVisible = ref(false)
-const editMode = ref<'create' | 'edit'>('create')
-const editingId = ref<string>('')
-const editFormRef = ref<FormInstance>()
-const saving = ref(false)
-
-interface EditLine {
-  subjectId: string
-  debitAmount: number
-  creditAmount: number
-  summary: string
-}
-
-const editForm = reactive<{ bizDate: string; remark: string; lines: EditLine[] }>({
-  bizDate: '',
-  remark: '',
-  lines: []
+const {
+  addLine,
+  balanced,
+  canSave,
+  creditTotal,
+  debitTotal,
+  editForm,
+  editMode,
+  editVisible,
+  handleSave,
+  onCreditChange,
+  onDebitChange,
+  openCreate,
+  openEdit,
+  removeLine,
+  resetEditForm,
+  saving
+} = useManualVoucherForm(t, {
+  getVoucher: getManualVoucher,
+  createVoucher: createManualVoucher,
+  updateVoucher: updateManualVoucher,
+  ensureSubjects: async () => {
+    if (subjects.value.length === 0) await loadSubjects()
+  },
+  onSubmitted: loadData,
+  ...notify
 })
-
-const emptyLine = (): EditLine => ({ subjectId: '', debitAmount: 0, creditAmount: 0, summary: '' })
-
-const addLine = () => editForm.lines.push(emptyLine())
-const removeLine = (index: number) => {
-  if (editForm.lines.length > 2) editForm.lines.splice(index, 1)
-}
-
-// 借贷互斥：填了借方就清零贷方，反之亦然
-const onDebitChange = (row: EditLine) => {
-  if (row.debitAmount) row.creditAmount = 0
-}
-const onCreditChange = (row: EditLine) => {
-  if (row.creditAmount) row.debitAmount = 0
-}
-
-const debitTotal = computed(() =>
-  editForm.lines.reduce((sum, l) => sum + Number(l.debitAmount || 0), 0)
-)
-const creditTotal = computed(() =>
-  editForm.lines.reduce((sum, l) => sum + Number(l.creditAmount || 0), 0)
-)
-const balanced = computed(() => {
-  const d = Math.round(debitTotal.value * 100)
-  const c = Math.round(creditTotal.value * 100)
-  return d === c && d > 0
-})
-
-const canSave = computed(() => {
-  if (!editForm.bizDate) return false
-  if (editForm.lines.length < 2) return false
-  // 每行必须选科目且借贷二选一（且不能两者都为 0 或都非 0）
-  for (const l of editForm.lines) {
-    if (!l.subjectId) return false
-    const hasDebit = Number(l.debitAmount || 0) > 0
-    const hasCredit = Number(l.creditAmount || 0) > 0
-    if (hasDebit === hasCredit) return false
-  }
-  return balanced.value
-})
-
-const resetEditForm = () => {
-  editForm.bizDate = ''
-  editForm.remark = ''
-  editForm.lines = [emptyLine(), emptyLine()]
-  editingId.value = ''
-}
-
-const openCreate = async () => {
-  editMode.value = 'create'
-  resetEditForm()
-  if (subjects.value.length === 0) await loadSubjects()
-  editVisible.value = true
-}
-
-const openEdit = async (row: ManualVoucher) => {
-  editMode.value = 'edit'
-  editingId.value = row.id
-  if (subjects.value.length === 0) await loadSubjects()
-  // 拉取完整详情（列表可能不含分录）
-  const detail = await getManualVoucher(row.id)
-  editForm.bizDate = detail.bizDate
-  editForm.remark = detail.remark || ''
-  editForm.lines = detail.lines.map((l) => ({
-    subjectId: l.subjectId,
-    debitAmount: l.debitAmount,
-    creditAmount: l.creditAmount,
-    summary: l.summary || ''
-  }))
-  if (editForm.lines.length < 2) {
-    while (editForm.lines.length < 2) editForm.lines.push(emptyLine())
-  }
-  editVisible.value = true
-}
-
-const handleSave = async () => {
-  if (!canSave.value) {
-    ElMessage.warning(t('financeReportPages.manualVouchers.message.invalidEntries'))
-    return
-  }
-  saving.value = true
-  try {
-    const payload = {
-      bizDate: editForm.bizDate,
-      remark: editForm.remark,
-      lines: editForm.lines.map((l) => ({
-        subjectId: l.subjectId,
-        debitAmount: Number(l.debitAmount || 0),
-        creditAmount: Number(l.creditAmount || 0),
-        summary: l.summary
-      }))
-    }
-    if (editMode.value === 'create') {
-      await createManualVoucher(payload)
-      ElMessage.success(t('financeReportPages.manualVouchers.message.created'))
-    } else {
-      await updateManualVoucher(editingId.value, payload)
-      ElMessage.success(t('financeReportPages.manualVouchers.message.updated'))
-    }
-    editVisible.value = false
-    loadData()
-  } catch {
-    ElMessage.error(t('financeReportPages.manualVouchers.message.saveFailed'))
-  } finally {
-    saving.value = false
-  }
-}
-
-// ---- 状态机操作 ----
-const handleSubmit = async (row: ManualVoucher) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.manualVouchers.message.submitConfirm', { no: row.voucherNo }),
-      t('financeReportPages.manualVouchers.message.submitTitle'),
-      { type: 'warning' }
-    )
-    await submitManualVoucher(row.id)
-    ElMessage.success(t('financeReportPages.manualVouchers.message.submitted'))
-    loadData()
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error(t('financeReportPages.manualVouchers.message.submitFailed'))
-  }
-}
-
-const handleApprove = async (row: ManualVoucher) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.manualVouchers.message.approveConfirm', { no: row.voucherNo }),
-      t('financeReportPages.manualVouchers.message.approveTitle'),
-      { type: 'warning' }
-    )
-    await approveManualVoucher(row.id)
-    ElMessage.success(t('financeReportPages.manualVouchers.message.approved'))
-    loadData()
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error(t('financeReportPages.manualVouchers.message.approveFailed'))
-  }
-}
-
-const handlePost = async (row: ManualVoucher) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.manualVouchers.message.postConfirm', { no: row.voucherNo }),
-      t('financeReportPages.manualVouchers.message.postTitle'),
-      { type: 'warning' }
-    )
-    await postManualVoucher(row.id)
-    ElMessage.success(t('financeReportPages.manualVouchers.message.posted'))
-    loadData()
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error(t('financeReportPages.manualVouchers.message.postFailed'))
-  }
-}
-
-const handleDelete = async (row: ManualVoucher) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.manualVouchers.message.deleteConfirm', { no: row.voucherNo }),
-      t('financeReportPages.manualVouchers.message.deleteTitle'),
-      {
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger'
-      }
-    )
-    await deleteManualVoucher(row.id)
-    ElMessage.success(t('financeReportPages.manualVouchers.message.deleted'))
-    loadData()
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error(t('financeReportPages.manualVouchers.message.deleteFailed'))
-  }
-}
-
-// ---- 作废 ----
-const cancelVisible = ref(false)
-const cancelling = ref(false)
-const cancelReason = ref('')
-const cancellingRow = ref<ManualVoucher | null>(null)
-
-const openCancel = (row: ManualVoucher) => {
-  cancellingRow.value = row
-  cancelReason.value = ''
-  cancelVisible.value = true
-}
-
-const handleCancel = async () => {
-  if (cancelling.value) return
-  const reason = cancelReason.value.trim()
-  if (!cancellingRow.value || !reason) return
-  cancelling.value = true
-  try {
-    await cancelManualVoucher(cancellingRow.value.id, reason)
-    ElMessage.success(t('financeReportPages.manualVouchers.message.cancelled'))
-    cancelVisible.value = false
-    loadData()
-  } catch {
-    ElMessage.error(t('financeReportPages.manualVouchers.message.cancelFailed'))
-  } finally {
-    cancelling.value = false
-  }
-}
-
-// ---- 驳回 ----
-const rejectVisible = ref(false)
-const rejecting = ref(false)
-const rejectReason = ref('')
-const rejectingRow = ref<ManualVoucher | null>(null)
-
-const openReject = (row: ManualVoucher) => {
-  rejectingRow.value = row
-  rejectReason.value = ''
-  rejectVisible.value = true
-}
-
-const handleReject = async () => {
-  if (!rejectingRow.value || !rejectReason.value.trim()) return
-  rejecting.value = true
-  try {
-    await rejectManualVoucher(rejectingRow.value.id, rejectReason.value.trim())
-    ElMessage.success(t('financeReportPages.manualVouchers.message.rejected'))
-    rejectVisible.value = false
-    loadData()
-  } catch {
-    ElMessage.error(t('financeReportPages.manualVouchers.message.rejectFailed'))
-  } finally {
-    rejecting.value = false
-  }
-}
-
-// ---- 详情 ----
-const detailVisible = ref(false)
-const currentVoucher = ref<ManualVoucher | null>(null)
-
-const openDetail = async (row: ManualVoucher) => {
-  try {
-    currentVoucher.value = await getManualVoucher(row.id)
-    detailVisible.value = true
-  } catch {
-    ElMessage.error(t('financeReportPages.manualVouchers.message.detailLoadFailed'))
-  }
-}
-
-const handlePrint = async (row: ManualVoucher) => {
-  try {
-    const detail = await getManualVoucher(row.id)
-    printVoucher({
-      ...detail,
-      sourceType: 'MANUAL',
-      sourceTypeLabel: t('financeReportPages.manualVouchers.title'),
-      statusLabel: statusLabel(detail.status),
-      entries: detail.lines || []
-    })
-  } catch {
-    ElMessage.error(t('financeReportPages.manualVouchers.message.printLoadFailed'))
-  }
-}
-
-// ---- 展示辅助 ----
-const statusLabel = (status: string) =>
-  statusOptions.value.find((o) => o.value === status)?.label || status
-
-const statusTagType = (status: string) => {
-  switch (status) {
-    case 'DRAFT': return 'info'
-    case 'PENDING': return 'warning'
-    case 'APPROVED': return 'primary'
-    case 'POSTED': return 'success'
-    case 'CANCELLED': return 'danger'
-    default: return 'info'
-  }
-}
-
-const formatAmount = (amount?: number | string) => {
-  const value = Number(amount ?? 0)
-  return Number.isFinite(value)
-    ? formatLocalizedNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '0.00'
-}
 
 onMounted(() => {
   loadData()
