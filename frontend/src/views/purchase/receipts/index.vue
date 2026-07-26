@@ -534,10 +534,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Box,
   View,
@@ -558,11 +558,7 @@ import {
   cancelPurchaseReceipt,
   exportPurchaseReceipts,
   getPurchaseOrders,
-  getPurchaseOrder,
-  type PurchaseReceipt,
-  type PurchaseReceiptCreateRequest,
-  type PurchaseOrder,
-  type PurchaseReceiptItem
+  getPurchaseOrder
 } from '@/api/purchase'
 import { printPurchaseReceipt } from '@/utils/bizPrint'
 import {
@@ -573,18 +569,16 @@ import {
   getWarehouses
 } from '@/api/masterdata'
 import { BarcodeScanField, PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
-import { incrementScannedLine } from '@/utils/barcode'
 import {
   formatAuxQuantity,
-  hydrateProductLineLabels,
-  serialCaptureProgress,
-  validateProductControlLines
+  serialCaptureProgress
 } from '@/utils/productLines'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
 import { formatLocalizedDateTime } from '@/utils/locale'
 import { usePurchaseReceiptSummary } from '@/composables/usePurchaseReceiptPresentation'
 import { usePurchaseReceiptList } from '@/composables/usePurchaseReceiptList'
+import { usePurchaseReceiptForm } from '@/composables/usePurchaseReceiptForm'
 
 const userStore = useUserStore()
 const { t } = useI18n()
@@ -641,25 +635,41 @@ const {
   onWarning: (message) => ElMessage.warning(message)
 })
 
-// 对话框
-const dialogVisible = ref(false)
-const editingId = ref<string | number>('')
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
-const scanLoading = ref(false)
-const scanFeedback = ref('')
-
-// 可用订单列表
-const availableOrders = ref<PurchaseOrder[]>([])
-
-// 表单数据
-const form = reactive<PurchaseReceiptCreateRequest>({
-  orderId: '',
-  warehouseId: '',
-  receiptDate: '',
-  items: [],
-  remark: ''
+const {
+  availableOrders,
+  dialogVisible,
+  editingId,
+  form,
+  formRef,
+  formRules,
+  getReceiptMaximum,
+  handleAdd,
+  handleBarcodeScan,
+  handleEdit,
+  handleOrderChange,
+  handleSubmitForm,
+  handleWarehouseChange,
+  receiptQuantityTotal,
+  resetScanQuantities,
+  scanFeedback,
+  scanLoading,
+  submitLoading
+} = usePurchaseReceiptForm(t, {
+  getApprovedOrders: getPurchaseOrders,
+  getOrder: getPurchaseOrder,
+  getReceipt: getPurchaseReceipt,
+  createReceipt: createPurchaseReceipt,
+  updateReceipt: updatePurchaseReceipt,
+  loadProduct: getProduct,
+  loadProductByBarcode: getProductByBarcode,
+  loadLocations,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => handleQuery()
 })
+
 const {
   completedCount,
   draftCount,
@@ -671,223 +681,7 @@ const {
   locations,
   () => form.warehouseId
 )
-const receiptQuantityTotal = computed(() => form.items.reduce(
-  (total, item) => total + Number(item.quantity || 0),
-  0
-))
 
-// 表单验证规则
-const formRules = computed<FormRules>(() => ({
-  orderId: [{ required: true, message: t('purchaseReceipt.validation.order'), trigger: 'change' }],
-  warehouseId: [{ required: true, message: t('purchaseReceipt.validation.warehouse'), trigger: 'change' }],
-  receiptDate: [{ required: true, message: t('purchaseReceipt.validation.date'), trigger: 'change' }]
-}))
-
-// 新增
-const handleAdd = async () => {
-  // 加载已审核的采购订单
-  try {
-    const res = await getPurchaseOrders({
-      pageNo: 1,
-      pageSize: 100,
-      status: 'APPROVED'
-    })
-    availableOrders.value = res.records
-
-    if (availableOrders.value.length === 0) {
-      ElMessage.warning(t('purchaseReceipt.message.noAvailableOrders'))
-      return
-    }
-
-    resetForm()
-    dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('purchaseReceipt.message.ordersLoadFailed'))
-  }
-}
-
-// 编辑草稿
-const handleEdit = async (row: PurchaseReceipt) => {
-  try {
-    const detail = await getPurchaseReceipt(row.id)
-    editingId.value = detail.id
-    // 载入所属订单，供只读展示（草稿不允许改订单）
-    availableOrders.value = [{
-      id: detail.orderId,
-      orderNo: detail.orderNo,
-      supplierName: detail.supplierName
-    } as PurchaseOrder]
-    form.orderId = detail.orderId
-    form.warehouseId = detail.warehouseId
-    form.receiptDate = detail.receiptDate
-    form.remark = detail.remark || ''
-    const receiptItems = (detail.items || detail.lines || []).map(item => ({
-      orderItemId: item.orderItemId,
-      orderLineId: item.orderLineId ?? item.orderItemId,
-      productId: item.productId,
-      productCode: item.productCode,
-      productName: item.productName,
-      orderedQuantity: item.orderedQuantity ?? item.quantity,
-      receivedQuantity: 0,
-      quantity: item.quantity,
-      qty: item.qty ?? item.quantity,
-      locationId: item.locationId ?? undefined,
-      serialNos: item.serialNos || '',
-      lotNo: item.lotNo || '',
-      productionDate: item.productionDate || '',
-      expiryDate: item.expiryDate || '',
-      remark: item.remark || ''
-    }))
-    form.items = await hydrateProductLineLabels(receiptItems, getProduct)
-    await loadLocations(form.warehouseId)
-    dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('purchaseReceipt.message.receiptLoadFailed'))
-  }
-}
-
-// 订单变更
-const handleOrderChange = async (orderId: string | number) => {
-  const summary = availableOrders.value.find(o => String(o.id) === String(orderId))
-  const order = summary?.items?.length ? summary : await getPurchaseOrder(orderId)
-  if (order) {
-    const orderItems = order.items.map(item => ({
-      orderItemId: item.id,
-      orderLineId: item.id,
-      productId: item.productId,
-      productCode: item.productCode,
-      productName: item.productName,
-      orderedQuantity: item.quantity,
-      receivedQuantity: item.receivedQty || 0,
-      quantity: Math.max(0, item.quantity - (item.receivedQty || 0)),
-      auxUnitName: item.auxUnitName || '',
-      conversionFactor: item.conversionFactor != null ? Number(item.conversionFactor) : undefined,
-      locationId: undefined,
-      serialNos: '',
-      lotNo: '',
-      productionDate: '',
-      expiryDate: '',
-      remark: ''
-    }))
-    form.items = await hydrateProductLineLabels(orderItems, getProduct)
-  }
-}
-
-const getReceiptMaximum = (item: PurchaseReceiptItem) => Math.max(
-  0,
-  Number(item.orderedQuantity || 0) - Number(item.receivedQuantity || 0)
-)
-
-const resetScanQuantities = async () => {
-  try {
-    await ElMessageBox.confirm(t('purchaseReceipt.scan.resetConfirm'), t('purchaseReceipt.scan.title'), {
-      confirmButtonText: t('purchaseReceipt.scan.reset'),
-      cancelButtonText: t('common.cancel'),
-      type: 'warning'
-    })
-    form.items.forEach((item) => {
-      item.quantity = 0
-      item.qty = 0
-    })
-    scanFeedback.value = t('purchaseReceipt.scan.resetDone')
-  } catch (error: any) {
-    if (error !== 'cancel' && error?.action !== 'cancel') {
-      ElMessage.error(t('purchaseReceipt.scan.resetFailed'))
-    }
-  }
-}
-
-const handleBarcodeScan = async (barcode: string) => {
-  if (!form.orderId || form.items.length === 0) {
-    ElMessage.warning(t('purchaseReceipt.scan.selectOrderFirst'))
-    return
-  }
-
-  scanLoading.value = true
-  try {
-    const product = await getProductByBarcode(barcode)
-    const result = incrementScannedLine(form.items, product.id, getReceiptMaximum)
-    if (result.status === 'not-found') {
-      ElMessage.warning(t('purchaseReceipt.scan.notInOrder', { code: product.productCode }))
-      return
-    }
-    if (result.status === 'at-maximum') {
-      ElMessage.warning(t('purchaseReceipt.scan.atMaximum', { code: product.productCode }))
-      return
-    }
-    form.items[result.index].qty = result.quantity
-    scanFeedback.value = `${product.productCode} · ${result.quantity}`
-  } catch (error) {
-    ElMessage.warning(error instanceof Error ? error.message : t('purchaseReceipt.scan.lookupFailed'))
-  } finally {
-    scanLoading.value = false
-  }
-}
-
-// 提交表单
-const handleSubmitForm = async () => {
-  if (!formRef.value) return
-
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    if (form.items.length === 0) {
-      ElMessage.warning(t('purchaseReceipt.validation.order'))
-      return
-    }
-
-    const controlIssues = validateProductControlLines(form.items)
-    if (controlIssues.length > 0) {
-      const issue = controlIssues[0]
-      const product = issue.productCode || issue.productName || String(issue.productId)
-      ElMessage.warning(t(`purchaseReceipt.validation.${issue.messageKey}`, {
-        line: issue.index + 1,
-        product,
-        expected: issue.expectedSerialCount,
-        actual: issue.actualSerialCount
-      }))
-      return
-    }
-
-    submitLoading.value = true
-    try {
-      if (editingId.value) {
-        await updatePurchaseReceipt(editingId.value, form)
-        ElMessage.success(t('purchaseReceipt.message.updated'))
-      } else {
-        await createPurchaseReceipt(form)
-        ElMessage.success(t('purchaseReceipt.message.created'))
-      }
-      dialogVisible.value = false
-      handleQuery()
-    } catch (error) {
-      ElMessage.error(editingId.value ? t('purchaseReceipt.message.updateFailed') : t('purchaseReceipt.message.createFailed'))
-    } finally {
-      submitLoading.value = false
-    }
-  })
-}
-
-// 重置表单
-const resetForm = () => {
-  editingId.value = ''
-  form.orderId = ''
-  form.warehouseId = ''
-  form.receiptDate = ''
-  form.items = []
-  form.remark = ''
-  scanFeedback.value = ''
-  formRef.value?.resetFields()
-}
-
-const handleWarehouseChange = async (warehouseId?: string | number) => {
-  form.items.forEach((item) => {
-    item.locationId = undefined
-  })
-  await loadLocations(warehouseId)
-}
-
-// 初始化
 onMounted(() => {
   handleQuery()
   loadOptions()
