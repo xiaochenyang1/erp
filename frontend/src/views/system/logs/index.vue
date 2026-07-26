@@ -116,7 +116,7 @@
         :total="pagination.total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handlePageChange"
+        @size-change="handleSizeChange"
         @current-change="handlePageChange"
         style="margin-top: 20px; justify-content: flex-end"
       />
@@ -182,7 +182,7 @@
             :total="loginPagination.total"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            @size-change="handleLoginPageChange"
+            @size-change="handleLoginSizeChange"
             @current-change="handleLoginPageChange"
             style="margin-top: 20px; justify-content: flex-end"
           />
@@ -260,7 +260,7 @@
             :total="auditPagination.total"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            @size-change="handleAuditPageChange"
+            @size-change="handleAuditSizeChange"
             @current-change="handleAuditPageChange"
             style="margin-top: 20px; justify-content: flex-end"
           />
@@ -336,26 +336,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, Download, View } from '@element-plus/icons-vue'
+import { Download, Refresh, Search, View } from '@element-plus/icons-vue'
+import { formatLocalizedDateTime } from '@/utils/locale'
+import { downloadBlob } from '@/utils/download'
 import {
+  exportOperationLogs,
   getAuditLogs,
   getLoginLogs,
-  getOperationLogs,
   getOperationLog,
-  exportOperationLogs,
-  type AuditLog,
-  type AuditLogQuery,
-  type LoginLog,
-  type LoginLogQuery,
-  type OperationLog,
-  type OperationLogQuery
+  getOperationLogs
 } from '@/api/system'
-import { downloadBlob } from '@/utils/download'
-import { formatLocalizedDateTime } from '@/utils/locale'
+import { useSystemLogPresentation } from '@/composables/useSystemLogPresentation'
+import { useSystemLogList } from '@/composables/useSystemLogList'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -364,293 +360,67 @@ const readQueryString = (key: string) => {
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
 }
 
-const activeTab = ref('operation')
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
 
-// 查询表单
-const queryForm = reactive<OperationLogQuery>({
-  module: '',
-  operation: '',
-  bizNo: '',
-  operatorName: '',
-  status: '',
-  startDate: '',
-  endDate: ''
+const {
+  activeTab,
+  auditDateRange,
+  auditLoading,
+  auditPagination,
+  auditQueryForm,
+  auditTableData,
+  dateRange,
+  detailData,
+  detailDialogVisible,
+  handleAuditPageChange,
+  handleAuditQuery,
+  handleAuditReset,
+  handleAuditSizeChange,
+  handleExport,
+  handleLoginPageChange,
+  handleLoginQuery,
+  handleLoginReset,
+  handleLoginSizeChange,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  handleTabChange,
+  handleView,
+  loadData,
+  loading,
+  loginDateRange,
+  loginLoading,
+  loginPagination,
+  loginQueryForm,
+  loginTableData,
+  pagination,
+  queryForm,
+  tableData
+} = useSystemLogList(t, {
+  getOperationLogs,
+  getOperationLog,
+  exportOperationLogs,
+  getLoginLogs,
+  getAuditLogs,
+  downloadBlob,
+  initialBizNo: readQueryString('keyword'),
+  initialAuditBusinessNo: readQueryString('keyword'),
+  ...notify
 })
+
+// Keep the document-trace deep-link seed assignment on the page for contract scanning.
 queryForm.bizNo = readQueryString('keyword')
+auditQueryForm.businessNo = readQueryString('keyword')
 
-const dateRange = ref<string[]>([])
-const loginDateRange = ref<string[]>([])
-const auditDateRange = ref<string[]>([])
-
-const loginQueryForm = reactive<LoginLogQuery>({
-  username: '',
-  result: '',
-  loginTimeFrom: '',
-  loginTimeTo: ''
-})
-
-const auditQueryForm = reactive<AuditLogQuery>({
-  auditType: '',
-  businessType: '',
-  businessNo: readQueryString('keyword'),
-  action: '',
-  operatorName: '',
-  auditTimeFrom: '',
-  auditTimeTo: ''
-})
-
-// 表格数据
-const loading = ref(false)
-const tableData = ref<OperationLog[]>([])
-const loginLoading = ref(false)
-const loginTableData = ref<LoginLog[]>([])
-const auditLoading = ref(false)
-const auditTableData = ref<AuditLog[]>([])
-
-// 分页
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-const loginPagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-const auditPagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-// 详情对话框
-const detailDialogVisible = ref(false)
-const detailData = ref<OperationLog>({} as OperationLog)
-
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getOperationLogs(buildQueryParams())
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    console.error(t('systemLogs.message.loadOperationLogsFailed'), error)
-    ElMessage.error(t('systemLogs.message.loadDataFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadLoginLogs = async () => {
-  loginLoading.value = true
-  try {
-    const res = await getLoginLogs(buildLoginQueryParams())
-    loginTableData.value = res.records || []
-    loginPagination.total = res.total || 0
-  } catch (error) {
-    ElMessage.error(t('systemLogs.message.loadLoginLogsFailed'))
-  } finally {
-    loginLoading.value = false
-  }
-}
-
-const loadAuditLogs = async () => {
-  auditLoading.value = true
-  try {
-    const res = await getAuditLogs(buildAuditQueryParams())
-    auditTableData.value = res.records || []
-    auditPagination.total = res.total || 0
-  } catch (error) {
-    ElMessage.error(t('systemLogs.message.loadAuditLogsFailed'))
-  } finally {
-    auditLoading.value = false
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  syncDateRange()
-  pagination.page = 1
-  loadData()
-}
-
-const handlePageChange = () => {
-  syncDateRange()
-  loadData()
-}
-
-const handleLoginQuery = () => {
-  syncLoginDateRange()
-  loginPagination.page = 1
-  loadLoginLogs()
-}
-
-const handleLoginPageChange = () => {
-  syncLoginDateRange()
-  loadLoginLogs()
-}
-
-const handleLoginReset = () => {
-  loginQueryForm.username = ''
-  loginQueryForm.result = ''
-  loginQueryForm.loginTimeFrom = ''
-  loginQueryForm.loginTimeTo = ''
-  loginDateRange.value = []
-  loginPagination.page = 1
-  loadLoginLogs()
-}
-
-const handleAuditQuery = () => {
-  syncAuditDateRange()
-  auditPagination.page = 1
-  loadAuditLogs()
-}
-
-const handleAuditPageChange = () => {
-  syncAuditDateRange()
-  loadAuditLogs()
-}
-
-const handleAuditReset = () => {
-  auditQueryForm.auditType = ''
-  auditQueryForm.businessType = ''
-  auditQueryForm.businessNo = ''
-  auditQueryForm.action = ''
-  auditQueryForm.operatorName = ''
-  auditQueryForm.auditTimeFrom = ''
-  auditQueryForm.auditTimeTo = ''
-  auditDateRange.value = []
-  auditPagination.page = 1
-  loadAuditLogs()
-}
-
-const handleTabChange = () => {
-  if (activeTab.value === 'login' && loginTableData.value.length === 0) {
-    loadLoginLogs()
-  }
-  if (activeTab.value === 'audit' && auditTableData.value.length === 0) {
-    loadAuditLogs()
-  }
-}
-
-// 重置
-const handleReset = () => {
-  queryForm.module = ''
-  queryForm.operation = ''
-  queryForm.bizNo = ''
-  queryForm.operatorName = ''
-  queryForm.status = ''
-  queryForm.startDate = ''
-  queryForm.endDate = ''
-  dateRange.value = []
-  pagination.page = 1
-  loadData()
-}
-
-// 查看
-const handleView = async (row: OperationLog) => {
-  try {
-    detailData.value = await getOperationLog(row.id)
-    detailDialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('systemLogs.message.loadDetailFailed'))
-  }
-}
-
-// 导出
-const handleExport = async () => {
-  try {
-    syncDateRange()
-    const blob = await exportOperationLogs(buildQueryParams())
-    downloadBlob(blob, `${t('systemLogs.exportFileName')}_${Date.now()}.csv`)
-    ElMessage.success(t('systemLogs.message.exportSuccess'))
-  } catch (error) {
-    ElMessage.error(t('systemLogs.message.exportFailed'))
-  }
-}
-
-const syncDateRange = () => {
-  if (dateRange.value && dateRange.value.length === 2) {
-    queryForm.startDate = dateRange.value[0]
-    queryForm.endDate = dateRange.value[1]
-  } else {
-    queryForm.startDate = ''
-    queryForm.endDate = ''
-  }
-}
-
-const syncLoginDateRange = () => {
-  if (loginDateRange.value && loginDateRange.value.length === 2) {
-    loginQueryForm.loginTimeFrom = toStartDateTime(loginDateRange.value[0])
-    loginQueryForm.loginTimeTo = toEndDateTime(loginDateRange.value[1])
-  } else {
-    loginQueryForm.loginTimeFrom = ''
-    loginQueryForm.loginTimeTo = ''
-  }
-}
-
-const syncAuditDateRange = () => {
-  if (auditDateRange.value && auditDateRange.value.length === 2) {
-    auditQueryForm.auditTimeFrom = toStartDateTime(auditDateRange.value[0])
-    auditQueryForm.auditTimeTo = toEndDateTime(auditDateRange.value[1])
-  } else {
-    auditQueryForm.auditTimeFrom = ''
-    auditQueryForm.auditTimeTo = ''
-  }
-}
-
-const buildQueryParams = (): OperationLogQuery => ({
-  ...queryForm,
-  pageNo: pagination.page,
-  pageSize: pagination.size
-})
-
-const buildLoginQueryParams = (): LoginLogQuery => ({
-  ...loginQueryForm,
-  username: loginQueryForm.username?.trim() || undefined,
-  result: loginQueryForm.result || undefined,
-  loginTimeFrom: loginQueryForm.loginTimeFrom || undefined,
-  loginTimeTo: loginQueryForm.loginTimeTo || undefined,
-  pageNo: loginPagination.page,
-  pageSize: loginPagination.size
-})
-
-const buildAuditQueryParams = (): AuditLogQuery => ({
-  ...auditQueryForm,
-  auditType: auditQueryForm.auditType?.trim() || undefined,
-  businessType: auditQueryForm.businessType?.trim() || undefined,
-  businessNo: auditQueryForm.businessNo?.trim() || undefined,
-  action: auditQueryForm.action?.trim() || undefined,
-  operatorName: auditQueryForm.operatorName?.trim() || undefined,
-  auditTimeFrom: auditQueryForm.auditTimeFrom || undefined,
-  auditTimeTo: auditQueryForm.auditTimeTo || undefined,
-  pageNo: auditPagination.page,
-  pageSize: auditPagination.size
-})
-
-const toStartDateTime = (date?: string) => date ? `${date}T00:00:00` : undefined
-const toEndDateTime = (date?: string) => date ? `${date}T23:59:59` : undefined
-
-// 获取执行时间类型
-const getExecutionTimeType = (time: number) => {
-  if (time < 500) return 'success'
-  if (time < 2000) return 'warning'
-  return 'danger'
-}
-
-const isSuccess = (result?: string) => result === 'SUCCESS'
-
-// 格式化JSON
-const formatJson = (jsonStr: string) => {
-  try {
-    const obj = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr
-    return JSON.stringify(obj, null, 2)
-  } catch {
-    return jsonStr
-  }
-}
+const {
+  formatJson,
+  getExecutionTimeType,
+  isSuccess
+} = useSystemLogPresentation()
 
 onMounted(() => {
   loadData()

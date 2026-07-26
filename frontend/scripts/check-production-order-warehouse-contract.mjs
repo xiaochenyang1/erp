@@ -39,7 +39,12 @@ const financePaymentView = [
   'src/composables/useSettlementForm.ts',
   'src/composables/useSettlementDetail.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
-const systemLogView = readFileSync(resolve(root, 'src/views/system/logs/index.vue'), 'utf8')
+// 系统日志页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
+const systemLogView = [
+  'src/views/system/logs/index.vue',
+  'src/composables/useSystemLogPresentation.ts',
+  'src/composables/useSystemLogList.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const systemApi = readFileSync(resolve(root, 'src/api/system.ts'), 'utf8')
 // 用户管理页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const systemUserView = [
