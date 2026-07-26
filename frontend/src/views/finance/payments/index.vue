@@ -42,9 +42,10 @@
               </template>
             </el-table-column>
             <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
-            <el-table-column :label="$t('financeReportPages.common.actions')" width="150" fixed="right">
+            <el-table-column :label="$t('financeReportPages.common.actions')" width="210" fixed="right">
               <template #default="{ row }">
                 <el-button link type="primary" @click="viewReceipt(row)">{{ $t('financeReportPages.common.view') }}</el-button>
+                <el-button link type="primary" @click="printReceiptRow(row)">{{ $t('financeReportPages.common.print') }}</el-button>
                 <el-button v-if="row.status === 'DRAFT'" v-permission="'finance:receipt:cancel'" link type="danger" @click="cancelReceipt(row)">{{ $t('financeReportPages.common.cancel') }}</el-button>
               </template>
             </el-table-column>
@@ -102,9 +103,10 @@
               </template>
             </el-table-column>
             <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
-            <el-table-column :label="$t('financeReportPages.common.actions')" width="150" fixed="right">
+            <el-table-column :label="$t('financeReportPages.common.actions')" width="210" fixed="right">
               <template #default="{ row }">
                 <el-button link type="primary" @click="viewPayment(row)">{{ $t('financeReportPages.common.view') }}</el-button>
+                <el-button link type="primary" @click="printPaymentRow(row)">{{ $t('financeReportPages.common.print') }}</el-button>
                 <el-button v-if="row.status === 'DRAFT'" v-permission="'finance:payment:cancel'" link type="danger" @click="cancelPayment(row)">{{ $t('financeReportPages.common.cancel') }}</el-button>
               </template>
             </el-table-column>
@@ -328,6 +330,7 @@ import {
 } from '@/api/finance'
 import { getCustomers, getSuppliers, type Customer, type Supplier } from '@/api/masterdata'
 import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedNumber } from '@/utils/locale'
+import { printPayment, printReceipt } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 const activeTab = ref('receipts')
@@ -634,6 +637,18 @@ const viewReceipt = async (row: Receipt) => {
   }
 }
 
+const printReceiptRow = async (row: Receipt) => {
+  try {
+    const detail = await getReceipt(row.id)
+    printReceipt({
+      ...detail,
+      customerName: detail.customerName || customerName(detail.customerId)
+    })
+  } catch {
+    ElMessage.error(t('financeReportPages.payments.message.printLoadFailed'))
+  }
+}
+
 const viewPayment = async (row: Payment) => {
   detailTitle.value = t('financeReportPages.payments.paymentTitle', { no: row.paymentNo })
   detailVisible.value = true
@@ -659,6 +674,18 @@ const viewPayment = async (row: Payment) => {
     detailVisible.value = false
   } finally {
     detailLoading.value = false
+  }
+}
+
+const printPaymentRow = async (row: Payment) => {
+  try {
+    const detail = await getPayment(row.id)
+    printPayment({
+      ...detail,
+      supplierName: detail.supplierName || supplierName(detail.supplierId)
+    })
+  } catch {
+    ElMessage.error(t('financeReportPages.payments.message.printLoadFailed'))
   }
 }
 

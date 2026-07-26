@@ -543,6 +543,7 @@ export const financeReportPageMessages = {
           paymentCreateFailed: '创建付款失败',
           receiptDetailLoadFailed: '加载收款详情失败',
           paymentDetailLoadFailed: '加载付款详情失败',
+          printLoadFailed: '加载打印数据失败',
           receiptCancelConfirm: '确定取消收款单“{no}”吗？',
           paymentCancelConfirm: '确定取消付款单“{no}”吗？',
           cancelled: '取消成功',
@@ -991,6 +992,7 @@ export const financeReportPageMessages = {
           receiptsLoadFailed: 'Failed to load receipts', paymentsLoadFailed: 'Failed to load payments', receiptCreated: 'Receipt created',
           receiptCreateFailed: 'Failed to create the receipt', paymentCreated: 'Payment created', paymentCreateFailed: 'Failed to create the payment',
           receiptDetailLoadFailed: 'Failed to load receipt details', paymentDetailLoadFailed: 'Failed to load payment details',
+          printLoadFailed: 'Failed to load print data',
           receiptCancelConfirm: 'Cancel receipt “{no}”?', paymentCancelConfirm: 'Cancel payment “{no}”?', cancelled: 'Cancelled',
           cancelFailed: 'Failed to cancel', customersLoadFailed: 'Failed to load customers', suppliersLoadFailed: 'Failed to load suppliers'
         }

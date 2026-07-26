@@ -441,3 +441,69 @@ export function printFinanceInvoice(doc: any) {
   })
   printHtml(`发票登记 ${doc.invoiceNo}`, html)
 }
+
+export function printReceipt(doc: any) {
+  const allocations = doc.allocations || doc.lines || []
+  const html = buildDocPrintHtml({
+    title: '收款单',
+    docNo: doc.receiptNo,
+    fields: [
+      ['客户', doc.customerName || doc.customerId || '-'],
+      ['收款日期', doc.receiptDate || '-'],
+      ['状态', doc.status || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '应收单', '核销金额', '备注'],
+    rows: allocations.length
+      ? allocations.map((line: any, index: number) => [
+          String(index + 1),
+          escapeHtml(line.receivableNo || line.receivableId || line.bizNo || line.bizId || ''),
+          money(line.allocatedAmount ?? line.amount ?? line.qty),
+          escapeHtml(line.remark || '')
+        ])
+      : [[
+          '1',
+          escapeHtml(doc.customerName || doc.customerId || '收款'),
+          money(doc.receiptAmount ?? doc.amount),
+          escapeHtml(doc.remark || '')
+        ]],
+    totals: [
+      ['收款金额', money(doc.receiptAmount ?? doc.amount)],
+      ['已核销', money(doc.allocatedAmount)]
+    ]
+  })
+  printHtml(`收款单 ${doc.receiptNo}`, html)
+}
+
+export function printPayment(doc: any) {
+  const allocations = doc.allocations || doc.lines || []
+  const html = buildDocPrintHtml({
+    title: '付款单',
+    docNo: doc.paymentNo,
+    fields: [
+      ['供应商', doc.supplierName || doc.supplierId || '-'],
+      ['付款日期', doc.paymentDate || '-'],
+      ['状态', doc.status || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '应付单', '核销金额', '备注'],
+    rows: allocations.length
+      ? allocations.map((line: any, index: number) => [
+          String(index + 1),
+          escapeHtml(line.payableNo || line.payableId || line.bizNo || line.bizId || ''),
+          money(line.allocatedAmount ?? line.amount ?? line.qty),
+          escapeHtml(line.remark || '')
+        ])
+      : [[
+          '1',
+          escapeHtml(doc.supplierName || doc.supplierId || '付款'),
+          money(doc.paymentAmount ?? doc.amount),
+          escapeHtml(doc.remark || '')
+        ]],
+    totals: [
+      ['付款金额', money(doc.paymentAmount ?? doc.amount)],
+      ['已核销', money(doc.allocatedAmount)]
+    ]
+  })
+  printHtml(`付款单 ${doc.paymentNo}`, html)
+}
