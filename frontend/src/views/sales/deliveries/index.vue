@@ -416,11 +416,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
 import { RefreshLeft } from '@element-plus/icons-vue'
 import {
   getSalesDeliveries,
@@ -429,13 +428,10 @@ import {
   updateSalesDelivery,
   cancelSalesDelivery,
   postSalesDelivery,
-  updateSalesDeliveryLogistics,
-  type SalesDeliveryCreateRequest,
-  type SalesDelivery,
-  type SalesDeliveryItem
+  updateSalesDeliveryLogistics
 } from '@/api/sales'
 import { printSalesDelivery } from '@/utils/bizPrint'
-import { getSalesOrders, getSalesOrder, type SalesOrder } from '@/api/sales'
+import { getSalesOrders, getSalesOrder } from '@/api/sales'
 import {
   getCustomers,
   getLocations,
@@ -444,16 +440,14 @@ import {
   getWarehouses
 } from '@/api/masterdata'
 import { BarcodeScanField } from '@/components/common'
-import { incrementScannedLine } from '@/utils/barcode'
 import {
   formatAuxQuantity,
-  hydrateProductLineLabels,
-  serialCaptureProgress,
-  validateProductControlLines
+  serialCaptureProgress
 } from '@/utils/productLines'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
 import { useSalesDeliveryPresentation } from '@/composables/useSalesDeliveryPresentation'
 import { useSalesDeliveryList } from '@/composables/useSalesDeliveryList'
+import { useSalesDeliveryForm } from '@/composables/useSalesDeliveryForm'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -474,7 +468,6 @@ const {
   loadData,
   loadLocations,
   loadOptions,
-  loadOrders,
   loading,
   locations,
   orders,
@@ -502,26 +495,42 @@ const {
   onInfo: (message) => ElMessage.info(message)
 })
 
-// 对话框
-const dialogVisible = ref(false)
-const submitLoading = ref(false)
-const scanLoading = ref(false)
-const scanFeedback = ref('')
-const dialogTitle = ref('')
-const isView = ref(false)
-const editingId = ref<string | number>('')
-const formRef = ref<FormInstance>()
-
-// 表单数据
-const formData = reactive<SalesDeliveryCreateRequest>({
-  orderId: 0,
-  warehouseId: 0,
-  deliveryDate: '',
-  items: [],
-  remark: '',
-  carrierName: '',
-  trackingNo: '',
-  logisticsStatus: 'PENDING_SHIP'
+const {
+  deliveryQuantityTotal,
+  dialogTitle,
+  dialogVisible,
+  editingId,
+  formData,
+  formRef,
+  formRules,
+  getDeliveryMaximum,
+  handleBarcodeScan,
+  handleCreate,
+  handleEdit,
+  handleOrderChange,
+  handleSubmit,
+  handleView,
+  handleWarehouseChange,
+  isView,
+  resetScanQuantities,
+  scanFeedback,
+  scanLoading,
+  submitLoading
+} = useSalesDeliveryForm(t, {
+  orders,
+  getDelivery: getSalesDelivery,
+  getOrder: getSalesOrder,
+  createDelivery: createSalesDelivery,
+  updateDelivery: updateSalesDelivery,
+  loadProduct: getProduct,
+  loadProductByBarcode: getProductByBarcode,
+  loadLocations,
+  formatBusinessDate,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => loadData()
 })
 
 const {
@@ -529,253 +538,6 @@ const {
   logisticsStatusType,
   locationsForWarehouse
 } = useSalesDeliveryPresentation(t, locations, () => formData.warehouseId)
-
-const deliveryQuantityTotal = computed(() => formData.items.reduce(
-  (total, item) => total + Number(item.quantity || 0),
-  0
-))
-
-// 表单验证规则
-const formRules = computed<FormRules>(() => ({
-  orderId: [{ required: true, message: t('salesDelivery.validation.order'), trigger: 'change' }],
-  warehouseId: [{ required: true, message: t('salesDelivery.validation.warehouse'), trigger: 'change' }],
-  deliveryDate: [{ required: true, message: t('salesDelivery.validation.date'), trigger: 'change' }]
-}))
-
-const handleWarehouseChange = async (warehouseId?: string | number) => {
-  formData.items.forEach((item) => {
-    item.locationId = undefined
-  })
-  await loadLocations(warehouseId)
-}
-
-// 新增
-const handleCreate = () => {
-  resetForm()
-  dialogTitle.value = t('salesDelivery.dialog.create')
-  dialogVisible.value = true
-}
-
-const handleView = async (row: SalesDelivery) => {
-  try {
-    const data = await getSalesDelivery(row.id)
-    dialogTitle.value = t('salesDelivery.dialog.view')
-    isView.value = true
-    editingId.value = ''
-    Object.assign(formData, data)
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('salesDelivery.message.detailLoadFailed'))
-  }
-}
-
-// 编辑草稿
-const handleEdit = async (row: SalesDelivery) => {
-  try {
-    const detail = await getSalesDelivery(row.id)
-    dialogTitle.value = t('salesDelivery.dialog.edit')
-    isView.value = false
-    editingId.value = detail.id
-    // 载入所属订单，供只读展示（草稿不允许改订单）
-    let order = orders.value.find(o => String(o.id) === String(detail.orderId))
-    if (!order) {
-      orders.value = [{
-        id: detail.orderId,
-        orderNo: detail.orderNo,
-        customerName: detail.customerName
-      } as SalesOrder, ...orders.value]
-    }
-    // 后端发货明细不含 productCode/Name 与订单数量；编辑时补齐，
-    // 否则 el-input-number 的 max=(ordered-delivered) 会把数量钳成 0 导致无法保存。
-    let orderItems: SalesOrder['items'] = []
-    try {
-      const orderDetail = await getSalesOrder(detail.orderId)
-      orderItems = orderDetail.items || []
-      order = orderDetail
-      const exists = orders.value.some(o => String(o.id) === String(orderDetail.id))
-      if (!exists) {
-        orders.value = [orderDetail, ...orders.value]
-      }
-    } catch {
-      // 订单详情失败时仍尽量打开编辑弹窗
-    }
-    formData.orderId = detail.orderId
-    formData.warehouseId = detail.warehouseId
-    formData.deliveryDate = detail.deliveryDate
-    formData.remark = detail.remark || ''
-    formData.carrierName = detail.carrierName || ''
-    formData.trackingNo = detail.trackingNo || ''
-    formData.logisticsStatus = detail.logisticsStatus || 'PENDING_SHIP'
-    const deliveryItems = (detail.items || detail.lines || []).map(item => {
-      const orderLineId = item.orderLineId ?? item.orderItemId
-      const orderItem = orderItems.find(oi => String(oi.id) === String(orderLineId))
-      const qty = Number(item.quantity ?? item.qty ?? 0)
-      return {
-        orderItemId: item.orderItemId ?? item.orderLineId,
-        orderLineId,
-        productId: item.productId,
-        productCode: item.productCode || orderItem?.productCode,
-        productName: item.productName || orderItem?.productName,
-        orderedQuantity: Number(orderItem?.quantity ?? qty),
-        // 草稿未过账，不计入已发货；用订单 delivered 但至少保证 max >= 当前编辑数量
-        deliveredQuantity: Math.max(
-          0,
-          Number(orderItem?.deliveredQuantity ?? 0)
-        ),
-        quantity: qty,
-        locationId: item.locationId ?? undefined,
-        serialNos: item.serialNos || '',
-        lotNo: item.lotNo || '',
-        productionDate: item.productionDate || '',
-        expiryDate: item.expiryDate || '',
-        remark: item.remark || ''
-      }
-    })
-    formData.items = await hydrateProductLineLabels(deliveryItems, getProduct)
-    await loadLocations(formData.warehouseId)
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('salesDelivery.message.deliveryLoadFailed'))
-  }
-}
-
-// 订单变化
-const handleOrderChange = async () => {
-  if (!formData.orderId) return
-
-  try {
-    const order = await getSalesOrder(formData.orderId)
-
-    // 填充发货明细
-    const orderItems = order.items.map(item => ({
-      orderItemId: item.id,
-      productId: item.productId,
-      productCode: item.productCode,
-      productName: item.productName,
-      orderedQuantity: item.quantity,
-      deliveredQuantity: item.deliveredQuantity || 0,
-      quantity: Math.max(0, item.quantity - (item.deliveredQuantity || 0)),
-      auxUnitName: item.auxUnitName || '',
-      conversionFactor: item.conversionFactor != null ? Number(item.conversionFactor) : undefined,
-      locationId: undefined,
-      serialNos: '',
-      lotNo: '',
-      productionDate: '',
-      expiryDate: '',
-      remark: ''
-    }))
-    formData.items = await hydrateProductLineLabels(orderItems, getProduct)
-  } catch {
-    ElMessage.error(t('salesDelivery.message.orderDetailLoadFailed'))
-  }
-}
-
-const getDeliveryMaximum = (item: SalesDeliveryItem) => Math.max(
-  0,
-  Number(item.orderedQuantity || 0) - Number(item.deliveredQuantity || 0)
-)
-
-const resetScanQuantities = async () => {
-  try {
-    await ElMessageBox.confirm(t('salesDelivery.scan.resetConfirm'), t('salesDelivery.scan.title'), {
-      confirmButtonText: t('salesDelivery.scan.reset'),
-      cancelButtonText: t('common.cancel'),
-      type: 'warning'
-    })
-    formData.items.forEach((item) => {
-      item.quantity = 0
-    })
-    scanFeedback.value = t('salesDelivery.scan.resetDone')
-  } catch (error: any) {
-    if (error !== 'cancel' && error?.action !== 'cancel') {
-      ElMessage.error(t('salesDelivery.scan.resetFailed'))
-    }
-  }
-}
-
-const handleBarcodeScan = async (barcode: string) => {
-  if (!formData.orderId || formData.items.length === 0) {
-    ElMessage.warning(t('salesDelivery.scan.selectOrderFirst'))
-    return
-  }
-
-  scanLoading.value = true
-  try {
-    const product = await getProductByBarcode(barcode)
-    const result = incrementScannedLine(formData.items, product.id, getDeliveryMaximum)
-    if (result.status === 'not-found') {
-      ElMessage.warning(t('salesDelivery.scan.notInOrder', { code: product.productCode }))
-      return
-    }
-    if (result.status === 'at-maximum') {
-      ElMessage.warning(t('salesDelivery.scan.atMaximum', { code: product.productCode }))
-      return
-    }
-    scanFeedback.value = `${product.productCode} · ${result.quantity}`
-  } catch (error) {
-    ElMessage.warning(error instanceof Error ? error.message : t('salesDelivery.scan.lookupFailed'))
-  } finally {
-    scanLoading.value = false
-  }
-}
-
-// 提交表单
-const handleSubmit = async () => {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    if (!formData.items.length) {
-      ElMessage.warning(t('salesDelivery.validation.order'))
-      return
-    }
-
-    formData.items = await hydrateProductLineLabels(formData.items, getProduct)
-    const controlIssues = validateProductControlLines(formData.items)
-    if (controlIssues.length > 0) {
-      const issue = controlIssues[0]
-      const product = issue.productCode || issue.productName || String(issue.productId)
-      ElMessage.warning(t(`salesDelivery.validation.${issue.messageKey}`, {
-        line: issue.index + 1,
-        product,
-        expected: issue.expectedSerialCount,
-        actual: issue.actualSerialCount
-      }))
-      return
-    }
-
-    submitLoading.value = true
-    try {
-      if (editingId.value) {
-        await updateSalesDelivery(editingId.value, formData)
-        ElMessage.success(t('salesDelivery.message.updated'))
-      } else {
-        await createSalesDelivery(formData)
-        ElMessage.success(t('salesDelivery.message.created'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch {
-      ElMessage.error(editingId.value ? t('salesDelivery.message.updateFailed') : t('salesDelivery.message.createFailed'))
-    } finally {
-      submitLoading.value = false
-    }
-  })
-}
-
-const resetForm = () => {
-  editingId.value = ''
-  isView.value = false
-  formData.orderId = 0
-  formData.warehouseId = 0
-  formData.deliveryDate = formatBusinessDate()
-  formData.items = []
-  formData.remark = ''
-  formData.carrierName = ''
-  formData.trackingNo = ''
-  formData.logisticsStatus = 'PENDING_SHIP'
-  scanFeedback.value = ''
-  formRef.value?.resetFields()
-}
 
 onMounted(async () => {
   await loadOptions()
