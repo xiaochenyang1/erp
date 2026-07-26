@@ -110,3 +110,87 @@ export function printPurchaseReceipt(doc: any) {
   })
   printHtml(`采购收货单 ${doc.receiptNo}`, html)
 }
+
+export function printSalesReturn(doc: any) {
+  const lines = doc.items || doc.lines || []
+  const html = buildDocPrintHtml({
+    title: '销售退货单',
+    docNo: doc.returnNo,
+    fields: [
+      ['客户', doc.customerName || doc.customerId || '-'],
+      ['退货日期', doc.returnDate || '-'],
+      ['退货仓库', doc.warehouseName || doc.warehouseId || '-'],
+      ['来源发货', doc.deliveryNo || doc.deliveryId || '-'],
+      ['来源订单', doc.orderNo || doc.orderId || '-'],
+      ['状态', doc.status || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '数量', '单价', '金额', '备注'],
+    rows: lineRows(lines),
+    totals: [
+      ['数量合计', qty(doc.totalQuantity)],
+      ['金额合计', money(doc.totalAmount)]
+    ]
+  })
+  printHtml(`销售退货单 ${doc.returnNo}`, html)
+}
+
+export function printPurchaseReturn(doc: any) {
+  const lines = doc.items || doc.lines || []
+  const html = buildDocPrintHtml({
+    title: '采购退货单',
+    docNo: doc.returnNo,
+    fields: [
+      ['供应商', doc.supplierName || doc.supplierId || '-'],
+      ['退货日期', doc.returnDate || '-'],
+      ['退货仓库', doc.warehouseName || doc.warehouseId || '-'],
+      ['来源收货', doc.receiptNo || doc.receiptId || '-'],
+      ['来源订单', doc.orderNo || doc.orderId || '-'],
+      ['状态', doc.status || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '数量', '单价', '金额', '备注'],
+    rows: lineRows(lines),
+    totals: [
+      ['数量合计', qty(doc.totalQuantity)],
+      ['金额合计', money(doc.totalAmount)]
+    ]
+  })
+  printHtml(`采购退货单 ${doc.returnNo}`, html)
+}
+
+export function printProductionOrder(order: any) {
+  const materials = order.materials || order.lines || []
+  const html = buildDocPrintHtml({
+    title: '生产订单',
+    docNo: order.orderNo,
+    fields: [
+      ['产品', order.productName || order.productCode || order.productId || '-'],
+      ['BOM', order.bomCode || order.bomId || '-'],
+      ['计划数量', qty(order.planQuantity ?? order.plannedQty)],
+      ['完成数量', qty(order.completedQuantity ?? order.completedQty)],
+      ['材料仓', order.materialWarehouseName || order.materialWarehouseId || order.warehouseName || order.warehouseId || '-'],
+      ['成品仓', order.finishedWarehouseName || order.finishedWarehouseId || '-'],
+      ['计划开始', order.planStartDate || order.plannedStartDate || '-'],
+      ['计划结束', order.planEndDate || order.plannedFinishDate || '-'],
+      ['状态', order.status || '-'],
+      ['优先级', order.priority || '-'],
+      ['备注', order.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '需求', '已领', '已退', '备注'],
+    rows: materials.map((material: any, index: number) => [
+      String(index + 1),
+      escapeHtml(material.materialCode || material.productCode || material.materialProductId || material.materialId || ''),
+      escapeHtml(material.materialName || material.productName || ''),
+      qty(material.requiredQuantity ?? material.requiredQty),
+      qty(material.issuedQuantity ?? material.issuedQty),
+      qty(material.returnedQuantity),
+      escapeHtml(material.remark || material.unit || '')
+    ]),
+    totals: [
+      ['计划数量', qty(order.planQuantity ?? order.plannedQty)],
+      ['完成数量', qty(order.completedQuantity ?? order.completedQty)]
+    ]
+  })
+  printHtml(`生产订单 ${order.orderNo}`, html)
+}

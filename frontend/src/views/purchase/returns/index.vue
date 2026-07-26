@@ -108,12 +108,15 @@
       <el-table-column prop="createdAt" :label="t('purchaseReturn.createdAt')" width="190">
         <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column :label="t('purchaseReturn.actions')" width="220" fixed="right" align="center">
+      <el-table-column :label="t('purchaseReturn.actions')" width="280" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" size="small" @click="handleView(row)">
               <el-icon><View /></el-icon>
               {{ t('purchaseReturn.view') }}
+            </el-button>
+            <el-button link type="primary" size="small" @click="handlePrint(row)">
+              {{ t('purchaseReturn.print') }}
             </el-button>
             <el-button v-if="row.status === 'DRAFT'" v-permission="'purchase:return:update'" link type="primary" size="small" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
@@ -503,6 +506,7 @@ import {
 } from '@/utils/productLines'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
+import { printPurchaseReturn } from '@/utils/bizPrint'
 import { useUserStore } from '@/store/modules/user'
 import { formatLocalizedDateTime } from '@/utils/locale'
 
@@ -738,6 +742,15 @@ const handleView = async (row: PurchaseReturn) => {
     detailVisible.value = false
   } finally {
     detailLoading.value = false
+  }
+}
+
+const handlePrint = async (row: PurchaseReturn) => {
+  try {
+    const detail = await getPurchaseReturn(row.id)
+    printPurchaseReturn(detail)
+  } catch {
+    ElMessage.error(t('purchaseReturn.message.printLoadFailed'))
   }
 }
 

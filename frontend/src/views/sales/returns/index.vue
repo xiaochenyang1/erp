@@ -105,10 +105,13 @@
         <el-table-column prop="remark" :label="$t('salesReturnOps.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="$t('salesReturnOps.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="$t('salesReturnOps.createdTime')" width="160" />
-        <el-table-column :label="$t('salesReturnOps.actions')" width="150" fixed="right">
+        <el-table-column :label="$t('salesReturnOps.actions')" width="210" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
               {{ $t('salesReturnOps.action.view') }}
+            </el-button>
+            <el-button link type="primary" @click="handlePrint(row)">
+              {{ $t('salesReturnOps.action.print') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -397,6 +400,7 @@ import {
   serialCaptureProgress,
   validateProductControlLines
 } from '@/utils/productLines'
+import { printSalesReturn } from '@/utils/bizPrint'
 import { formatBusinessDate, formatLocalizedCurrency } from '@/utils/locale'
 
 const { t } = useI18n()
@@ -559,6 +563,15 @@ const handleView = async (row: SalesReturn) => {
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('salesReturnOps.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: SalesReturn) => {
+  try {
+    const detail = await getSalesReturn(row.id)
+    printSalesReturn(detail)
+  } catch {
+    ElMessage.error(t('salesReturnOps.message.printLoadFailed'))
   }
 }
 

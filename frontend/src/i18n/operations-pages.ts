@@ -388,7 +388,7 @@ export const operationsPageMessages = {
         lotNo: '请输入批次号'},
       status: { draft: '草稿', posted: '已过账', completed: '已完成', cancelled: '已取消' },
       action: {
-        search: '查询', reset: '重置', create: '新增退货', view: '查看', edit: '编辑',
+        search: '查询', reset: '重置', create: '新增退货', view: '查看', print: '打印', edit: '编辑',
         post: '过账', cancel: '取消', delete: '删除', confirm: '确定'
       },
       validation: {
@@ -405,6 +405,7 @@ export const operationsPageMessages = {
         loadFailed: '加载数据失败', deliveriesLoadFailed: '加载销售发货单失败',
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
         returnLoadFailed: '加载退货单失败', deliveryDetailLoadFailed: '加载销售发货详情失败',
+        printLoadFailed: '加载打印数据失败',
         cancelConfirm: '确认取消此退货单吗？', postConfirm: '确认过账此销售退货单吗？',
         success: '操作成功', failed: '操作失败', updateFailed: '更新失败'
       }
@@ -874,7 +875,7 @@ export const operationsPageMessages = {
         lotNo: 'Enter a lot no.'},
       status: { draft: 'Draft', posted: 'Posted', completed: 'Completed', cancelled: 'Cancelled' },
       action: {
-        search: 'Search', reset: 'Reset', create: 'New return', view: 'View', edit: 'Edit',
+        search: 'Search', reset: 'Reset', create: 'New return', view: 'View', print: 'Print', edit: 'Edit',
         post: 'Post', cancel: 'Cancel', delete: 'Delete', confirm: 'Confirm'
       },
       validation: {
@@ -892,6 +893,7 @@ export const operationsPageMessages = {
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
         returnLoadFailed: 'Failed to load the sales return',
         deliveryDetailLoadFailed: 'Failed to load sales delivery details',
+        printLoadFailed: 'Failed to load print data',
         cancelConfirm: 'Cancel this sales return?', postConfirm: 'Post this sales return?',
         success: 'Operation successful', failed: 'Operation failed', updateFailed: 'Update failed'
       }

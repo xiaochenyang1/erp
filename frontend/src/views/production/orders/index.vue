@@ -96,9 +96,10 @@
         </el-table-column>
         <el-table-column prop="planStartDate" :label="t('productionOrder.plannedStart')" width="120" />
         <el-table-column prop="planEndDate" :label="t('productionOrder.plannedEnd')" width="120" />
-        <el-table-column :label="t('productionOrder.actions')" width="420" align="center" fixed="right">
+        <el-table-column :label="t('productionOrder.actions')" width="460" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleView(row)">{{ t('productionOrder.view') }}</el-button>
+            <el-button type="primary" link @click="handlePrint(row)">{{ t('productionOrder.print') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'production:order:update'"
@@ -843,6 +844,7 @@ import {
 import { getProducts, getProduct, getWarehouses, getLocations, type Product, type Warehouse, type Location } from '@/api/masterdata'
 import { getBOMs, type BOM } from '@/api/production'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
+import { printProductionOrder } from '@/utils/bizPrint'
 import {
   hydrateProductLineLabels,
   serialCaptureProgress,
@@ -1246,6 +1248,15 @@ const handleView = async (row: ProductionOrder) => {
     viewDialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('productionOrder.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: ProductionOrder) => {
+  try {
+    const order = await getProductionOrder(row.id)
+    printProductionOrder(order)
+  } catch {
+    ElMessage.error(t('productionOrder.message.printLoadFailed'))
   }
 }
 
