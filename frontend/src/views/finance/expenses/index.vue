@@ -69,9 +69,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="380" align="center" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="430" align="center" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'finance:expense:manage'" type="primary" link :icon="View" @click="handleView(row)">{{ $t('financeReportPages.common.view') }}</el-button>
+            <el-button v-permission="'finance:expense:manage'" type="primary" link @click="handlePrint(row)">{{ $t('financeReportPages.common.print') }}</el-button>
             <el-button
               v-permission="'finance:expense:manage'"
               type="primary"
@@ -342,6 +343,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { formatBusinessDate, formatLocalizedNumber } from '@/utils/locale'
+import { printExpense } from '@/utils/bizPrint'
 import {
   CircleCheck,
   CircleClose,
@@ -511,6 +513,21 @@ const handleView = async (row: Expense) => {
     viewDialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('financeReportPages.expenses.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: Expense) => {
+  try {
+    const detail = await getExpense(row.id)
+    const expenseSubject = subjectOptions.value.find((subject) => String(subject.id) === String(detail.subjectId))
+    const paymentSubject = subjectOptions.value.find((subject) => String(subject.id) === String(detail.paymentSubjectId))
+    printExpense({
+      ...detail,
+      subjectName: expenseSubject?.subjectName || expenseSubject?.name || detail.subjectId,
+      paymentSubjectName: paymentSubject?.subjectName || paymentSubject?.name || detail.paymentSubjectId
+    })
+  } catch {
+    ElMessage.error(t('financeReportPages.expenses.message.printLoadFailed'))
   }
 }
 

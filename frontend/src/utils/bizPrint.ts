@@ -389,3 +389,55 @@ export function printPurchaseInquiry(doc: any) {
   })
   printHtml(`采购询价单 ${doc.inquiryNo}`, html)
 }
+
+export function printExpense(doc: any) {
+  const html = buildDocPrintHtml({
+    title: '费用单',
+    docNo: doc.expenseNo,
+    fields: [
+      ['费用日期', doc.expenseDate || '-'],
+      ['费用科目', doc.subjectName || doc.subjectId || '-'],
+      ['支付科目', doc.paymentSubjectName || doc.paymentSubjectId || '-'],
+      ['状态', doc.status || '-'],
+      ['凭证', doc.voucherNo || doc.voucherId || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '项目', '金额', '备注'],
+    rows: [[
+      '1',
+      escapeHtml(doc.subjectName || doc.subjectId || '费用'),
+      money(doc.amount),
+      escapeHtml(doc.remark || '')
+    ]],
+    totals: [['金额合计', money(doc.amount)]]
+  })
+  printHtml(`费用单 ${doc.expenseNo}`, html)
+}
+
+export function printFinanceInvoice(doc: any) {
+  const html = buildDocPrintHtml({
+    title: '发票登记',
+    docNo: doc.invoiceNo,
+    fields: [
+      ['发票类型', doc.invoiceType || '-'],
+      ['往来单位', doc.partnerName || '-'],
+      ['发票日期', doc.invoiceDate || '-'],
+      ['状态', doc.status || '-'],
+      ['关联业务', `${doc.relatedBizType || '-'} ${doc.relatedBizId || ''}`.trim()],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '项目', '金额', '税额', '备注'],
+    rows: [[
+      '1',
+      escapeHtml(doc.partnerName || '发票'),
+      money(doc.amount),
+      money(doc.taxAmount),
+      escapeHtml(doc.remark || '')
+    ]],
+    totals: [
+      ['金额合计', money(doc.amount)],
+      ['税额合计', money(doc.taxAmount)]
+    ]
+  })
+  printHtml(`发票登记 ${doc.invoiceNo}`, html)
+}

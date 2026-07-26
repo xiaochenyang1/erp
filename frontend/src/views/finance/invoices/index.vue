@@ -67,8 +67,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="260" align="center" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="320" align="center" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link @click="handlePrint(row)">{{ $t('financeReportPages.common.print') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'finance:invoice:manage'"
@@ -165,6 +166,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { CircleCheck, CircleClose, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
+import { printFinanceInvoice } from '@/utils/bizPrint'
 import {
   cancelFinanceInvoice,
   createFinanceInvoice,
@@ -287,6 +289,15 @@ const handleEdit = async (row: FinanceInvoice) => {
     dialogVisible.value = true
   } catch {
     ElMessage.error(t('financeReportPages.invoices.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: FinanceInvoice) => {
+  try {
+    const detail = await getFinanceInvoice(row.id)
+    printFinanceInvoice(detail)
+  } catch {
+    ElMessage.error(t('financeReportPages.invoices.message.printLoadFailed'))
   }
 }
 

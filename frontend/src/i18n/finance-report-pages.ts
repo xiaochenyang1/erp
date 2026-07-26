@@ -8,6 +8,7 @@ export const financeReportPageMessages = {
         status: '状态',
         actions: '操作',
         view: '查看',
+        print: '打印',
         edit: '编辑',
         delete: '删除',
         submit: '提交',
@@ -122,6 +123,7 @@ export const financeReportPageMessages = {
         message: {
           loadFailed: '加载发票登记失败',
           detailLoadFailed: '加载发票详情失败',
+          printLoadFailed: '加载打印数据失败',
           postConfirm: '确认发票登记“{no}”吗？',
           posted: '确认成功',
           postFailed: '确认失败',
@@ -455,6 +457,7 @@ export const financeReportPageMessages = {
           loadFailed: '加载数据失败',
           subjectsLoadFailed: '加载会计科目失败',
           detailLoadFailed: '加载费用详情失败',
+          printLoadFailed: '加载打印数据失败',
           reconciliationLoadFailed: '加载费用对账失败',
           submitConfirm: '确定要提交费用单“{no}”吗？',
           submitted: '提交成功',
@@ -770,7 +773,7 @@ export const financeReportPageMessages = {
     financeReportPages: {
       common: {
         search: 'Search', reset: 'Reset', refresh: 'Refresh', status: 'Status', actions: 'Actions',
-        view: 'View', edit: 'Edit', delete: 'Delete', submit: 'Submit', approve: 'Approve', reject: 'Reject',
+        view: 'View', print: 'Print', edit: 'Edit', delete: 'Delete', submit: 'Submit', approve: 'Approve', reject: 'Reject',
         post: 'Post', void: 'Void', cancel: 'Cancel', save: 'Save', confirm: 'Confirm', close: 'Close',
         finish: 'Finish', remark: 'Remark', amount: 'Amount', statusPlaceholder: 'Select a status',
         selectPlaceholder: 'Select', dateRange: 'Date range', rangeSeparator: 'to', startDate: 'Start date',
@@ -815,6 +818,7 @@ export const financeReportPageMessages = {
         },
         message: {
           loadFailed: 'Failed to load invoices', detailLoadFailed: 'Failed to load invoice details',
+          printLoadFailed: 'Failed to load print data',
           postConfirm: 'Confirm invoice “{no}”?', posted: 'Invoice confirmed', postFailed: 'Failed to confirm the invoice',
           cancelConfirm: 'Void invoice “{no}”?', cancelled: 'Invoice voided', cancelFailed: 'Failed to void the invoice',
           saved: 'Invoice saved', saveFailed: 'Failed to save the invoice'
@@ -953,6 +957,7 @@ export const financeReportPageMessages = {
         },
         message: {
           loadFailed: 'Failed to load expenses', subjectsLoadFailed: 'Failed to load accounts', detailLoadFailed: 'Failed to load expense details',
+          printLoadFailed: 'Failed to load print data',
           reconciliationLoadFailed: 'Failed to load expense reconciliation', submitConfirm: 'Submit expense “{no}”?',
           submitted: 'Expense submitted', submitFailed: 'Failed to submit the expense', approveConfirm: 'Approve expense “{no}”?',
           approved: 'Expense approved', approveFailed: 'Failed to approve the expense', postConfirm: 'Post expense “{no}”?',
