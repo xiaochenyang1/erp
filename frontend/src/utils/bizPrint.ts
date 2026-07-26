@@ -221,3 +221,30 @@ export function printSalesQuote(quote: any) {
   })
   printHtml(`销售报价单 ${quote.quoteNo}`, html)
 }
+
+export function printPurchaseRequisition(doc: any) {
+  const lines = doc.lines || doc.items || []
+  const html = buildDocPrintHtml({
+    title: '采购请购单',
+    docNo: doc.requisitionNo,
+    fields: [
+      ['请购日期', doc.requisitionDate || '-'],
+      ['需求日期', doc.neededDate || '-'],
+      ['状态', doc.status || '-'],
+      ['审批状态', doc.approvalStatus || '-'],
+      ['供应商', doc.supplierName || doc.supplierId || '-'],
+      ['转采购订单', doc.convertedOrderNo || doc.convertedOrderId || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '数量', '备注'],
+    rows: lines.map((line: any, index: number) => [
+      String(index + 1),
+      escapeHtml(line.productCode || line.productId || ''),
+      escapeHtml(line.productName || ''),
+      qty(line.quantity ?? line.qty),
+      escapeHtml(line.remark || '')
+    ]),
+    totals: [['明细行数', String(lines.length)]]
+  })
+  printHtml(`采购请购单 ${doc.requisitionNo}`, html)
+}

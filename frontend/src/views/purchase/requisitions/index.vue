@@ -42,9 +42,10 @@
           <template #default="{ row }">{{ row.convertedOrderNo || '-' }}</template>
         </el-table-column>
         <el-table-column prop="remark" :label="t('purchaseRequisition.remark')" min-width="140" show-overflow-tooltip />
-        <el-table-column :label="t('purchaseRequisition.actions')" width="340" fixed="right">
+        <el-table-column :label="t('purchaseRequisition.actions')" width="400" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">{{ t('purchaseRequisition.view') }}</el-button>
+            <el-button link type="primary" @click="handlePrint(row)">{{ t('purchaseRequisition.print') }}</el-button>
             <el-button
               v-if="['DRAFT', 'REJECTED'].includes(row.status)"
               v-permission="'purchase:requisition:manage'"
@@ -237,6 +238,7 @@ import {
 } from '@/api/purchase'
 import { getProducts, getSuppliers, type Product, type Supplier } from '@/api/masterdata'
 import { formatBusinessDate } from '@/utils/locale'
+import { printPurchaseRequisition } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 
@@ -383,6 +385,30 @@ const openDetail = async (row: PurchaseRequisition) => {
     detailVisible.value = false
   } finally {
     detailLoading.value = false
+  }
+}
+
+const handlePrint = async (row: PurchaseRequisition) => {
+  try {
+    if (products.value.length === 0 || suppliers.value.length === 0) {
+      await loadOptions()
+    }
+    const detailData = await getPurchaseRequisition(row.id)
+    const productMap = new Map(products.value.map((product) => [String(product.id), product]))
+    printPurchaseRequisition({
+      ...detailData,
+      supplierName: supplierLabel(detailData.supplierId),
+      lines: (detailData.lines || []).map((line) => {
+        const product = productMap.get(String(line.productId))
+        return {
+          ...line,
+          productCode: line.productCode || product?.productCode || product?.code || line.productId,
+          productName: line.productName || product?.productName || product?.name || ''
+        }
+      })
+    })
+  } catch {
+    ElMessage.error(t('purchaseRequisition.message.printLoadFailed'))
   }
 }
 
