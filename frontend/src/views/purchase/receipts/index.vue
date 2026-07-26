@@ -51,8 +51,14 @@
         />
       </el-form-item>
       <el-form-item :label="t('purchaseReceipt.supplier')" prop="supplierId">
-        <el-select v-model="queryForm.supplierId" :placeholder="t('purchaseReceipt.selectSupplier')" clearable>
+        <el-select v-model="queryForm.supplierId" :placeholder="t('purchaseReceipt.selectSupplier')" clearable filterable>
           <el-option :label="t('purchaseReceipt.allSuppliers')" value="" />
+          <el-option
+            v-for="supplier in suppliers"
+            :key="supplier.id"
+            :label="supplier.supplierName || supplier.name || String(supplier.id)"
+            :value="supplier.id"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('purchaseReceipt.statusLabel')" prop="status">
@@ -564,8 +570,10 @@ import {
   getLocations,
   getProduct,
   getProductByBarcode,
+  getSuppliers,
   getWarehouses,
   type Location,
+  type Supplier,
   type Warehouse
 } from '@/api/masterdata'
 import { BarcodeScanField, PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
@@ -578,15 +586,12 @@ import {
 } from '@/utils/productLines'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
-import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import { formatLocalizedDateTime } from '@/utils/locale'
+import { usePurchaseReceiptSummary } from '@/composables/usePurchaseReceiptPresentation'
 
 const userStore = useUserStore()
 const { t } = useI18n()
 const canCreate = computed(() => userStore.hasPermission('purchase:receipt:create'))
-const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2
-})
 
 const route = useRoute()
 const readQueryString = (key: string) => {
@@ -614,8 +619,6 @@ const dateRange = ref<[string, string]>()
 const tableData = ref<PurchaseReceipt[]>([])
 const total = ref(0)
 const loading = ref(false)
-const draftCount = computed(() => tableData.value.filter(item => item.status === 'DRAFT').length)
-const completedCount = computed(() => tableData.value.filter(item => item.status === 'POSTED' || item.status === 'COMPLETED').length)
 
 // 对话框
 const dialogVisible = ref(false)
@@ -634,6 +637,7 @@ const linkedOrder = ref<PurchaseOrder>()
 const availableOrders = ref<PurchaseOrder[]>([])
 const warehouses = ref<Warehouse[]>([])
 const locations = ref<Location[]>([])
+const suppliers = ref<Supplier[]>([])
 
 // 表单数据
 const form = reactive<PurchaseReceiptCreateRequest>({
@@ -643,19 +647,21 @@ const form = reactive<PurchaseReceiptCreateRequest>({
   items: [],
   remark: ''
 })
+const {
+  completedCount,
+  draftCount,
+  formatMoney,
+  locationLabel,
+  warehouseLocations: locationsForWarehouse
+} = usePurchaseReceiptSummary(
+  tableData,
+  locations,
+  () => form.warehouseId
+)
 const receiptQuantityTotal = computed(() => form.items.reduce(
   (total, item) => total + Number(item.quantity || 0),
   0
 ))
-const locationsForWarehouse = computed(() => {
-  if (!form.warehouseId) return locations.value
-  return locations.value.filter((location) => String(location.warehouseId) === String(form.warehouseId))
-})
-const locationLabel = (locationId?: string | number | null) => {
-  if (locationId == null || locationId === '') return '-'
-  const location = locations.value.find((item) => String(item.id) === String(locationId))
-  return location ? `${location.locationCode} ${location.locationName}` : String(locationId)
-}
 
 // 表单验证规则
 const formRules = computed<FormRules>(() => ({
@@ -1000,7 +1006,12 @@ const resetForm = () => {
 
 const loadWarehouses = async () => {
   const response = await getWarehouses({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-  warehouses.value = response.records
+  warehouses.value = response.records || []
+}
+
+const loadSuppliers = async () => {
+  const response = await getSuppliers({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
+  suppliers.value = response.records || []
 }
 
 const loadLocations = async (warehouseId?: string | number) => {
@@ -1028,6 +1039,7 @@ const handleWarehouseChange = async (warehouseId?: string | number) => {
 onMounted(() => {
   handleQuery()
   loadWarehouses().catch(() => ElMessage.error(t('purchaseReceipt.message.warehousesLoadFailed')))
+  loadSuppliers().catch(() => ElMessage.error(t('purchaseReceipt.message.suppliersLoadFailed')))
   loadLocations().catch(() => undefined)
 })
 </script>
@@ -1040,7 +1052,7 @@ onMounted(() => {
   font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-.pageNo-header {
+.page-header {
   margin-bottom: 24px;
   animation: slideDown 0.4s ease-out;
 }
@@ -1143,14 +1155,14 @@ onMounted(() => {
   color: #ffffff;
 }
 
-.pageNo-title {
+.page-title {
   font-size: 28px;
   font-weight: 700;
   margin: 0 0 8px 0;
   letter-spacing: 0.5px;
 }
 
-.pageNo-subtitle {
+.page-subtitle {
   font-size: 14px;
   margin: 0;
   opacity: 0.95;
