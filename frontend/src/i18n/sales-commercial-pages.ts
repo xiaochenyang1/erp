@@ -23,6 +23,7 @@ export const salesCommercialPageMessages = {
       longTerm: '长期',
       remark: '备注',
       actions: '操作',
+      print: '打印',
       edit: '编辑',
       disable: '停用',
       enable: '启用',
@@ -50,7 +51,8 @@ export const salesCommercialPageMessages = {
         enabled: '已启用',
         disabled: '已停用',
         disableConfirm: '确认停用该价目吗？',
-        prompt: '提示'
+        prompt: '提示',
+        printLoadFailed: '加载打印数据失败'
       }
     },
     purchasePrice: {
@@ -76,6 +78,7 @@ export const salesCommercialPageMessages = {
       longTerm: '长期',
       remark: '备注',
       actions: '操作',
+      print: '打印',
       edit: '编辑',
       disable: '停用',
       enable: '启用',
@@ -103,7 +106,8 @@ export const salesCommercialPageMessages = {
         enabled: '已启用',
         disabled: '已停用',
         disableConfirm: '确认停用该价目吗？',
-        prompt: '提示'
+        prompt: '提示',
+        printLoadFailed: '加载打印数据失败'
       }
     },
     salesQuote: {
@@ -179,6 +183,7 @@ export const salesCommercialPageMessages = {
       longTerm: 'No end date',
       remark: 'Remark',
       actions: 'Actions',
+      print: 'Print',
       edit: 'Edit',
       disable: 'Disable',
       enable: 'Enable',
@@ -206,7 +211,8 @@ export const salesCommercialPageMessages = {
         enabled: 'Price enabled',
         disabled: 'Price disabled',
         disableConfirm: 'Disable this price?',
-        prompt: 'Confirm'
+        prompt: 'Confirm',
+        printLoadFailed: 'Failed to load print data'
       }
     },
     purchasePrice: {
@@ -232,6 +238,7 @@ export const salesCommercialPageMessages = {
       longTerm: 'No end date',
       remark: 'Remark',
       actions: 'Actions',
+      print: 'Print',
       edit: 'Edit',
       disable: 'Disable',
       enable: 'Enable',
@@ -259,7 +266,8 @@ export const salesCommercialPageMessages = {
         enabled: 'Enabled',
         disabled: 'Disabled',
         disableConfirm: 'Disable this price list entry?',
-        prompt: 'Confirm'
+        prompt: 'Confirm',
+        printLoadFailed: 'Failed to load print data'
       }
     },
     salesQuote: {

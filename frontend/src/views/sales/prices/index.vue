@@ -79,8 +79,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('salesPrice.remark')" min-width="120" show-overflow-tooltip />
-        <el-table-column :label="$t('salesPrice.actions')" width="220" fixed="right">
+        <el-table-column :label="$t('salesPrice.actions')" width="280" fixed="right">
           <template #default="{ row }">
+            <el-button link type="primary" @click="handlePrint(row)">
+              {{ $t('salesPrice.print') }}
+            </el-button>
             <el-button v-permission="'sales:price:manage'" link type="primary" @click="handleEdit(row)">
               {{ $t('salesPrice.edit') }}
             </el-button>
@@ -188,6 +191,7 @@ import {
   createSalesPrice,
   disableSalesPrice,
   enableSalesPrice,
+  getSalesPrice,
   getSalesPrices,
   updateSalesPrice,
   type SalesPrice,
@@ -195,6 +199,7 @@ import {
 } from '@/api/sales'
 import { getCustomers, getProducts, type Customer, type Product } from '@/api/masterdata'
 import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
+import { printSalesPrice } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 
@@ -324,6 +329,15 @@ const handleEdit = async (row: SalesPrice) => {
   form.effectiveTo = row.effectiveTo || ''
   form.remark = row.remark || ''
   dialogVisible.value = true
+}
+
+const handlePrint = async (row: SalesPrice) => {
+  try {
+    const detail = await getSalesPrice(row.id)
+    printSalesPrice(detail)
+  } catch {
+    ElMessage.error(t('salesPrice.message.printLoadFailed'))
+  }
 }
 
 const confirmSave = async () => {

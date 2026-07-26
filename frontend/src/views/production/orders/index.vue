@@ -838,8 +838,7 @@ import {
   getProductionOrderOperations,
   reportProductionOperation,
   type ProductionOrder,
-  type ProductionOrderMaterial,
-  type ProductionOrderOperation
+  type ProductionOrderMaterial
 } from '@/api/production'
 import { getProducts, getProduct, getWarehouses, getLocations, type Product, type Warehouse, type Location } from '@/api/masterdata'
 import { getBOMs, type BOM } from '@/api/production'
@@ -851,6 +850,7 @@ import {
 } from '@/utils/productLines'
 import { useProductionOrderPresentation } from '@/composables/useProductionOrderPresentation'
 import { useProductionOrderProductControls } from '@/composables/useProductionOrderProductControls'
+import { useProductionOrderOperations } from '@/composables/useProductionOrderOperations'
 
 const { t } = useI18n()
 
@@ -923,6 +923,26 @@ const {
   productControlFromOptions,
   resolveProductControls
 } = useProductionOrderProductControls(productOptions, getProduct)
+const {
+  loadOperations,
+  openOperations,
+  openReport,
+  operations,
+  opsDialogVisible,
+  opsLoading,
+  opsOrderId,
+  opsOrderNo,
+  reportDialogVisible,
+  reportForm,
+  reportLoading,
+  submitReport
+} = useProductionOrderOperations(t, {
+  loadOperations: getProductionOrderOperations,
+  reportOperation: reportProductionOperation,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
+})
 const completeProductControls = reactive({
   lotControlled: undefined as boolean | undefined,
   shelfLifeControlled: undefined as boolean | undefined,
@@ -977,23 +997,6 @@ const completeForm = reactive({
   locationId: undefined as string | number | undefined,
   serialNos: '',
   maxQuantity: 0,
-  remark: ''
-})
-
-// 工序报工
-const opsDialogVisible = ref(false)
-const opsLoading = ref(false)
-const opsOrderId = ref<string | number>('')
-const opsOrderNo = ref('')
-const operations = ref<ProductionOrderOperation[]>([])
-const reportDialogVisible = ref(false)
-const reportLoading = ref(false)
-const reportForm = reactive({
-  operationId: '' as string | number,
-  operationName: '',
-  reportQty: 1,
-  qualifiedQty: 1,
-  scrapQty: 0,
   remark: ''
 })
 
@@ -1310,59 +1313,6 @@ const handleComplete = async (row: ProductionOrder) => {
   completeDialogVisible.value = true
   void loadFinishedLocations(row.finishedWarehouseId || row.warehouseId)
   Object.assign(completeProductControls, await resolveProductControls(row.productId))
-}
-
-const openOperations = async (row: ProductionOrder) => {
-  opsOrderId.value = row.id
-  opsOrderNo.value = row.orderNo
-  opsDialogVisible.value = true
-  await loadOperations()
-}
-
-const loadOperations = async () => {
-  if (!opsOrderId.value) return
-  opsLoading.value = true
-  try {
-    operations.value = await getProductionOrderOperations(opsOrderId.value)
-  } catch {
-    ElMessage.error(t('productionOrder.message.operationsLoadFailed'))
-  } finally {
-    opsLoading.value = false
-  }
-}
-
-const openReport = (row: ProductionOrderOperation) => {
-  reportForm.operationId = row.id
-  reportForm.operationName = `${row.operationCode} ${row.operationName}`
-  const remain = Math.max(Number(row.plannedQty) - Number(row.reportedQty), 0.0001)
-  reportForm.reportQty = remain
-  reportForm.qualifiedQty = remain
-  reportForm.scrapQty = 0
-  reportForm.remark = ''
-  reportDialogVisible.value = true
-}
-
-const submitReport = async () => {
-  if (reportForm.qualifiedQty > reportForm.reportQty) {
-    ElMessage.warning(t('productionOrder.validation.qualifiedExceedsReported'))
-    return
-  }
-  reportLoading.value = true
-  try {
-    await reportProductionOperation(opsOrderId.value, reportForm.operationId, {
-      reportQty: reportForm.reportQty,
-      qualifiedQty: reportForm.qualifiedQty,
-      scrapQty: reportForm.scrapQty,
-      remark: reportForm.remark || undefined
-    })
-    ElMessage.success(t('productionOrder.message.reported'))
-    reportDialogVisible.value = false
-    await loadOperations()
-  } catch {
-    // interceptor
-  } finally {
-    reportLoading.value = false
-  }
 }
 
 // 确认完工

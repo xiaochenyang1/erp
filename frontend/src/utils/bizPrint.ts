@@ -568,3 +568,59 @@ export function printPartnerStatement(doc: any) {
   })
   printHtml(`往来对账单 ${doc.partnerName || doc.partnerId || ''}`, html)
 }
+
+export function printSalesPrice(price: any) {
+  const html = buildDocPrintHtml({
+    title: '销售价目',
+    docNo: price.id || price.productCode || 'sales-price',
+    fields: [
+      ['适用范围', price.customerId ? (price.customerName || price.customerId) : '商品通用价'],
+      ['商品', `${price.productCode || ''} ${price.productName || price.productId || ''}`.trim()],
+      ['标准价', money(price.listPrice)],
+      ['最低价', money(price.minPrice)],
+      ['生效日期', price.effectiveFrom || '-'],
+      ['失效日期', price.effectiveTo || '长期'],
+      ['状态', price.status || '-'],
+      ['备注', price.remark || '-']
+    ],
+    columns: ['项目', '值'],
+    rows: [
+      ['客户', escapeHtml(price.customerId ? (price.customerName || price.customerId) : '全部客户')],
+      ['商品编码', escapeHtml(price.productCode || price.productId || '')],
+      ['商品名称', escapeHtml(price.productName || '')],
+      ['标准价', money(price.listPrice)],
+      ['最低价', money(price.minPrice)],
+      ['生效区间', escapeHtml(`${price.effectiveFrom || '-'} ~ ${price.effectiveTo || '长期'}`)]
+    ],
+    totals: [['标准价', money(price.listPrice)]]
+  })
+  printHtml(`销售价目 ${price.productCode || price.id || ''}`, html)
+}
+
+export function printPurchasePrice(price: any) {
+  const html = buildDocPrintHtml({
+    title: '采购价目',
+    docNo: price.id || price.productCode || 'purchase-price',
+    fields: [
+      ['适用范围', price.supplierId ? (price.supplierName || price.supplierId) : '商品通用价'],
+      ['商品', `${price.productCode || ''} ${price.productName || price.productId || ''}`.trim()],
+      ['标准价', money(price.listPrice)],
+      ['最高价', money(price.maxPrice)],
+      ['生效日期', price.effectiveFrom || '-'],
+      ['失效日期', price.effectiveTo || '长期'],
+      ['状态', price.status || '-'],
+      ['备注', price.remark || '-']
+    ],
+    columns: ['项目', '值'],
+    rows: [
+      ['供应商', escapeHtml(price.supplierId ? (price.supplierName || price.supplierId) : '全部供应商')],
+      ['商品编码', escapeHtml(price.productCode || price.productId || '')],
+      ['商品名称', escapeHtml(price.productName || '')],
+      ['标准价', money(price.listPrice)],
+      ['最高价', money(price.maxPrice)],
+      ['生效区间', escapeHtml(`${price.effectiveFrom || '-'} ~ ${price.effectiveTo || '长期'}`)]
+    ],
+    totals: [['标准价', money(price.listPrice)]]
+  })
+  printHtml(`采购价目 ${price.productCode || price.id || ''}`, html)
+}
