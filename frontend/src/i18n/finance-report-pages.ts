@@ -550,7 +550,8 @@ export const financeReportPageMessages = {
           cancelled: '取消成功',
           cancelFailed: '取消失败',
           customersLoadFailed: '加载客户列表失败',
-          suppliersLoadFailed: '加载供应商列表失败'
+          suppliersLoadFailed: '加载供应商列表失败',
+          openItemsLoadFailed: '加载未结单据失败'
         }
       },
       manualVouchers: {
@@ -996,7 +997,8 @@ export const financeReportPageMessages = {
           receiptDetailLoadFailed: 'Failed to load receipt details', paymentDetailLoadFailed: 'Failed to load payment details',
           printLoadFailed: 'Failed to load print data',
           receiptCancelConfirm: 'Cancel receipt “{no}”?', paymentCancelConfirm: 'Cancel payment “{no}”?', cancelled: 'Cancelled',
-          cancelFailed: 'Failed to cancel', customersLoadFailed: 'Failed to load customers', suppliersLoadFailed: 'Failed to load suppliers'
+          cancelFailed: 'Failed to cancel', customersLoadFailed: 'Failed to load customers', suppliersLoadFailed: 'Failed to load suppliers',
+          openItemsLoadFailed: 'Failed to load open documents'
         }
       },
       manualVouchers: {

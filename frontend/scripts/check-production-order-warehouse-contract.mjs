@@ -25,7 +25,14 @@ const purchaseOrderView = readFileSync(resolve(root, 'src/views/purchase/orders/
 const financeReceivableView = readFileSync(resolve(root, 'src/views/finance/receivables/index.vue'), 'utf8')
 const financePayableView = readFileSync(resolve(root, 'src/views/finance/payables/index.vue'), 'utf8')
 const financeAccountView = readFileSync(resolve(root, 'src/views/finance/FinanceAccountsPage.vue'), 'utf8')
-const financePaymentView = readFileSync(resolve(root, 'src/views/finance/payments/index.vue'), 'utf8')
+// 收付款页已按 E-1 拆分为展示/列表/表单/详情 composable，契约仍按整块特性校验
+const financePaymentView = [
+  'src/views/finance/payments/index.vue',
+  'src/composables/useSettlementPresentation.ts',
+  'src/composables/useSettlementList.ts',
+  'src/composables/useSettlementForm.ts',
+  'src/composables/useSettlementDetail.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const systemLogView = readFileSync(resolve(root, 'src/views/system/logs/index.vue'), 'utf8')
 const systemApi = readFileSync(resolve(root, 'src/api/system.ts'), 'utf8')
 const systemUserView = readFileSync(resolve(root, 'src/views/system/users/index.vue'), 'utf8')
@@ -978,8 +985,10 @@ for (const fragment of [
   'paymentAllocations',
   'const viewReceipt = async (row: Receipt) =>',
   'const viewPayment = async (row: Payment) =>',
-  'await getReceipt(row.id)',
-  'await getPayment(row.id)',
+  'buildReceiptItems',
+  'buildPaymentItems',
+  'getReceipt(row.id)',
+  'getPayment(row.id)',
   'prop="receivableNo"',
   'prop="payableNo"',
   'prop="allocatedAmount"'
