@@ -35,6 +35,7 @@ describe('product OpenAPI contract mapping', () => {
       lotControlled: true,
       shelfLifeControlled: true,
       inspectionRequired: true,
+      serialControlled: false,
       remark: '备注'
     })
   })

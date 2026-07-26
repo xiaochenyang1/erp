@@ -93,6 +93,13 @@ const inventoryCheckFeature = [
   inventoryCheckList,
   inventoryCheckForm
 ].join('\n')
+// 调拨页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const inventoryTransferFeature = [
+  'src/views/inventory/transfers/index.vue',
+  'src/composables/useInventoryTransferPresentation.ts',
+  'src/composables/useInventoryTransferList.ts',
+  'src/composables/useInventoryTransferForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const inventoryOptionViews = [
   {
     name: '库存调整页',
@@ -100,7 +107,7 @@ const inventoryOptionViews = [
   },
   {
     name: '库存调拨页',
-    content: readFileSync(resolve(root, 'src/views/inventory/transfers/index.vue'), 'utf8')
+    content: inventoryTransferFeature
   },
   {
     name: '库存盘点页',
@@ -2861,7 +2868,9 @@ for (const fragment of [
   }
 }
 for (const fragment of [
-  '过账',
+  // 过账入口按 i18n 键校验，不再依赖已清除的中文硬编码/注释
+  'inventoryTransfers.action.post',
+  'shipInventoryTransfer',
   'inventoryTransfers.message.postConfirm',
   ':label="productLabel(product)"',
   'const productLabel = (product: Product) =>',
