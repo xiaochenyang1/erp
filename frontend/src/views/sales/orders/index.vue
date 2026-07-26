@@ -283,32 +283,32 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Delete, Edit, Plus, Refresh, Search, View } from '@element-plus/icons-vue'
 import {
+  getSalesOrders,
+  getSalesOrder,
+  createSalesOrder,
+  updateSalesOrder,
+  previewSalesOrderCredit,
+  submitSalesOrder,
   approveSalesOrder,
+  rejectSalesOrder,
   unapproveSalesOrder,
   cancelSalesOrder,
-  createSalesOrder,
-  getSalesOrder,
-  getSalesOrders,
-  previewSalesOrderCredit,
-  rejectSalesOrder,
   resolveSalesPrice,
-  submitSalesOrder,
-  updateSalesOrder,
   type SalesOrderCreditPreview,
   type SalesOrder,
   type SalesOrderItem,
-  type SalesOrderQuery,
   type SalesOrderSaveRequest
 } from '@/api/sales'
-import { getCustomers, getProducts, getWarehouses, type Customer, type Product, type Warehouse } from '@/api/masterdata'
+import { getCustomers, getProducts, getWarehouses } from '@/api/masterdata'
 import { printSalesOrder } from '@/utils/bizPrint'
-import { formatBusinessDate, formatLocalizedNumber } from '@/utils/locale'
+import { formatBusinessDate } from '@/utils/locale'
+import { useSalesOrderPresentation } from '@/composables/useSalesOrderPresentation'
+import { useSalesOrderList } from '@/composables/useSalesOrderList'
 
 type PricedSalesOrderItem = SalesOrderItem & {
   minPrice?: number | null
@@ -327,23 +327,59 @@ const readQueryString = (key: string) => {
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
 }
 
-const queryParams = reactive<SalesOrderQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  keyword: '',
-  customerId: undefined,
-  status: '',
-  approvalStatus: ''
+const {
+  customers,
+  handleApprove,
+  handleCancel,
+  handlePrint,
+  handleQuery,
+  handleReject,
+  handleReset,
+  handleSubmitOrder,
+  handleUnapprove,
+  loadData,
+  loadOptions,
+  loading,
+  products,
+  queryParams,
+  tableData,
+  total,
+  warehouses
+} = useSalesOrderList(t, {
+  getOrders: getSalesOrders,
+  getOrder: getSalesOrder,
+  submitOrder: submitSalesOrder,
+  approveOrder: approveSalesOrder,
+  unapproveOrder: unapproveSalesOrder,
+  rejectOrder: rejectSalesOrder,
+  cancelOrder: cancelSalesOrder,
+  getCustomers,
+  getWarehouses,
+  getProducts,
+  printOrder: printSalesOrder,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  prompt: (message, title, opts) => ElMessageBox.prompt(message, title, opts) as any,
+  initialKeyword: readQueryString('keyword'),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
-queryParams.keyword = readQueryString('keyword')
 
-const loading = ref(false)
+const {
+  approvalTagType,
+  approvalText,
+  canApprove,
+  canCancel,
+  canEdit,
+  canSubmit,
+  canUnapprove,
+  deliveryText,
+  formatMoney,
+  formatNumber,
+  lineAmount,
+  statusText
+} = useSalesOrderPresentation(t)
+
 const submitLoading = ref(false)
-const tableData = ref<SalesOrder[]>([])
-const total = ref(0)
-const customers = ref<Customer[]>([])
-const warehouses = ref<Warehouse[]>([])
-const products = ref<Product[]>([])
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const isView = ref(false)
@@ -367,45 +403,6 @@ const formRules = computed<FormRules>(() => ({
   warehouseId: [{ required: true, message: t('salesOrder.validation.warehouse'), trigger: 'change' }],
   orderDate: [{ required: true, message: t('salesOrder.validation.orderDate'), trigger: 'change' }]
 }))
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const page = await getSalesOrders(queryParams)
-    tableData.value = page.records
-    total.value = page.total
-  } catch (error) {
-    console.error(t('salesOrder.message.loadFailed'), error)
-    ElMessage.error(t('salesOrder.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadOptions = async () => {
-  const [customerPage, warehousePage, productPage] = await Promise.all([
-    getCustomers({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' }),
-    getWarehouses({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' }),
-    getProducts({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-  ])
-  customers.value = customerPage.records
-  warehouses.value = warehousePage.records
-  products.value = productPage.records
-}
-
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.customerId = undefined
-  queryParams.status = ''
-  queryParams.approvalStatus = ''
-  queryParams.pageNo = 1
-  loadData()
-}
 
 const handleCreate = () => {
   resetForm()
@@ -433,15 +430,6 @@ const handleCopy = async (row: SalesOrder) => {
   dialogVisible.value = true
 }
 
-const handlePrint = async (row: SalesOrder) => {
-  try {
-    const order = await getSalesOrder(row.id)
-    printSalesOrder(order)
-  } catch {
-    ElMessage.error(t('salesOrder.message.printLoadFailed'))
-  }
-}
-
 const handleView = async (row: SalesOrder) => {
   dialogTitle.value = t('salesOrder.dialog.view')
   isView.value = true
@@ -449,7 +437,7 @@ const handleView = async (row: SalesOrder) => {
   dialogVisible.value = true
 }
 
-const fillForm = async (id: string) => {
+const fillForm = async (id: string | number) => {
   const order = await getSalesOrder(id)
   Object.assign(formData, {
     id: order.id,
@@ -558,57 +546,6 @@ const handleSave = async () => {
   })
 }
 
-const handleSubmitOrder = async (row: SalesOrder) => {
-  await runOrderAction(row, t('salesOrder.message.submitConfirm'), () => submitSalesOrder(row.id), t('salesOrder.message.submitted'))
-}
-
-const handleApprove = async (row: SalesOrder) => {
-  await runOrderAction(row, t('salesOrder.message.approveConfirm'), () => approveSalesOrder(row.id), t('salesOrder.message.approved'))
-}
-
-const handleUnapprove = async (row: SalesOrder) => {
-  await runOrderAction(row, t('salesOrder.message.unapproveConfirm'), () => unapproveSalesOrder(row.id), t('salesOrder.message.unapproved'))
-}
-
-const handleReject = async (row: SalesOrder) => {
-  try {
-    const { value } = await ElMessageBox.prompt(t('salesOrder.message.rejectReason'), t('salesOrder.message.rejectTitle'), {
-      inputPlaceholder: t('salesOrder.message.rejectReason'),
-      confirmButtonText: t('common.confirm'),
-      cancelButtonText: t('common.cancel')
-    })
-    await rejectSalesOrder(row.id, value)
-    ElMessage.success(t('salesOrder.message.rejected'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel' && !(error instanceof Error)) {
-      ElMessage.error(t('salesOrder.message.rejectFailed'))
-    }
-  }
-}
-
-const handleCancel = async (row: SalesOrder) => {
-  await runOrderAction(row, t('salesOrder.message.cancelConfirm'), () => cancelSalesOrder(row.id), t('salesOrder.message.cancelled'))
-}
-
-const runOrderAction = async (
-  row: SalesOrder,
-  message: string,
-  action: () => Promise<SalesOrder>,
-  successMessage: string
-) => {
-  try {
-    await ElMessageBox.confirm(`${message}\n${row.orderNo}`, t('salesOrder.message.prompt'), { type: 'warning' })
-    await action()
-    ElMessage.success(successMessage)
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel' && !(error instanceof Error)) {
-      ElMessage.error(t('salesOrder.message.actionFailed'))
-    }
-  }
-}
-
 const addLine = () => {
   formData.items.push({
     productId: '',
@@ -692,46 +629,6 @@ const resetForm = () => {
     remark: '',
     items: []
   })
-}
-
-const canEdit = (row: SalesOrder) => row.approvalStatus === 'DRAFT' || row.status === 'DRAFT'
-const canSubmit = (row: SalesOrder) => row.approvalStatus === 'DRAFT' || row.status === 'DRAFT'
-const canApprove = (row: SalesOrder) => row.approvalStatus === 'IN_APPROVAL' || row.approvalStatus === 'PENDING'
-const canUnapprove = (row: SalesOrder) => row.status === 'APPROVED' && row.approvalStatus === 'APPROVED' && row.deliveryStatus === 'NOT_DELIVERED'
-const canCancel = (row: SalesOrder) => row.status !== 'CANCELLED' && row.status !== 'CLOSED'
-const lineAmount = (row: SalesOrderItem) => Number(row.quantity ?? 0) * Number(row.price ?? 0)
-const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0), { maximumFractionDigits: 4 })
-const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2
-})
-const statusText = (status?: string) => ({
-  DRAFT: t('salesOrder.status.draft'),
-  SUBMITTED: t('salesOrder.status.submitted'),
-  APPROVED: t('salesOrder.status.approved'),
-  REJECTED: t('salesOrder.status.rejected'),
-  CONFIRMED: t('salesOrder.status.confirmed'),
-  CANCELLED: t('salesOrder.status.cancelled'),
-  CLOSED: t('salesOrder.status.closed')
-}[status || ''] || status || '-')
-const approvalText = (status?: string) => ({
-  DRAFT: t('salesOrder.status.draft'),
-  NOT_SUBMITTED: t('salesOrder.status.notSubmitted'),
-  IN_APPROVAL: t('salesOrder.status.submitted'),
-  PENDING: t('salesOrder.status.submitted'),
-  APPROVED: t('salesOrder.status.approved'),
-  REJECTED: t('salesOrder.status.rejected')
-}[status || ''] || status || '-')
-const deliveryText = (status?: string) => ({
-  NOT_DELIVERED: t('salesOrder.status.notDelivered'),
-  PARTIAL: t('salesOrder.status.partial'),
-  COMPLETED: t('salesOrder.status.delivered')
-}[status || ''] || status || '-')
-const approvalTagType = (status?: string) => {
-  if (status === 'APPROVED') return 'success'
-  if (status === 'REJECTED') return 'danger'
-  if (status === 'IN_APPROVAL' || status === 'PENDING') return 'warning'
-  return 'info'
 }
 
 const creditExceededAmount = computed(() => (
