@@ -436,10 +436,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ShoppingCartFull,
   Plus,
@@ -468,9 +468,6 @@ import {
   tracePurchaseOrder,
   exportPurchaseOrders,
   resolvePurchasePrice,
-  type PurchaseOrder,
-  type PurchaseOrderSaveRequest,
-  type PurchaseOrderItem,
   type PurchaseOrderRelatedDocs
 } from '@/api/purchase'
 import { printPurchaseOrder } from '@/utils/bizPrint'
@@ -481,6 +478,7 @@ import { useUserStore } from '@/store/modules/user'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
 import { usePurchaseOrderSummary } from '@/composables/usePurchaseOrderPresentation'
 import { usePurchaseOrderList } from '@/composables/usePurchaseOrderList'
+import { usePurchaseOrderForm } from '@/composables/usePurchaseOrderForm'
 
 const userStore = useUserStore()
 const { t } = useI18n()
@@ -550,11 +548,35 @@ const {
   pendingCount
 } = usePurchaseOrderSummary(tableData)
 
-// 对话框
-const dialogVisible = ref(false)
-const dialogTitle = computed(() => (editId.value ? t('purchaseOrder.dialog.edit') : t('purchaseOrder.dialog.create')))
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
+const {
+  dialogTitle,
+  dialogVisible,
+  editId,
+  form,
+  formRef,
+  formRules,
+  handleAdd,
+  handleAddItem,
+  handleAuxQtyChange,
+  handleCopy,
+  handleEdit,
+  handleProductChange,
+  handleRemoveItem,
+  handleSubmitForm,
+  orderTotal,
+  submitLoading
+} = usePurchaseOrderForm(t, {
+  products,
+  getOrder: getPurchaseOrder,
+  createOrder: createPurchaseOrder,
+  updateOrder: updatePurchaseOrder,
+  resolvePrice: resolvePurchasePrice,
+  formatBusinessDate,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => handleQuery()
+})
 
 const traceDocSections = computed<Array<{ key: keyof PurchaseOrderRelatedDocs; title: string }>>(() => [
   { key: 'receipts', title: t('purchaseOrder.traceSections.receipts') },
@@ -564,194 +586,6 @@ const traceDocSections = computed<Array<{ key: keyof PurchaseOrderRelatedDocs; t
   { key: 'vouchers', title: t('purchaseOrder.traceSections.vouchers') }
 ])
 
-// 表单数据
-const form = reactive<PurchaseOrderSaveRequest>({
-  supplierId: '',
-  orderDate: '',
-  expectedDate: '',
-  items: [],
-  remark: ''
-})
-
-// 当前编辑ID
-const editId = ref<string | number>()
-
-// 表单验证规则
-const formRules = computed<FormRules>(() => ({
-  supplierId: [{ required: true, message: t('purchaseOrder.validation.supplier'), trigger: 'change' }],
-  orderDate: [{ required: true, message: t('purchaseOrder.validation.orderDate'), trigger: 'change' }]
-}))
-
-// 订单总金额
-const orderTotal = computed(() => {
-  return form.items.reduce((sum, item) => sum + (item.amount || 0), 0)
-})
-
-// 新增
-const handleAdd = () => {
-  editId.value = undefined
-  resetForm()
-  dialogVisible.value = true
-}
-
-// 编辑
-const handleEdit = (row: PurchaseOrder) => {
-  editId.value = row.id
-  Object.assign(form, {
-    supplierId: row.supplierId,
-    orderDate: row.orderDate,
-    expectedDate: row.expectedDate,
-    items: row.items.map(item => ({ ...item })),
-    remark: row.remark
-  })
-  dialogVisible.value = true
-}
-
-// 复制
-const handleCopy = async (row: PurchaseOrder) => {
-  try {
-    const detail = await getPurchaseOrder(row.id)
-    editId.value = undefined
-    Object.assign(form, {
-      supplierId: detail.supplierId,
-      orderDate: formatBusinessDate(),
-      expectedDate: detail.expectedDate || detail.deliveryDate || '',
-      remark: t('purchaseOrder.dialog.copiedFrom', { orderNo: detail.orderNo }) + (detail.remark ? `; ${detail.remark}` : ''),
-      items: (detail.items || detail.lines || []).map((item: any) => ({
-        productId: item.productId,
-        auxQty: item.auxQty != null ? Number(item.auxQty) : undefined,
-        auxUnitName: item.auxUnitName || '',
-        conversionFactor: item.conversionFactor != null ? Number(item.conversionFactor) : undefined,
-        quantity: Number(item.quantity ?? item.qty ?? 0),
-        qty: Number(item.quantity ?? item.qty ?? 0),
-        price: Number(item.price ?? 0),
-        taxRate: Number(item.taxRate ?? 0),
-        amount: Number(item.amount ?? 0),
-        remark: item.remark || ''
-      }))
-    })
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('purchaseOrder.message.copyFailed'))
-  }
-}
-
-// 提交表单
-const handleSubmitForm = async () => {
-  if (!formRef.value) return
-
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    if (form.items.length === 0) {
-      ElMessage.warning(t('purchaseOrder.validation.details'))
-      return
-    }
-
-    submitLoading.value = true
-    try {
-      if (editId.value) {
-        await updatePurchaseOrder(editId.value, form)
-        ElMessage.success(t('purchaseOrder.message.updated'))
-      } else {
-        await createPurchaseOrder(form)
-        ElMessage.success(t('purchaseOrder.message.created'))
-      }
-      dialogVisible.value = false
-      handleQuery()
-    } catch (error) {
-      ElMessage.error(editId.value ? t('purchaseOrder.message.updateFailed') : t('purchaseOrder.message.createFailed'))
-    } finally {
-      submitLoading.value = false
-    }
-  })
-}
-
-// 添加明细
-const handleAddItem = () => {
-  form.items.push({
-    productId: '',
-    auxQty: undefined,
-    auxUnitName: '',
-    conversionFactor: undefined,
-    quantity: 1,
-    price: 0,
-    amount: 0,
-    taxRate: 0
-  })
-}
-
-// 移除明细
-const handleRemoveItem = (index: number) => {
-  form.items.splice(index, 1)
-}
-
-const handleAuxQtyChange = (index: number) => {
-  const item: any = form.items[index]
-  if (!item?.auxUnitName || item.conversionFactor == null || item.auxQty == null) return
-  item.quantity = Number((Number(item.auxQty) * Number(item.conversionFactor)).toFixed(4))
-  item.qty = item.quantity
-  if (typeof calculateAmount === 'function') calculateAmount(item)
-  else if (item.price != null) item.amount = Number((Number(item.quantity) * Number(item.price)).toFixed(2))
-}
-
-const handleProductChange = async (index: number) => {
-  const item = form.items[index] as PurchaseOrderItem & { maxPrice?: number | null; priceLevel?: string | null }
-  const product = products.value.find(product => String(product.id) === String(item.productId))
-  item.productCode = product?.productCode
-  item.productName = product?.productName
-  item.price = Number(product?.purchasePrice ?? 0)
-  item.taxRate = Number(product?.taxRate ?? 0) > 1 ? Number(product?.taxRate ?? 0) / 100 : Number(product?.taxRate ?? 0)
-  calculateAmount(item)
-  await applyResolvedPrice(item)
-}
-
-const applyResolvedPrice = async (
-  item: PurchaseOrderItem & { maxPrice?: number | null; priceLevel?: string | null }
-) => {
-  if (!item.productId) {
-    item.maxPrice = null
-    item.priceLevel = null
-    return
-  }
-  try {
-    const resolved = await resolvePurchasePrice({
-      productId: item.productId,
-      supplierId: form.supplierId || undefined,
-      bizDate: form.orderDate || undefined
-    })
-    if (resolved.matched) {
-      if (resolved.listPrice != null) {
-        item.price = Number(resolved.listPrice)
-      }
-      item.maxPrice = resolved.maxPrice != null ? Number(resolved.maxPrice) : null
-      item.priceLevel = resolved.matchLevel || null
-      calculateAmount(item)
-      return
-    }
-  } catch {
-    // Keep the product master price when resolve fails.
-  }
-  item.maxPrice = null
-  item.priceLevel = null
-}
-
-// 计算金额
-const calculateAmount = (item: PurchaseOrderItem) => {
-  item.amount = item.quantity * item.price
-}
-
-// 重置表单
-const resetForm = () => {
-  form.supplierId = ''
-  form.orderDate = ''
-  form.expectedDate = ''
-  form.items = []
-  form.remark = ''
-  formRef.value?.resetFields()
-}
-
-// 初始化
 onMounted(() => {
   handleQuery()
   loadOptions()
