@@ -94,12 +94,12 @@ const coreMessages = {
       message: { selectRange: '请选择日期区间', loadFailed: '加载毛利分析失败' }
     },
     financeStatement: {
-      partnerType: '往来类型', customer: '客户', supplier: '供应商', selectPartner: '请选择往来单位', period: '期间', startDate: '开始日期', endDate: '结束日期', search: '查询',
+      partnerType: '往来类型', customer: '客户', supplier: '供应商', selectPartner: '请选择往来单位', period: '期间', startDate: '开始日期', endDate: '结束日期', search: '查询', print: '打印',
       partnerTypeValue: '（{type}）', periodValue: '{from} 至 {to}', openingValue: '期初：{amount}', increaseValue: '增加：{amount}', decreaseValue: '减少：{amount}', closingValue: '期末：{amount}',
       date: '日期', docType: '单据类型', docNo: '单号', direction: '方向', amount: '金额', balance: '余额', remark: '备注',
       document: { receivable: '应收单', receipt: '收款单', payable: '应付单', payment: '付款单' },
       directionValue: { increase: '增加', decrease: '减少' },
-      message: { selectPartnerAndRange: '请选择往来单位和日期区间', loadFailed: '查询对账单失败', optionsLoadFailed: '加载往来单位失败' }
+      message: { selectPartnerAndRange: '请选择往来单位和日期区间', loadFailed: '查询对账单失败', optionsLoadFailed: '加载往来单位失败', printLoadFailed: '加载打印数据失败' }
     },
     salesOrder: {
       title: '销售订单', keyword: '关键词', orderNo: '订单号', customer: '客户', orderStatus: '订单状态', approvalStatus: '审批状态', deliveryStatus: '发货状态',
@@ -302,12 +302,12 @@ const coreMessages = {
       message: { selectRange: 'Select a date range', loadFailed: 'Failed to load gross margin analysis' }
     },
     financeStatement: {
-      partnerType: 'Partner type', customer: 'Customer', supplier: 'Supplier', selectPartner: 'Select a partner', period: 'Period', startDate: 'Start date', endDate: 'End date', search: 'Search',
+      partnerType: 'Partner type', customer: 'Customer', supplier: 'Supplier', selectPartner: 'Select a partner', period: 'Period', startDate: 'Start date', endDate: 'End date', search: 'Search', print: 'Print',
       partnerTypeValue: '({type})', periodValue: '{from} to {to}', openingValue: 'Opening: {amount}', increaseValue: 'Increase: {amount}', decreaseValue: 'Decrease: {amount}', closingValue: 'Closing: {amount}',
       date: 'Date', docType: 'Document type', docNo: 'Document no.', direction: 'Direction', amount: 'Amount', balance: 'Balance', remark: 'Remark',
       document: { receivable: 'Receivable', receipt: 'Receipt', payable: 'Payable', payment: 'Payment' },
       directionValue: { increase: 'Increase', decrease: 'Decrease' },
-      message: { selectPartnerAndRange: 'Select a partner and date range', loadFailed: 'Failed to load the statement', optionsLoadFailed: 'Failed to load partners' }
+      message: { selectPartnerAndRange: 'Select a partner and date range', loadFailed: 'Failed to load the statement', optionsLoadFailed: 'Failed to load partners', printLoadFailed: 'Failed to load print data' }
     },
     salesOrder: {
       title: 'Sales orders', keyword: 'Keyword', orderNo: 'Order no.', customer: 'Customer', orderStatus: 'Order status', approvalStatus: 'Approval status', deliveryStatus: 'Delivery status',

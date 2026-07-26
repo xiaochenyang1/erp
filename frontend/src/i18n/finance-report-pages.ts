@@ -166,7 +166,8 @@ export const financeReportPageMessages = {
         status: { draft: '草稿', approved: '已审批', posted: '已过账', cancelled: '已作废' },
         message: {
           loadFailed: '加载凭证失败',
-          detailLoadFailed: '加载凭证详情失败'
+          detailLoadFailed: '加载凭证详情失败',
+          printLoadFailed: '加载打印数据失败'
         }
       },
       periods: {
@@ -840,7 +841,7 @@ export const financeReportPageMessages = {
         sourceNo: 'Source no.', detailTitle: 'Voucher details',
         sourceValue: { expense: 'Expense voucher', expenseReversal: 'Expense reversal voucher' },
         status: { draft: 'Draft', approved: 'Approved', posted: 'Posted', cancelled: 'Voided' },
-        message: { loadFailed: 'Failed to load vouchers', detailLoadFailed: 'Failed to load voucher details' }
+        message: { loadFailed: 'Failed to load vouchers', detailLoadFailed: 'Failed to load voucher details', printLoadFailed: 'Failed to load print data' }
       },
       periods: {
         accountYear: 'Fiscal year', generate: 'Generate yearly periods', management: 'Accounting periods',

@@ -507,3 +507,64 @@ export function printPayment(doc: any) {
   })
   printHtml(`付款单 ${doc.paymentNo}`, html)
 }
+
+export function printVoucher(doc: any) {
+  const entries = doc.entries || doc.lines || []
+  const html = buildDocPrintHtml({
+    title: '财务凭证',
+    docNo: doc.voucherNo,
+    fields: [
+      ['来源', doc.sourceTypeLabel || doc.sourceType || '-'],
+      ['凭证日期', doc.bizDate || doc.voucherDate || '-'],
+      ['状态', doc.statusLabel || doc.status || '-'],
+      ['来源单号', doc.sourceNo || doc.sourceId || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '科目编码', '科目名称', '借方', '贷方', '摘要'],
+    rows: entries.map((line: any, index: number) => [
+      String(line.lineNo ?? index + 1),
+      escapeHtml(line.subjectCode || line.subjectId || ''),
+      escapeHtml(line.subjectName || ''),
+      money(line.debitAmount),
+      money(line.creditAmount),
+      escapeHtml(line.summary || line.remark || '')
+    ]),
+    totals: [
+      ['凭证金额', money(doc.amount)],
+      ['分录行数', String(entries.length)]
+    ]
+  })
+  printHtml(`财务凭证 ${doc.voucherNo}`, html)
+}
+
+export function printPartnerStatement(doc: any) {
+  const lines = doc.lines || []
+  const html = buildDocPrintHtml({
+    title: '往来对账单',
+    docNo: doc.partnerName || doc.partnerId || 'statement',
+    fields: [
+      ['往来单位', doc.partnerName || doc.partnerId || '-'],
+      ['往来类型', doc.partnerTypeLabel || doc.partnerType || '-'],
+      ['期间', `${doc.dateFrom || '-'} ~ ${doc.dateTo || '-'}`],
+      ['期初', money(doc.openingBalance)],
+      ['增加', money(doc.totalIncrease)],
+      ['减少', money(doc.totalDecrease)],
+      ['期末', money(doc.closingBalance)]
+    ],
+    columns: ['日期', '单据类型', '单号', '方向', '金额', '余额', '备注'],
+    rows: lines.map((line: any) => [
+      escapeHtml(line.bizDate || ''),
+      escapeHtml(line.docTypeLabel || line.docType || ''),
+      escapeHtml(line.docNo || ''),
+      escapeHtml(line.directionLabel || line.direction || ''),
+      money(line.amount),
+      money(line.balance),
+      escapeHtml(line.remark || '')
+    ]),
+    totals: [
+      ['期初', money(doc.openingBalance)],
+      ['期末', money(doc.closingBalance)]
+    ]
+  })
+  printHtml(`往来对账单 ${doc.partnerName || doc.partnerId || ''}`, html)
+}

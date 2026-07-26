@@ -62,9 +62,10 @@
         </el-table-column>
         <el-table-column prop="sourceNo" :label="$t('financeReportPages.vouchers.sourceNo')" min-width="160" show-overflow-tooltip />
         <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="180" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="100" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="160" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(toVoucherRow(row))">{{ $t('financeReportPages.common.view') }}</el-button>
+            <el-button link type="primary" @click="handlePrint(toVoucherRow(row))">{{ $t('financeReportPages.common.print') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -112,6 +113,7 @@ import { useI18n } from 'vue-i18n'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
+import { printVoucher } from '@/utils/bizPrint'
 import {
   getVoucher,
   getVoucherEntries,
@@ -184,6 +186,23 @@ const handleView = async (row: Voucher) => {
     ElMessage.error(t('financeReportPages.vouchers.message.detailLoadFailed'))
   } finally {
     detailLoading.value = false
+  }
+}
+
+const handlePrint = async (row: Voucher) => {
+  try {
+    const [voucher, entries] = await Promise.all([
+      getVoucher(row.id),
+      getVoucherEntries(row.id)
+    ])
+    printVoucher({
+      ...voucher,
+      sourceTypeLabel: sourceTypeLabel(voucher.sourceType),
+      statusLabel: statusLabel(voucher.status),
+      entries
+    })
+  } catch {
+    ElMessage.error(t('financeReportPages.vouchers.message.printLoadFailed'))
   }
 }
 

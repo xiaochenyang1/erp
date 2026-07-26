@@ -29,6 +29,7 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="loadData">{{ t('financeStatement.search') }}</el-button>
+          <el-button :disabled="!statement" @click="handlePrint">{{ t('financeStatement.print') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -76,6 +77,7 @@ import {
   formatLocalizedDate,
   getBusinessMonthDateRange
 } from '@/utils/locale'
+import { printPartnerStatement } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 type PartnerType = 'CUSTOMER' | 'SUPPLIER'
@@ -147,6 +149,22 @@ const loadData = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handlePrint = () => {
+  if (!statement.value) {
+    ElMessage.warning(t('financeStatement.message.selectPartnerAndRange'))
+    return
+  }
+  printPartnerStatement({
+    ...statement.value,
+    partnerTypeLabel: partnerTypeLabel(statement.value.partnerType),
+    lines: (statement.value.lines || []).map((line) => ({
+      ...line,
+      docTypeLabel: documentTypeLabel(line.docType),
+      directionLabel: directionLabel(line.direction)
+    }))
+  })
 }
 
 watch(partnerType, loadPartners)

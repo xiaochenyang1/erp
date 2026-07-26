@@ -850,6 +850,7 @@ import {
   serialCaptureProgress,
   validateProductControlLines
 } from '@/utils/productLines'
+import { useProductionOrderPresentation } from '@/composables/useProductionOrderPresentation'
 
 const { t } = useI18n()
 
@@ -916,6 +917,15 @@ const allBomOptions = ref<BOM[]>([])
 const bomOptions = ref<BOM[]>([])
 const finishedLocations = ref<Location[]>([])
 const materialLocations = ref<Location[]>([])
+const {
+  getPriorityLabel,
+  getPriorityType,
+  getStatusLabel,
+  getStatusType,
+  opStatusText,
+  opStatusType,
+  warehouseLabel
+} = useProductionOrderPresentation(warehouseOptions, t)
 const completeProductControls = reactive<ProductControlFlags>({
   lotControlled: undefined,
   shelfLifeControlled: undefined,
@@ -1447,19 +1457,6 @@ const submitReport = async () => {
   }
 }
 
-const opStatusText = (status: string) =>
-  ({
-    PENDING: t('productionOrder.operationStatus.pending'),
-    IN_PROGRESS: t('productionOrder.operationStatus.inProgress'),
-    DONE: t('productionOrder.operationStatus.done')
-  }[status] || status)
-
-const opStatusType = (status: string) =>
-  ({ PENDING: 'info', IN_PROGRESS: 'warning', DONE: 'success' }[status] || 'info') as
-    | 'info'
-    | 'warning'
-    | 'success'
-
 // 确认完工
 const handleConfirmComplete = async () => {
   if (!completeForm.completedQuantity) {
@@ -1703,60 +1700,6 @@ const handleSubmit = async () => {
 const handleDialogClose = () => {
   formRef.value?.resetFields()
   resetFormData()
-}
-
-// 获取状态标签
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    DRAFT: t('productionOrder.status.draft'),
-    RELEASED: t('productionOrder.status.released'),
-    MATERIAL_ISSUED: t('productionOrder.status.materialIssued'),
-    IN_PROGRESS: t('productionOrder.status.inProgress'),
-    COMPLETED: t('productionOrder.status.completed'),
-    CANCELLED: t('productionOrder.status.cancelled')
-  }
-  return map[status] || status
-}
-
-// 获取状态类型
-const getStatusType = (status: string) => {
-  const map: Record<string, any> = {
-    DRAFT: 'info',
-    RELEASED: 'warning',
-    MATERIAL_ISSUED: 'primary',
-    IN_PROGRESS: 'primary',
-    COMPLETED: 'success',
-    CANCELLED: 'danger'
-  }
-  return map[status] || undefined
-}
-
-// 获取优先级标签
-const getPriorityLabel = (priority: string) => {
-  const map: Record<string, string> = {
-    LOW: t('productionOrder.priority.low'),
-    NORMAL: t('productionOrder.priority.normal'),
-    HIGH: t('productionOrder.priority.high'),
-    URGENT: t('productionOrder.priority.urgent')
-  }
-  return map[priority] || priority
-}
-
-// 获取优先级类型
-const getPriorityType = (priority: string) => {
-  const map: Record<string, any> = {
-    LOW: 'info',
-    NORMAL: 'info',
-    HIGH: 'warning',
-    URGENT: 'danger'
-  }
-  return map[priority] || undefined
-}
-
-const warehouseLabel = (warehouseId?: string | number) => {
-  if (warehouseId == null || warehouseId === '') return '-'
-  const warehouse = warehouseOptions.value.find(item => String(item.id) === String(warehouseId))
-  return warehouse?.warehouseName || warehouse?.name || t('productionOrder.warehouseFallback', { id: warehouseId })
 }
 
 // 获取进度条颜色
