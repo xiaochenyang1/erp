@@ -100,10 +100,17 @@ const inventoryTransferFeature = [
   'src/composables/useInventoryTransferList.ts',
   'src/composables/useInventoryTransferForm.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+// 调整页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const inventoryAdjustmentFeature = [
+  'src/views/inventory/adjustments/index.vue',
+  'src/composables/useInventoryAdjustmentPresentation.ts',
+  'src/composables/useInventoryAdjustmentList.ts',
+  'src/composables/useInventoryAdjustmentForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const inventoryOptionViews = [
   {
     name: '库存调整页',
-    content: readFileSync(resolve(root, 'src/views/inventory/adjustments/index.vue'), 'utf8')
+    content: inventoryAdjustmentFeature
   },
   {
     name: '库存调拨页',

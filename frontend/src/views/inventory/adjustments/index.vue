@@ -21,7 +21,7 @@
             <el-option
               v-for="warehouse in warehouses"
               :key="warehouse.id"
-              :label="warehouse.name"
+              :label="warehouseLabel(warehouse)"
               :value="warehouse.id"
             />
           </el-select>
@@ -103,16 +103,12 @@
         <el-table-column prop="adjustmentDate" :label="$t('inventoryAdjustments.adjustmentDate')" width="120" />
         <el-table-column prop="type" :label="$t('inventoryAdjustments.adjustmentType')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.type === 'GAIN'" type="success">{{ $t('inventoryAdjustments.type.gain') }}</el-tag>
-            <el-tag v-else-if="row.type === 'LOSS'" type="danger">{{ $t('inventoryAdjustments.type.loss') }}</el-tag>
-            <el-tag v-else type="info">{{ $t('inventoryAdjustments.type.other') }}</el-tag>
+            <el-tag :type="typeTagType(row.type)">{{ typeLabel(row.type) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('inventoryAdjustments.statusLabel')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'DRAFT'" type="info">{{ $t('inventoryAdjustments.status.draft') }}</el-tag>
-            <el-tag v-else-if="row.status === 'COMPLETED'" type="success">{{ $t('inventoryAdjustments.status.completed') }}</el-tag>
-            <el-tag v-else-if="row.status === 'CANCELLED'" type="danger">{{ $t('inventoryAdjustments.status.cancelled') }}</el-tag>
+            <el-tag :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('inventoryAdjustments.remark')" show-overflow-tooltip />
@@ -164,7 +160,7 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleQuery"
-        @current-change="handleQuery"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -193,7 +189,7 @@
                 <el-option
                   v-for="warehouse in warehouses"
                   :key="warehouse.id"
-                  :label="warehouse.name"
+                  :label="warehouseLabel(warehouse)"
                   :value="warehouse.id"
                 />
               </el-select>
@@ -291,9 +287,9 @@
                 style="width: 100%"
               >
                 <el-option
-                  v-for="location in locationsForWarehouse"
+                  v-for="location in locationsForSelectedWarehouse"
                   :key="location.id"
-                  :label="`${location.locationCode} ${location.locationName}`"
+                  :label="locationLabel(location)"
                   :value="location.id"
                 />
               </el-select>
@@ -383,7 +379,7 @@
       <template #footer>
         <div class="btn-group">
           <el-button @click="dialogVisible = false">{{ $t('inventoryAdjustments.action.cancel') }}</el-button>
-          <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSubmit">
+          <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="submitForm">
             {{ $t('inventoryAdjustments.action.confirm') }}
           </el-button>
         </div>
@@ -393,7 +389,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -402,324 +398,113 @@ import {
   getInventoryAdjustment,
   createInventoryAdjustment,
   completeInventoryAdjustment,
-  cancelInventoryAdjustment,
-  type InventoryAdjustmentQuery,
-  type InventoryAdjustmentCreateRequest,
-  type InventoryAdjustment
+  cancelInventoryAdjustment
 } from '@/api/inventory'
-import { getLocations, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
-import { getProducts } from '@/api/masterdata'
-import {
-  hydrateProductLineLabels,
-  serialCaptureProgress,
-  validateProductControlLines
-} from '@/utils/productLines'
+import { getLocations, getProducts, getWarehouses } from '@/api/masterdata'
+import { serialCaptureProgress } from '@/utils/productLines'
 import { printInventoryAdjustment } from '@/utils/bizPrint'
-import { formatBusinessDate } from '@/utils/locale'
+import { useInventoryAdjustmentList } from '@/composables/useInventoryAdjustmentList'
+import { useInventoryAdjustmentFormPresentation } from '@/composables/useInventoryAdjustmentPresentation'
+import { useInventoryAdjustmentForm } from '@/composables/useInventoryAdjustmentForm'
 
 const { t } = useI18n()
 
-// 查询参数
-const queryParams = reactive<InventoryAdjustmentQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  adjustmentNo: '',
-  warehouseId: undefined,
-  type: '',
-  status: '',
-  startDate: '',
-  endDate: ''
-})
-
-// 日期范围
-const dateRange = ref<[string, string] | null>(null)
-
-// 表格数据
-const loading = ref(false)
-const tableData = ref<InventoryAdjustment[]>([])
-const total = ref(0)
-
-// 仓库列表
-const warehouses = ref<Warehouse[]>([])
-const locations = ref<Location[]>([])
-
-// 产品列表
-const products = ref<Product[]>([])
-
-// 对话框
-const dialogVisible = ref(false)
-const submitLoading = ref(false)
-const dialogTitle = ref('')
-const isView = ref(false)
 const formRef = ref<FormInstance>()
 
-// 表单数据
-const formData = reactive<InventoryAdjustmentCreateRequest>({
-  warehouseId: 0,
-  adjustmentDate: '',
-  type: 'GAIN',
-  items: [],
-  remark: ''
-})
-const locationsForWarehouse = computed(() => {
-  if (!formData.warehouseId) return locations.value
-  return locations.value.filter((location) => String(location.warehouseId) === String(formData.warehouseId))
+const {
+  dateRange,
+  handleCancel,
+  handleComplete,
+  handlePageChange,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  loadData,
+  loadOptions,
+  loading,
+  locations,
+  products,
+  queryParams,
+  tableData,
+  total,
+  warehouses
+} = useInventoryAdjustmentList(t, {
+  getAdjustments: getInventoryAdjustments,
+  getAdjustment: getInventoryAdjustment,
+  postAdjustment: completeInventoryAdjustment,
+  cancelAdjustment: cancelInventoryAdjustment,
+  getWarehouses,
+  getProducts,
+  getLocations,
+  printAdjustment: printInventoryAdjustment,
+  confirm: (message, title, confirmOptions) =>
+    ElMessageBox.confirm(message, title, confirmOptions as any),
+  decorateRows: (rows) => withWarehouseName(rows),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
 
-// 表单验证规则
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleAddItem,
+  handleCreate,
+  handleDeleteItem,
+  handleProductChange,
+  handleSubmit,
+  handleView,
+  isView,
+  selectedWarehouseId,
+  submitLoading
+} = useInventoryAdjustmentForm(t, {
+  getAdjustment: getInventoryAdjustment,
+  createAdjustment: createInventoryAdjustment,
+  findProduct: (productId) => findProduct(productId),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onSubmitted: loadData
+})
+
+const {
+  findProduct,
+  locationLabel,
+  locationsForSelectedWarehouse,
+  productLabel,
+  statusLabel,
+  statusTagType,
+  typeLabel,
+  typeTagType,
+  warehouseLabel,
+  withWarehouseName
+} = useInventoryAdjustmentFormPresentation(
+  t,
+  { warehouses, products, locations },
+  selectedWarehouseId
+)
+
 const formRules: FormRules = {
   warehouseId: [{ required: true, message: t('inventoryAdjustments.validation.warehouse'), trigger: 'change' }],
   adjustmentDate: [{ required: true, message: t('inventoryAdjustments.validation.adjustmentDate'), trigger: 'change' }],
   type: [{ required: true, message: t('inventoryAdjustments.validation.adjustmentType'), trigger: 'change' }]
 }
 
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await getInventoryAdjustments(queryParams)
-    tableData.value = response.records
-    total.value = response.total
-  } catch (error) {
-    ElMessage.error(t('inventoryAdjustments.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
+watch(dialogVisible, (visible) => {
+  if (!visible) formRef.value?.clearValidate()
+})
 
-// 加载仓库列表
-const loadWarehouses = async () => {
-  try {
-    const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-    const response = await getWarehouses(optionPageQuery)
-    warehouses.value = response.records
-  } catch (error) {
-    ElMessage.error(t('inventoryAdjustments.message.warehousesLoadFailed'))
-  }
-}
-
-const loadLocations = async () => {
-  try {
-    const page = await getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
-    locations.value = page.records || []
-  } catch {
-    locations.value = []
-  }
-}
-
-// 加载产品列表
-const loadProducts = async () => {
-  try {
-    const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-    const response = await getProducts(optionPageQuery)
-    products.value = response.records
-  } catch (error) {
-    ElMessage.error(t('inventoryAdjustments.message.productsLoadFailed'))
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  if (dateRange.value) {
-    queryParams.startDate = dateRange.value[0]
-    queryParams.endDate = dateRange.value[1]
-  } else {
-    queryParams.startDate = ''
-    queryParams.endDate = ''
-  }
-  queryParams.pageNo = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  queryParams.adjustmentNo = ''
-  queryParams.warehouseId = undefined
-  queryParams.type = ''
-  queryParams.status = ''
-  dateRange.value = null
-  queryParams.startDate = ''
-  queryParams.endDate = ''
-  handleQuery()
-}
-
-// 新增
-const handleCreate = () => {
-  dialogTitle.value = t('inventoryAdjustments.dialog.create')
-  isView.value = false
-  resetForm()
-  dialogVisible.value = true
-}
-
-// 查看
-const handleView = async (row: InventoryAdjustment) => {
-  dialogTitle.value = t('inventoryAdjustments.dialog.view')
-  isView.value = true
-  try {
-    const data = await getInventoryAdjustment(row.id)
-    Object.assign(formData, data)
-    formData.items = await hydrateProductLineLabels(formData.items || [], async (productId) => {
-      const product = products.value.find((item) => String(item.id) === String(productId))
-      return product || {}
-    })
-    dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('inventoryAdjustments.message.detailLoadFailed'))
-  }
-}
-
-const handlePrint = async (row: InventoryAdjustment) => {
-  try {
-    const detail = await getInventoryAdjustment(row.id)
-    printInventoryAdjustment(detail)
-  } catch {
-    ElMessage.error(t('inventoryAdjustments.message.printLoadFailed'))
-  }
-}
-
-// 过账
-const handleComplete = async (row: InventoryAdjustment) => {
-  try {
-    await ElMessageBox.confirm(t('inventoryAdjustments.message.postConfirm'), t('inventoryAdjustments.prompt'), {
-      confirmButtonText: t('inventoryAdjustments.action.confirm'),
-      cancelButtonText: t('inventoryAdjustments.action.cancel'),
-      type: 'warning'
-    })
-    await completeInventoryAdjustment(row.id)
-    ElMessage.success(t('inventoryAdjustments.message.success'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('inventoryAdjustments.message.failed'))
-    }
-  }
-}
-
-// 取消
-const handleCancel = async (row: InventoryAdjustment) => {
-  try {
-    await ElMessageBox.confirm(t('inventoryAdjustments.message.cancelConfirm'), t('inventoryAdjustments.prompt'), {
-      confirmButtonText: t('inventoryAdjustments.action.confirm'),
-      cancelButtonText: t('inventoryAdjustments.action.cancel'),
-      type: 'warning'
-    })
-    await cancelInventoryAdjustment(row.id)
-    ElMessage.success(t('inventoryAdjustments.message.success'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('inventoryAdjustments.message.failed'))
-    }
-  }
-}
-
-// 添加明细
-const handleAddItem = () => {
-  formData.items.push({
-    productId: 0,
-    productCode: '',
-    productName: '',
-    quantity: 0,
-    unitCost: 0,
-    locationId: undefined,
-    serialNos: '',
-    lotNo: '',
-    productionDate: '',
-    expiryDate: '',
-    lotControlled: undefined,
-    shelfLifeControlled: undefined,
-    serialControlled: undefined,
-    reason: ''
-  })
-}
-
-// 删除明细
-const handleDeleteItem = (index: number) => {
-  formData.items.splice(index, 1)
-}
-
-// 产品变化
-const handleProductChange = async (index: number) => {
-  const item = formData.items[index]
-  const product = products.value.find(p => String(p.id) === String(item.productId))
-  if (product) {
-    item.productCode = product.code || product.productCode || ''
-    item.productName = product.name || product.productName || ''
-    item.unitCost = product.purchasePrice ?? item.unitCost ?? 0
-    item.lotControlled = Boolean(product.lotControlled)
-    item.shelfLifeControlled = Boolean(product.shelfLifeControlled)
-    item.serialControlled = Boolean(product.serialControlled)
-  }
-  if (item.productId) {
-    const [hydrated] = await hydrateProductLineLabels([item], async () => product || {})
-    Object.assign(item, hydrated)
-  }
-}
-
-const productLabel = (product: Product) => {
-  const code = product.code || product.productCode || ''
-  const name = product.name || product.productName || ''
-  return code && name ? `${code} - ${name}` : name || code || t('inventoryAdjustments.productFallback', { id: product.id })
-}
-
-// 提交表单
-const handleSubmit = async () => {
+const submitForm = async () => {
   if (!formRef.value) return
-
   await formRef.value.validate(async (valid) => {
-    if (valid) {
-      if (formData.items.length === 0) {
-        ElMessage.warning(t('inventoryAdjustments.validation.itemRequired'))
-        return
-      }
-
-      formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
-        const product = products.value.find((item) => String(item.id) === String(productId))
-        return product || {}
-      })
-      const controlIssues = validateProductControlLines(formData.items)
-      if (controlIssues.length > 0) {
-        const issue = controlIssues[0]
-        const product = issue.productCode || issue.productName || String(issue.productId)
-        ElMessage.warning(t(`inventoryAdjustments.validation.${issue.messageKey}`, {
-          line: issue.index + 1,
-          product,
-          expected: issue.expectedSerialCount,
-          actual: issue.actualSerialCount
-        }))
-        return
-      }
-
-      submitLoading.value = true
-      try {
-        await createInventoryAdjustment(formData)
-        ElMessage.success(t('inventoryAdjustments.message.success'))
-        dialogVisible.value = false
-        loadData()
-      } catch (error) {
-        ElMessage.error(t('inventoryAdjustments.message.failed'))
-      } finally {
-        submitLoading.value = false
-      }
-    }
+    if (!valid) return
+    await handleSubmit()
   })
 }
 
-// 重置表单
-const resetForm = () => {
-  formData.warehouseId = 0
-  formData.adjustmentDate = formatBusinessDate()
-  formData.type = 'GAIN'
-  formData.items = []
-  formData.remark = ''
-  formRef.value?.clearValidate()
-}
-
-onMounted(() => {
-  loadData()
-  loadWarehouses()
-  loadProducts()
-  loadLocations()
+onMounted(async () => {
+  await loadOptions()
+  await loadData()
 })
 </script>
 
