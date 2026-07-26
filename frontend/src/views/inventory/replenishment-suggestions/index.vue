@@ -181,8 +181,8 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleQuery"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -262,50 +262,81 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 import {
   cancelInventoryReplenishmentSuggestion,
   convertInventoryReplenishmentSuggestion,
   getInventoryReplenishmentSuggestions,
-  updateInventoryReplenishmentSuggestion,
-  type InventoryReplenishmentSuggestion,
-  type InventoryReplenishmentSuggestionQuery
+  updateInventoryReplenishmentSuggestion
 } from '@/api/inventory'
 import {
   getProducts,
   getSuppliers,
-  getWarehouses,
-  type Product,
-  type Supplier,
-  type Warehouse
+  getWarehouses
 } from '@/api/masterdata'
+import { useInventoryReplenishmentPresentation } from '@/composables/useInventoryReplenishmentPresentation'
+import { useInventoryReplenishmentList } from '@/composables/useInventoryReplenishmentList'
+import { useInventoryReplenishmentForm } from '@/composables/useInventoryReplenishmentForm'
 
 const router = useRouter()
 const { t } = useI18n()
-const loading = ref(false)
-const tableData = ref<InventoryReplenishmentSuggestion[]>([])
-const total = ref(0)
-const warehouses = ref<Warehouse[]>([])
-const products = ref<Product[]>([])
-const suppliers = ref<Supplier[]>([])
-const createdRange = ref<[string, string]>()
-const editDialogVisible = ref(false)
-const editSubmitting = ref(false)
 const editFormRef = ref<FormInstance>()
 
-const editForm = reactive({
-  id: '',
-  suggestionNo: '',
-  warehouseName: '',
-  productName: '',
-  supplierId: undefined as string | number | undefined,
-  suggestedQty: 1,
-  expectedArrivalDate: '',
-  remark: ''
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
+}
+
+const {
+  createdRange,
+  handleCancel,
+  handleConvert,
+  handleCreatedRangeChange,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loadOptions,
+  loading,
+  products,
+  queryParams,
+  suppliers,
+  tableData,
+  total,
+  warehouses
+} = useInventoryReplenishmentList(t, {
+  getSuggestions: getInventoryReplenishmentSuggestions,
+  getWarehouses,
+  getProducts,
+  getSuppliers,
+  cancelSuggestion: cancelInventoryReplenishmentSuggestion,
+  convertSuggestion: convertInventoryReplenishmentSuggestion,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  prompt: (message, title, options) => ElMessageBox.prompt(message, title, options as any),
+  ...notify
+})
+
+const {
+  formatDateTime,
+  formatNumber,
+  fulfillmentStatusMeta
+} = useInventoryReplenishmentPresentation(t)
+
+const {
+  editDialogVisible,
+  editForm,
+  editSubmitting,
+  handleEdit,
+  submitEdit: saveEdit
+} = useInventoryReplenishmentForm(t, {
+  updateSuggestion: updateInventoryReplenishmentSuggestion,
+  onSubmitted: loadData,
+  ...notify
 })
 
 const editRules = computed<FormRules>(() => ({
@@ -324,151 +355,10 @@ const editRules = computed<FormRules>(() => ({
   ]
 }))
 
-const fulfillmentStatusMap = computed<Record<string, { label: string; type: 'primary' | 'success' | 'warning' | 'info' | 'danger' }>>(() => ({
-  SUGGESTED: { label: t('inventoryReplenishment.fulfillment.suggested'), type: 'warning' },
-  PURCHASE_CREATED: { label: t('inventoryReplenishment.fulfillment.purchaseCreated'), type: 'primary' },
-  PARTIAL_RECEIVED: { label: t('inventoryReplenishment.fulfillment.partialReceived'), type: 'warning' },
-  REPLENISHED: { label: t('inventoryReplenishment.fulfillment.replenished'), type: 'success' },
-  PURCHASE_CLOSED: { label: t('inventoryReplenishment.fulfillment.purchaseClosed'), type: 'info' },
-  CANCELLED: { label: t('inventoryReplenishment.fulfillment.cancelled'), type: 'info' }
-}))
-
-const queryParams = reactive<InventoryReplenishmentSuggestionQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  suggestionNo: '',
-  status: '',
-  warehouseId: undefined,
-  productId: undefined,
-  supplierId: undefined,
-  createdTimeFrom: undefined,
-  createdTimeTo: undefined
-})
-
-const fulfillmentStatusMeta = (status?: string) => fulfillmentStatusMap.value[status || ''] || {
-  label: status || '-',
-  type: 'info' as const
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await getInventoryReplenishmentSuggestions(queryParams)
-    tableData.value = response.records
-    total.value = response.total
-  } catch (error) {
-    ElMessage.error(t('inventoryReplenishment.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  Object.assign(queryParams, {
-    pageNo: 1,
-    pageSize: 20,
-    suggestionNo: '',
-    status: '',
-    warehouseId: undefined,
-    productId: undefined,
-    supplierId: undefined,
-    createdTimeFrom: undefined,
-    createdTimeTo: undefined
-  })
-  createdRange.value = undefined
-  loadData()
-}
-
-const handleCreatedRangeChange = (value: [string, string] | null) => {
-  queryParams.createdTimeFrom = value?.[0]
-  queryParams.createdTimeTo = value?.[1]
-}
-
-const handleEdit = (row: InventoryReplenishmentSuggestion) => {
-  Object.assign(editForm, {
-    id: row.id,
-    suggestionNo: row.suggestionNo,
-    warehouseName: row.warehouseName || '-',
-    productName: `${row.productCode || ''} ${row.productName || ''}`.trim() || '-',
-    supplierId: row.supplierId,
-    suggestedQty: Number(row.suggestedQty || 0),
-    expectedArrivalDate: row.expectedArrivalDate || '',
-    remark: row.remark || ''
-  })
-  editDialogVisible.value = true
-}
-
 const submitEdit = async () => {
   if (!editFormRef.value) return
   await editFormRef.value.validate()
-  editSubmitting.value = true
-  try {
-    await updateInventoryReplenishmentSuggestion(editForm.id, {
-      supplierId: editForm.supplierId,
-      suggestedQty: editForm.suggestedQty,
-      expectedArrivalDate: editForm.expectedArrivalDate || undefined,
-      remark: editForm.remark || undefined
-    })
-    ElMessage.success(t('inventoryReplenishment.message.updated'))
-    editDialogVisible.value = false
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('inventoryReplenishment.message.saveFailed'))
-  } finally {
-    editSubmitting.value = false
-  }
-}
-
-const handleCancel = async (row: InventoryReplenishmentSuggestion) => {
-  try {
-    const { value } = await ElMessageBox.prompt(
-      t('inventoryReplenishment.message.cancelConfirm', { no: row.suggestionNo }),
-      t('inventoryReplenishment.message.cancelTitle'),
-      {
-        confirmButtonText: t('inventoryReplenishment.message.confirm'),
-        cancelButtonText: t('inventoryReplenishment.cancel'),
-        inputType: 'textarea',
-        inputPlaceholder: t('inventoryReplenishment.message.cancelReason')
-      }
-    )
-    await cancelInventoryReplenishmentSuggestion(row.id, value || undefined)
-    ElMessage.success(t('inventoryReplenishment.message.cancelled'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('inventoryReplenishment.message.cancelFailed'))
-    }
-  }
-}
-
-const handleConvert = async (row: InventoryReplenishmentSuggestion) => {
-  if (!row.supplierId) {
-    ElMessage.warning(t('inventoryReplenishment.message.supplierRequired'))
-    return
-  }
-  try {
-    await ElMessageBox.confirm(
-      t('inventoryReplenishment.message.convertConfirm', { no: row.suggestionNo }),
-      t('inventoryReplenishment.message.convertTitle'),
-      {
-        confirmButtonText: t('inventoryReplenishment.message.confirm'),
-        cancelButtonText: t('inventoryReplenishment.cancel'),
-        type: 'warning'
-      }
-    )
-    const response = await convertInventoryReplenishmentSuggestion(row.id)
-    ElMessage.success(t('inventoryReplenishment.message.converted', { no: response.purchaseOrderNo }))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('inventoryReplenishment.message.convertFailed'))
-    }
-  }
+  await saveEdit()
 }
 
 const goPurchaseOrder = (orderNo: string) => {
@@ -476,29 +366,6 @@ const goPurchaseOrder = (orderNo: string) => {
     path: '/purchase/orders',
     query: { keyword: orderNo }
   })
-}
-
-const loadOptions = async () => {
-  try {
-    const [warehousePage, productPage, supplierPage] = await Promise.all([
-      getWarehouses({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' }),
-      getProducts({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' }),
-      getSuppliers({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-    ])
-    warehouses.value = warehousePage.records
-    products.value = productPage.records
-    suppliers.value = supplierPage.records
-  } catch (error) {
-    ElMessage.warning(t('inventoryReplenishment.message.optionsLoadFailed'))
-  }
-}
-
-const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
-  maximumFractionDigits: 4
-})
-
-const formatDateTime = (value?: string) => {
-  return formatLocalizedDateTime(value) || '-'
 }
 
 onMounted(() => {
