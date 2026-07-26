@@ -502,7 +502,7 @@
       </el-form>
       <template #footer>
         <el-button @click="completeDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleConfirmComplete">
+        <el-button type="primary" :loading="completionSubmitLoading" @click="handleConfirmComplete">
           {{ t('productionOrder.confirmCompletion') }}
         </el-button>
       </template>
@@ -542,7 +542,7 @@
       </el-form>
       <template #footer>
         <el-button @click="reverseDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleConfirmReverseCompletion">
+        <el-button type="primary" :loading="completionSubmitLoading" @click="handleConfirmReverseCompletion">
           {{ t('productionOrder.confirmReversal') }}
         </el-button>
       </template>
@@ -851,6 +851,7 @@ import {
 import { useProductionOrderPresentation } from '@/composables/useProductionOrderPresentation'
 import { useProductionOrderProductControls } from '@/composables/useProductionOrderProductControls'
 import { useProductionOrderOperations } from '@/composables/useProductionOrderOperations'
+import { useProductionOrderCompletion } from '@/composables/useProductionOrderCompletion'
 
 const { t } = useI18n()
 
@@ -943,14 +944,30 @@ const {
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message)
 })
-const completeProductControls = reactive({
-  lotControlled: undefined as boolean | undefined,
-  shelfLifeControlled: undefined as boolean | undefined,
-  serialControlled: undefined as boolean | undefined,
-  productCode: undefined as string | undefined,
-  productName: undefined as string | undefined
+const {
+  canReverseCompletion,
+  completeDialogVisible,
+  completeForm,
+  completeProductControls,
+  handleComplete,
+  handleConfirmComplete,
+  handleConfirmReverseCompletion,
+  handleReverseCompletion,
+  reverseDialogVisible,
+  reverseForm,
+  submitLoading: completionSubmitLoading
+} = useProductionOrderCompletion(t, {
+  completeOrder: completeProductionOrder,
+  reverseCompletion: reverseProductionCompletion,
+  productControlFromOptions,
+  resolveProductControls,
+  loadFinishedLocations: (warehouseId) => loadFinishedLocations(warehouseId),
+  formatBusinessDate,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => loadData()
 })
-const completeProductId = ref<string | number | undefined>()
 
 // 新增/编辑对话框
 const dialogVisible = ref(false)
@@ -983,32 +1000,6 @@ const formRules = computed<FormRules>(() => ({
 // 查看对话框
 const viewDialogVisible = ref(false)
 const viewData = ref<ProductionOrder>({} as ProductionOrder)
-
-// 完工对话框
-const completeDialogVisible = ref(false)
-const completeForm = reactive({
-  orderId: '' as string | number,
-  completedQuantity: 0,
-  scrapQuantity: 0,
-  completionDate: '',
-  lotNo: '',
-  productionDate: '',
-  expiryDate: '',
-  locationId: undefined as string | number | undefined,
-  serialNos: '',
-  maxQuantity: 0,
-  remark: ''
-})
-
-// 完工红冲对话框
-const reverseDialogVisible = ref(false)
-const reverseForm = reactive({
-  orderId: '' as string | number,
-  reversedQty: 0,
-  reversalDate: '',
-  maxQuantity: 0,
-  remark: ''
-})
 
 // 生产退料对话框
 const returnDialogVisible = ref(false)
@@ -1295,120 +1286,8 @@ const handleConfirmIssueMaterials = async () => {
   }
 }
 
-// 完工
-const handleComplete = async (row: ProductionOrder) => {
-  completeForm.orderId = row.id
-  completeForm.maxQuantity = row.planQuantity - row.completedQuantity
-  completeForm.completedQuantity = completeForm.maxQuantity
-  completeForm.scrapQuantity = 0
-  completeForm.completionDate = formatBusinessDate()
-  completeForm.lotNo = ''
-  completeForm.productionDate = ''
-  completeForm.expiryDate = ''
-  completeForm.locationId = undefined
-  completeForm.serialNos = ''
-  completeForm.remark = ''
-  completeProductId.value = row.productId
-  Object.assign(completeProductControls, productControlFromOptions(row.productId))
-  completeDialogVisible.value = true
-  void loadFinishedLocations(row.finishedWarehouseId || row.warehouseId)
-  Object.assign(completeProductControls, await resolveProductControls(row.productId))
-}
-
-// 确认完工
-const handleConfirmComplete = async () => {
-  if (!completeForm.completedQuantity) {
-    ElMessage.warning(t('productionOrder.validation.completedQuantity'))
-    return
-  }
-
-  Object.assign(completeProductControls, await resolveProductControls(completeProductId.value))
-  const controlIssues = validateProductControlLines([{
-    productId: completeProductId.value || completeForm.orderId,
-    productCode: completeProductControls.productCode,
-    productName: completeProductControls.productName,
-    quantity: completeForm.completedQuantity,
-    lotNo: completeForm.lotNo,
-    expiryDate: completeForm.expiryDate,
-    serialNos: completeForm.serialNos,
-    lotControlled: completeProductControls.lotControlled,
-    shelfLifeControlled: completeProductControls.shelfLifeControlled,
-    serialControlled: completeProductControls.serialControlled
-  }])
-  if (controlIssues.length > 0) {
-    const issue = controlIssues[0]
-    const product = issue.productCode || issue.productName || String(issue.productId)
-    ElMessage.warning(t(`productionOrder.validation.${issue.messageKey}`, {
-      line: 1,
-      product,
-      expected: issue.expectedSerialCount,
-      actual: issue.actualSerialCount
-    }))
-    return
-  }
-
-  submitLoading.value = true
-  try {
-    await completeProductionOrder(completeForm.orderId, {
-      completedQuantity: completeForm.completedQuantity,
-      scrapQuantity: completeForm.scrapQuantity,
-      completionDate: completeForm.completionDate,
-      lotNo: completeForm.lotNo || undefined,
-      productionDate: completeForm.productionDate || undefined,
-      expiryDate: completeForm.expiryDate || undefined,
-      locationId: completeForm.locationId || undefined,
-      serialNos: completeForm.serialNos || undefined,
-      remark: completeForm.remark
-    })
-    ElMessage.success(t('productionOrder.message.completed'))
-    completeDialogVisible.value = false
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('productionOrder.message.completeFailed'))
-  } finally {
-    submitLoading.value = false
-  }
-}
-
-const canReverseCompletion = (row: ProductionOrder) => {
-  return row.status !== 'CANCELLED' && Number(row.completedQuantity || 0) > 0
-}
-
 const canReturnMaterials = (row: ProductionOrder) => {
   return ['MATERIAL_ISSUED', 'IN_PROGRESS'].includes(row.status)
-}
-
-const handleReverseCompletion = (row: ProductionOrder) => {
-  const completedQuantity = Number(row.completedQuantity || 0)
-  reverseForm.orderId = row.id
-  reverseForm.maxQuantity = completedQuantity
-  reverseForm.reversedQty = completedQuantity
-  reverseForm.reversalDate = row.actualEndDate || row.planEndDate || formatBusinessDate()
-  reverseForm.remark = ''
-  reverseDialogVisible.value = true
-}
-
-const handleConfirmReverseCompletion = async () => {
-  if (!reverseForm.reversedQty) {
-    ElMessage.warning(t('productionOrder.validation.reversalQuantity'))
-    return
-  }
-
-  submitLoading.value = true
-  try {
-    await reverseProductionCompletion(reverseForm.orderId, {
-      reversedQty: reverseForm.reversedQty,
-      reversalDate: reverseForm.reversalDate,
-      remark: reverseForm.remark
-    })
-    ElMessage.success(t('productionOrder.message.reversed'))
-    reverseDialogVisible.value = false
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('productionOrder.message.reverseFailed'))
-  } finally {
-    submitLoading.value = false
-  }
 }
 
 const handleReturnMaterials = async (row: ProductionOrder) => {
