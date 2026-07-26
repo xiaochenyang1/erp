@@ -131,8 +131,8 @@
         :total="runTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadRuns"
-        @current-change="loadRuns"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
         style="margin-top: 20px; justify-content: flex-end"
       />
     </el-card>
@@ -427,7 +427,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { CircleCheck, DocumentChecked, Plus, Refresh, Search, View } from '@element-plus/icons-vue'
@@ -441,49 +441,13 @@ import {
   getReadinessRunDetail,
   getReadinessRuns,
   markReadinessItemResult,
-  recordReadinessPreflightEvidence,
-  type ReadinessItem,
-  type ReadinessRun,
-  type ReadinessRunDetail,
-  type ReadinessRunQuery
+  recordReadinessPreflightEvidence
 } from '@/api/readiness'
+import { useReadinessPresentation } from '@/composables/useReadinessPresentation'
+import { useReadinessList } from '@/composables/useReadinessList'
+import { useReadinessForms } from '@/composables/useReadinessForms'
 
 const { t } = useI18n()
-
-const queryForm = reactive<ReadinessRunQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  releaseCommit: '',
-  environment: '',
-  status: '',
-  decision: ''
-})
-
-const preflight = ref({
-  overallStatus: '',
-  checkedAt: '',
-  items: [] as Array<{ code: string; status: string; severity: string; summary: string; count: number; sample: string[] }>
-})
-const preflightLoading = ref(false)
-const runLoading = ref(false)
-const runData = ref<ReadinessRun[]>([])
-const runTotal = ref(0)
-
-const detailVisible = ref(false)
-const selectedDetail = ref<ReadinessRunDetail | null>(null)
-const selectedRun = ref<ReadinessRun | null>(null)
-const selectedItem = ref<ReadinessItem | null>(null)
-
-const runDialogVisible = ref(false)
-const itemDialogVisible = ref(false)
-const evidenceDialogVisible = ref(false)
-const resultDialogVisible = ref(false)
-const decisionDialogVisible = ref(false)
-const runSubmitting = ref(false)
-const itemSubmitting = ref(false)
-const evidenceSubmitting = ref(false)
-const resultSubmitting = ref(false)
-const decisionSubmitting = ref(false)
 
 const runFormRef = ref<FormInstance>()
 const itemFormRef = ref<FormInstance>()
@@ -491,50 +455,96 @@ const evidenceFormRef = ref<FormInstance>()
 const resultFormRef = ref<FormInstance>()
 const decisionFormRef = ref<FormInstance>()
 
-const runForm = reactive({
-  releaseCommit: '',
-  releaseVersion: '',
-  environment: 'LOCAL',
-  databaseInstance: 'erp_codex_runtime',
-  redisInstance: '',
-  dockerProfile: 'local',
-  generateDefaultItems: true,
-  recordPreflightEvidence: true,
-  remark: ''
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
+}
+
+const {
+  detailVisible,
+  handlePageChange,
+  handleQuery,
+  handleRecordPreflight,
+  handleReset,
+  handleSizeChange,
+  loadPreflight,
+  loadRuns,
+  openDetail,
+  preflight,
+  preflightLoading,
+  queryForm,
+  refreshDetail,
+  runData,
+  runLoading,
+  runTotal,
+  selectedDetail,
+  selectedRun
+} = useReadinessList(t, {
+  getPreflight: getReadinessPreflight,
+  getRuns: getReadinessRuns,
+  getRunDetail: getReadinessRunDetail,
+  recordPreflightEvidence: recordReadinessPreflightEvidence,
+  ...notify
 })
 
-const itemForm = reactive({
-  itemCode: '',
-  itemName: '',
-  category: '',
-  priority: 'P1',
-  expectedResult: ''
-})
+const {
+  decisionLabel,
+  decisionTagType,
+  isRunClosed,
+  itemStatusLabel,
+  itemStatusTagType,
+  preflightStatusLabel,
+  preflightTagType,
+  priorityTagType,
+  runStatusLabel,
+  runStatusTagType,
+  sampleText
+} = useReadinessPresentation(t)
 
-const evidenceForm = reactive({
-  evidenceType: 'NOTE',
-  requestMethod: '',
-  requestUri: '',
-  httpStatus: undefined as number | undefined,
-  businessType: '',
-  businessId: '',
-  businessNo: '',
-  summary: '',
-  detail: '',
-  attachmentBusinessType: '',
-  attachmentBusinessId: ''
-})
-
-const resultForm = reactive({
-  status: 'PASSED',
-  actualResult: '',
-  failureReason: ''
-})
-
-const decisionForm = reactive({
-  decision: 'GO',
-  status: 'PASSED',
-  decisionComment: ''
+const {
+  decisionBlockingItems,
+  decisionDialogVisible,
+  decisionForm,
+  decisionGoBlocked,
+  decisionItemsLoading,
+  decisionStatusOptions,
+  decisionSubmitting,
+  evidenceDialogVisible,
+  evidenceForm,
+  evidenceSubmitting,
+  itemDialogVisible,
+  itemForm,
+  itemSubmitting,
+  openDecisionDialog,
+  openEvidenceDialog,
+  openItemDialog,
+  openResultDialog,
+  openRunDialog,
+  resultDialogVisible,
+  resultForm,
+  resultSubmitting,
+  runDialogVisible,
+  runForm,
+  runSubmitting,
+  submitDecision: saveDecision,
+  submitEvidence: saveEvidence,
+  submitItem: saveItem,
+  submitResult: saveResult,
+  submitRun: saveRun
+} = useReadinessForms(t, {
+  createRun: createReadinessRun,
+  addItem: addReadinessItem,
+  addEvidence: addReadinessEvidence,
+  markResult: markReadinessItemResult,
+  decideRun: decideReadinessRun,
+  getRunDetail: getReadinessRunDetail,
+  selectedDetail,
+  selectedRun,
+  onRunCreated: openDetail,
+  onSubmitted: loadRuns,
+  onDetailChanged: refreshDetail,
+  ...notify
 })
 
 const runRules = computed<FormRules>(() => ({
@@ -563,383 +573,44 @@ const decisionRules = computed<FormRules>(() => ({
   status: [{ required: true, message: t('systemReadiness.validation.runStatus'), trigger: 'change' }]
 }))
 
-const decisionStatusOptions = computed(() => {
-  if (decisionForm.decision === 'GO') {
-    return [{ label: t('systemReadiness.statuses.passed'), value: 'PASSED' }]
-  }
-  return [
-    { label: t('systemReadiness.statuses.failed'), value: 'FAILED' },
-    { label: t('systemReadiness.statuses.blocked'), value: 'BLOCKED' },
-    { label: t('systemReadiness.statuses.noGo'), value: 'NO_GO' }
-  ]
-})
-
-watch(
-  () => decisionForm.decision,
-  (decision) => {
-    decisionForm.status = decision === 'GO' ? 'PASSED' : 'NO_GO'
-  }
-)
-
-const loadPreflight = async () => {
-  preflightLoading.value = true
-  try {
-    preflight.value = await getReadinessPreflight()
-  } catch (error) {
-    console.error(t('systemReadiness.message.loadPreflightFailed'), error)
-    ElMessage.error(t('systemReadiness.message.loadPreflightFailed'))
-  } finally {
-    preflightLoading.value = false
-  }
-}
-
-const loadRuns = async () => {
-  runLoading.value = true
-  try {
-    const res = await getReadinessRuns(queryForm)
-    runData.value = res.records || []
-    runTotal.value = res.total || 0
-  } catch (error) {
-    console.error(t('systemReadiness.message.loadRunsFailed'), error)
-    ElMessage.error(t('systemReadiness.message.loadRunsFailed'))
-  } finally {
-    runLoading.value = false
-  }
-}
-
-const handleQuery = () => {
-  queryForm.pageNo = 1
-  loadRuns()
-}
-
-const handleReset = () => {
-  Object.assign(queryForm, { pageNo: 1, releaseCommit: '', environment: '', status: '', decision: '' })
-  loadRuns()
-}
-
-const openRunDialog = () => {
-  resetRunForm()
-  runForm.releaseCommit = `local-${Date.now()}`
-  runDialogVisible.value = true
-}
-
 const submitRun = async () => {
   if (!runFormRef.value) return
   await runFormRef.value.validate(async (valid) => {
     if (!valid) return
-    runSubmitting.value = true
-    try {
-      const run = await createReadinessRun(runForm)
-      ElMessage.success(t('systemReadiness.message.runCreated'))
-      runDialogVisible.value = false
-      await loadRuns()
-      await openDetail(run)
-    } catch (error) {
-      ElMessage.error(t('systemReadiness.message.createRunFailed'))
-    } finally {
-      runSubmitting.value = false
-    }
+    await saveRun()
   })
-}
-
-const openDetail = async (row: ReadinessRun) => {
-  try {
-    selectedDetail.value = await getReadinessRunDetail(row.id)
-    selectedRun.value = selectedDetail.value.run
-    detailVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('systemReadiness.message.loadRunDetailFailed'))
-  }
-}
-
-const refreshDetail = async () => {
-  if (!selectedDetail.value) return
-  selectedDetail.value = await getReadinessRunDetail(selectedDetail.value.run.id)
-  selectedRun.value = selectedDetail.value.run
-}
-
-const handleRecordPreflight = async (row: ReadinessRun) => {
-  try {
-    await recordReadinessPreflightEvidence(row.id)
-    ElMessage.success(t('systemReadiness.message.preflightRecorded'))
-    await loadRuns()
-    if (selectedDetail.value?.run.id === row.id) {
-      await refreshDetail()
-    }
-  } catch (error) {
-    ElMessage.error(t('systemReadiness.message.recordPreflightFailed'))
-  }
-}
-
-const openItemDialog = () => {
-  resetItemForm()
-  itemDialogVisible.value = true
 }
 
 const submitItem = async () => {
   if (!itemFormRef.value || !selectedDetail.value) return
   await itemFormRef.value.validate(async (valid) => {
-    if (!valid || !selectedDetail.value) return
-    itemSubmitting.value = true
-    try {
-      await addReadinessItem(selectedDetail.value.run.id, itemForm)
-      ElMessage.success(t('systemReadiness.message.itemAdded'))
-      itemDialogVisible.value = false
-      await refreshDetail()
-      await loadRuns()
-    } catch (error) {
-      ElMessage.error(t('systemReadiness.message.addItemFailed'))
-    } finally {
-      itemSubmitting.value = false
-    }
+    if (!valid) return
+    await saveItem()
   })
-}
-
-const openEvidenceDialog = (row: ReadinessItem) => {
-  selectedItem.value = row
-  resetEvidenceForm()
-  evidenceForm.summary = t('systemReadiness.defaultEvidenceSummary', { name: row.itemName })
-  evidenceDialogVisible.value = true
 }
 
 const submitEvidence = async () => {
-  if (!evidenceFormRef.value || !selectedItem.value) return
+  if (!evidenceFormRef.value) return
   await evidenceFormRef.value.validate(async (valid) => {
-    if (!valid || !selectedItem.value) return
-    evidenceSubmitting.value = true
-    try {
-      await addReadinessEvidence(selectedItem.value.id, {
-        ...evidenceForm,
-        httpStatus: evidenceForm.httpStatus || undefined,
-        businessId: evidenceForm.businessId || undefined,
-        attachmentBusinessId: evidenceForm.attachmentBusinessId || undefined
-      })
-      ElMessage.success(t('systemReadiness.message.evidenceAdded'))
-      evidenceDialogVisible.value = false
-      await refreshDetail()
-    } catch (error) {
-      ElMessage.error(t('systemReadiness.message.addEvidenceFailed'))
-    } finally {
-      evidenceSubmitting.value = false
-    }
+    if (!valid) return
+    await saveEvidence()
   })
-}
-
-const openResultDialog = (row: ReadinessItem) => {
-  selectedItem.value = row
-  resetResultForm()
-  resultForm.status = row.status === 'PENDING' ? 'PASSED' : row.status
-  resultForm.actualResult = row.actualResult || ''
-  resultForm.failureReason = row.failureReason || ''
-  resultDialogVisible.value = true
 }
 
 const submitResult = async () => {
-  if (!resultFormRef.value || !selectedItem.value) return
+  if (!resultFormRef.value) return
   await resultFormRef.value.validate(async (valid) => {
-    if (!valid || !selectedItem.value) return
-    resultSubmitting.value = true
-    try {
-      await markReadinessItemResult(selectedItem.value.id, resultForm)
-      ElMessage.success(t('systemReadiness.message.resultRecorded'))
-      resultDialogVisible.value = false
-      await refreshDetail()
-    } catch (error) {
-      ElMessage.error(t('systemReadiness.message.recordResultFailed'))
-    } finally {
-      resultSubmitting.value = false
-    }
+    if (!valid) return
+    await saveResult()
   })
-}
-
-const decisionItems = ref<ReadinessItem[]>([])
-const decisionItemsLoading = ref(false)
-
-// Go 决策阻塞项：P0/P1 且未通过（对齐后端 hasUnpassedP0P1Items 门禁）
-const decisionBlockingItems = computed(() =>
-  decisionItems.value.filter(
-    (item) => (item.priority === 'P0' || item.priority === 'P1') && item.status !== 'PASSED'
-  )
-)
-
-const decisionGoBlocked = computed(
-  () => decisionForm.decision === 'GO' && decisionBlockingItems.value.length > 0
-)
-
-const openDecisionDialog = async (row: ReadinessRun) => {
-  selectedRun.value = row
-  resetDecisionForm()
-  decisionDialogVisible.value = true
-  // 拉取该运行单验收项，用于 Go 门禁预检（列表直接打开时 selectedDetail 可能是别的运行单）
-  decisionItemsLoading.value = true
-  try {
-    if (selectedDetail.value?.run.id === row.id) {
-      decisionItems.value = selectedDetail.value.items
-    } else {
-      const detail = await getReadinessRunDetail(row.id)
-      decisionItems.value = detail.items
-    }
-  } catch {
-    decisionItems.value = []
-    ElMessage.warning(t('systemReadiness.message.loadItemsWarning'))
-  } finally {
-    decisionItemsLoading.value = false
-  }
 }
 
 const submitDecision = async () => {
-  if (!decisionFormRef.value || !selectedRun.value) return
+  if (!decisionFormRef.value) return
   await decisionFormRef.value.validate(async (valid) => {
-    if (!valid || !selectedRun.value) return
-    if (decisionGoBlocked.value) {
-      ElMessage.error(t('systemReadiness.message.decisionBlocked', { count: decisionBlockingItems.value.length }))
-      return
-    }
-    decisionSubmitting.value = true
-    try {
-      await decideReadinessRun(selectedRun.value.id, decisionForm)
-      ElMessage.success(t('systemReadiness.message.decisionSaved'))
-      decisionDialogVisible.value = false
-      await loadRuns()
-      if (selectedDetail.value?.run.id === selectedRun.value.id) {
-        await refreshDetail()
-      }
-    } catch (error) {
-      ElMessage.error(t('systemReadiness.message.saveDecisionFailed'))
-    } finally {
-      decisionSubmitting.value = false
-    }
+    if (!valid) return
+    await saveDecision()
   })
-}
-
-const resetRunForm = () => {
-  runFormRef.value?.clearValidate()
-  Object.assign(runForm, {
-    releaseCommit: '',
-    releaseVersion: '',
-    environment: 'LOCAL',
-    databaseInstance: 'erp_codex_runtime',
-    redisInstance: '',
-    dockerProfile: 'local',
-    generateDefaultItems: true,
-    recordPreflightEvidence: true,
-    remark: ''
-  })
-}
-
-const resetItemForm = () => {
-  itemFormRef.value?.clearValidate()
-  Object.assign(itemForm, { itemCode: '', itemName: '', category: '', priority: 'P1', expectedResult: '' })
-}
-
-const resetEvidenceForm = () => {
-  evidenceFormRef.value?.clearValidate()
-  Object.assign(evidenceForm, {
-    evidenceType: 'NOTE',
-    requestMethod: '',
-    requestUri: '',
-    httpStatus: undefined,
-    businessType: '',
-    businessId: '',
-    businessNo: '',
-    summary: '',
-    detail: '',
-    attachmentBusinessType: '',
-    attachmentBusinessId: ''
-  })
-}
-
-const resetResultForm = () => {
-  resultFormRef.value?.clearValidate()
-  Object.assign(resultForm, { status: 'PASSED', actualResult: '', failureReason: '' })
-}
-
-const resetDecisionForm = () => {
-  decisionFormRef.value?.clearValidate()
-  Object.assign(decisionForm, { decision: 'GO', status: 'PASSED', decisionComment: '' })
-}
-
-const isRunClosed = (run: ReadinessRun) => ['PASSED', 'FAILED', 'BLOCKED', 'NO_GO'].includes(run.status)
-
-const preflightStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    PASS: t('systemReadiness.statuses.passed'),
-    WARN: t('systemReadiness.statuses.warning'),
-    FAIL: t('systemReadiness.statuses.failed')
-  }
-  return map[status] || status || t('systemReadiness.statuses.unchecked')
-}
-
-const runStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    DRAFT: t('systemReadiness.statuses.draft'),
-    IN_PROGRESS: t('systemReadiness.statuses.inProgress'),
-    PASSED: t('systemReadiness.statuses.passed'),
-    FAILED: t('systemReadiness.statuses.failed'),
-    BLOCKED: t('systemReadiness.statuses.blocked'),
-    NO_GO: t('systemReadiness.statuses.noGo')
-  }
-  return map[status] || status
-}
-
-const itemStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    PENDING: t('systemReadiness.statuses.pending'),
-    PASSED: t('systemReadiness.statuses.passed'),
-    FAILED: t('systemReadiness.statuses.failed'),
-    BLOCKED: t('systemReadiness.statuses.blocked'),
-    SKIPPED: t('systemReadiness.statuses.skipped')
-  }
-  return map[status] || status
-}
-
-const decisionLabel = (decision: string) => {
-  const map: Record<string, string> = {
-    PENDING: t('systemReadiness.decisions.pending'),
-    GO: t('systemReadiness.decisions.go'),
-    NO_GO: t('systemReadiness.decisions.noGo')
-  }
-  return map[decision] || decision
-}
-
-const preflightTagType = (status: string) => {
-  if (status === 'PASS') return 'success'
-  if (status === 'FAIL') return 'danger'
-  if (status === 'WARN') return 'warning'
-  return 'info'
-}
-
-const runStatusTagType = (status: string) => {
-  if (status === 'PASSED') return 'success'
-  if (status === 'FAILED' || status === 'NO_GO') return 'danger'
-  if (status === 'BLOCKED') return 'warning'
-  if (status === 'IN_PROGRESS') return 'primary'
-  return 'info'
-}
-
-const itemStatusTagType = (status: string) => {
-  if (status === 'PASSED') return 'success'
-  if (status === 'FAILED') return 'danger'
-  if (status === 'BLOCKED') return 'warning'
-  if (status === 'SKIPPED') return 'info'
-  return 'primary'
-}
-
-const decisionTagType = (decision: string) => {
-  if (decision === 'GO') return 'success'
-  if (decision === 'NO_GO') return 'danger'
-  return 'info'
-}
-
-const priorityTagType = (priority: string) => {
-  if (priority === 'P0') return 'danger'
-  if (priority === 'P1') return 'warning'
-  return 'info'
-}
-
-const sampleText = (sample?: string[]) => {
-  if (!sample || sample.length === 0) return '-'
-  return sample.join(t('systemReadiness.listSeparator'))
 }
 
 onMounted(() => {

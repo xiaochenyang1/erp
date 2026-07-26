@@ -53,7 +53,13 @@ const layoutView = readFileSync(resolve(root, 'src/layout/index.vue'), 'utf8')
 const observabilityApi = readFileSync(resolve(root, 'src/api/observability.ts'), 'utf8')
 const observabilityView = readFileSync(resolve(root, 'src/views/system/observability/index.vue'), 'utf8')
 const readinessApi = readFileSync(resolve(root, 'src/api/readiness.ts'), 'utf8')
-const readinessView = readFileSync(resolve(root, 'src/views/system/readiness/index.vue'), 'utf8')
+// 预生产验收页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const readinessView = [
+  'src/views/system/readiness/index.vue',
+  'src/composables/useReadinessPresentation.ts',
+  'src/composables/useReadinessList.ts',
+  'src/composables/useReadinessForms.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const roleView = readFileSync(resolve(root, 'src/views/system/roles/index.vue'), 'utf8')
 const menuView = readFileSync(resolve(root, 'src/views/system/menus/index.vue'), 'utf8')
 const deptView = readFileSync(resolve(root, 'src/views/system/depts/index.vue'), 'utf8')
