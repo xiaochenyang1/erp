@@ -92,8 +92,8 @@
         :total="pagination.total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleQuery"
-        @current-change="handleQuery"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
         style="margin-top: 20px; justify-content: flex-end"
       />
     </el-card>
@@ -278,7 +278,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, Edit, View, Delete } from '@element-plus/icons-vue'
@@ -287,275 +287,111 @@ import {
   getBOM,
   createBOM,
   updateBOM,
-  type BOM,
-  type BOMItem
+  type BOM
 } from '@/api/production'
-import { getProducts, type Product } from '@/api/masterdata'
+import { getProducts } from '@/api/masterdata'
 import { formatLocalizedDateTime } from '@/utils/locale'
 import { printProductionBom } from '@/utils/bizPrint'
+import { useProductionBomPresentation } from '@/composables/useProductionBomPresentation'
+import { useProductionBomList } from '@/composables/useProductionBomList'
+import { useProductionBomForm } from '@/composables/useProductionBomForm'
 
 const { t } = useI18n()
 
-// 查询表单
-const queryForm = reactive({
-  bomCode: '',
-  productId: undefined as string | number | undefined,
-  status: ''
-})
-
-// 表格数据
-const loading = ref(false)
-const tableData = ref<BOM[]>([])
-
-// 分页
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-// 产品选项
-const productOptions = ref<Product[]>([])
-
-// 对话框
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
-const formData = reactive({
-  id: undefined as string | number | undefined,
-  productId: undefined as string | number | undefined,
-  baseQty: 1,
-  items: [] as BOMItem[],
-  remark: ''
+
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
+}
+
+const {
+  handlePageChange,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  handleView,
+  loadData,
+  loadProducts,
+  loading,
+  pagination,
+  productOptions,
+  queryForm,
+  tableData,
+  viewData,
+  viewDialogVisible
+} = useProductionBomList(t, {
+  getBOMs,
+  getBOM,
+  getProducts,
+  printBOM: printProductionBom,
+  decoratePrint: (detail) => ({
+    ...detail,
+    productCode: productById(detail.productId)?.productCode || productById(detail.productId)?.code,
+    productName: productLabelById(detail.productId),
+    items: (detail.items || []).map((item) => ({
+      ...item,
+      materialCode: item.materialCode
+        || productById(item.materialId ?? item.materialProductId)?.productCode
+        || productById(item.materialId ?? item.materialProductId)?.code,
+      materialName: item.materialName
+        || productById(item.materialId ?? item.materialProductId)?.productName
+        || productById(item.materialId ?? item.materialProductId)?.name,
+      unit: materialUnit(item)
+    }))
+  } as BOM),
+  onError: notify.onError
 })
 
-// 表单验证规则
+const {
+  getStatusLabel,
+  getStatusType,
+  materialLabel,
+  materialUnit,
+  productById,
+  productLabel,
+  productLabelById
+} = useProductionBomPresentation(t, productOptions)
+
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleAdd,
+  handleAddItem,
+  handleDeleteItem,
+  handleEdit,
+  handleMaterialChange,
+  handleSubmit: submit,
+  resetForm,
+  submitLoading
+} = useProductionBomForm(t, {
+  getBOM,
+  createBOM,
+  updateBOM,
+  getProducts: () => productOptions.value,
+  onSubmitted: loadData,
+  ...notify
+})
+
 const formRules = computed<FormRules>(() => ({
   productId: [{ required: true, message: t('productionBom.validation.product'), trigger: 'change' }],
   baseQty: [{ required: true, message: t('productionBom.validation.baseQuantity'), trigger: 'blur' }]
 }))
 
-// 查看对话框
-const viewDialogVisible = ref(false)
-const viewData = ref<BOM>({} as BOM)
-
-// 加载产品选项
-const loadProducts = async () => {
-  try {
-    const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-    const res = await getProducts(optionPageQuery)
-    productOptions.value = res.records || []
-  } catch (error) {
-    console.error(t('productionBom.message.productsLoadFailed'), error)
-  }
-}
-
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const params = {
-      ...queryForm,
-      pageNo: pagination.page,
-      pageSize: pagination.size
-    }
-    const res = await getBOMs(params)
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    console.error(t('productionBom.message.listLoadFailed'), error)
-    ElMessage.error(t('productionBom.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  queryForm.bomCode = ''
-  queryForm.productId = undefined
-  queryForm.status = ''
-  pagination.page = 1
-  loadData()
-}
-
-// 新增
-const handleAdd = () => {
-  dialogTitle.value = t('productionBom.dialog.create')
-  dialogVisible.value = true
-}
-
-// 编辑
-const handleEdit = async (row: BOM) => {
-  dialogTitle.value = t('productionBom.dialog.edit')
-  try {
-    const res = await getBOM(row.id)
-    Object.assign(formData, {
-      id: res.id,
-      productId: res.productId,
-      baseQty: res.baseQty,
-      items: res.items || [],
-      remark: res.remark
-    })
-    dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('productionBom.message.detailLoadFailed'))
-  }
-}
-
-// 查看
-const handleView = async (row: BOM) => {
-  try {
-    const res = await getBOM(row.id)
-    viewData.value = res
-    viewDialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('productionBom.message.detailLoadFailed'))
-  }
-}
-
-const handlePrint = async (row: BOM) => {
-  try {
-    const detail = await getBOM(row.id)
-    printProductionBom({
-      ...detail,
-      productCode: productById(detail.productId)?.productCode || productById(detail.productId)?.code,
-      productName: productLabelById(detail.productId),
-      items: (detail.items || []).map((item) => ({
-        ...item,
-        materialCode: item.materialCode || productById(item.materialId ?? item.materialProductId)?.productCode,
-        materialName: item.materialName || productById(item.materialId ?? item.materialProductId)?.productName,
-        unit: materialUnit(item)
-      }))
-    })
-  } catch {
-    ElMessage.error(t('productionBom.message.printLoadFailed'))
-  }
-}
-
-// 物料变化
-const handleMaterialChange = (materialId: string | number, row: BOMItem) => {
-  const material = productOptions.value.find((p) => String(p.id) === String(materialId))
-  if (material) {
-    row.materialCode = material.productCode
-    row.materialName = material.productName
-    row.unit = material.unitName || ''
-  }
-}
-
-// 添加物料
-const handleAddItem = () => {
-  formData.items.push({
-    materialId: '',
-    materialCode: '',
-    materialName: '',
-    quantity: 1,
-    unit: '',
-    scrapRate: 0,
-    remark: ''
-  })
-}
-
-// 删除物料
-const handleDeleteItem = (index: number) => {
-  formData.items.splice(index, 1)
-}
-
-// 提交
 const handleSubmit = async () => {
   if (!formRef.value) return
-
-  if (formData.items.length === 0) {
-    ElMessage.warning(t('productionBom.validation.materials'))
-    return
-  }
-
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-
-    submitLoading.value = true
-    try {
-      if (formData.id) {
-        await updateBOM(formData.id, formData)
-        ElMessage.success(t('productionBom.message.updated'))
-      } else {
-        await createBOM(formData)
-        ElMessage.success(t('productionBom.message.created'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch (error) {
-      ElMessage.error(t('productionBom.message.actionFailed'))
-    } finally {
-      submitLoading.value = false
-    }
+    await submit()
   })
 }
 
-// 对话框关闭
 const handleDialogClose = () => {
   formRef.value?.resetFields()
-  Object.assign(formData, {
-    id: undefined,
-    productId: undefined,
-    baseQty: 1,
-    items: [],
-    remark: ''
-  })
-}
-
-const productLabel = (product: Product) => {
-  const code = product.productCode || product.code || ''
-  const name = product.productName || product.name || ''
-  return code && name ? `${code} - ${name}` : name || code || t('productionBom.productFallback', { id: product.id })
-}
-
-const productById = (id?: string | number) => {
-  if (id == null || id === '') return undefined
-  return productOptions.value.find((product) => String(product.id) === String(id))
-}
-
-const productLabelById = (id?: string | number) => {
-  const product = productById(id)
-  return product ? productLabel(product) : id || '-'
-}
-
-const materialLabel = (row: BOMItem) => {
-  const product = productById(row.materialId ?? row.materialProductId)
-  if (product) return productLabel(product)
-  const code = row.materialCode || ''
-  const name = row.materialName || ''
-  return code && name ? `${code} - ${name}` : name || code || row.materialId || '-'
-}
-
-const materialUnit = (row: BOMItem) => {
-  const product = productById(row.materialId ?? row.materialProductId)
-  return product?.unitName || product?.unit || row.unit || ''
-}
-
-// 获取状态标签
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    ACTIVE: t('productionBom.status.active'),
-    DISABLED: t('productionBom.status.disabled')
-  }
-  return map[status] || status
-}
-
-// 获取状态类型
-const getStatusType = (status: string) => {
-  const map: Record<string, any> = {
-    ACTIVE: 'success',
-    DISABLED: 'danger'
-  }
-  return map[status] || ''
+  resetForm()
 }
 
 onMounted(() => {

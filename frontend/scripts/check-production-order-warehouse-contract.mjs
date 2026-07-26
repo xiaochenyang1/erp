@@ -5,7 +5,13 @@ import { interfaceIncludes } from './check-contract-utils.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const orderView = readFileSync(resolve(root, 'src/views/production/orders/index.vue'), 'utf8')
-const bomView = readFileSync(resolve(root, 'src/views/production/boms/index.vue'), 'utf8')
+// BOM 页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const bomView = [
+  'src/views/production/boms/index.vue',
+  'src/composables/useProductionBomPresentation.ts',
+  'src/composables/useProductionBomList.ts',
+  'src/composables/useProductionBomForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const productionApi = readFileSync(resolve(root, 'src/api/production.ts'), 'utf8')
 const inventoryApi = readFileSync(resolve(root, 'src/api/inventory.ts'), 'utf8')
 const authApi = readFileSync(resolve(root, 'src/api/auth.ts'), 'utf8')
