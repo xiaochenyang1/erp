@@ -164,7 +164,7 @@ export const operationsPageMessages = {
         lotNo: '请输入批次号'},
       status: { counted: '已盘点', adjusted: '已调整', cancelled: '已取消' },
       action: {
-        search: '查询', reset: '重置', create: '新增盘点', view: '查看', edit: '编辑',
+        search: '查询', reset: '重置', create: '新增盘点', view: '查看', print: '打印', edit: '编辑',
         adjust: '调整库存', cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
       },
       validation: {
@@ -178,6 +178,7 @@ export const operationsPageMessages = {
       message: {
         loadFailed: '加载数据失败', warehousesLoadFailed: '加载仓库列表失败',
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
+        printLoadFailed: '加载打印数据失败',
         stockLoadFailed: '加载库存数据失败', adjustConfirm: '确认根据此盘点单调整库存吗？',
         cancelConfirm: '确认取消此库存盘点吗？', success: '操作成功', failed: '操作失败'
       },
@@ -645,7 +646,7 @@ export const operationsPageMessages = {
         lotNo: 'Enter a lot no.'},
       status: { counted: 'Counted', adjusted: 'Adjusted', cancelled: 'Cancelled' },
       action: {
-        search: 'Search', reset: 'Reset', create: 'New stock count', view: 'View', edit: 'Edit',
+        search: 'Search', reset: 'Reset', create: 'New stock count', view: 'View', print: 'Print', edit: 'Edit',
         adjust: 'Adjust stock', cancel: 'Cancel', addProduct: 'Add product', delete: 'Delete', confirm: 'Confirm'
       },
       validation: {
@@ -660,6 +661,7 @@ export const operationsPageMessages = {
       message: {
         loadFailed: 'Failed to load data', warehousesLoadFailed: 'Failed to load warehouses',
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
+        printLoadFailed: 'Failed to load print data',
         stockLoadFailed: 'Failed to load stock data',
         adjustConfirm: 'Adjust inventory from this stock count?',
         cancelConfirm: 'Cancel this stock count?', success: 'Operation successful', failed: 'Operation failed'

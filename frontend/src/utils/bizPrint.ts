@@ -299,3 +299,34 @@ export function printInventoryTransfer(doc: any) {
   })
   printHtml(`库存调拨单 ${doc.transferNo}`, html)
 }
+
+export function printInventoryCheck(doc: any) {
+  const lines = doc.items || doc.lines || []
+  const html = buildDocPrintHtml({
+    title: '库存盘点单',
+    docNo: doc.checkNo,
+    fields: [
+      ['仓库', doc.warehouseName || doc.warehouseId || '-'],
+      ['盘点日期', doc.checkDate || '-'],
+      ['状态', doc.status || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '账面', '实盘', '差异', '备注'],
+    rows: lines.map((line: any, index: number) => {
+      const bookQty = Number(line.bookQuantity ?? line.bookQty ?? 0)
+      const actualQty = Number(line.actualQuantity ?? line.actualQty ?? line.quantity ?? line.qty ?? 0)
+      const diff = Number(line.difference ?? actualQty - bookQty)
+      return [
+        String(index + 1),
+        escapeHtml(line.productCode || line.productId || ''),
+        escapeHtml(line.productName || ''),
+        qty(bookQty),
+        qty(actualQty),
+        qty(diff),
+        escapeHtml(line.remark || line.lotNo || '')
+      ]
+    }),
+    totals: [['明细行数', String(lines.length)]]
+  })
+  printHtml(`库存盘点单 ${doc.checkNo}`, html)
+}

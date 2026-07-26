@@ -92,10 +92,13 @@
         <el-table-column prop="remark" :label="$t('inventoryChecks.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="$t('inventoryChecks.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="$t('inventoryChecks.createdTime')" width="160" />
-        <el-table-column :label="$t('inventoryChecks.actions')" width="250" fixed="right">
+        <el-table-column :label="$t('inventoryChecks.actions')" width="300" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
               {{ $t('inventoryChecks.action.view') }}
+            </el-button>
+            <el-button link type="primary" @click="handlePrint(row)">
+              {{ $t('inventoryChecks.action.print') }}
             </el-button>
             <el-button
               v-if="row.status === 'COUNTED'"
@@ -385,6 +388,7 @@ import { getLocations, getWarehouses, type Location, type Product, type Warehous
 import { getProducts } from '@/api/masterdata'
 import { getInventoryStocks, type InventoryStockQuery } from '@/api/inventory'
 import { formatBusinessDate } from '@/utils/locale'
+import { printInventoryCheck } from '@/utils/bizPrint'
 import {
   hydrateProductLineLabels,
   serialCaptureProgress,
@@ -561,6 +565,15 @@ const handleView = async (row: InventoryCheck) => {
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('inventoryChecks.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: InventoryCheck) => {
+  try {
+    const detail = await getInventoryCheck(row.id)
+    printInventoryCheck(detail)
+  } catch {
+    ElMessage.error(t('inventoryChecks.message.printLoadFailed'))
   }
 }
 
