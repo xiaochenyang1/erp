@@ -166,8 +166,13 @@ export const operationsPageMessages = {
         adjust: '调整库存', cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
       },
       validation: {
-        warehouse: '请选择仓库', checkDate: '请选择盘点日期', itemRequired: '请至少添加一条盘点明细'
+        warehouse: '请选择仓库', checkDate: '请选择盘点日期', itemRequired: '请至少添加一条盘点明细',
+        lotRequired: '第 {line} 行（{product}）启用批次管理，请填写批次号',
+        expiryRequired: '第 {line} 行（{product}）启用效期管理，请填写失效日期',
+        serialRequired: '第 {line} 行（{product}）启用序列号管理，请录入序列号',
+        serialCountMismatch: '第 {line} 行（{product}）序列号数量应为 {expected}，当前 {actual}'
       },
+      serialProgress: '已录 {count}/{expected}',
       message: {
         loadFailed: '加载数据失败', warehousesLoadFailed: '加载仓库列表失败',
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
@@ -640,8 +645,13 @@ export const operationsPageMessages = {
       },
       validation: {
         warehouse: 'Select a warehouse', checkDate: 'Select a count date',
-        itemRequired: 'Add at least one stock count line'
+        itemRequired: 'Add at least one stock count line',
+        lotRequired: 'Line {line} ({product}) is lot-controlled; enter a lot no.',
+        expiryRequired: 'Line {line} ({product}) is shelf-life controlled; enter an expiry date',
+        serialRequired: 'Line {line} ({product}) is serial-controlled; enter serial nos.',
+        serialCountMismatch: 'Line {line} ({product}) expects {expected} serials, got {actual}'
       },
+      serialProgress: '{count}/{expected} captured',
       message: {
         loadFailed: 'Failed to load data', warehousesLoadFailed: 'Failed to load warehouses',
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',

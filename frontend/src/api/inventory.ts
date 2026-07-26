@@ -640,6 +640,9 @@ export interface InventoryCheckItem {
   productionDate?: string
   expiryDate?: string
   serialNos?: string
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  serialControlled?: boolean
   remark?: string
 }
 

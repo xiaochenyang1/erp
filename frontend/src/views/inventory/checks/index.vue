@@ -250,26 +250,59 @@
           </el-table-column>
           <el-table-column :label="$t('inventoryChecks.lotNo')" width="130">
             <template #default="{ row }">
-              <el-input v-model="row.lotNo" :placeholder="$t('inventoryChecks.placeholder.lotNo')" :disabled="isView" />
+              <el-input
+                v-model="row.lotNo"
+                :placeholder="row.lotControlled
+                  ? $t('inventoryChecks.placeholder.lotNo')
+                  : $t('inventoryChecks.placeholder.remark')"
+                :disabled="isView || row.lotControlled === false"
+              />
             </template>
           </el-table-column>
-          <el-table-column :label="$t('inventoryChecks.serialNos')" min-width="180">
+          <el-table-column :label="$t('inventoryChecks.serialNos')" min-width="220">
             <template #default="{ row }">
               <el-input
                 v-model="row.serialNos"
-                :placeholder="$t('inventoryChecks.placeholder.serialNos')"
-                :disabled="isView"
+                type="textarea"
+                :rows="row.serialControlled ? 2 : 1"
+                :placeholder="row.serialControlled
+                  ? $t('inventoryChecks.placeholder.serialNos')
+                  : $t('inventoryChecks.placeholder.remark')"
+                :disabled="isView || row.serialControlled === false"
               />
+              <div
+                v-if="row.serialControlled"
+                class="serial-progress"
+                :class="{ 'serial-progress--ok': serialCaptureProgress(row.serialNos, row.actualQuantity).complete }"
+              >
+                {{ $t('inventoryChecks.serialProgress', serialCaptureProgress(row.serialNos, row.actualQuantity)) }}
+              </div>
             </template>
           </el-table-column>
           <el-table-column :label="$t('inventoryChecks.productionDate')" width="150">
             <template #default="{ row }">
-              <el-date-picker v-model="row.productionDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('inventoryChecks.placeholder.productionDate')" :disabled="isView" style="width: 100%" />
+              <el-date-picker
+                v-model="row.productionDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :placeholder="$t('inventoryChecks.placeholder.productionDate')"
+                :disabled="isView || row.lotControlled === false"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="$t('inventoryChecks.expiryDate')" width="150">
             <template #default="{ row }">
-              <el-date-picker v-model="row.expiryDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('inventoryChecks.placeholder.expiryDate')" :disabled="isView" style="width: 100%" />
+              <el-date-picker
+                v-model="row.expiryDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :placeholder="row.shelfLifeControlled
+                  ? $t('inventoryChecks.placeholder.expiryDate')
+                  : $t('inventoryChecks.placeholder.remark')"
+                :disabled="isView || (row.shelfLifeControlled === false && row.lotControlled === false)"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
 
@@ -352,6 +385,11 @@ import { getLocations, getWarehouses, type Location, type Product, type Warehous
 import { getProducts } from '@/api/masterdata'
 import { getInventoryStocks, type InventoryStockQuery } from '@/api/inventory'
 import { formatBusinessDate } from '@/utils/locale'
+import {
+  hydrateProductLineLabels,
+  serialCaptureProgress,
+  validateProductControlLines
+} from '@/utils/productLines'
 
 const { t } = useI18n()
 
@@ -498,6 +536,10 @@ const handleEdit = async (row: InventoryCheck) => {
   try {
     const data = await getInventoryCheck(row.id)
     Object.assign(formData, data)
+    formData.items = await hydrateProductLineLabels(formData.items || [], async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('inventoryChecks.message.detailLoadFailed'))
@@ -512,6 +554,10 @@ const handleView = async (row: InventoryCheck) => {
   try {
     const data = await getInventoryCheck(row.id)
     Object.assign(formData, data)
+    formData.items = await hydrateProductLineLabels(formData.items || [], async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('inventoryChecks.message.detailLoadFailed'))
@@ -567,20 +613,26 @@ const handleWarehouseChange = async () => {
     const response = await getInventoryStocks(stockQuery)
 
     // 自动填充盘点明细
-    formData.items = response.records.map(stock => ({
+    formData.items = await hydrateProductLineLabels(response.records.map(stock => ({
       productId: stock.productId,
       productCode: stock.productCode,
       productName: stock.productName,
       locationId: stock.locationId ?? undefined,
-      lotNo: stock.lotNo || '',
-      productionDate: stock.productionDate || '',
-      expiryDate: stock.expiryDate || '',
+      lotNo: '',
+      productionDate: '',
+      expiryDate: '',
       serialNos: '',
+      lotControlled: undefined,
+      shelfLifeControlled: undefined,
+      serialControlled: undefined,
       bookQuantity: stock.quantity,
       actualQuantity: undefined,
       difference: undefined,
       remark: ''
-    }))
+    })), async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
   } catch (error) {
     ElMessage.error(t('inventoryChecks.message.stockLoadFailed'))
   }
@@ -597,6 +649,9 @@ const handleAddItem = () => {
     productionDate: '',
     expiryDate: '',
     serialNos: '',
+    lotControlled: undefined,
+    shelfLifeControlled: undefined,
+    serialControlled: undefined,
     bookQuantity: 0,
     actualQuantity: undefined,
     difference: undefined,
@@ -610,13 +665,20 @@ const handleDeleteItem = (index: number) => {
 }
 
 // 产品变化
-const handleProductChange = (index: number) => {
+const handleProductChange = async (index: number) => {
   const item = formData.items[index]
-  const product = products.value.find(p => p.id === item.productId)
+  const product = products.value.find(p => String(p.id) === String(item.productId))
   if (product) {
     item.productCode = product.code || product.productCode
     item.productName = product.name || product.productName
     item.bookQuantity = 0 // 需要从库存查询实际账面数量
+    item.lotControlled = Boolean(product.lotControlled)
+    item.shelfLifeControlled = Boolean(product.shelfLifeControlled)
+    item.serialControlled = Boolean(product.serialControlled)
+  }
+  if (item.productId) {
+    const [hydrated] = await hydrateProductLineLabels([item], async () => product || {})
+    Object.assign(item, hydrated)
   }
 }
 
@@ -648,6 +710,26 @@ const handleSubmit = async () => {
     if (valid) {
       if (formData.items.length === 0) {
         ElMessage.warning(t('inventoryChecks.validation.itemRequired'))
+        return
+      }
+
+      formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
+        const product = products.value.find((item) => String(item.id) === String(productId))
+        return product || {}
+      })
+      const controlIssues = validateProductControlLines(formData.items.map((item) => ({
+        ...item,
+        quantity: item.actualQuantity
+      })))
+      if (controlIssues.length > 0) {
+        const issue = controlIssues[0]
+        const product = issue.productCode || issue.productName || String(issue.productId)
+        ElMessage.warning(t(`inventoryChecks.validation.${issue.messageKey}`, {
+          line: issue.index + 1,
+          product,
+          expected: issue.expectedSerialCount,
+          actual: issue.actualSerialCount
+        }))
         return
       }
 
