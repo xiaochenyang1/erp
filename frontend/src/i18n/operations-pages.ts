@@ -46,7 +46,7 @@ export const operationsPageMessages = {
       type: { gain: '盘盈', loss: '盘亏', other: '其他' },
       status: { draft: '草稿', completed: '已完成', cancelled: '已取消' },
       action: {
-        search: '查询', reset: '重置', create: '新增调整', view: '查看', post: '过账',
+        search: '查询', reset: '重置', create: '新增调整', view: '查看', print: '打印', post: '过账',
         cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
       },
       validation: {
@@ -61,6 +61,7 @@ export const operationsPageMessages = {
       message: {
         loadFailed: '加载数据失败', warehousesLoadFailed: '加载仓库列表失败',
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
+        printLoadFailed: '加载打印数据失败',
         postConfirm: '确认过账此库存调整吗？', cancelConfirm: '确认取消此库存调整吗？',
         success: '操作成功', failed: '操作失败'
       },
@@ -104,7 +105,7 @@ export const operationsPageMessages = {
         lotNo: '请输入批次号'},
       status: { draft: '草稿', completed: '已完成', cancelled: '已取消' },
       action: {
-        search: '查询', reset: '重置', create: '新增调拨', view: '查看', post: '过账',
+        search: '查询', reset: '重置', create: '新增调拨', view: '查看', print: '打印', post: '过账',
         cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
       },
       validation: {
@@ -120,6 +121,7 @@ export const operationsPageMessages = {
       message: {
         loadFailed: '加载数据失败', warehousesLoadFailed: '加载仓库列表失败',
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
+        printLoadFailed: '加载打印数据失败',
         postConfirm: '确认过账此库存调拨吗？', cancelConfirm: '确认取消此库存调拨吗？',
         success: '操作成功', failed: '操作失败'
       },
@@ -525,7 +527,7 @@ export const operationsPageMessages = {
       type: { gain: 'Stock gain', loss: 'Stock loss', other: 'Other' },
       status: { draft: 'Draft', completed: 'Completed', cancelled: 'Cancelled' },
       action: {
-        search: 'Search', reset: 'Reset', create: 'New adjustment', view: 'View', post: 'Post',
+        search: 'Search', reset: 'Reset', create: 'New adjustment', view: 'View', print: 'Print', post: 'Post',
         cancel: 'Cancel', addProduct: 'Add product', delete: 'Delete', confirm: 'Confirm'
       },
       validation: {
@@ -540,6 +542,7 @@ export const operationsPageMessages = {
       message: {
         loadFailed: 'Failed to load data', warehousesLoadFailed: 'Failed to load warehouses',
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
+        printLoadFailed: 'Failed to load print data',
         postConfirm: 'Post this inventory adjustment?', cancelConfirm: 'Cancel this inventory adjustment?',
         success: 'Operation successful', failed: 'Operation failed'
       },
@@ -583,7 +586,7 @@ export const operationsPageMessages = {
         lotNo: 'Enter a lot no.'},
       status: { draft: 'Draft', completed: 'Completed', cancelled: 'Cancelled' },
       action: {
-        search: 'Search', reset: 'Reset', create: 'New transfer', view: 'View', post: 'Post',
+        search: 'Search', reset: 'Reset', create: 'New transfer', view: 'View', print: 'Print', post: 'Post',
         cancel: 'Cancel', addProduct: 'Add product', delete: 'Delete', confirm: 'Confirm'
       },
       validation: {
@@ -599,6 +602,7 @@ export const operationsPageMessages = {
       message: {
         loadFailed: 'Failed to load data', warehousesLoadFailed: 'Failed to load warehouses',
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
+        printLoadFailed: 'Failed to load print data',
         postConfirm: 'Post this inventory transfer?', cancelConfirm: 'Cancel this inventory transfer?',
         success: 'Operation successful', failed: 'Operation failed'
       },

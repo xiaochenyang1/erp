@@ -118,10 +118,13 @@
         <el-table-column prop="remark" :label="$t('inventoryAdjustments.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="$t('inventoryAdjustments.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="$t('inventoryAdjustments.createdTime')" width="160" />
-        <el-table-column :label="$t('inventoryAdjustments.actions')" width="200" fixed="right">
+        <el-table-column :label="$t('inventoryAdjustments.actions')" width="250" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
               {{ $t('inventoryAdjustments.action.view') }}
+            </el-button>
+            <el-button link type="primary" @click="handlePrint(row)">
+              {{ $t('inventoryAdjustments.action.print') }}
             </el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -411,6 +414,7 @@ import {
   serialCaptureProgress,
   validateProductControlLines
 } from '@/utils/productLines'
+import { printInventoryAdjustment } from '@/utils/bizPrint'
 import { formatBusinessDate } from '@/utils/locale'
 
 const { t } = useI18n()
@@ -561,6 +565,15 @@ const handleView = async (row: InventoryAdjustment) => {
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('inventoryAdjustments.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: InventoryAdjustment) => {
+  try {
+    const detail = await getInventoryAdjustment(row.id)
+    printInventoryAdjustment(detail)
+  } catch {
+    ElMessage.error(t('inventoryAdjustments.message.printLoadFailed'))
   }
 }
 

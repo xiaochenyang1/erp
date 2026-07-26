@@ -248,3 +248,54 @@ export function printPurchaseRequisition(doc: any) {
   })
   printHtml(`采购请购单 ${doc.requisitionNo}`, html)
 }
+
+export function printInventoryAdjustment(doc: any) {
+  const lines = doc.items || doc.lines || []
+  const html = buildDocPrintHtml({
+    title: '库存调整单',
+    docNo: doc.adjustmentNo,
+    fields: [
+      ['仓库', doc.warehouseName || doc.warehouseId || '-'],
+      ['调整日期', doc.adjustmentDate || '-'],
+      ['调整类型', doc.type || '-'],
+      ['状态', doc.status || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '数量', '原因', '备注'],
+    rows: lines.map((line: any, index: number) => [
+      String(index + 1),
+      escapeHtml(line.productCode || line.productId || ''),
+      escapeHtml(line.productName || ''),
+      qty(line.quantity ?? line.qty),
+      escapeHtml(line.reason || ''),
+      escapeHtml(line.remark || line.lotNo || '')
+    ]),
+    totals: [['明细行数', String(lines.length)]]
+  })
+  printHtml(`库存调整单 ${doc.adjustmentNo}`, html)
+}
+
+export function printInventoryTransfer(doc: any) {
+  const lines = doc.items || doc.lines || []
+  const html = buildDocPrintHtml({
+    title: '库存调拨单',
+    docNo: doc.transferNo,
+    fields: [
+      ['调出仓库', doc.fromWarehouseName || doc.fromWarehouseId || '-'],
+      ['调入仓库', doc.toWarehouseName || doc.toWarehouseId || '-'],
+      ['调拨日期', doc.transferDate || '-'],
+      ['状态', doc.status || '-'],
+      ['备注', doc.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '数量', '备注'],
+    rows: lines.map((line: any, index: number) => [
+      String(index + 1),
+      escapeHtml(line.productCode || line.productId || ''),
+      escapeHtml(line.productName || ''),
+      qty(line.quantity ?? line.qty),
+      escapeHtml(line.remark || line.lotNo || '')
+    ]),
+    totals: [['明细行数', String(lines.length)]]
+  })
+  printHtml(`库存调拨单 ${doc.transferNo}`, html)
+}
