@@ -840,10 +840,11 @@ import {
   type ProductionOrderMaterial,
   type ProductionOrderOperation
 } from '@/api/production'
-import { getProducts, getWarehouses, getLocations, type Product, type Warehouse, type Location } from '@/api/masterdata'
+import { getProducts, getProduct, getWarehouses, getLocations, type Product, type Warehouse, type Location } from '@/api/masterdata'
 import { getBOMs, type BOM } from '@/api/production'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
 import {
+  hydrateProductLineLabels,
   serialCaptureProgress,
   validateProductControlLines
 } from '@/utils/productLines'
@@ -1034,6 +1035,75 @@ const productControlFromOptions = (productId?: string | number): ProductControlF
   }
 }
 
+const loadProductControlLabels = async (productId: string | number) => {
+  const product = await getProduct(productId)
+  return {
+    productCode: product.code || product.productCode,
+    productName: product.name || product.productName,
+    lotControlled: Boolean(product.lotControlled),
+    shelfLifeControlled: Boolean(product.shelfLifeControlled),
+    serialControlled: Boolean(product.serialControlled)
+  }
+}
+
+const resolveProductControls = async (productId?: string | number): Promise<ProductControlFlags> => {
+  if (productId == null || productId === '') {
+    return productControlFromOptions(productId)
+  }
+  const cached = productControlFromOptions(productId)
+  if (
+    cached.lotControlled !== undefined
+    && cached.shelfLifeControlled !== undefined
+    && cached.serialControlled !== undefined
+  ) {
+    return cached
+  }
+  try {
+    const [hydrated] = await hydrateProductLineLabels(
+      [{
+        productId,
+        productCode: cached.productCode,
+        productName: cached.productName,
+        lotControlled: cached.lotControlled,
+        shelfLifeControlled: cached.shelfLifeControlled,
+        serialControlled: cached.serialControlled
+      }],
+      loadProductControlLabels
+    )
+    return {
+      lotControlled: hydrated.lotControlled,
+      shelfLifeControlled: hydrated.shelfLifeControlled,
+      serialControlled: hydrated.serialControlled,
+      productCode: hydrated.productCode,
+      productName: hydrated.productName
+    }
+  } catch {
+    return cached
+  }
+}
+
+const hydrateMaterialControls = async <T extends {
+  materialProductId?: string | number
+  materialId?: string | number
+  materialCode?: string
+  materialName?: string
+  productCode?: string
+  productName?: string
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  serialControlled?: boolean
+}>(materials: T[]): Promise<T[]> => {
+  return hydrateProductLineLabels(
+    materials.map((material) => ({
+      ...material,
+      productId: material.materialProductId ?? material.materialId as string | number,
+      productCode: material.productCode || material.materialCode,
+      productName: material.productName || material.materialName
+    })),
+    loadProductControlLabels
+  ) as Promise<T[]>
+}
+
 const loadLocationsByWarehouse = async (warehouseId?: string | number) => {
   if (warehouseId == null || warehouseId === '') {
     return [] as Location[]
@@ -1199,30 +1269,27 @@ const handleRelease = async (row: ProductionOrder) => {
 const handleIssue = async (row: ProductionOrder) => {
   try {
     const order = await getProductionOrder(row.id)
-    const issuableMaterials = (order.materials || [])
-      .map((material) => {
-        const remainingQty = Math.max(
-          Number(material.requiredQuantity || 0) - Number(material.issuedQuantity || 0),
-          0
-        )
-        const productId = material.materialProductId ?? material.materialId
-        const controls = productControlFromOptions(productId)
-        return {
-          ...material,
-          remainingQty,
-          issueQty: remainingQty,
-          lotNo: '',
-          locationId: undefined,
-          serialNos: '',
-          remark: '',
-          productCode: controls.productCode || material.materialCode,
-          productName: controls.productName || material.materialName,
-          lotControlled: controls.lotControlled,
-          shelfLifeControlled: controls.shelfLifeControlled,
-          serialControlled: controls.serialControlled
-        } as IssueMaterialRow
-      })
-      .filter((material) => Number(material.remainingQty || 0) > 0)
+    const issuableMaterials = await hydrateMaterialControls(
+      (order.materials || [])
+        .map((material) => {
+          const remainingQty = Math.max(
+            Number(material.requiredQuantity || 0) - Number(material.issuedQuantity || 0),
+            0
+          )
+          return {
+            ...material,
+            remainingQty,
+            issueQty: remainingQty,
+            lotNo: '',
+            locationId: undefined,
+            serialNos: '',
+            remark: '',
+            productCode: material.materialCode,
+            productName: material.materialName
+          } as IssueMaterialRow
+        })
+        .filter((material) => Number(material.remainingQty || 0) > 0)
+    )
 
     if (issuableMaterials.length === 0) {
       ElMessage.warning(t('productionOrder.message.noIssuableMaterials'))
@@ -1297,7 +1364,7 @@ const handleConfirmIssueMaterials = async () => {
 }
 
 // 完工
-const handleComplete = (row: ProductionOrder) => {
+const handleComplete = async (row: ProductionOrder) => {
   completeForm.orderId = row.id
   completeForm.maxQuantity = row.planQuantity - row.completedQuantity
   completeForm.completedQuantity = completeForm.maxQuantity
@@ -1313,6 +1380,7 @@ const handleComplete = (row: ProductionOrder) => {
   Object.assign(completeProductControls, productControlFromOptions(row.productId))
   completeDialogVisible.value = true
   void loadFinishedLocations(row.finishedWarehouseId || row.warehouseId)
+  Object.assign(completeProductControls, await resolveProductControls(row.productId))
 }
 
 const openOperations = async (row: ProductionOrder) => {
@@ -1388,7 +1456,7 @@ const handleConfirmComplete = async () => {
     return
   }
 
-  Object.assign(completeProductControls, productControlFromOptions(completeProductId.value))
+  Object.assign(completeProductControls, await resolveProductControls(completeProductId.value))
   const controlIssues = validateProductControlLines([{
     productId: completeProductId.value || completeForm.orderId,
     productCode: completeProductControls.productCode,
@@ -1480,25 +1548,20 @@ const handleConfirmReverseCompletion = async () => {
 const handleReturnMaterials = async (row: ProductionOrder) => {
   try {
     const order = await getProductionOrder(row.id)
-    const returnableMaterials = (order.materials || [])
-      .filter(material => Number(material.issuedQuantity || 0) > 0)
-      .map(material => {
-        const productId = material.materialProductId ?? material.materialId
-        const controls = productControlFromOptions(productId)
-        return {
+    const returnableMaterials = await hydrateMaterialControls(
+      (order.materials || [])
+        .filter(material => Number(material.issuedQuantity || 0) > 0)
+        .map(material => ({
           ...material,
           returnQty: 0,
           lotNo: '',
           locationId: undefined,
           serialNos: '',
           remark: '',
-          productCode: controls.productCode || material.materialCode,
-          productName: controls.productName || material.materialName,
-          lotControlled: controls.lotControlled,
-          shelfLifeControlled: controls.shelfLifeControlled,
-          serialControlled: controls.serialControlled
-        } as ReturnMaterialRow
-      })
+          productCode: material.materialCode,
+          productName: material.materialName
+        } as ReturnMaterialRow))
+    )
 
     if (returnableMaterials.length === 0) {
       ElMessage.warning(t('productionOrder.message.noReturnableMaterials'))
