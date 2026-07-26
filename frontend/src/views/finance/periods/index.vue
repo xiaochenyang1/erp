@@ -532,10 +532,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Calendar,
   CircleCheck,
@@ -556,451 +555,89 @@ import {
   getInventoryFinanceDifferences,
   getInventoryFinanceReconciliation,
   lockAccountPeriod,
-  reopenAccountPeriod as unlockAccountPeriod,
-  type AccountPeriod,
-  type AccountPeriodCloseCheck,
-  type InventoryFinanceDifference,
-  type InventoryFinanceDifferenceDetail,
-  type InventoryFinanceReconciliation
+  reopenAccountPeriod as unlockAccountPeriod
 } from '@/api/finance'
+import { useFinancePeriodPresentation } from '@/composables/useFinancePeriodPresentation'
+import { useFinancePeriodActions } from '@/composables/useFinancePeriodActions'
 
 const { t } = useI18n()
-const currentYear = new Date().getFullYear()
-const queryYear = ref(currentYear)
-const loading = ref(false)
-const generateLoading = ref(false)
-const tableData = ref<AccountPeriod[]>([])
 
-const closeCheckVisible = ref(false)
-const closeCheckLoading = ref(false)
-const closeCheckResult = ref<AccountPeriodCloseCheck>()
+const {
+  differenceTypeOptions,
+  formatAmount,
+  formatDateTime,
+  formatMonth,
+  formatQty,
+  getDifferenceTypeLabel,
+  getDifferenceTypeTag,
+  getIssueSeverity,
+  getIssueTypeLabel,
+  getSourceTypeLabel,
+  getStatusLabel,
+  getStatusType,
+  useStatusSummary
+} = useFinancePeriodPresentation(t)
 
-const wizardVisible = ref(false)
-const wizardLoading = ref(false)
-const wizardActionLoading = ref(false)
-const wizardStep = ref(0)
-const wizardPeriod = ref<AccountPeriod>()
-const wizardCheck = ref<AccountPeriodCloseCheck>()
-
-const reconciliationVisible = ref(false)
-const reconciliationLoading = ref(false)
-const differenceLoading = ref(false)
-const reconciliationResult = ref<InventoryFinanceReconciliation>()
-const differences = ref<InventoryFinanceDifference[]>([])
-const differenceType = ref('')
-const activePeriod = ref<AccountPeriod>()
-const differenceDetailVisible = ref(false)
-const differenceDetailLoading = ref(false)
-const differenceDetail = ref<InventoryFinanceDifferenceDetail>()
-
-const differenceTypeOptions = computed(() => [
-  { label: t('financeReportPages.periods.difference.inventoryOnly'), value: 'INVENTORY_ONLY' },
-  { label: t('financeReportPages.periods.difference.financeOnly'), value: 'FINANCE_ONLY' },
-  { label: t('financeReportPages.periods.difference.amountMismatch'), value: 'AMOUNT_MISMATCH' }
-])
-
-const statusSummary = computed(() => {
-  const count = (status: string) => tableData.value.filter(item => item.status === status).length
-  return [
-    { key: 'open', label: t('financeReportPages.periods.statusSummary.open'), value: count('OPEN') },
-    { key: 'locked', label: t('financeReportPages.periods.statusSummary.locked'), value: count('LOCKED') },
-    { key: 'closed', label: t('financeReportPages.periods.statusSummary.closed'), value: count('CLOSED') },
-    { key: 'total', label: t('financeReportPages.periods.statusSummary.total'), value: tableData.value.length }
-  ]
+const {
+  activePeriod,
+  closeCheckLoading,
+  closeCheckResult,
+  closeCheckVisible,
+  differenceDetail,
+  differenceDetailLoading,
+  differenceDetailVisible,
+  differenceLoading,
+  differences,
+  differenceType,
+  generateLoading,
+  handleCheck,
+  handleClose,
+  handleGenerate,
+  handleLock,
+  handleReset,
+  handleUnlock,
+  loadData,
+  loadDifferences,
+  loadReconciliation,
+  loading,
+  nextWizardStep,
+  openDifferenceDetail,
+  openReconciliation,
+  openWizard,
+  queryYear,
+  reconciliationLoading,
+  reconciliationResult,
+  reconciliationVisible,
+  runWizardCheck,
+  tableData,
+  wizardActionLoading,
+  wizardActionSubtitle,
+  wizardActionTitle,
+  wizardCheck,
+  wizardClose,
+  wizardLoading,
+  wizardLock,
+  wizardPeriod,
+  wizardStep,
+  wizardUnlock,
+  wizardVisible
+} = useFinancePeriodActions(t, {
+  getPeriods: getAccountPeriods,
+  generatePeriods: generateAccountPeriods,
+  checkClose: checkAccountPeriodClose,
+  lockPeriod: lockAccountPeriod,
+  closePeriod: closeAccountPeriod,
+  unlockPeriod: unlockAccountPeriod,
+  getReconciliation: getInventoryFinanceReconciliation,
+  getDifferences: getInventoryFinanceDifferences,
+  getDifferenceDetail: getInventoryFinanceDifferenceDetail,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const periods = await getAccountPeriods(queryYear.value)
-    tableData.value = periods || []
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.periods.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleReset = () => {
-  queryYear.value = currentYear
-  loadData()
-}
-
-const handleGenerate = async () => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.periods.message.generateConfirm', { year: queryYear.value }),
-      t('financeReportPages.periods.message.generateTitle'),
-      { type: 'warning' }
-    )
-    generateLoading.value = true
-    const periods = await generateAccountPeriods(queryYear.value)
-    tableData.value = periods || []
-    ElMessage.success(t('financeReportPages.periods.message.generated'))
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('financeReportPages.periods.message.generateFailed'))
-    }
-  } finally {
-    generateLoading.value = false
-  }
-}
-
-const handleCheck = async (row: AccountPeriod) => {
-  activePeriod.value = row
-  closeCheckVisible.value = true
-  closeCheckLoading.value = true
-  closeCheckResult.value = undefined
-  try {
-    closeCheckResult.value = await checkAccountPeriodClose(row.id)
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.periods.message.checkFailed'))
-  } finally {
-    closeCheckLoading.value = false
-  }
-}
-
-const openWizard = async (row: AccountPeriod) => {
-  wizardPeriod.value = row
-  wizardStep.value = 0
-  wizardCheck.value = undefined
-  wizardVisible.value = true
-}
-
-const runWizardCheck = async () => {
-  if (!wizardPeriod.value) return
-  wizardLoading.value = true
-  try {
-    wizardCheck.value = await checkAccountPeriodClose(wizardPeriod.value.id)
-  } catch {
-    ElMessage.error(t('financeReportPages.periods.message.checkFailed'))
-  } finally {
-    wizardLoading.value = false
-  }
-}
-
-const nextWizardStep = async () => {
-  if (wizardStep.value === 0) {
-    wizardStep.value = 1
-    await runWizardCheck()
-    return
-  }
-  if (wizardStep.value === 1) {
-    wizardStep.value = 2
-  }
-}
-
-const wizardActionTitle = computed(() => {
-  if (wizardPeriod.value?.status === 'CLOSED') return t('financeReportPages.periods.wizardAction.closed')
-  if (wizardPeriod.value?.status === 'LOCKED') return t('financeReportPages.periods.wizardAction.locked')
-  if (wizardCheck.value?.passed) return t('financeReportPages.periods.wizardAction.ready')
-  return t('financeReportPages.periods.wizardAction.blocked')
-})
-
-const wizardActionSubtitle = computed(() => {
-  if (!wizardPeriod.value) return ''
-  if (wizardPeriod.value.status === 'CLOSED') {
-    return t('financeReportPages.periods.wizardAction.closedSubtitle', { period: wizardPeriod.value.periodMonth })
-  }
-  if (wizardPeriod.value.status === 'LOCKED') {
-    return t('financeReportPages.periods.wizardAction.lockedSubtitle')
-  }
-  return wizardCheck.value?.passed
-    ? t('financeReportPages.periods.wizardAction.readySubtitle')
-    : t('financeReportPages.periods.wizardAction.blockedSubtitle')
-})
-
-const refreshWizardPeriod = async () => {
-  await loadData()
-  if (!wizardPeriod.value) return
-  wizardPeriod.value = tableData.value.find((item) => String(item.id) === String(wizardPeriod.value?.id))
-}
-
-const wizardLock = async () => {
-  if (!wizardPeriod.value) return
-  wizardActionLoading.value = true
-  try {
-    await handleLock(wizardPeriod.value)
-    await refreshWizardPeriod()
-    await runWizardCheck()
-  } finally {
-    wizardActionLoading.value = false
-  }
-}
-
-const wizardClose = async () => {
-  if (!wizardPeriod.value) return
-  wizardActionLoading.value = true
-  try {
-    await handleClose(wizardPeriod.value)
-    await refreshWizardPeriod()
-    wizardVisible.value = false
-  } finally {
-    wizardActionLoading.value = false
-  }
-}
-
-const wizardUnlock = async () => {
-  if (!wizardPeriod.value) return
-  wizardActionLoading.value = true
-  try {
-    await handleUnlock(wizardPeriod.value)
-    await refreshWizardPeriod()
-  } finally {
-    wizardActionLoading.value = false
-  }
-}
-
-const handleLock = async (row: AccountPeriod) => {
-  try {
-    const check = await checkAccountPeriodClose(row.id)
-    if (!check.passed) {
-      activePeriod.value = row
-      closeCheckResult.value = check
-      closeCheckVisible.value = true
-      ElMessage.warning(t('financeReportPages.periods.message.checkBlocksLock'))
-      return
-    }
-
-    await ElMessageBox.confirm(t('financeReportPages.periods.message.lockConfirm', { period: row.periodMonth }), t('financeReportPages.periods.lockPeriod'), {
-      type: 'warning'
-    })
-    await lockAccountPeriod(row.id)
-    ElMessage.success(t('financeReportPages.periods.message.locked'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('financeReportPages.periods.message.lockFailed'))
-    }
-  }
-}
-
-const handleClose = async (row: AccountPeriod) => {
-  // 结账前主动跑月结检查并回显：后端 close() 本身不再校验，带病结账风险需在确认弹窗暴露给用户
-  let check: AccountPeriodCloseCheck | undefined
-  try {
-    check = await checkAccountPeriodClose(row.id)
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.periods.message.checkBlocksClose'))
-    return
-  }
-
-  if (check && !check.passed) {
-    activePeriod.value = row
-    closeCheckResult.value = check
-    closeCheckVisible.value = true
-    try {
-      await ElMessageBox.confirm(
-        t('financeReportPages.periods.message.riskyCloseConfirm', {
-          count: check.issues.length,
-          period: row.periodMonth
-        }),
-        t('financeReportPages.periods.message.riskyCloseTitle'),
-        {
-          type: 'error',
-          confirmButtonText: t('financeReportPages.periods.message.closeAnyway'),
-          cancelButtonText: t('financeReportPages.common.cancel'),
-          confirmButtonClass: 'el-button--danger'
-        }
-      )
-    } catch {
-      return
-    }
-  } else {
-    try {
-      await ElMessageBox.confirm(
-        t('financeReportPages.periods.message.safeCloseConfirm', { period: row.periodMonth }),
-        t('financeReportPages.periods.message.closeTitle'),
-        { type: 'warning' }
-      )
-    } catch {
-      return
-    }
-  }
-
-  try {
-    await closeAccountPeriod(row.id)
-    ElMessage.success(t('financeReportPages.periods.message.closed'))
-    closeCheckVisible.value = false
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.periods.message.closeFailed'))
-  }
-}
-
-const handleUnlock = async (row: AccountPeriod) => {
-  try {
-    await ElMessageBox.confirm(
-      t('financeReportPages.periods.message.unlockConfirm', { period: row.periodMonth }),
-      t('financeReportPages.periods.message.unlockTitle'),
-      {
-        type: 'warning',
-        confirmButtonText: t('financeReportPages.periods.message.confirmUnlock'),
-        cancelButtonText: t('financeReportPages.common.cancel')
-      }
-    )
-    await unlockAccountPeriod(row.id)
-    ElMessage.success(t('financeReportPages.periods.message.unlocked'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('financeReportPages.periods.message.unlockFailed'))
-    }
-  }
-}
-
-const openReconciliation = async (row: AccountPeriod) => {
-  activePeriod.value = row
-  reconciliationVisible.value = true
-  reconciliationResult.value = undefined
-  differences.value = []
-  differenceType.value = ''
-  await loadReconciliation()
-}
-
-const loadReconciliation = async () => {
-  if (!activePeriod.value) return
-
-  reconciliationLoading.value = true
-  differenceLoading.value = true
-  try {
-    const [summary, rows] = await Promise.all([
-      getInventoryFinanceReconciliation(activePeriod.value.id),
-      getInventoryFinanceDifferences(activePeriod.value.id)
-    ])
-    reconciliationResult.value = summary
-    differences.value = rows || []
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.periods.message.reconciliationLoadFailed'))
-  } finally {
-    reconciliationLoading.value = false
-    differenceLoading.value = false
-  }
-}
-
-const loadDifferences = async () => {
-  if (!activePeriod.value) return
-
-  differenceLoading.value = true
-  try {
-    const rows = await getInventoryFinanceDifferences(activePeriod.value.id, {
-      differenceType: differenceType.value || undefined
-    })
-    differences.value = rows || []
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.periods.message.differencesLoadFailed'))
-  } finally {
-    differenceLoading.value = false
-  }
-}
-
-const openDifferenceDetail = async (row: InventoryFinanceDifference) => {
-  if (!activePeriod.value) return
-
-  differenceDetailVisible.value = true
-  differenceDetailLoading.value = true
-  differenceDetail.value = undefined
-  try {
-    differenceDetail.value = await getInventoryFinanceDifferenceDetail(
-      activePeriod.value.id,
-      row.sourceType,
-      row.sourceNo
-    )
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.periods.message.differenceDetailLoadFailed'))
-  } finally {
-    differenceDetailLoading.value = false
-  }
-}
-
-const formatMonth = (periodMonth: string) => {
-  return periodMonth || '-'
-}
-
-const formatDateTime = (value?: string) => {
-  return formatLocalizedDateTime(value) || '-'
-}
-
-const formatAmount = (amount?: number | string) => {
-  const value = Number(amount ?? 0)
-  return Number.isFinite(value)
-    ? formatLocalizedNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '0.00'
-}
-
-const formatQty = (qty?: number | string) => {
-  const value = Number(qty ?? 0)
-  return Number.isFinite(value)
-    ? formatLocalizedNumber(value, { minimumFractionDigits: 4, maximumFractionDigits: 4 })
-    : '0.0000'
-}
-
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    OPEN: t('financeReportPages.periods.status.open'),
-    LOCKED: t('financeReportPages.periods.status.locked'),
-    CLOSED: t('financeReportPages.periods.status.closed')
-  }
-  return map[status] || status
-}
-
-const getStatusType = (status: string): any => {
-  const map: Record<string, string> = {
-    OPEN: 'primary',
-    LOCKED: 'warning',
-    CLOSED: 'success'
-  }
-  return map[status] || 'info'
-}
-
-const getIssueTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    OPEN_DOCUMENTS: t('financeReportPages.periods.issue.openDocuments'),
-    INVENTORY_FINANCE_RECONCILIATION: t('financeReportPages.periods.issue.inventoryFinanceReconciliation'),
-    VOUCHER_ENTRY_MISSING: t('financeReportPages.periods.issue.voucherEntryMissing'),
-    VOUCHER_UNBALANCED: t('financeReportPages.periods.issue.voucherUnbalanced'),
-    PAYMENT_ALLOCATION_MISMATCH: t('financeReportPages.periods.issue.paymentAllocationMismatch'),
-    RECEIPT_ALLOCATION_MISMATCH: t('financeReportPages.periods.issue.receiptAllocationMismatch'),
-    SETTLEMENT_AMOUNT_INVALID: t('financeReportPages.periods.issue.settlementAmountInvalid'),
-    BANK_STATEMENT_UNMATCHED: t('financeReportPages.periods.issue.bankStatementUnmatched'),
-    INVENTORY_BALANCE_NEGATIVE: t('financeReportPages.periods.issue.inventoryBalanceNegative')
-  }
-  return map[type] || type
-}
-
-const getIssueSeverity = (type: string): any => {
-  return type === 'INVENTORY_FINANCE_RECONCILIATION' ? 'danger' : 'warning'
-}
-
-const getDifferenceTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    INVENTORY_ONLY: t('financeReportPages.periods.difference.inventoryOnly'),
-    FINANCE_ONLY: t('financeReportPages.periods.difference.financeOnly'),
-    AMOUNT_MISMATCH: t('financeReportPages.periods.difference.amountMismatch')
-  }
-  return map[type] || type
-}
-
-const getDifferenceTypeTag = (type: string): any => {
-  const map: Record<string, string> = {
-    INVENTORY_ONLY: 'warning',
-    FINANCE_ONLY: 'info',
-    AMOUNT_MISMATCH: 'danger'
-  }
-  return map[type] || 'info'
-}
-
-const getSourceTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    PURCHASE_RECEIPT: t('financeReportPages.periods.source.purchaseReceipt'),
-    PURCHASE_RETURN: t('financeReportPages.periods.source.purchaseReturn'),
-    SALES_DELIVERY: t('financeReportPages.periods.source.salesDelivery'),
-    SALES_RETURN: t('financeReportPages.periods.source.salesReturn'),
-    INVENTORY_ADJUSTMENT: t('financeReportPages.periods.source.inventoryAdjustment'),
-    INVENTORY_TRANSFER: t('financeReportPages.periods.source.inventoryTransfer')
-  }
-  return map[type] || type || '-'
-}
+const statusSummary = useStatusSummary(tableData)
 
 onMounted(() => {
   loadData()
