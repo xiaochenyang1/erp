@@ -389,47 +389,58 @@ import {
   cancelSalesReturn,
   getSalesDeliveries,
   getSalesDelivery,
-  type SalesReturnQuery,
   type SalesReturnCreateRequest,
   type SalesReturn,
   type SalesDelivery
 } from '@/api/sales'
-import { getLocations, getProducts, type Location, type Product } from '@/api/masterdata'
+import { getLocations, getProducts } from '@/api/masterdata'
 import {
   hydrateProductLineLabels,
   serialCaptureProgress,
   validateProductControlLines
 } from '@/utils/productLines'
 import { printSalesReturn } from '@/utils/bizPrint'
-import { formatBusinessDate, formatLocalizedCurrency } from '@/utils/locale'
+import { formatBusinessDate } from '@/utils/locale'
+import { useSalesReturnPresentation } from '@/composables/useSalesReturnPresentation'
+import { useSalesReturnList } from '@/composables/useSalesReturnList'
 
 const { t } = useI18n()
 
-// 查询参数
-const queryParams = reactive<SalesReturnQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  returnNo: '',
-  deliveryId: undefined,
-  status: '',
-  startDate: '',
-  endDate: ''
+const {
+  dateRange,
+  deliveries,
+  handleCancel,
+  handlePost,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  loadData,
+  loadOptions,
+  loading,
+  locations,
+  products,
+  queryParams,
+  tableData,
+  total
+} = useSalesReturnList(t, {
+  getReturns: getSalesReturns,
+  getReturn: getSalesReturn,
+  postReturn: postSalesReturn,
+  cancelReturn: cancelSalesReturn,
+  getDeliveries: getSalesDeliveries,
+  getProducts,
+  getLocations,
+  printReturn: printSalesReturn,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  enrichReturnRow: (item) => ({
+    ...item,
+    deliveryNo: item.deliveryNo || deliveryNoById(item.deliveryId),
+    customerName: item.customerName || deliveryCustomerNameById(item.deliveryId),
+    warehouseName: item.warehouseName || deliveryWarehouseNameById(item.deliveryId)
+  }),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
-
-// 日期范围
-const dateRange = ref<[string, string] | null>(null)
-
-// 表格数据
-const loading = ref(false)
-const tableData = ref<SalesReturn[]>([])
-const total = ref(0)
-
-// 已过账销售发货单列表
-const deliveries = ref<SalesDelivery[]>([])
-
-// 产品列表仅用于补齐发货明细展示字段
-const products = ref<Product[]>([])
-const locations = ref<Location[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -447,112 +458,36 @@ const formData = reactive<SalesReturnCreateRequest>({
   remark: ''
 })
 
-// 表单验证规则
 const formRules: FormRules = {
   deliveryId: [{ required: true, message: t('salesReturnOps.validation.salesDelivery'), trigger: 'change' }],
   returnDate: [{ required: true, message: t('salesReturnOps.validation.returnDate'), trigger: 'change' }]
 }
 
-const selectedDelivery = computed(() => {
-  return deliveries.value.find(item => String(item.id) === String(formData.deliveryId))
-})
-const locationsForSelectedDelivery = computed(() => {
-  const warehouseId = selectedDelivery.value?.warehouseId
-  if (!warehouseId) return locations.value
-  return locations.value.filter((location) => String(location.warehouseId) === String(warehouseId))
-})
+const {
+  deliveryCustomerNameById,
+  deliveryLabel,
+  deliveryLabelById,
+  deliveryNoById,
+  deliveryWarehouseNameById,
+  formatMoney,
+  locationsForSelectedDelivery,
+  selectedDelivery
+} = useSalesReturnPresentation(deliveries, locations, () => formData.deliveryId)
 
-// 计算总数量
 const totalQuantity = computed(() => {
   return formData.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
 })
 
-// 计算总金额
 const totalAmount = computed(() => {
   return formData.items.reduce((sum, item) => sum + (item.amount || 0), 0)
 })
 
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await getSalesReturns(queryParams)
-    tableData.value = response.records.map((item) => ({
-      ...item,
-      deliveryNo: item.deliveryNo || deliveryNoById(item.deliveryId),
-      customerName: item.customerName || deliveryCustomerNameById(item.deliveryId),
-      warehouseName: item.warehouseName || deliveryWarehouseNameById(item.deliveryId)
-    }))
-    total.value = response.total
-  } catch (error) {
-    ElMessage.error(t('salesReturnOps.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// 加载已过账销售发货单
-const loadDeliveries = async () => {
-  try {
-    const deliveryPageQuery = { pageNo: 1, pageSize: 200, status: 'POSTED' }
-    const response = await getSalesDeliveries(deliveryPageQuery)
-    deliveries.value = response.records
-  } catch (error) {
-    ElMessage.error(t('salesReturnOps.message.deliveriesLoadFailed'))
-  }
-}
-
-const loadProducts = async () => {
-  try {
-    const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-    const response = await getProducts(optionPageQuery)
-    products.value = response.records
-  } catch (error) {
-    ElMessage.error(t('salesReturnOps.message.productsLoadFailed'))
-  }
-}
-
-const loadLocations = async () => {
-  try {
-    const page = await getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
-    locations.value = page.records || []
-  } catch {
-    locations.value = []
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  if (dateRange.value) {
-    queryParams.startDate = dateRange.value[0]
-    queryParams.endDate = dateRange.value[1]
-  } else {
-    queryParams.startDate = ''
-    queryParams.endDate = ''
-  }
-  queryParams.pageNo = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  queryParams.returnNo = ''
-  queryParams.deliveryId = undefined
-  queryParams.status = ''
-  dateRange.value = null
-  queryParams.startDate = ''
-  queryParams.endDate = ''
-  handleQuery()
-}
-
-// 新增
 const handleCreate = () => {
   resetForm()
   dialogTitle.value = t('salesReturnOps.dialog.create')
   dialogVisible.value = true
 }
 
-// 查看
 const handleView = async (row: SalesReturn) => {
   try {
     const data = await getSalesReturn(row.id)
@@ -561,28 +496,17 @@ const handleView = async (row: SalesReturn) => {
     editingId.value = ''
     Object.assign(formData, data)
     dialogVisible.value = true
-  } catch (error) {
+  } catch {
     ElMessage.error(t('salesReturnOps.message.detailLoadFailed'))
   }
 }
 
-const handlePrint = async (row: SalesReturn) => {
-  try {
-    const detail = await getSalesReturn(row.id)
-    printSalesReturn(detail)
-  } catch {
-    ElMessage.error(t('salesReturnOps.message.printLoadFailed'))
-  }
-}
-
-// 编辑草稿
 const handleEdit = async (row: SalesReturn) => {
   try {
     const detail = await getSalesReturn(row.id)
     dialogTitle.value = t('salesReturnOps.dialog.edit')
     isView.value = false
     editingId.value = detail.id
-    // 载入所属发货单，供只读展示（草稿不允许改发货单）
     const existing = deliveries.value.find(d => String(d.id) === String(detail.deliveryId))
     if (!existing) {
       deliveries.value = [{
@@ -618,48 +542,11 @@ const handleEdit = async (row: SalesReturn) => {
       return product || {}
     })
     dialogVisible.value = true
-  } catch (error) {
+  } catch {
     ElMessage.error(t('salesReturnOps.message.returnLoadFailed'))
   }
 }
 
-// 取消
-const handleCancel = async (row: SalesReturn) => {
-  try {
-    await ElMessageBox.confirm(t('salesReturnOps.message.cancelConfirm'), t('salesReturnOps.prompt'), {
-      confirmButtonText: t('salesReturnOps.action.confirm'),
-      cancelButtonText: t('salesReturnOps.action.cancel'),
-      type: 'warning'
-    })
-    await cancelSalesReturn(row.id)
-    ElMessage.success(t('salesReturnOps.message.success'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('salesReturnOps.message.failed'))
-    }
-  }
-}
-
-// 过账
-const handlePost = async (row: SalesReturn) => {
-  try {
-    await ElMessageBox.confirm(t('salesReturnOps.message.postConfirm'), t('salesReturnOps.prompt'), {
-      confirmButtonText: t('salesReturnOps.action.confirm'),
-      cancelButtonText: t('salesReturnOps.action.cancel'),
-      type: 'warning'
-    })
-    await postSalesReturn(row.id)
-    ElMessage.success(t('salesReturnOps.message.success'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('salesReturnOps.message.failed'))
-    }
-  }
-}
-
-// 发货单变化
 const handleDeliveryChange = async () => {
   if (!formData.deliveryId) {
     formData.items = []
@@ -691,46 +578,18 @@ const handleDeliveryChange = async () => {
       const product = products.value.find((item) => String(item.id) === String(productId))
       return product || {}
     })
-  } catch (error) {
+  } catch {
     ElMessage.error(t('salesReturnOps.message.deliveryDetailLoadFailed'))
   }
 }
 
-// 删除明细
 const handleDeleteItem = (index: number) => {
   formData.items.splice(index, 1)
 }
 
-// 数量/单价变化
 const handleQuantityChange = (index: number) => {
   const item = formData.items[index]
   item.amount = (item.quantity || 0) * (item.price || 0)
-}
-
-const deliveryLabel = (delivery: SalesDelivery) => {
-  return [delivery.deliveryNo, delivery.customerName, delivery.warehouseName].filter(Boolean).join(' - ')
-    || t('salesReturnOps.deliveryFallback', { id: delivery.id })
-}
-
-const deliveryById = (deliveryId: string | number | undefined) => {
-  return deliveries.value.find(item => String(item.id) === String(deliveryId))
-}
-
-const deliveryLabelById = (deliveryId: string | number | undefined) => {
-  const delivery = deliveryById(deliveryId)
-  return delivery ? deliveryLabel(delivery) : ''
-}
-
-const deliveryNoById = (deliveryId: string | number | undefined) => {
-  return deliveryById(deliveryId)?.deliveryNo || ''
-}
-
-const deliveryCustomerNameById = (deliveryId: string | number | undefined) => {
-  return deliveryById(deliveryId)?.customerName || ''
-}
-
-const deliveryWarehouseNameById = (deliveryId: string | number | undefined) => {
-  return deliveryById(deliveryId)?.warehouseName || ''
 }
 
 const productInfoById = (productId: string | number) => {
@@ -741,61 +600,57 @@ const productInfoById = (productId: string | number) => {
   }
 }
 
-// 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return
 
   await formRef.value.validate(async (valid) => {
-    if (valid) {
-      if (formData.items.length === 0) {
-        ElMessage.warning(t('salesReturnOps.validation.itemRequired'))
-        return
-      }
+    if (!valid) return
+    if (formData.items.length === 0) {
+      ElMessage.warning(t('salesReturnOps.validation.itemRequired'))
+      return
+    }
 
-      // 检查退货数量
-      const hasQuantity = formData.items.some(item => item.quantity > 0)
-      if (!hasQuantity) {
-        ElMessage.warning(t('salesReturnOps.validation.quantityRequired'))
-        return
-      }
+    const hasQuantity = formData.items.some(item => item.quantity > 0)
+    if (!hasQuantity) {
+      ElMessage.warning(t('salesReturnOps.validation.quantityRequired'))
+      return
+    }
 
-      formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
-        const product = products.value.find((item) => String(item.id) === String(productId))
-        return product || {}
-      })
-      const controlIssues = validateProductControlLines(formData.items)
-      if (controlIssues.length > 0) {
-        const issue = controlIssues[0]
-        const product = issue.productCode || issue.productName || String(issue.productId)
-        ElMessage.warning(t(`salesReturnOps.validation.${issue.messageKey}`, {
-          line: issue.index + 1,
-          product,
-          expected: issue.expectedSerialCount,
-          actual: issue.actualSerialCount
-        }))
-        return
-      }
+    formData.items = await hydrateProductLineLabels(formData.items, async (productId) => {
+      const product = products.value.find((item) => String(item.id) === String(productId))
+      return product || {}
+    })
+    const controlIssues = validateProductControlLines(formData.items)
+    if (controlIssues.length > 0) {
+      const issue = controlIssues[0]
+      const product = issue.productCode || issue.productName || String(issue.productId)
+      ElMessage.warning(t(`salesReturnOps.validation.${issue.messageKey}`, {
+        line: issue.index + 1,
+        product,
+        expected: issue.expectedSerialCount,
+        actual: issue.actualSerialCount
+      }))
+      return
+    }
 
-      submitLoading.value = true
-      try {
-        if (editingId.value) {
-          await updateSalesReturn(editingId.value, formData)
-        } else {
-          await createSalesReturn(formData)
-        }
-        ElMessage.success(t('salesReturnOps.message.success'))
-        dialogVisible.value = false
-        loadData()
-      } catch (error) {
-        ElMessage.error(t(editingId.value ? 'salesReturnOps.message.updateFailed' : 'salesReturnOps.message.failed'))
-      } finally {
-        submitLoading.value = false
+    submitLoading.value = true
+    try {
+      if (editingId.value) {
+        await updateSalesReturn(editingId.value, formData)
+      } else {
+        await createSalesReturn(formData)
       }
+      ElMessage.success(t('salesReturnOps.message.success'))
+      dialogVisible.value = false
+      loadData()
+    } catch {
+      ElMessage.error(t(editingId.value ? 'salesReturnOps.message.updateFailed' : 'salesReturnOps.message.failed'))
+    } finally {
+      submitLoading.value = false
     }
   })
 }
 
-// 重置表单（含编辑态，避免取消后下次新建误走 PUT）
 const resetForm = () => {
   editingId.value = ''
   isView.value = false
@@ -806,14 +661,8 @@ const resetForm = () => {
   formRef.value?.clearValidate()
 }
 
-const formatMoney = (value?: number) => formatLocalizedCurrency(Number(value ?? 0))
-
 onMounted(async () => {
-  await Promise.all([
-    loadDeliveries(),
-    loadProducts(),
-    loadLocations()
-  ])
+  await loadOptions()
   loadData()
 })
 </script>
