@@ -76,7 +76,13 @@ const menuView = readFileSync(resolve(root, 'src/views/system/menus/index.vue'),
 const deptView = readFileSync(resolve(root, 'src/views/system/depts/index.vue'), 'utf8')
 const postView = readFileSync(resolve(root, 'src/views/system/posts/index.vue'), 'utf8')
 const dictView = readFileSync(resolve(root, 'src/views/system/dicts/index.vue'), 'utf8')
-const configView = readFileSync(resolve(root, 'src/views/system/configs/index.vue'), 'utf8')
+// 系统配置页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const configView = [
+  'src/views/system/configs/index.vue',
+  'src/composables/useSystemConfigPresentation.ts',
+  'src/composables/useSystemConfigList.ts',
+  'src/composables/useSystemConfigForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const salesReturnView = readFileSync(resolve(root, 'src/views/sales/returns/index.vue'), 'utf8')
 const financeApi = readFileSync(resolve(root, 'src/api/finance.ts'), 'utf8')
 // 费用页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
@@ -1724,9 +1730,9 @@ const systemEnableViewContracts = [
       'enableSystemConfig,',
       'disableSystemConfig,',
       'const handleToggleConfigStatus = async (row: SystemConfig) =>',
-      'await enableSystemConfig(row.id)',
-      'await disableSystemConfig(row.id)',
-      "row.status === 'ACTIVE' ? t('systemConfigs.disable') : t('systemConfigs.enable')"
+      'await options.enableConfig(row.id)',
+      'await options.disableConfig(row.id)',
+      "row.status === 'ACTIVE'\n      ? t('systemConfigs.disable')\n      : t('systemConfigs.enable')"
     ]
   }
 ]
@@ -1859,12 +1865,12 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  'id: \'\',',
-  'configName: \'\',',
-  'const res = await getSystemConfig(row.id)',
+  "id: '',",
+  "configName: '',",
+  'const res = await options.getConfig(row.id)',
   'id: res.id',
   'configName: res.configName || res.configKey',
-  'await updateSystemConfig(formData.id,',
+  'await options.updateConfig(formData.id,',
   'configName: formData.configName || formData.configKey'
 ]) {
   if (!configView.includes(fragment)) {

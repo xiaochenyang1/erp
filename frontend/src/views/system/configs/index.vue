@@ -68,8 +68,8 @@
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
             class="pager"
-            @size-change="handleQuery"
-            @current-change="loadData"
+            @size-change="handleSizeChange"
+            @current-change="handlePageChange"
           />
         </el-card>
       </el-tab-pane>
@@ -153,8 +153,8 @@
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
             class="pager"
-            @size-change="handleSequenceRuleQuery"
-            @current-change="loadSequenceRules"
+            @size-change="handleSequenceRuleSizeChange"
+            @current-change="handleSequenceRulePageChange"
           />
         </el-card>
       </el-tab-pane>
@@ -251,58 +251,105 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import {
   createSequenceRule,
   createSystemConfig,
-  disableSystemConfig,
   disableSequenceRule,
-  enableSystemConfig,
+  disableSystemConfig,
   enableSequenceRule,
+  enableSystemConfig,
   getSequenceRule,
   getSequenceRules,
   getSystemConfig,
   getSystemConfigs,
   updateSequenceRule,
-  updateSystemConfig,
-  type SequenceRule,
-  type SequenceRuleQuery,
-  type SystemConfig
+  updateSystemConfig
 } from '@/api/system'
+import { useSystemConfigPresentation } from '@/composables/useSystemConfigPresentation'
+import { useSystemConfigList } from '@/composables/useSystemConfigList'
+import { useSystemConfigForm } from '@/composables/useSystemConfigForm'
 
 const { t } = useI18n()
-
-const activeTab = ref('configs')
-
-const queryForm = reactive({
-  configKey: ''
-})
-
-const loading = ref(false)
-const tableData = ref<SystemConfig[]>([])
-
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const dialogVisible = ref(false)
-const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
-const configMode = ref<'create' | 'edit'>('edit')
-const configDialogTitle = computed(() =>
-  configMode.value === 'create' ? t('systemConfigs.dialog.addConfig') : t('systemConfigs.dialog.editConfig')
-)
-const formData = reactive({
-  id: '',
-  configKey: '',
-  configName: '',
-  configValue: '',
-  description: ''
+const sequenceRuleFormRef = ref<FormInstance>()
+
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  activeTab,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSequenceRulePageChange,
+  handleSequenceRuleQuery,
+  handleSequenceRuleReset,
+  handleSequenceRuleSizeChange,
+  handleSizeChange,
+  handleTabChange,
+  handleToggleConfigStatus,
+  handleToggleSequenceRuleStatus,
+  loadData,
+  loadSequenceRules,
+  loading,
+  pagination,
+  queryForm,
+  sequenceRuleData,
+  sequenceRuleLoading,
+  sequenceRulePagination,
+  sequenceRuleQuery,
+  tableData
+} = useSystemConfigList(t, {
+  getConfigs: getSystemConfigs,
+  enableConfig: enableSystemConfig,
+  disableConfig: disableSystemConfig,
+  getSequenceRules,
+  enableSequenceRule,
+  disableSequenceRule,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  ...notify
+})
+
+const {
+  validateNonNegativeInteger,
+  validatePositiveInteger
+} = useSystemConfigPresentation(t)
+
+const {
+  configDialogTitle,
+  configMode,
+  dialogVisible,
+  formData,
+  handleCreate,
+  handleCreateSequenceRule,
+  handleEdit,
+  handleEditSequenceRule,
+  handleSubmit: saveConfig,
+  handleSubmitSequenceRule: saveSequenceRule,
+  resetConfigForm,
+  resetSequenceRuleForm,
+  sequenceRuleDialogTitle,
+  sequenceRuleDialogVisible,
+  sequenceRuleForm,
+  sequenceRuleMode,
+  sequenceRuleSubmitting,
+  submitLoading
+} = useSystemConfigForm(t, {
+  getConfig: getSystemConfig,
+  createConfig: createSystemConfig,
+  updateConfig: updateSystemConfig,
+  getSequenceRule,
+  createSequenceRule,
+  updateSequenceRule,
+  onConfigSubmitted: loadData,
+  onSequenceRuleSubmitted: loadSequenceRules,
+  ...notify
 })
 
 const formRules = computed<FormRules>(() => ({
@@ -310,52 +357,6 @@ const formRules = computed<FormRules>(() => ({
   configName: [{ required: true, message: t('systemConfigs.validation.configName'), trigger: 'blur' }],
   configValue: [{ required: true, message: t('systemConfigs.validation.configValue'), trigger: 'blur' }]
 }))
-
-const sequenceRuleQuery = reactive<SequenceRuleQuery>({
-  keyword: '',
-  status: ''
-})
-const sequenceRuleLoading = ref(false)
-const sequenceRuleData = ref<SequenceRule[]>([])
-const sequenceRulePagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-const sequenceRuleDialogVisible = ref(false)
-const sequenceRuleSubmitting = ref(false)
-const sequenceRuleFormRef = ref<FormInstance>()
-const sequenceRuleMode = ref<'create' | 'edit'>('create')
-const sequenceRuleForm = reactive({
-  id: '',
-  bizType: '',
-  prefix: '',
-  datePattern: 'yyyyMMdd',
-  seqLength: '4',
-  currentValue: '0'
-})
-
-const sequenceRuleDialogTitle = computed(() =>
-  sequenceRuleMode.value === 'create'
-    ? t('systemConfigs.dialog.addSequenceRule')
-    : t('systemConfigs.dialog.editSequenceRule')
-)
-
-const validatePositiveInteger = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
-  if (!/^[1-9]\d*$/.test(value || '')) {
-    callback(new Error(t('systemConfigs.validation.positiveInteger')))
-    return
-  }
-  callback()
-}
-
-const validateNonNegativeInteger = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
-  if (!/^\d+$/.test(value || '')) {
-    callback(new Error(t('systemConfigs.validation.nonNegativeInteger')))
-    return
-  }
-  callback()
-}
 
 const sequenceRuleRules = computed<FormRules>(() => ({
   bizType: [{ required: true, message: t('systemConfigs.validation.businessType'), trigger: 'blur' }],
@@ -365,252 +366,30 @@ const sequenceRuleRules = computed<FormRules>(() => ({
   currentValue: [{ validator: validateNonNegativeInteger, trigger: 'blur' }]
 }))
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const params = {
-      ...queryForm,
-      page: pagination.page,
-      size: pagination.size
-    }
-    const res = await getSystemConfigs(params)
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.configKey = ''
-  pagination.page = 1
-  loadData()
-}
-
-const handleCreate = () => {
-  configMode.value = 'create'
-  Object.assign(formData, { id: '', configKey: '', configName: '', configValue: '', description: '' })
-  formRef.value?.clearValidate()
-  dialogVisible.value = true
-}
-
-const trimConfigForm = () => {
-  formData.configKey = formData.configKey.trim()
-  formData.configName = formData.configName.trim()
-  formData.configValue = formData.configValue.trim()
-  formData.description = formData.description.trim()
-}
-
-const handleEdit = async (row: SystemConfig) => {
-  try {
-    const res = await getSystemConfig(row.id)
-    configMode.value = 'edit'
-    Object.assign(formData, {
-      id: res.id,
-      configKey: res.configKey,
-      configName: res.configName || res.configKey,
-      configValue: res.configValue,
-      description: res.description
-    })
-    dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('systemConfigs.message.configDetailLoadFailed'))
-  }
-}
-
 const handleSubmit = async () => {
   if (!formRef.value) return
-
-  trimConfigForm()
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-
-    submitLoading.value = true
-    try {
-      if (configMode.value === 'create') {
-        await createSystemConfig({
-          configKey: formData.configKey,
-          configName: formData.configName || formData.configKey,
-          configValue: formData.configValue,
-          description: formData.description
-        })
-        ElMessage.success(t('systemConfigs.message.createSuccess'))
-      } else {
-        await updateSystemConfig(formData.id, {
-          ...formData,
-          configName: formData.configName || formData.configKey,
-          configValue: formData.configValue,
-          description: formData.description
-        })
-        ElMessage.success(t('systemConfigs.message.updateSuccess'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch (error) {
-      ElMessage.error(
-        configMode.value === 'create'
-          ? t('systemConfigs.message.createFailed')
-          : t('systemConfigs.message.updateFailed')
-      )
-    } finally {
-      submitLoading.value = false
-    }
+    await saveConfig()
   })
-}
-
-const handleToggleConfigStatus = async (row: SystemConfig) => {
-  const nextAction = row.status === 'ACTIVE' ? t('systemConfigs.disable') : t('systemConfigs.enable')
-  await ElMessageBox.confirm(
-    t('systemConfigs.message.toggleConfigConfirm', { action: nextAction, key: row.configKey }),
-    t('systemConfigs.prompt'),
-    {
-      confirmButtonText: t('systemConfigs.confirm'),
-      cancelButtonText: t('systemConfigs.cancel'),
-      type: 'warning'
-    }
-  )
-
-  if (row.status === 'ACTIVE') {
-    await disableSystemConfig(row.id)
-  } else {
-    await enableSystemConfig(row.id)
-  }
-  ElMessage.success(t('systemConfigs.message.operationSuccess', { action: nextAction }))
-  loadData()
-}
-
-const handleDialogClose = () => {
-  formRef.value?.resetFields()
-  Object.assign(formData, {
-    id: '',
-    configKey: '',
-    configName: '',
-    configValue: '',
-    description: ''
-  })
-}
-
-const loadSequenceRules = async () => {
-  sequenceRuleLoading.value = true
-  try {
-    const res = await getSequenceRules({
-      keyword: sequenceRuleQuery.keyword?.trim() || undefined,
-      status: sequenceRuleQuery.status || undefined,
-      pageNo: sequenceRulePagination.page,
-      pageSize: sequenceRulePagination.size
-    })
-    sequenceRuleData.value = res.records || []
-    sequenceRulePagination.total = res.total || 0
-  } finally {
-    sequenceRuleLoading.value = false
-  }
-}
-
-const handleSequenceRuleQuery = () => {
-  sequenceRulePagination.page = 1
-  loadSequenceRules()
-}
-
-const handleSequenceRuleReset = () => {
-  sequenceRuleQuery.keyword = ''
-  sequenceRuleQuery.status = ''
-  sequenceRulePagination.page = 1
-  loadSequenceRules()
-}
-
-const handleCreateSequenceRule = () => {
-  sequenceRuleMode.value = 'create'
-  resetSequenceRuleForm()
-  sequenceRuleDialogVisible.value = true
-}
-
-const handleEditSequenceRule = async (row: SequenceRule) => {
-  const res = await getSequenceRule(row.id)
-  sequenceRuleMode.value = 'edit'
-  Object.assign(sequenceRuleForm, {
-    id: res.id,
-    bizType: res.bizType,
-    prefix: res.prefix,
-    datePattern: res.datePattern,
-    seqLength: String(res.seqLength),
-    currentValue: res.currentValue
-  })
-  sequenceRuleDialogVisible.value = true
 }
 
 const handleSubmitSequenceRule = async () => {
   if (!sequenceRuleFormRef.value) return
   await sequenceRuleFormRef.value.validate(async (valid) => {
     if (!valid) return
-    sequenceRuleSubmitting.value = true
-    try {
-      const payload = {
-        bizType: sequenceRuleMode.value === 'create' ? sequenceRuleForm.bizType.trim() : undefined,
-        prefix: sequenceRuleForm.prefix.trim(),
-        datePattern: sequenceRuleForm.datePattern.trim(),
-        seqLength: Number(sequenceRuleForm.seqLength),
-        currentValue: sequenceRuleForm.currentValue.trim()
-      }
-      if (sequenceRuleMode.value === 'create') {
-        await createSequenceRule(payload)
-      } else {
-        await updateSequenceRule(sequenceRuleForm.id, payload)
-      }
-      ElMessage.success(t('systemConfigs.message.saveSuccess'))
-      sequenceRuleDialogVisible.value = false
-      loadSequenceRules()
-    } finally {
-      sequenceRuleSubmitting.value = false
-    }
+    await saveSequenceRule()
   })
 }
 
-const handleToggleSequenceRuleStatus = async (row: SequenceRule) => {
-  const nextAction = row.status === 'ACTIVE' ? t('systemConfigs.disable') : t('systemConfigs.enable')
-  await ElMessageBox.confirm(
-    t('systemConfigs.message.toggleSequenceRuleConfirm', { action: nextAction, bizType: row.bizType }),
-    t('systemConfigs.prompt'),
-    {
-      confirmButtonText: t('systemConfigs.confirm'),
-      cancelButtonText: t('systemConfigs.cancel'),
-      type: 'warning'
-    }
-  )
-
-  if (row.status === 'ACTIVE') {
-    await disableSequenceRule(row.id)
-  } else {
-    await enableSequenceRule(row.id)
-  }
-  ElMessage.success(t('systemConfigs.message.operationSuccess', { action: nextAction }))
-  loadSequenceRules()
+const handleDialogClose = () => {
+  formRef.value?.resetFields()
+  resetConfigForm()
 }
 
 const handleSequenceRuleDialogClose = () => {
-  resetSequenceRuleForm()
-}
-
-const resetSequenceRuleForm = () => {
   sequenceRuleFormRef.value?.resetFields()
-  Object.assign(sequenceRuleForm, {
-    id: '',
-    bizType: '',
-    prefix: '',
-    datePattern: 'yyyyMMdd',
-    seqLength: '4',
-    currentValue: '0'
-  })
-}
-
-const handleTabChange = () => {
-  if (activeTab.value === 'sequenceRules' && sequenceRuleData.value.length === 0) {
-    loadSequenceRules()
-  }
+  resetSequenceRuleForm()
 }
 
 onMounted(() => {

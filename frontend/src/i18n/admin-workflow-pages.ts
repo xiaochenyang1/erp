@@ -463,7 +463,12 @@ const messageSource = {
       updateFailed: ['更新失败', 'Failed to update configuration'],
       toggleConfigConfirm: ['确定{action}系统配置“{key}”吗？', '{action} system configuration “{key}”?'],
       operationSuccess: ['{action}成功', '{action} successful'],
+      operationFailed: ['{action}失败', '{action} failed'],
       saveSuccess: ['保存成功', 'Saved successfully'],
+      saveFailed: ['保存失败', 'Failed to save'],
+      loadFailed: ['加载系统配置失败', 'Failed to load system configurations'],
+      sequenceRulesLoadFailed: ['加载编号规则失败', 'Failed to load numbering rules'],
+      sequenceRuleDetailLoadFailed: ['加载编号规则详情失败', 'Failed to load numbering rule details'],
       toggleSequenceRuleConfirm: ['确定{action}编号规则“{bizType}”吗？', '{action} numbering rule “{bizType}”?']
     }
   },
