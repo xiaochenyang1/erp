@@ -429,7 +429,10 @@
           <el-input
             v-model="completeForm.lotNo"
             clearable
-            :placeholder="t('productionOrder.lotNoPlaceholder')"
+            :placeholder="completeProductControls.lotControlled
+              ? t('productionOrder.lotNoPlaceholder')
+              : t('productionOrder.remarkPlaceholder')"
+            :disabled="completeProductControls.lotControlled === false"
           />
         </el-form-item>
         <el-form-item :label="t('productionOrder.productionDate')">
@@ -439,6 +442,7 @@
             :placeholder="t('productionOrder.selectDate')"
             value-format="YYYY-MM-DD"
             style="width: 100%"
+            :disabled="completeProductControls.lotControlled === false"
           />
         </el-form-item>
         <el-form-item :label="t('productionOrder.expiryDate')">
@@ -448,6 +452,7 @@
             :placeholder="t('productionOrder.selectDate')"
             value-format="YYYY-MM-DD"
             style="width: 100%"
+            :disabled="completeProductControls.shelfLifeControlled === false && completeProductControls.lotControlled === false"
           />
         </el-form-item>
         <el-form-item :label="t('productionOrder.location')">
@@ -469,9 +474,21 @@
         <el-form-item :label="t('productionOrder.serialNos')">
           <el-input
             v-model="completeForm.serialNos"
+            type="textarea"
+            :rows="completeProductControls.serialControlled ? 2 : 1"
             clearable
-            :placeholder="t('productionOrder.serialNosPlaceholder')"
+            :placeholder="completeProductControls.serialControlled
+              ? t('productionOrder.serialNosPlaceholder')
+              : t('productionOrder.remarkPlaceholder')"
+            :disabled="completeProductControls.serialControlled === false"
           />
+          <div
+            v-if="completeProductControls.serialControlled"
+            class="serial-progress"
+            :class="{ 'serial-progress--ok': serialCaptureProgress(completeForm.serialNos, completeForm.completedQuantity).complete }"
+          >
+            {{ t('productionOrder.serialProgress', serialCaptureProgress(completeForm.serialNos, completeForm.completedQuantity)) }}
+          </div>
         </el-form-item>
         <el-form-item :label="t('productionOrder.remark')">
           <el-input
@@ -570,7 +587,14 @@
           </el-table-column>
           <el-table-column :label="t('productionOrder.lotNo')" width="140">
             <template #default="{ row }">
-              <el-input v-model="row.lotNo" clearable />
+              <el-input
+                v-model="row.lotNo"
+                clearable
+                :placeholder="row.lotControlled
+                  ? t('productionOrder.lotNoPlaceholder')
+                  : t('productionOrder.remarkPlaceholder')"
+                :disabled="row.lotControlled === false"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="t('productionOrder.location')" width="160">
@@ -585,9 +609,25 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column :label="t('productionOrder.serialNos')" min-width="160">
+          <el-table-column :label="t('productionOrder.serialNos')" min-width="200">
             <template #default="{ row }">
-              <el-input v-model="row.serialNos" clearable :placeholder="t('productionOrder.serialNosPlaceholder')" />
+              <el-input
+                v-model="row.serialNos"
+                type="textarea"
+                :rows="row.serialControlled ? 2 : 1"
+                clearable
+                :placeholder="row.serialControlled
+                  ? t('productionOrder.serialNosPlaceholder')
+                  : t('productionOrder.remarkPlaceholder')"
+                :disabled="row.serialControlled === false"
+              />
+              <div
+                v-if="row.serialControlled"
+                class="serial-progress"
+                :class="{ 'serial-progress--ok': serialCaptureProgress(row.serialNos, row.returnQty).complete }"
+              >
+                {{ t('productionOrder.serialProgress', serialCaptureProgress(row.serialNos, row.returnQty)) }}
+              </div>
             </template>
           </el-table-column>
           <el-table-column :label="t('productionOrder.remark')" min-width="160">
@@ -700,13 +740,33 @@ import {
 import { getProducts, getWarehouses, getLocations, type Product, type Warehouse, type Location } from '@/api/masterdata'
 import { getBOMs, type BOM } from '@/api/production'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
+import {
+  serialCaptureProgress,
+  validateProductControlLines
+} from '@/utils/productLines'
 
 const { t } = useI18n()
 
 interface ReturnMaterialRow extends ProductionOrderMaterial {
   returnQty: number
   lotNo?: string
+  locationId?: string | number
+  serialNos?: string
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  serialControlled?: boolean
+  productCode?: string
+  productName?: string
+  quantity?: number
   remark?: string
+}
+
+interface ProductControlFlags {
+  lotControlled?: boolean
+  shelfLifeControlled?: boolean
+  serialControlled?: boolean
+  productCode?: string
+  productName?: string
 }
 
 // 查询表单
@@ -733,6 +793,16 @@ const productOptions = ref<Product[]>([])
 const warehouseOptions = ref<Warehouse[]>([])
 const allBomOptions = ref<BOM[]>([])
 const bomOptions = ref<BOM[]>([])
+const finishedLocations = ref<Location[]>([])
+const materialLocations = ref<Location[]>([])
+const completeProductControls = reactive<ProductControlFlags>({
+  lotControlled: undefined,
+  shelfLifeControlled: undefined,
+  serialControlled: undefined,
+  productCode: undefined,
+  productName: undefined
+})
+const completeProductId = ref<string | number | undefined>()
 
 // 新增/编辑对话框
 const dialogVisible = ref(false)
@@ -817,6 +887,57 @@ const returnForm = reactive({
   remark: '',
   materials: [] as ReturnMaterialRow[]
 })
+
+const productControlFromOptions = (productId?: string | number): ProductControlFlags => {
+  const product = productOptions.value.find((item) => String(item.id) === String(productId))
+  if (!product) {
+    return {
+      lotControlled: undefined,
+      shelfLifeControlled: undefined,
+      serialControlled: undefined,
+      productCode: undefined,
+      productName: undefined
+    }
+  }
+  return {
+    lotControlled: Boolean(product.lotControlled),
+    shelfLifeControlled: Boolean(product.shelfLifeControlled),
+    serialControlled: Boolean(product.serialControlled),
+    productCode: product.code || product.productCode,
+    productName: product.name || product.productName
+  }
+}
+
+const loadLocationsByWarehouse = async (warehouseId?: string | number) => {
+  if (warehouseId == null || warehouseId === '') {
+    return [] as Location[]
+  }
+  const page = await getLocations({
+    pageNo: 1,
+    pageSize: 500,
+    status: 'ACTIVE',
+    warehouseId
+  })
+  return page.records || []
+}
+
+const loadFinishedLocations = async (warehouseId?: string | number) => {
+  try {
+    finishedLocations.value = await loadLocationsByWarehouse(warehouseId)
+  } catch (error) {
+    finishedLocations.value = []
+    console.error(t('productionOrder.message.optionsLoadFailed'), error)
+  }
+}
+
+const loadMaterialLocations = async (warehouseId?: string | number) => {
+  try {
+    materialLocations.value = await loadLocationsByWarehouse(warehouseId)
+  } catch (error) {
+    materialLocations.value = []
+    console.error(t('productionOrder.message.optionsLoadFailed'), error)
+  }
+}
 
 // 加载选项数据
 const loadOptions = async () => {
@@ -980,8 +1101,10 @@ const handleComplete = (row: ProductionOrder) => {
   completeForm.locationId = undefined
   completeForm.serialNos = ''
   completeForm.remark = ''
+  completeProductId.value = row.productId
+  Object.assign(completeProductControls, productControlFromOptions(row.productId))
   completeDialogVisible.value = true
-  void loadFinishedLocations()
+  void loadFinishedLocations(row.finishedWarehouseId || row.warehouseId)
 }
 
 const openOperations = async (row: ProductionOrder) => {
@@ -1057,6 +1180,31 @@ const handleConfirmComplete = async () => {
     return
   }
 
+  Object.assign(completeProductControls, productControlFromOptions(completeProductId.value))
+  const controlIssues = validateProductControlLines([{
+    productId: completeProductId.value || completeForm.orderId,
+    productCode: completeProductControls.productCode,
+    productName: completeProductControls.productName,
+    quantity: completeForm.completedQuantity,
+    lotNo: completeForm.lotNo,
+    expiryDate: completeForm.expiryDate,
+    serialNos: completeForm.serialNos,
+    lotControlled: completeProductControls.lotControlled,
+    shelfLifeControlled: completeProductControls.shelfLifeControlled,
+    serialControlled: completeProductControls.serialControlled
+  }])
+  if (controlIssues.length > 0) {
+    const issue = controlIssues[0]
+    const product = issue.productCode || issue.productName || String(issue.productId)
+    ElMessage.warning(t(`productionOrder.validation.${issue.messageKey}`, {
+      line: 1,
+      product,
+      expected: issue.expectedSerialCount,
+      actual: issue.actualSerialCount
+    }))
+    return
+  }
+
   submitLoading.value = true
   try {
     await completeProductionOrder(completeForm.orderId, {
@@ -1126,14 +1274,23 @@ const handleReturnMaterials = async (row: ProductionOrder) => {
     const order = await getProductionOrder(row.id)
     const returnableMaterials = (order.materials || [])
       .filter(material => Number(material.issuedQuantity || 0) > 0)
-      .map(material => ({
-        ...material,
-        returnQty: 0,
-        lotNo: '',
-        locationId: undefined,
-        serialNos: '',
-        remark: ''
-      }))
+      .map(material => {
+        const productId = material.materialProductId ?? material.materialId
+        const controls = productControlFromOptions(productId)
+        return {
+          ...material,
+          returnQty: 0,
+          lotNo: '',
+          locationId: undefined,
+          serialNos: '',
+          remark: '',
+          productCode: controls.productCode || material.materialCode,
+          productName: controls.productName || material.materialName,
+          lotControlled: controls.lotControlled,
+          shelfLifeControlled: controls.shelfLifeControlled,
+          serialControlled: controls.serialControlled
+        } as ReturnMaterialRow
+      })
 
     if (returnableMaterials.length === 0) {
       ElMessage.warning(t('productionOrder.message.noReturnableMaterials'))
@@ -1152,21 +1309,43 @@ const handleReturnMaterials = async (row: ProductionOrder) => {
 }
 
 const handleConfirmReturnMaterials = async () => {
-  const lines = returnForm.materials
-    .filter(material => Number(material.returnQty || 0) > 0)
-    .map(material => ({
-      orderMaterialId: material.id,
-      returnQty: material.returnQty,
-      lotNo: material.lotNo || undefined,
-      locationId: material.locationId || undefined,
-      serialNos: material.serialNos || undefined,
-      remark: material.remark || undefined
-    }))
-
-  if (lines.length === 0) {
+  const selectedMaterials = returnForm.materials.filter(material => Number(material.returnQty || 0) > 0)
+  if (selectedMaterials.length === 0) {
     ElMessage.warning(t('productionOrder.validation.returnQuantity'))
     return
   }
+
+  const controlIssues = validateProductControlLines(selectedMaterials.map((material) => ({
+    productId: material.materialProductId ?? material.materialId,
+    productCode: material.productCode || material.materialCode,
+    productName: material.productName || material.materialName,
+    quantity: material.returnQty,
+    lotNo: material.lotNo,
+    serialNos: material.serialNos,
+    lotControlled: material.lotControlled,
+    shelfLifeControlled: material.shelfLifeControlled,
+    serialControlled: material.serialControlled
+  })))
+  if (controlIssues.length > 0) {
+    const issue = controlIssues[0]
+    const product = issue.productCode || issue.productName || String(issue.productId)
+    ElMessage.warning(t(`productionOrder.validation.${issue.messageKey}`, {
+      line: issue.index + 1,
+      product,
+      expected: issue.expectedSerialCount,
+      actual: issue.actualSerialCount
+    }))
+    return
+  }
+
+  const lines = selectedMaterials.map(material => ({
+    orderMaterialId: material.id,
+    returnQty: material.returnQty,
+    lotNo: material.lotNo || undefined,
+    locationId: material.locationId || undefined,
+    serialNos: material.serialNos || undefined,
+    remark: material.remark || undefined
+  }))
 
   submitLoading.value = true
   try {
@@ -1329,5 +1508,16 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.serial-progress {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.2;
+}
+
+.serial-progress--ok {
+  color: var(--el-color-success);
 }
 </style>
