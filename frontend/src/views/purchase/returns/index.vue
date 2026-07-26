@@ -471,9 +471,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Box,
   View,
@@ -493,16 +493,11 @@ import {
   cancelPurchaseReturn,
   exportPurchaseReturns,
   getPurchaseReceipts,
-  getPurchaseReceipt,
-  type PurchaseReturn,
-  type PurchaseReturnCreateRequest,
-  type PurchaseReceipt
+  getPurchaseReceipt
 } from '@/api/purchase'
 import { getLocations, getProducts } from '@/api/masterdata'
 import {
-  hydrateProductLineLabels,
-  serialCaptureProgress,
-  validateProductControlLines
+  serialCaptureProgress
 } from '@/utils/productLines'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
@@ -511,6 +506,7 @@ import { useUserStore } from '@/store/modules/user'
 import { formatLocalizedDateTime } from '@/utils/locale'
 import { usePurchaseReturnSummary } from '@/composables/usePurchaseReturnPresentation'
 import { usePurchaseReturnList } from '@/composables/usePurchaseReturnList'
+import { usePurchaseReturnForm } from '@/composables/usePurchaseReturnForm'
 
 const userStore = useUserStore()
 const { t } = useI18n()
@@ -561,185 +557,37 @@ const {
   onWarning: (message) => ElMessage.warning(message)
 })
 
-// 对话框
-const dialogVisible = ref(false)
-const editingId = ref<string | number>('')
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
-const selectedReceipt = ref<PurchaseReceipt>()
+const {
+  dialogVisible,
+  editingId,
+  form,
+  formRef,
+  formRules,
+  handleAdd,
+  handleEdit,
+  handleReceiptChange,
+  handleSubmitForm,
+  selectedReceipt,
+  submitLoading
+} = usePurchaseReturnForm(t, {
+  products,
+  availableReceipts,
+  loadCreateOptions,
+  getReceipt: getPurchaseReceipt,
+  getReturn: getPurchaseReturn,
+  createReturn: createPurchaseReturn,
+  updateReturn: updatePurchaseReturn,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => handleQuery()
+})
 
 const {
   completedCount,
   draftCount,
   locationsForSelectedReceipt
 } = usePurchaseReturnSummary(tableData, locations, selectedReceipt)
-
-// 表单数据
-const form = reactive<PurchaseReturnCreateRequest>({
-  receiptId: '',
-  returnDate: '',
-  items: [],
-  remark: ''
-})
-
-const formRules = computed<FormRules>(() => ({
-  receiptId: [{ required: true, message: t('purchaseReturn.validation.receipt'), trigger: 'change' }],
-  returnDate: [{ required: true, message: t('purchaseReturn.validation.date'), trigger: 'change' }]
-}))
-
-const productInfoById = (productId: string | number) => {
-  const product = products.value.find(item => String(item.id) === String(productId))
-  return {
-    productCode: product?.code || product?.productCode || '',
-    productName: product?.name || product?.productName || ''
-  }
-}
-
-const resetForm = () => {
-  editingId.value = ''
-  form.receiptId = ''
-  form.returnDate = ''
-  form.items = []
-  form.remark = ''
-  selectedReceipt.value = undefined
-  formRef.value?.resetFields()
-}
-
-const handleAdd = async () => {
-  try {
-    const receipts = await loadCreateOptions()
-    if (receipts.length === 0) {
-      ElMessage.warning(t('purchaseReturn.message.noAvailableReceipts'))
-      return
-    }
-    resetForm()
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('purchaseReturn.message.ordersLoadFailed'))
-  }
-}
-
-const handleReceiptChange = async () => {
-  const summary = availableReceipts.value.find(receipt => String(receipt.id) === String(form.receiptId))
-  const receipt = summary?.items?.length ? summary : await getPurchaseReceipt(form.receiptId)
-  if (receipt) {
-    selectedReceipt.value = receipt
-    form.items = receipt.items.map(item => ({
-      ...productInfoById(item.productId),
-      receiptLineId: item.id,
-      orderLineId: item.orderLineId || item.orderItemId,
-      productId: item.productId,
-      productCode: item.productCode || productInfoById(item.productId).productCode,
-      productName: item.productName || productInfoById(item.productId).productName,
-      receiptQty: item.quantity,
-      returnedQty: item.returnedQty || 0,
-      availableReturnQty: item.availableReturnQty ?? item.quantity - (item.returnedQty || 0),
-      quantity: item.quantity - (item.returnedQty || 0),
-      price: item.price || 0,
-      taxRate: item.taxRate || 0,
-      amount: item.amount || 0,
-      taxAmount: item.taxAmount || 0,
-      locationId: item.locationId ?? undefined,
-      serialNos: item.serialNos || '',
-      lotNo: item.lotNo || '',
-      productionDate: item.productionDate || '',
-      expiryDate: item.expiryDate || '',
-      remark: ''
-    }))
-    form.items = await hydrateProductLineLabels(form.items, async (productId) => {
-      const product = products.value.find((item) => String(item.id) === String(productId))
-      return product || {}
-    })
-  }
-}
-
-const handleEdit = async (row: PurchaseReturn) => {
-  try {
-    const detail = await getPurchaseReturn(row.id)
-    editingId.value = detail.id
-    const receipt = await getPurchaseReceipt(detail.receiptId)
-    availableReceipts.value = [receipt]
-    selectedReceipt.value = receipt
-    form.receiptId = detail.receiptId
-    form.returnDate = detail.returnDate
-    form.remark = detail.remark || ''
-    form.items = (detail.items || detail.lines || []).map(item => ({
-      receiptLineId: item.receiptLineId,
-      orderLineId: item.orderLineId,
-      productId: item.productId,
-      productCode: item.productCode,
-      productName: item.productName,
-      receiptQty: item.receiptQty,
-      returnedQty: item.returnedQty || 0,
-      availableReturnQty: (item.availableReturnQty ?? 0) + Number(item.quantity ?? item.qty ?? 0),
-      quantity: Number(item.quantity ?? item.qty ?? 0),
-      price: item.price || 0,
-      taxRate: item.taxRate || 0,
-      amount: item.amount || 0,
-      taxAmount: item.taxAmount || 0,
-      lotNo: item.lotNo,
-      productionDate: item.productionDate,
-      expiryDate: item.expiryDate,
-      locationId: item.locationId ?? undefined,
-      serialNos: item.serialNos || '',
-      remark: item.reason || item.remark || ''
-    }))
-    form.items = await hydrateProductLineLabels(form.items, async (productId) => {
-      const product = products.value.find((item) => String(item.id) === String(productId))
-      return product || {}
-    })
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('purchaseReturn.message.returnLoadFailed'))
-  }
-}
-
-const handleSubmitForm = async () => {
-  if (!formRef.value) return
-
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    if (form.items.length === 0) {
-      ElMessage.warning(t('purchaseReturn.validation.receipt'))
-      return
-    }
-
-    form.items = await hydrateProductLineLabels(form.items, async (productId) => {
-      const product = products.value.find((item) => String(item.id) === String(productId))
-      return product || {}
-    })
-    const controlIssues = validateProductControlLines(form.items)
-    if (controlIssues.length > 0) {
-      const issue = controlIssues[0]
-      const product = issue.productCode || issue.productName || String(issue.productId)
-      ElMessage.warning(t(`purchaseReturn.validation.${issue.messageKey}`, {
-        line: issue.index + 1,
-        product,
-        expected: issue.expectedSerialCount,
-        actual: issue.actualSerialCount
-      }))
-      return
-    }
-
-    submitLoading.value = true
-    try {
-      if (editingId.value) {
-        await updatePurchaseReturn(editingId.value, form)
-        ElMessage.success(t('purchaseReturn.message.updated'))
-      } else {
-        await createPurchaseReturn(form)
-        ElMessage.success(t('purchaseReturn.message.created'))
-      }
-      dialogVisible.value = false
-      handleQuery()
-    } catch {
-      ElMessage.error(editingId.value ? t('purchaseReturn.message.updateFailed') : t('purchaseReturn.message.createFailed'))
-    } finally {
-      submitLoading.value = false
-    }
-  })
-}
 
 onMounted(async () => {
   handleQuery()
