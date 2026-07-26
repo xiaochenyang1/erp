@@ -36,9 +36,10 @@
         <el-table-column prop="status" :label="$t('salesQuote.status')" width="110">
           <template #default="{ row }">{{ statusLabel(row.status) }}</template>
         </el-table-column>
-        <el-table-column :label="$t('salesQuote.actions')" width="360" fixed="right">
+        <el-table-column :label="$t('salesQuote.actions')" width="420" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openView(row)">{{ $t('salesQuote.detail') }}</el-button>
+            <el-button link type="primary" @click="handlePrint(row)">{{ $t('salesQuote.print') }}</el-button>
             <el-button v-if="row.status === 'DRAFT'" v-permission="'sales:quote:manage'" link type="primary" @click="openEdit(row)">{{ $t('salesQuote.edit') }}</el-button>
             <el-button v-if="row.status === 'DRAFT'" v-permission="'sales:quote:manage'" link type="success" @click="confirm(row)">{{ $t('salesQuote.confirm') }}</el-button>
             <el-button v-if="row.status === 'CONFIRMED'" v-permission="'sales:quote:manage'" link type="warning" @click="openConvert(row)">{{ $t('salesQuote.convert') }}</el-button>
@@ -150,6 +151,7 @@ import {
 } from '@/api/sales'
 import { getCustomers, getProducts, getWarehouses } from '@/api/masterdata'
 import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
+import { printSalesQuote } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 
@@ -253,6 +255,32 @@ const openView = async (row: SalesQuote) => {
     }),
     t('salesQuote.detailTitle')
   )
+}
+
+const handlePrint = async (row: SalesQuote) => {
+  try {
+    const detail = await getSalesQuote(row.id)
+    const productMap = new Map(
+      products.value.map((product) => [String(product.id), product])
+    )
+    if (productMap.size === 0) {
+      await loadOptions()
+      products.value.forEach((product) => productMap.set(String(product.id), product))
+    }
+    printSalesQuote({
+      ...detail,
+      lines: (detail.lines || []).map((line) => {
+        const product = productMap.get(String(line.productId))
+        return {
+          ...line,
+          productCode: product?.productCode || product?.code || line.productId,
+          productName: product?.productName || product?.name || ''
+        }
+      })
+    })
+  } catch {
+    ElMessage.error(t('salesQuote.message.printLoadFailed'))
+  }
 }
 
 const save = async () => {

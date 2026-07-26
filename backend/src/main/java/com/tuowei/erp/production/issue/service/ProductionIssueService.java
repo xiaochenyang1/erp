@@ -135,7 +135,10 @@ public class ProductionIssueService {
             line.setExpiryDate(requestLine == null ? null : requestLine.expiryDate());
             line.setLocationId(requestLine == null ? null : requestLine.locationId());
             line.setSerialNos(requestLine == null ? null : requestLine.serialNos());
-            line.setRemark(StringUtils.hasText(actionRemark) ? actionRemark : material.getRemark());
+            String lineRemark = requestLine != null && StringUtils.hasText(requestLine.remark())
+                    ? requestLine.remark().trim()
+                    : (StringUtils.hasText(actionRemark) ? actionRemark : material.getRemark());
+            line.setRemark(lineRemark);
             fillAudit(line, audit, now);
             issueLineMapper.insert(line);
 
@@ -154,7 +157,7 @@ public class ProductionIssueService {
                             line.getId(),
                             issueQty,
                             BigDecimal.ZERO,
-                            StringUtils.hasText(actionRemark) ? actionRemark : material.getRemark(),
+                            lineRemark,
                             issueDate,
                             line.getLotNo(),
                             line.getProductionDate(),

@@ -194,3 +194,30 @@ export function printProductionOrder(order: any) {
   })
   printHtml(`生产订单 ${order.orderNo}`, html)
 }
+
+export function printSalesQuote(quote: any) {
+  const lines = quote.lines || quote.items || []
+  const html = buildDocPrintHtml({
+    title: '销售报价单',
+    docNo: quote.quoteNo,
+    fields: [
+      ['客户', quote.customerName || quote.customerId || '-'],
+      ['报价日期', quote.quoteDate || '-'],
+      ['有效期至', quote.validUntil || '-'],
+      ['状态', quote.status || '-'],
+      ['备注', quote.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '数量', '单价', '金额', '备注'],
+    rows: lineRows(lines.map((line: any) => ({
+      ...line,
+      quantity: line.quantity ?? line.qty,
+      productCode: line.productCode || line.productId,
+      productName: line.productName || ''
+    }))),
+    totals: [
+      ['金额合计', money(quote.totalAmount)],
+      ['税额合计', money(quote.totalTaxAmount)]
+    ]
+  })
+  printHtml(`销售报价单 ${quote.quoteNo}`, html)
+}

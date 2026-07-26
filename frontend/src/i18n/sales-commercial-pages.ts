@@ -119,6 +119,7 @@ export const salesCommercialPageMessages = {
       amount: '金额',
       actions: '操作',
       detail: '详情',
+      print: '打印',
       edit: '编辑',
       confirm: '确认',
       convert: '转订单',
@@ -149,7 +150,8 @@ export const salesCommercialPageMessages = {
         prompt: '提示',
         cancelled: '已作废',
         selectWarehouse: '请选择仓库',
-        converted: '已转销售订单 {orderNo}'
+        converted: '已转销售订单 {orderNo}',
+        printLoadFailed: '加载打印数据失败'
       }
     }
   },
@@ -273,6 +275,7 @@ export const salesCommercialPageMessages = {
       amount: 'Amount',
       actions: 'Actions',
       detail: 'Details',
+      print: 'Print',
       edit: 'Edit',
       confirm: 'Confirm',
       convert: 'Convert to order',
@@ -303,7 +306,8 @@ export const salesCommercialPageMessages = {
         prompt: 'Confirm',
         cancelled: 'Quote cancelled',
         selectWarehouse: 'Select a warehouse',
-        converted: 'Converted to sales order {orderNo}'
+        converted: 'Converted to sales order {orderNo}',
+        printLoadFailed: 'Failed to load print data'
       }
     }
   }
