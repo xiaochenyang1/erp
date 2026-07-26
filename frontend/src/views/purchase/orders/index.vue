@@ -456,39 +456,35 @@ import {
 } from '@element-plus/icons-vue'
 import {
   getPurchaseOrders,
-  getPurchaseOrder,
   createPurchaseOrder,
   updatePurchaseOrder,
-  cancelPurchaseOrder,
-  closePurchaseOrder,
+  getPurchaseOrder,
   submitPurchaseOrder,
   approvePurchaseOrder,
   unapprovePurchaseOrder,
   rejectPurchaseOrder,
+  cancelPurchaseOrder,
+  closePurchaseOrder,
   tracePurchaseOrder,
   exportPurchaseOrders,
   resolvePurchasePrice,
   type PurchaseOrder,
-  type PurchaseOrderQuery,
   type PurchaseOrderSaveRequest,
   type PurchaseOrderItem,
-  type PurchaseOrderTrace,
   type PurchaseOrderRelatedDocs
 } from '@/api/purchase'
 import { printPurchaseOrder } from '@/utils/bizPrint'
-import { getProducts, getSuppliers, type Product, type Supplier } from '@/api/masterdata'
+import { getProducts, getSuppliers } from '@/api/masterdata'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
-import { formatBusinessDate, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
+import { usePurchaseOrderSummary } from '@/composables/usePurchaseOrderPresentation'
+import { usePurchaseOrderList } from '@/composables/usePurchaseOrderList'
 
 const userStore = useUserStore()
 const { t } = useI18n()
 const canCreate = computed(() => userStore.hasPermission('purchase:order:create'))
-const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2
-})
 
 const route = useRoute()
 const readQueryString = (key: string) => {
@@ -496,39 +492,69 @@ const readQueryString = (key: string) => {
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
 }
 
-// 查询表单
-const queryForm = reactive<PurchaseOrderQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  orderNo: '',
-  supplierId: undefined,
-  status: '',
-  startDate: '',
-  endDate: ''
+const {
+  currentRow,
+  dateRange,
+  detailVisible,
+  handleApprove,
+  handleCancelOrder,
+  handleCloseOrder,
+  handleDateChange,
+  handleExport,
+  handlePageChange,
+  handlePrint,
+  handleQuery,
+  handleReject,
+  handleReset,
+  handleSubmit,
+  handleTraceOrder,
+  handleUnapprove,
+  handleView,
+  loadOptions,
+  loading,
+  products,
+  purchaseTrace,
+  queryForm,
+  suppliers,
+  tableData,
+  total,
+  traceVisible
+} = usePurchaseOrderList(t, {
+  getOrders: getPurchaseOrders,
+  getOrder: getPurchaseOrder,
+  submitOrder: submitPurchaseOrder,
+  approveOrder: approvePurchaseOrder,
+  unapproveOrder: unapprovePurchaseOrder,
+  rejectOrder: rejectPurchaseOrder,
+  cancelOrder: cancelPurchaseOrder,
+  closeOrder: closePurchaseOrder,
+  traceOrder: tracePurchaseOrder,
+  exportOrders: exportPurchaseOrders,
+  getSuppliers,
+  getProducts,
+  printOrder: printPurchaseOrder,
+  downloadBlob,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  prompt: (message, title, opts) => ElMessageBox.prompt(message, title, opts) as any,
+  initialOrderNo: readQueryString('keyword'),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
-queryForm.orderNo = readQueryString('keyword')
 
-// 日期范围
-const dateRange = ref<[string, string]>()
-
-// 表格数据
-const tableData = ref<PurchaseOrder[]>([])
-const total = ref(0)
-const loading = ref(false)
-const suppliers = ref<Supplier[]>([])
-const products = ref<Product[]>([])
-const pendingCount = computed(() => tableData.value.filter(item => item.status === 'SUBMITTED' || item.status === 'PENDING' || item.approvalStatus === 'IN_APPROVAL').length)
-const approvedCount = computed(() => tableData.value.filter(item => item.status === 'APPROVED').length)
+const {
+  approvedCount,
+  canCancelOrder,
+  canCloseOrder,
+  canUnapproveOrder,
+  formatMoney,
+  pendingCount
+} = usePurchaseOrderSummary(tableData)
 
 // 对话框
 const dialogVisible = ref(false)
 const dialogTitle = computed(() => (editId.value ? t('purchaseOrder.dialog.edit') : t('purchaseOrder.dialog.create')))
 const formRef = ref<FormInstance>()
 const submitLoading = ref(false)
-const detailVisible = ref(false)
-const currentRow = ref<PurchaseOrder>()
-const traceVisible = ref(false)
-const purchaseTrace = ref<PurchaseOrderTrace>()
 
 const traceDocSections = computed<Array<{ key: keyof PurchaseOrderRelatedDocs; title: string }>>(() => [
   { key: 'receipts', title: t('purchaseOrder.traceSections.receipts') },
@@ -561,50 +587,6 @@ const orderTotal = computed(() => {
   return form.items.reduce((sum, item) => sum + (item.amount || 0), 0)
 })
 
-// 查询数据
-const handleQuery = async () => {
-  loading.value = true
-  try {
-    const res = await getPurchaseOrders(queryForm)
-    tableData.value = res.records
-    total.value = res.total
-  } catch (error) {
-    ElMessage.error(t('purchaseOrder.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// 重置查询
-const handleReset = () => {
-  queryForm.orderNo = ''
-  queryForm.supplierId = undefined
-  queryForm.status = ''
-  queryForm.startDate = ''
-  queryForm.endDate = ''
-  queryForm.pageNo = 1
-  dateRange.value = undefined
-  handleQuery()
-}
-
-// 日期范围变化
-const handleDateChange = (dates: [string, string] | null) => {
-  if (dates) {
-    queryForm.startDate = dates[0]
-    queryForm.endDate = dates[1]
-  } else {
-    queryForm.startDate = ''
-    queryForm.endDate = ''
-  }
-}
-
-// 分页
-const handlePageChange = (page: number, size: number) => {
-  queryForm.pageNo = page
-  queryForm.pageSize = size
-  handleQuery()
-}
-
 // 新增
 const handleAdd = () => {
   editId.value = undefined
@@ -625,7 +607,7 @@ const handleEdit = (row: PurchaseOrder) => {
   dialogVisible.value = true
 }
 
-// 查看
+// 复制
 const handleCopy = async (row: PurchaseOrder) => {
   try {
     const detail = await getPurchaseOrder(row.id)
@@ -651,195 +633,6 @@ const handleCopy = async (row: PurchaseOrder) => {
     dialogVisible.value = true
   } catch {
     ElMessage.error(t('purchaseOrder.message.copyFailed'))
-  }
-}
-
-const handlePrint = async (row: PurchaseOrder) => {
-  try {
-    const detail = await getPurchaseOrder(row.id)
-    printPurchaseOrder(detail)
-  } catch {
-    ElMessage.error(t('purchaseOrder.message.printLoadFailed'))
-  }
-}
-
-const handleView = (row: PurchaseOrder) => {
-  currentRow.value = row
-  detailVisible.value = true
-}
-
-const canCancelOrder = (row: PurchaseOrder) => {
-  return ['DRAFT', 'REJECTED', 'SUBMITTED'].includes(row.status)
-}
-
-const canCloseOrder = (row: PurchaseOrder) => {
-  return row.status === 'APPROVED' && row.receiptStatus !== 'RECEIVED'
-}
-
-// 与后端 PurchaseOrderService.unapprove 对齐：已审核且尚未入库
-const canUnapproveOrder = (row: PurchaseOrder) => {
-  return row.status === 'APPROVED'
-    && (row.approvalStatus === 'APPROVED' || !row.approvalStatus)
-    && (row.receiptStatus === 'NOT_RECEIVED' || !row.receiptStatus)
-}
-
-// 取消
-const handleCancelOrder = async (row: PurchaseOrder) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseOrder.message.cancelConfirm', { orderNo: row.orderNo }),
-      t('purchaseOrder.message.prompt'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    )
-
-    await cancelPurchaseOrder(row.id)
-    ElMessage.success(t('purchaseOrder.message.cancelled'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseOrder.message.cancelFailed'))
-    }
-  }
-}
-
-// 关闭
-const handleCloseOrder = async (row: PurchaseOrder) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseOrder.message.closeConfirm', { orderNo: row.orderNo }),
-      t('purchaseOrder.message.prompt'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    )
-
-    await closePurchaseOrder(row.id)
-    ElMessage.success(t('purchaseOrder.message.closed'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseOrder.message.closeFailed'))
-    }
-  }
-}
-
-// 追踪
-const handleTraceOrder = async (row: PurchaseOrder) => {
-  try {
-    purchaseTrace.value = await tracePurchaseOrder(row.id)
-    traceVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('purchaseOrder.message.traceLoadFailed'))
-  }
-}
-
-// 提交审批
-const handleSubmit = async (row: PurchaseOrder) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseOrder.message.submitConfirm', { orderNo: row.orderNo }),
-      t('purchaseOrder.message.prompt'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'info'
-      }
-    )
-
-    await submitPurchaseOrder(row.id)
-    ElMessage.success(t('purchaseOrder.message.submitted'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseOrder.message.submitFailed'))
-    }
-  }
-}
-
-// 审核通过
-const handleApprove = async (row: PurchaseOrder) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseOrder.message.approveConfirm', { orderNo: row.orderNo }),
-      t('purchaseOrder.message.prompt'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'success'
-      }
-    )
-
-    await approvePurchaseOrder(row.id)
-    ElMessage.success(t('purchaseOrder.message.approved'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseOrder.message.approveFailed'))
-    }
-  }
-}
-
-// 反审核
-const handleUnapprove = async (row: PurchaseOrder) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseOrder.message.unapproveConfirm', { orderNo: row.orderNo }),
-      t('purchaseOrder.message.prompt'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    )
-
-    await unapprovePurchaseOrder(row.id)
-    ElMessage.success(t('purchaseOrder.message.unapproved'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseOrder.message.unapproveFailed'))
-    }
-  }
-}
-
-// 驳回
-const handleReject = async (row: PurchaseOrder) => {
-  try {
-    const { value: reason } = await ElMessageBox.prompt(
-      t('purchaseOrder.validation.rejectReason'),
-      t('purchaseOrder.message.rejectTitle'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        inputPattern: /.+/,
-        inputErrorMessage: t('purchaseOrder.validation.rejectReason')
-      }
-    )
-
-    await rejectPurchaseOrder(row.id, reason)
-    ElMessage.success(t('purchaseOrder.message.rejected'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseOrder.message.actionFailed'))
-    }
-  }
-}
-
-// 导出
-const handleExport = async () => {
-  try {
-    const blob = await exportPurchaseOrders(queryForm)
-    downloadBlob(blob, t('purchaseOrder.message.exportFile', { timestamp: Date.now() }))
-    ElMessage.success(t('purchaseOrder.message.exported'))
-  } catch (error) {
-    ElMessage.error(t('purchaseOrder.message.exportFailed'))
   }
 }
 
@@ -892,8 +685,6 @@ const handleAddItem = () => {
 const handleRemoveItem = (index: number) => {
   form.items.splice(index, 1)
 }
-
-// 商品变更
 
 const handleAuxQtyChange = (index: number) => {
   const item: any = form.items[index]
@@ -960,21 +751,10 @@ const resetForm = () => {
   formRef.value?.resetFields()
 }
 
-const loadSuppliers = async () => {
-  const response = await getSuppliers({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-  suppliers.value = response.records
-}
-
-const loadProducts = async () => {
-  const response = await getProducts({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-  products.value = response.records
-}
-
 // 初始化
 onMounted(() => {
   handleQuery()
-  loadSuppliers().catch(() => ElMessage.error(t('purchaseOrder.message.suppliersLoadFailed')))
-  loadProducts().catch(() => ElMessage.error(t('purchaseOrder.message.productsLoadFailed')))
+  loadOptions()
 })
 </script>
 
