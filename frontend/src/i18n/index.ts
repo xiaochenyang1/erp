@@ -161,7 +161,7 @@ const coreMessages = {
       approvalValue: { none: '无', pending: '审批中', approved: '已通过', rejected: '已驳回', cancelled: '已取消' },
       validation: { required: '请填写日期和明细' },
       message: {
-        created: '创建成功', saved: '保存成功', done: '操作成功', failed: '操作失败', detailLoadFailed: '加载详情失败', printLoadFailed: '加载打印数据失败',
+        created: '创建成功', saved: '保存成功', done: '操作成功', failed: '操作失败', loadFailed: '加载请购单失败', optionsLoadFailed: '加载商品/供应商选项失败', saveFailed: '保存失败', detailLoadFailed: '加载详情失败', printLoadFailed: '加载打印数据失败',
         submitConfirm: '确认提交请购单“{no}”吗？', approveConfirm: '确认审批通过请购单“{no}”吗？',
         rejectConfirm: '确认驳回请购单“{no}”吗？', cancelConfirm: '确认作废请购单“{no}”吗？',
         convertConfirm: '确认将请购单“{no}”转为采购订单吗？'
@@ -372,7 +372,7 @@ const coreMessages = {
       approvalValue: { none: 'None', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled' },
       validation: { required: 'Date and lines are required' },
       message: {
-        created: 'Created', saved: 'Saved', done: 'Done', failed: 'Operation failed', detailLoadFailed: 'Failed to load details', printLoadFailed: 'Failed to load print data',
+        created: 'Created', saved: 'Saved', done: 'Done', failed: 'Operation failed', loadFailed: 'Failed to load requisitions', optionsLoadFailed: 'Failed to load product/supplier options', saveFailed: 'Failed to save', detailLoadFailed: 'Failed to load details', printLoadFailed: 'Failed to load print data',
         submitConfirm: 'Submit requisition “{no}”?', approveConfirm: 'Approve requisition “{no}”?',
         rejectConfirm: 'Reject requisition “{no}”?', cancelConfirm: 'Cancel requisition “{no}”?',
         convertConfirm: 'Convert requisition “{no}” to a purchase order?'

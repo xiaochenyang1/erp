@@ -112,7 +112,7 @@
         v-model:current-page="query.pageNo"
         v-model:page-size="query.pageSize"
         :page-sizes="[10, 20, 50, 100]"
-        @current-change="loadData"
+        @current-change="handlePageChange"
         @size-change="handleSizeChange"
       />
     </el-card>
@@ -171,7 +171,7 @@
               </el-table-column>
               <el-table-column width="80">
                 <template #default="{ $index }">
-                  <el-button link type="danger" @click="form.lines.splice($index, 1)">
+                  <el-button link type="danger" @click="removeLine($index)">
                     {{ t('purchaseRequisition.delete') }}
                   </el-button>
                 </template>
@@ -221,7 +221,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import {
@@ -236,166 +236,52 @@ import {
   updatePurchaseRequisition,
   type PurchaseRequisition
 } from '@/api/purchase'
-import { getProducts, getSuppliers, type Product, type Supplier } from '@/api/masterdata'
-import { formatBusinessDate } from '@/utils/locale'
+import { getProducts, getSuppliers } from '@/api/masterdata'
 import { printPurchaseRequisition } from '@/utils/bizPrint'
+import { usePurchaseRequisitionPresentation } from '@/composables/usePurchaseRequisitionPresentation'
+import { usePurchaseRequisitionList } from '@/composables/usePurchaseRequisitionList'
+import { usePurchaseRequisitionForm } from '@/composables/usePurchaseRequisitionForm'
 
 const { t } = useI18n()
 
-const statuses = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CONVERTED', 'CANCELLED'] as const
-
-const loading = ref(false)
-const saving = ref(false)
-const detailLoading = ref(false)
-const rows = ref<PurchaseRequisition[]>([])
-const total = ref(0)
-const products = ref<Product[]>([])
-const suppliers = ref<Supplier[]>([])
-const dialogVisible = ref(false)
-const detailVisible = ref(false)
-const editingId = ref<string | number | null>(null)
-const detail = ref<PurchaseRequisition | null>(null)
-
-const query = reactive({
-  keyword: '',
-  status: '',
-  pageNo: 1,
-  pageSize: 20
-})
-
-type LineForm = { productId: string; qty: number; remark: string }
-
-const form = reactive<{
-  requisitionDate: string
-  neededDate: string
-  supplierId: string
-  remark: string
-  lines: LineForm[]
-}>({
-  requisitionDate: formatBusinessDate(),
-  neededDate: '',
-  supplierId: '',
-  remark: '',
-  lines: []
-})
-
-const statusLabel = (status?: string) => {
-  if (!status) return '-'
-  const key = `purchaseRequisition.statusValue.${status.toLowerCase()}`
-  const translated = t(key)
-  return translated === key ? status : translated
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
 }
 
-const approvalLabel = (status?: string | null) => {
-  if (!status) return '-'
-  const key = `purchaseRequisition.approvalValue.${status.toLowerCase()}`
-  const translated = t(key)
-  return translated === key ? status : translated
-}
-
-const supplierLabel = (supplierId?: string | number | null) => {
-  if (supplierId == null || supplierId === '') return '-'
-  const supplier = suppliers.value.find((item) => String(item.id) === String(supplierId))
-  return supplier ? (supplier.supplierName || supplier.name || String(supplierId)) : String(supplierId)
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const page = await getPurchaseRequisitions({
-      keyword: query.keyword || undefined,
-      status: query.status || undefined,
-      pageNo: query.pageNo,
-      pageSize: query.pageSize
-    })
-    rows.value = page.records || []
-    total.value = Number(page.total || 0)
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadOptions = async () => {
-  const [productPage, supplierPage] = await Promise.all([
-    getProducts({ pageNo: 1, pageSize: 200, status: 'ACTIVE' }),
-    getSuppliers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-  ])
-  products.value = productPage.records || []
-  suppliers.value = supplierPage.records || []
-}
-
-const handleSearch = async () => {
-  query.pageNo = 1
-  await loadData()
-}
-
-const handleReset = async () => {
-  query.keyword = ''
-  query.status = ''
-  query.pageNo = 1
-  await loadData()
-}
-
-const handleSizeChange = async () => {
-  query.pageNo = 1
-  await loadData()
-}
-
-const openCreate = async () => {
-  await loadOptions()
-  editingId.value = null
-  form.requisitionDate = formatBusinessDate()
-  form.neededDate = ''
-  form.supplierId = ''
-  form.remark = ''
-  form.lines = [{ productId: '', qty: 1, remark: '' }]
-  dialogVisible.value = true
-}
-
-const openEdit = async (row: PurchaseRequisition) => {
-  await loadOptions()
-  const detailData = await getPurchaseRequisition(row.id)
-  editingId.value = detailData.id
-  form.requisitionDate = detailData.requisitionDate
-  form.neededDate = detailData.neededDate || ''
-  form.supplierId = detailData.supplierId != null ? String(detailData.supplierId) : ''
-  form.remark = detailData.remark || ''
-  form.lines = (detailData.lines || []).map((line) => ({
-    productId: String(line.productId),
-    qty: Number(line.qty || 1),
-    remark: line.remark || ''
-  }))
-  if (form.lines.length === 0) {
-    form.lines = [{ productId: '', qty: 1, remark: '' }]
-  }
-  dialogVisible.value = true
-}
-
-const openDetail = async (row: PurchaseRequisition) => {
-  detailVisible.value = true
-  detail.value = null
-  detailLoading.value = true
-  try {
-    if (suppliers.value.length === 0) {
-      await loadOptions()
-    }
-    detail.value = await getPurchaseRequisition(row.id)
-  } catch {
-    ElMessage.error(t('purchaseRequisition.message.detailLoadFailed'))
-    detailVisible.value = false
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const handlePrint = async (row: PurchaseRequisition) => {
-  try {
-    if (products.value.length === 0 || suppliers.value.length === 0) {
-      await loadOptions()
-    }
-    const detailData = await getPurchaseRequisition(row.id)
+const {
+  act,
+  detail,
+  detailVisible,
+  handlePageChange,
+  handlePrint,
+  handleReset,
+  handleSearch,
+  handleSizeChange,
+  loadData,
+  loadOptions,
+  loading,
+  openDetail,
+  products,
+  query,
+  rows,
+  suppliers,
+  total
+} = usePurchaseRequisitionList(t, {
+  getRequisitions: getPurchaseRequisitions,
+  getRequisition: getPurchaseRequisition,
+  getProducts,
+  getSuppliers,
+  submit: submitPurchaseRequisition,
+  approve: approvePurchaseRequisition,
+  reject: rejectPurchaseRequisition,
+  cancel: cancelPurchaseRequisition,
+  convert: convertPurchaseRequisition,
+  printRequisition: printPurchaseRequisition,
+  decoratePrint: (detailData) => {
     const productMap = new Map(products.value.map((product) => [String(product.id), product]))
-    printPurchaseRequisition({
+    return {
       ...detailData,
       supplierName: supplierLabel(detailData.supplierId),
       lines: (detailData.lines || []).map((line) => {
@@ -406,85 +292,38 @@ const handlePrint = async (row: PurchaseRequisition) => {
           productName: line.productName || product?.productName || product?.name || ''
         }
       })
-    })
-  } catch {
-    ElMessage.error(t('purchaseRequisition.message.printLoadFailed'))
-  }
-}
+    } as PurchaseRequisition
+  },
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  onError: notify.onError,
+  onSuccess: notify.onSuccess
+})
 
-const addLine = () => {
-  form.lines.push({ productId: '', qty: 1, remark: '' })
-}
+const {
+  approvalLabel,
+  statusLabel,
+  statuses,
+  supplierLabel
+} = usePurchaseRequisitionPresentation(t, suppliers)
 
-const save = async () => {
-  if (!form.requisitionDate || !form.lines.length || form.lines.some((line) => !line.productId || !line.qty)) {
-    ElMessage.warning(t('purchaseRequisition.validation.required'))
-    return
-  }
-  saving.value = true
-  try {
-    const payload = {
-      requisitionDate: form.requisitionDate,
-      neededDate: form.neededDate || null,
-      supplierId: form.supplierId || null,
-      remark: form.remark || undefined,
-      lines: form.lines.map((line) => ({
-        productId: line.productId,
-        qty: line.qty,
-        remark: line.remark || undefined
-      }))
-    }
-    if (editingId.value) {
-      await updatePurchaseRequisition(editingId.value, payload)
-      ElMessage.success(t('purchaseRequisition.message.saved'))
-    } else {
-      await createPurchaseRequisition(payload)
-      ElMessage.success(t('purchaseRequisition.message.created'))
-    }
-    dialogVisible.value = false
-    await loadData()
-  } finally {
-    saving.value = false
-  }
-}
-
-const act = async (row: PurchaseRequisition, type: 'submit' | 'approve' | 'reject' | 'cancel' | 'convert') => {
-  const confirmKey: Record<typeof type, string> = {
-    submit: 'purchaseRequisition.message.submitConfirm',
-    approve: 'purchaseRequisition.message.approveConfirm',
-    reject: 'purchaseRequisition.message.rejectConfirm',
-    cancel: 'purchaseRequisition.message.cancelConfirm',
-    convert: 'purchaseRequisition.message.convertConfirm'
-  }
-  try {
-    await ElMessageBox.confirm(
-      t(confirmKey[type], { no: row.requisitionNo }),
-      t('purchaseRequisition.prompt'),
-      {
-        confirmButtonText: t('purchaseRequisition.confirm'),
-        cancelButtonText: t('purchaseRequisition.close'),
-        type: 'warning'
-      }
-    )
-  } catch {
-    return
-  }
-
-  const map = {
-    submit: submitPurchaseRequisition,
-    approve: approvePurchaseRequisition,
-    reject: rejectPurchaseRequisition,
-    cancel: cancelPurchaseRequisition,
-    convert: convertPurchaseRequisition
-  }
-  try {
-    await map[type](row.id)
-    ElMessage.success(t('purchaseRequisition.message.done'))
-    await loadData()
-  } catch {
-    ElMessage.error(t('purchaseRequisition.message.failed'))
-  }
-}
+const {
+  addLine,
+  dialogVisible,
+  editingId,
+  form,
+  openCreate,
+  openEdit,
+  removeLine,
+  save,
+  saving
+} = usePurchaseRequisitionForm(t, {
+  getRequisition: getPurchaseRequisition,
+  createRequisition: createPurchaseRequisition,
+  updateRequisition: updatePurchaseRequisition,
+  ensureOptions: loadOptions,
+  onSubmitted: loadData,
+  ...notify
+})
 
 onMounted(loadData)
 </script>
