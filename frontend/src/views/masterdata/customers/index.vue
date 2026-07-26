@@ -393,15 +393,13 @@ import {
   enableCustomer,
   exportCustomers,
   type Customer,
-  type CustomerCreditExposure,
-  type CustomerQuery,
   type CustomerSaveRequest
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
-import { downloadBlob } from '@/utils/download'
 import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
-import { formatLocalizedCurrency, formatLocalizedDateTime } from '@/utils/locale'
+import { useCustomerPresentation } from '@/composables/useCustomerPresentation'
+import { useCustomerList } from '@/composables/useCustomerList'
 
 const appStore = useAppStore()
 const userStore = useUserStore()
@@ -587,50 +585,54 @@ const displayPreferences = computed(() => ({
   locale: appStore.locale,
   timeZone: appStore.timeZone
 }))
-const interpolate = (template: string, params: Record<string, string | number>) =>
-  template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
-const formatCurrency = (value?: number | string | null) => {
-  const amount = Number(value)
-  if (!Number.isFinite(amount)) return '-'
-  return formatLocalizedCurrency(amount, {}, displayPreferences.value)
-}
-const formatDateTime = (value?: string | null) => (
-  value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
-)
-const hasCreditPeriod = (value?: number | null) => value != null && Number(value) > 0
-const formatCreditPeriod = (value?: number | null) => (
-  hasCreditPeriod(value)
-    ? interpolate(texts.value.creditPeriodValue, { days: Number(value) })
-    : texts.value.cashSettlement
-)
-const formatCreditLimit = (value?: number | null) => (
-  value ? formatCurrency(value) : texts.value.noLimit
-)
 
-// 搜索表单
-const searchForm = reactive<CustomerQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  code: '',
-  name: '',
-  type: '',
-  status: ''
+const {
+  companyCount: countCompany,
+  formatCreditLimit,
+  formatCreditPeriod,
+  formatCurrency,
+  formatDateTime,
+  individualCount: countIndividual,
+  interpolate
+} = useCustomerPresentation(texts, displayPreferences)
+
+const {
+  creditExposure,
+  currentRow,
+  detailVisible,
+  handleDelete,
+  handleEnable,
+  handleExport,
+  handlePageChange,
+  handleReset,
+  handleSearch,
+  handleView,
+  loadData,
+  loading,
+  searchForm,
+  tableData,
+  total
+} = useCustomerList(texts, {
+  getCustomers,
+  getCustomer,
+  getCreditExposure: getCustomerCreditExposure,
+  enableCustomer,
+  deleteCustomer,
+  exportCustomers,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  cancelLabel: () => (appStore.locale === 'en-US' ? 'Cancel' : '取消'),
+  interpolate,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
 
-// 表格数据
-const tableData = ref<Customer[]>([])
-const total = ref(0)
-const loading = ref(false)
-const companyCount = computed(() => tableData.value.filter(item => item.type === 'COMPANY').length)
-const individualCount = computed(() => tableData.value.filter(item => item.type === 'INDIVIDUAL').length)
+const companyCount = computed(() => countCompany(tableData.value))
+const individualCount = computed(() => countIndividual(tableData.value))
 
 // 对话框
 const dialogVisible = ref(false)
 const dialogTitle = computed(() => (formData.id ? texts.value.editCustomer : texts.value.createCustomer))
 const submitting = ref(false)
-const detailVisible = ref(false)
-const currentRow = ref<Customer>()
-const creditExposure = ref<CustomerCreditExposure>()
 
 // 表单数据
 const formData = reactive<CustomerSaveRequest & { id?: string }>({
@@ -648,7 +650,6 @@ const formData = reactive<CustomerSaveRequest & { id?: string }>({
   remark: ''
 })
 
-// 表单验证规则
 const formRules = computed(() => ({
   code: [
     { required: true, message: texts.value.validationEnterCode, trigger: 'blur' },
@@ -658,12 +659,8 @@ const formRules = computed(() => ({
     { required: true, message: texts.value.validationEnterName, trigger: 'blur' },
     { min: 2, max: 100, message: texts.value.validationNameLength, trigger: 'blur' }
   ],
-  settlementMethod: [
-    { required: true, message: texts.value.validationSettlementMethod, trigger: 'change' }
-  ],
-  creditLimit: [
-    { required: true, message: texts.value.validationCreditLimit, trigger: 'change' }
-  ],
+  settlementMethod: [{ required: true, message: texts.value.validationSettlementMethod, trigger: 'change' }],
+  creditLimit: [{ required: true, message: texts.value.validationCreditLimit, trigger: 'blur' }],
   mobile: [
     { pattern: /^1[3-9]\d{9}$/, message: texts.value.validationMobile, trigger: 'blur' }
   ],
@@ -672,55 +669,6 @@ const formRules = computed(() => ({
   ]
 }))
 
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getCustomers(searchForm)
-
-    // 适配后端返回的数据结构
-    const customers = res.records.map(item => ({
-      ...item,
-      code: item.customerCode,
-      name: item.customerName,
-      contact: item.contactName,
-      mobile: item.contactPhone
-    }))
-
-    tableData.value = customers
-    total.value = res.total
-  } catch (error) {
-    console.error('加载数据失败:', error)
-    ElMessage.error(texts.value.loadFailed)
-  } finally {
-    loading.value = false
-  }
-}
-
-// 搜索
-const handleSearch = () => {
-  searchForm.pageNo = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  searchForm.code = ''
-  searchForm.name = ''
-  searchForm.type = ''
-  searchForm.status = ''
-  searchForm.pageNo = 1
-  loadData()
-}
-
-// 分页
-const handlePageChange = (page: number, size: number) => {
-  searchForm.pageNo = page
-  searchForm.pageSize = size
-  loadData()
-}
-
-// 新增
 const handleCreate = () => {
   Object.assign(formData, {
     id: undefined,
@@ -740,7 +688,6 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-// 编辑
 const handleEdit = (row: Customer) => {
   Object.assign(formData, {
     id: row.id,
@@ -760,66 +707,9 @@ const handleEdit = (row: Customer) => {
   dialogVisible.value = true
 }
 
-// 查看
-const handleView = async (row: Customer) => {
-  try {
-    currentRow.value = await getCustomer(row.id)
-    creditExposure.value = await getCustomerCreditExposure(row.id)
-    detailVisible.value = true
-  } catch {
-    ElMessage.error(texts.value.loadDetailFailed)
-  }
-}
-
-// 删除
-const handleDelete = async (row: Customer) => {
-  try {
-    await ElMessageBox.confirm(
-      interpolate(texts.value.confirmDelete, { name: row.name }),
-      texts.value.confirmTitle,
-      {
-        confirmButtonText: texts.value.delete,
-        cancelButtonText: appStore.locale === 'en-US' ? 'Cancel' : '取消',
-        type: 'warning'
-      }
-    )
-
-    await deleteCustomer(row.id)
-    ElMessage.success(texts.value.deleteSuccess)
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(texts.value.deleteFailed)
-    }
-  }
-}
-
-const handleEnable = async (row: Customer) => {
-  try {
-    await ElMessageBox.confirm(
-      interpolate(texts.value.confirmEnable, { name: row.name }),
-      texts.value.confirmTitle,
-      {
-        confirmButtonText: texts.value.enable,
-        cancelButtonText: appStore.locale === 'en-US' ? 'Cancel' : '取消',
-        type: 'warning'
-      }
-    )
-    await enableCustomer(row.id)
-    ElMessage.success(texts.value.enableSuccess)
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(texts.value.enableFailed)
-    }
-  }
-}
-
-// 提交
 const handleSubmit = async (values: any) => {
   submitting.value = true
   try {
-    // 转换字段名以适配后端
     const payload = {
       customerCode: values.code,
       customerName: values.name,
@@ -845,21 +735,10 @@ const handleSubmit = async (values: any) => {
     dialogVisible.value = false
     loadData()
   } catch (error) {
-    console.error('提交失败:', error)
+    console.error(error)
     ElMessage.error(formData.id ? texts.value.updateFailed : texts.value.createFailed)
   } finally {
     submitting.value = false
-  }
-}
-
-// 导出
-const handleExport = async () => {
-  try {
-    const blob = await exportCustomers(searchForm)
-    downloadBlob(blob, `${texts.value.exportFilename}_${Date.now()}.csv`)
-    ElMessage.success(texts.value.exportSuccess)
-  } catch (error) {
-    ElMessage.error(texts.value.exportFailed)
   }
 }
 
