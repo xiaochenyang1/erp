@@ -560,7 +560,6 @@ import {
   getPurchaseOrders,
   getPurchaseOrder,
   type PurchaseReceipt,
-  type PurchaseReceiptQuery,
   type PurchaseReceiptCreateRequest,
   type PurchaseOrder,
   type PurchaseReceiptItem
@@ -571,10 +570,7 @@ import {
   getProduct,
   getProductByBarcode,
   getSuppliers,
-  getWarehouses,
-  type Location,
-  type Supplier,
-  type Warehouse
+  getWarehouses
 } from '@/api/masterdata'
 import { BarcodeScanField, PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { incrementScannedLine } from '@/utils/barcode'
@@ -588,6 +584,7 @@ import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
 import { formatLocalizedDateTime } from '@/utils/locale'
 import { usePurchaseReceiptSummary } from '@/composables/usePurchaseReceiptPresentation'
+import { usePurchaseReceiptList } from '@/composables/usePurchaseReceiptList'
 
 const userStore = useUserStore()
 const { t } = useI18n()
@@ -599,26 +596,50 @@ const readQueryString = (key: string) => {
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
 }
 
-// 查询表单
-const queryForm = reactive<PurchaseReceiptQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  receiptNo: '',
-  orderId: undefined,
-  supplierId: undefined,
-  status: '',
-  startDate: '',
-  endDate: ''
+const {
+  currentRow,
+  dateRange,
+  detailVisible,
+  handleCancel,
+  handleComplete,
+  handleDateChange,
+  handleExport,
+  handlePageChange,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  handleView,
+  linkedOrder,
+  linkedOrderLoading,
+  linkedOrderVisible,
+  loadLocations,
+  loadOptions,
+  loading,
+  locations,
+  queryForm,
+  suppliers,
+  tableData,
+  total,
+  viewOrder,
+  warehouses
+} = usePurchaseReceiptList(t, {
+  getReceipts: getPurchaseReceipts,
+  getReceipt: getPurchaseReceipt,
+  getOrder: getPurchaseOrder,
+  completeReceipt: completePurchaseReceipt,
+  cancelReceipt: cancelPurchaseReceipt,
+  exportReceipts: exportPurchaseReceipts,
+  getWarehouses,
+  getSuppliers,
+  getLocations,
+  printReceipt: printPurchaseReceipt,
+  downloadBlob,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  initialReceiptNo: readQueryString('keyword'),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
-queryForm.receiptNo = readQueryString('keyword')
-
-// 日期范围
-const dateRange = ref<[string, string]>()
-
-// 表格数据
-const tableData = ref<PurchaseReceipt[]>([])
-const total = ref(0)
-const loading = ref(false)
 
 // 对话框
 const dialogVisible = ref(false)
@@ -627,17 +648,9 @@ const formRef = ref<FormInstance>()
 const submitLoading = ref(false)
 const scanLoading = ref(false)
 const scanFeedback = ref('')
-const detailVisible = ref(false)
-const currentRow = ref<PurchaseReceipt>()
-const linkedOrderVisible = ref(false)
-const linkedOrderLoading = ref(false)
-const linkedOrder = ref<PurchaseOrder>()
 
 // 可用订单列表
 const availableOrders = ref<PurchaseOrder[]>([])
-const warehouses = ref<Warehouse[]>([])
-const locations = ref<Location[]>([])
-const suppliers = ref<Supplier[]>([])
 
 // 表单数据
 const form = reactive<PurchaseReceiptCreateRequest>({
@@ -669,51 +682,6 @@ const formRules = computed<FormRules>(() => ({
   warehouseId: [{ required: true, message: t('purchaseReceipt.validation.warehouse'), trigger: 'change' }],
   receiptDate: [{ required: true, message: t('purchaseReceipt.validation.date'), trigger: 'change' }]
 }))
-
-// 查询数据
-const handleQuery = async () => {
-  loading.value = true
-  try {
-    const res = await getPurchaseReceipts(queryForm)
-    tableData.value = res.records
-    total.value = res.total
-  } catch (error) {
-    ElMessage.error(t('purchaseReceipt.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// 重置查询
-const handleReset = () => {
-  queryForm.receiptNo = ''
-  queryForm.orderId = undefined
-  queryForm.supplierId = undefined
-  queryForm.status = ''
-  queryForm.startDate = ''
-  queryForm.endDate = ''
-  queryForm.pageNo = 1
-  dateRange.value = undefined
-  handleQuery()
-}
-
-// 日期范围变化
-const handleDateChange = (dates: [string, string] | null) => {
-  if (dates) {
-    queryForm.startDate = dates[0]
-    queryForm.endDate = dates[1]
-  } else {
-    queryForm.startDate = ''
-    queryForm.endDate = ''
-  }
-}
-
-// 分页
-const handlePageChange = (page: number, size: number) => {
-  queryForm.pageNo = page
-  queryForm.pageSize = size
-  handleQuery()
-}
 
 // 新增
 const handleAdd = async () => {
@@ -856,98 +824,6 @@ const handleBarcodeScan = async (barcode: string) => {
   }
 }
 
-// 查看
-const handlePrint = async (row: any) => {
-  try {
-    const detail = await getPurchaseReceipt(row.id)
-    printPurchaseReceipt(detail)
-  } catch {
-    ElMessage.error(t('purchaseReceipt.message.printLoadFailed'))
-  }
-}
-
-const handleView = (row: PurchaseReceipt) => {
-  currentRow.value = row
-  detailVisible.value = true
-}
-
-// 查看订单
-const viewOrder = async (orderId: string | number) => {
-  if (!orderId) {
-    ElMessage.warning(t('purchaseReceipt.message.missingOrderId'))
-    return
-  }
-
-  linkedOrderVisible.value = true
-  linkedOrder.value = undefined
-  linkedOrderLoading.value = true
-  try {
-    linkedOrder.value = await getPurchaseOrder(orderId)
-  } catch (error) {
-    ElMessage.error(t('purchaseReceipt.message.orderDetailLoadFailed'))
-    linkedOrderVisible.value = false
-  } finally {
-    linkedOrderLoading.value = false
-  }
-}
-
-// 完成收货
-const handleComplete = async (row: PurchaseReceipt) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseReceipt.message.postConfirm', { receiptNo: row.receiptNo }),
-      t('purchaseReceipt.message.prompt'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'success'
-      }
-    )
-
-    await completePurchaseReceipt(row.id)
-    ElMessage.success(t('purchaseReceipt.message.posted'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseReceipt.message.postFailed'))
-    }
-  }
-}
-
-// 取消收货
-const handleCancel = async (row: PurchaseReceipt) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseReceipt.message.cancelConfirm', { receiptNo: row.receiptNo }),
-      t('purchaseReceipt.message.prompt'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    )
-
-    await cancelPurchaseReceipt(row.id)
-    ElMessage.success(t('purchaseReceipt.message.cancelled'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseReceipt.message.cancelFailed'))
-    }
-  }
-}
-
-// 导出
-const handleExport = async () => {
-  try {
-    const blob = await exportPurchaseReceipts(queryForm)
-    downloadBlob(blob, t('purchaseReceipt.message.exportFile', { timestamp: Date.now() }))
-    ElMessage.success(t('purchaseReceipt.message.exported'))
-  } catch (error) {
-    ElMessage.error(t('purchaseReceipt.message.exportFailed'))
-  }
-}
-
 // 提交表单
 const handleSubmitForm = async () => {
   if (!formRef.value) return
@@ -1004,30 +880,6 @@ const resetForm = () => {
   formRef.value?.resetFields()
 }
 
-const loadWarehouses = async () => {
-  const response = await getWarehouses({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-  warehouses.value = response.records || []
-}
-
-const loadSuppliers = async () => {
-  const response = await getSuppliers({ pageNo: 1, pageSize: 1000, status: 'ACTIVE' })
-  suppliers.value = response.records || []
-}
-
-const loadLocations = async (warehouseId?: string | number) => {
-  try {
-    const page = await getLocations({
-      pageNo: 1,
-      pageSize: 500,
-      status: 'ACTIVE',
-      warehouseId: warehouseId || undefined
-    })
-    locations.value = page.records || []
-  } catch {
-    locations.value = []
-  }
-}
-
 const handleWarehouseChange = async (warehouseId?: string | number) => {
   form.items.forEach((item) => {
     item.locationId = undefined
@@ -1038,9 +890,7 @@ const handleWarehouseChange = async (warehouseId?: string | number) => {
 // 初始化
 onMounted(() => {
   handleQuery()
-  loadWarehouses().catch(() => ElMessage.error(t('purchaseReceipt.message.warehousesLoadFailed')))
-  loadSuppliers().catch(() => ElMessage.error(t('purchaseReceipt.message.suppliersLoadFailed')))
-  loadLocations().catch(() => undefined)
+  loadOptions()
 })
 </script>
 
