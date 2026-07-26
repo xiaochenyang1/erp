@@ -82,6 +82,17 @@ const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInv
 const inventoryStockResources = readFileSync(resolve(root, 'src/composables/useInventoryStockResources.ts'), 'utf8')
 const inventoryStockFeature = `${inventoryStockView}\n${inventoryStockDetails}\n${inventoryStockActions}\n${inventoryStockResources}`
 const inventoryAlertView = readFileSync(resolve(root, 'src/views/inventory/alerts/index.vue'), 'utf8')
+// 盘点页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const inventoryCheckView = readFileSync(resolve(root, 'src/views/inventory/checks/index.vue'), 'utf8')
+const inventoryCheckPresentation = readFileSync(resolve(root, 'src/composables/useInventoryCheckPresentation.ts'), 'utf8')
+const inventoryCheckList = readFileSync(resolve(root, 'src/composables/useInventoryCheckList.ts'), 'utf8')
+const inventoryCheckForm = readFileSync(resolve(root, 'src/composables/useInventoryCheckForm.ts'), 'utf8')
+const inventoryCheckFeature = [
+  inventoryCheckView,
+  inventoryCheckPresentation,
+  inventoryCheckList,
+  inventoryCheckForm
+].join('\n')
 const inventoryOptionViews = [
   {
     name: '库存调整页',
@@ -93,7 +104,7 @@ const inventoryOptionViews = [
   },
   {
     name: '库存盘点页',
-    content: readFileSync(resolve(root, 'src/views/inventory/checks/index.vue'), 'utf8')
+    content: inventoryCheckFeature
   }
 ]
 
