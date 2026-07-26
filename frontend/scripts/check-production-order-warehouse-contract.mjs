@@ -60,7 +60,13 @@ const readinessView = [
   'src/composables/useReadinessList.ts',
   'src/composables/useReadinessForms.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
-const roleView = readFileSync(resolve(root, 'src/views/system/roles/index.vue'), 'utf8')
+// 角色管理页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const roleView = [
+  'src/views/system/roles/index.vue',
+  'src/composables/useSystemRolePresentation.ts',
+  'src/composables/useSystemRoleList.ts',
+  'src/composables/useSystemRoleForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const menuView = readFileSync(resolve(root, 'src/views/system/menus/index.vue'), 'utf8')
 const deptView = readFileSync(resolve(root, 'src/views/system/depts/index.vue'), 'utf8')
 const postView = readFileSync(resolve(root, 'src/views/system/posts/index.vue'), 'utf8')
@@ -1466,8 +1472,8 @@ for (const fragment of [
   'node-key="id"',
   'const permissionTree = ref<Menu[]>([])',
   'const [menus, assignment] = await Promise.all',
-  'selectedPermissions.value = assignment.menuIds',
-  'await assignRoleMenus(currentRoleId.value, menuIds)'
+  'selectedPermissions.value = (assignment.menuIds || []).map(String)',
+  'await options.assignRoleMenus(currentRoleId.value, menuIds)'
 ]) {
   if (!roleView.includes(fragment)) {
     errors.push(`系统角色页缺少真实菜单授权片段: ${fragment}`)
@@ -1675,7 +1681,7 @@ const systemEnableViewContracts = [
   {
     name: '系统角色页',
     content: roleView,
-    fragments: ['enableRole,', 'const handleEnable = async (row: Role) =>', 'await enableRole(row.id)', 'systemRoles.disable', 'systemRoles.enable']
+    fragments: ['enableRole,', 'const handleEnable = async (row: Role) =>', 'await options.enableRole(row.id)', 'systemRoles.disable', 'systemRoles.enable']
   },
   {
     name: '系统菜单页',

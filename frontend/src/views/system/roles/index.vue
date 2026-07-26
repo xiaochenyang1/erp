@@ -102,8 +102,8 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleQuery"
-        @current-change="handleQuery"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -243,11 +243,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted, nextTick } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ElTree } from 'element-plus'
+import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import {
   getRoles,
   getRole,
@@ -260,48 +261,91 @@ import {
   assignRoleMenus,
   getAssignedRoleDataScope,
   assignRoleDataScope,
-  type Menu,
-  type RoleQuery,
-  type RoleSaveRequest,
   type Role
 } from '@/api/system'
-import { getWarehouses, type Warehouse } from '@/api/masterdata'
+import { getWarehouses } from '@/api/masterdata'
+import { useSystemRolePresentation } from '@/composables/useSystemRolePresentation'
+import { useSystemRoleList } from '@/composables/useSystemRoleList'
+import { useSystemRoleForm } from '@/composables/useSystemRoleForm'
 
 const { t } = useI18n()
-
-// 查询参数
-const queryParams = reactive<RoleQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  code: '',
-  name: '',
-  status: ''
-})
-
-// 表格数据
-const loading = ref(false)
-const tableData = ref<Role[]>([])
-const total = ref(0)
-
-// 对话框
-const dialogVisible = ref(false)
-const submitLoading = ref(false)
-const permissionSubmitLoading = ref(false)
-const dialogTitle = ref('')
-const isEdit = ref(false)
-const currentId = ref<string | number>('')
 const formRef = ref<FormInstance>()
+const permissionTreeRef = ref<InstanceType<typeof ElTree>>()
 
-// 表单数据
-const formData = reactive<RoleSaveRequest>({
-  code: '',
-  name: '',
-  permissions: [],
-  status: 'ACTIVE',
-  remark: ''
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  handleDisable,
+  handleEnable,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loading,
+  queryParams,
+  tableData,
+  total
+} = useSystemRoleList(t, {
+  getRoles,
+  deleteRole,
+  enableRole,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  ...notify
 })
 
-// 表单验证规则
+const {
+  permissionCount,
+  warehouseOptionLabel
+} = useSystemRolePresentation(t)
+
+const {
+  currentRoleName,
+  dataScopeDialogVisible,
+  dataScopeForm,
+  dataScopeLoading,
+  dataScopeSubmitLoading,
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleAssignDataScope,
+  handleCreate,
+  handleEdit,
+  handlePermission: loadPermissions,
+  handleSavePermission: savePermissions,
+  handleSubmit: saveRole,
+  isEdit,
+  permissionDialogVisible,
+  permissionSubmitLoading,
+  permissionTree,
+  resetForm: resetFormState,
+  selectedPermissions,
+  submitDataScopeAssignment,
+  submitLoading,
+  warehouses
+} = useSystemRoleForm(t, {
+  getRole,
+  createRole,
+  updateRole,
+  getMenuTree,
+  getAssignedRoleMenus,
+  assignRoleMenus,
+  getWarehouses,
+  getAssignedRoleDataScope,
+  assignRoleDataScope,
+  getCheckedMenuIds: () => {
+    if (!permissionTreeRef.value) return []
+    const checkedKeys = permissionTreeRef.value.getCheckedKeys(false) as Array<string | number>
+    const halfCheckedKeys = permissionTreeRef.value.getHalfCheckedKeys() as Array<string | number>
+    return [...checkedKeys, ...halfCheckedKeys]
+  },
+  onSubmitted: loadData,
+  ...notify
+})
+
 const formRules = computed<FormRules>(() => ({
   code: [
     { required: true, message: t('systemRoles.codePlaceholder'), trigger: 'blur' },
@@ -311,245 +355,28 @@ const formRules = computed<FormRules>(() => ({
   status: [{ required: true, message: t('systemRoles.selectStatus'), trigger: 'change' }]
 }))
 
-// 权限设置对话框
-const permissionDialogVisible = ref(false)
-const permissionTreeRef = ref<InstanceType<typeof ElTree>>()
-const currentRoleId = ref<string | number>('')
-const currentRoleName = ref('')
-const selectedPermissions = ref<string[]>([])
-const permissionTree = ref<Menu[]>([])
-
-// 数据范围
-const dataScopeDialogVisible = ref(false)
-const dataScopeLoading = ref(false)
-const dataScopeSubmitLoading = ref(false)
-const warehouses = ref<Warehouse[]>([])
-const dataScopeForm = reactive({
-  hasAllScope: false,
-  deptScoped: false,
-  postScoped: false,
-  selfScoped: false,
-  warehouseIds: [] as string[]
-})
-
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await getRoles(queryParams)
-    tableData.value = response.records
-    total.value = response.total
-  } catch (error) {
-    ElMessage.error(t('systemRoles.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  queryParams.code = ''
-  queryParams.name = ''
-  queryParams.status = ''
-  handleQuery()
-}
-
-// 新增
-const handleCreate = () => {
-  dialogTitle.value = t('systemRoles.dialog.add')
-  isEdit.value = false
-  resetForm()
-  dialogVisible.value = true
-}
-
-// 编辑
-const handleEdit = async (row: Role) => {
-  dialogTitle.value = t('systemRoles.dialog.edit')
-  isEdit.value = true
-  currentId.value = row.id
-  try {
-    const data = await getRole(row.id)
-    Object.assign(formData, data)
-    dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('systemRoles.message.detailLoadFailed'))
-  }
-}
-
-// 停用
-const handleDisable = async (row: Role) => {
-  try {
-    await ElMessageBox.confirm(t('systemRoles.message.disableConfirm', { name: row.name }), t('systemRoles.prompt'), {
-      confirmButtonText: t('systemRoles.confirm'),
-      cancelButtonText: t('systemRoles.cancel'),
-      type: 'warning'
-    })
-    await deleteRole(row.id)
-    ElMessage.success(t('systemRoles.message.disableSuccess'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemRoles.message.disableFailed'))
-    }
-  }
-}
-
-// 启用
-const handleEnable = async (row: Role) => {
-  try {
-    await ElMessageBox.confirm(t('systemRoles.message.enableConfirm', { name: row.name }), t('systemRoles.prompt'), {
-      confirmButtonText: t('systemRoles.confirm'),
-      cancelButtonText: t('systemRoles.cancel'),
-      type: 'warning'
-    })
-    await enableRole(row.id)
-    ElMessage.success(t('systemRoles.message.enableSuccess'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemRoles.message.enableFailed'))
-    }
-  }
-}
-
-// 权限设置
-const handlePermission = async (row: Role) => {
-  currentRoleId.value = row.id
-  currentRoleName.value = row.name || row.code
-  try {
-    const [menus, assignment] = await Promise.all([
-      getMenuTree(),
-      getAssignedRoleMenus(row.id)
-    ])
-    permissionTree.value = menus
-    selectedPermissions.value = assignment.menuIds
-    permissionDialogVisible.value = true
-    await nextTick()
-    permissionTreeRef.value?.setCheckedKeys(selectedPermissions.value, false)
-  } catch (error) {
-    ElMessage.error(t('systemRoles.message.permissionsLoadFailed'))
-  }
-}
-
-const warehouseOptionLabel = (warehouse: Warehouse) => {
-  const name = warehouse.name || warehouse.warehouseName || t('systemRoles.warehouseFallback', { id: warehouse.id })
-  const code = warehouse.code || warehouse.warehouseCode
-  return code ? t('systemRoles.warehouseOption', { name, code }) : name
-}
-
-const handleAssignDataScope = async (row: Role) => {
-  currentRoleId.value = row.id
-  currentRoleName.value = row.name || row.code
-  dataScopeDialogVisible.value = true
-  dataScopeLoading.value = true
-  try {
-    if (!warehouses.value.length) {
-      const page = await getWarehouses({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-      warehouses.value = page.records || []
-    }
-    const scope = await getAssignedRoleDataScope(row.id)
-    dataScopeForm.hasAllScope = !!scope.hasAllScope
-    dataScopeForm.deptScoped = !!scope.deptScoped
-    dataScopeForm.postScoped = !!scope.postScoped
-    dataScopeForm.selfScoped = !!scope.selfScoped
-    dataScopeForm.warehouseIds = scope.warehouseIds || []
-  } catch (error) {
-    dataScopeForm.hasAllScope = false
-    dataScopeForm.deptScoped = false
-    dataScopeForm.postScoped = false
-    dataScopeForm.selfScoped = false
-    dataScopeForm.warehouseIds = []
-    ElMessage.error(t('systemRoles.message.dataScopeLoadFailed'))
-  } finally {
-    dataScopeLoading.value = false
-  }
-}
-
-const submitDataScopeAssignment = async () => {
-  if (!currentRoleId.value) return
-  dataScopeSubmitLoading.value = true
-  try {
-    await assignRoleDataScope(currentRoleId.value, {
-      hasAllScope: dataScopeForm.hasAllScope,
-      deptScoped: dataScopeForm.deptScoped,
-      postScoped: dataScopeForm.postScoped,
-      selfScoped: dataScopeForm.selfScoped,
-      warehouseIds: dataScopeForm.warehouseIds
-    })
-    ElMessage.success(t('systemRoles.message.dataScopeSaved'))
-    dataScopeDialogVisible.value = false
-  } catch (error) {
-    ElMessage.error(t('systemRoles.message.dataScopeSaveFailed'))
-  } finally {
-    dataScopeSubmitLoading.value = false
-  }
-}
-
-// 保存权限
-const handleSavePermission = async () => {
-  if (!permissionTreeRef.value) return
-
-  permissionSubmitLoading.value = true
-  try {
-    const checkedKeys = permissionTreeRef.value.getCheckedKeys(false) as Array<string | number>
-    const halfCheckedKeys = permissionTreeRef.value.getHalfCheckedKeys() as Array<string | number>
-    const menuIds = [...new Set([...checkedKeys, ...halfCheckedKeys].map(String))]
-    if (menuIds.length === 0) {
-      ElMessage.error(t('systemRoles.message.menuRequired'))
-      return
-    }
-
-    await assignRoleMenus(currentRoleId.value, menuIds)
-
-    ElMessage.success(t('systemRoles.message.permissionsSaved'))
-    permissionDialogVisible.value = false
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('systemRoles.message.permissionsSaveFailed'))
-  } finally {
-    permissionSubmitLoading.value = false
-  }
-}
-
-// 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return
-
   await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitLoading.value = true
-      try {
-        if (isEdit.value) {
-          await updateRole(currentId.value, formData)
-        } else {
-          await createRole(formData)
-        }
-        ElMessage.success(t('systemRoles.message.operationSuccess'))
-        dialogVisible.value = false
-        loadData()
-      } catch (error) {
-        ElMessage.error(t('systemRoles.message.operationFailed'))
-      } finally {
-        submitLoading.value = false
-      }
-    }
+    if (!valid) return
+    await saveRole()
   })
 }
 
-// 重置表单
 const resetForm = () => {
-  formData.code = ''
-  formData.name = ''
-  formData.permissions = []
-  formData.status = 'ACTIVE'
-  formData.remark = ''
   formRef.value?.clearValidate()
+  resetFormState()
+}
+
+const handlePermission = async (row: Role) => {
+  const keys = await loadPermissions(row)
+  if (keys == null) return
+  await nextTick()
+  permissionTreeRef.value?.setCheckedKeys(keys, false)
+}
+
+const handleSavePermission = async () => {
+  await savePermissions()
 }
 
 onMounted(() => {
