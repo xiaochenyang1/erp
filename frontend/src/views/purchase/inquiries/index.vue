@@ -347,7 +347,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -362,8 +362,6 @@ import {
   convertPurchaseInquiryToPurchaseOrder,
   cancelPurchaseInquiry,
   type PurchaseInquiry,
-  type PurchaseInquiryLine,
-  type PurchaseInquiryQuote,
   type PurchaseInquiryPoPrefill
 } from '@/api/purchase'
 import { getProducts, getSuppliers } from '@/api/masterdata'
@@ -371,6 +369,8 @@ import { useUserStore } from '@/store/modules/user'
 import { printPurchaseInquiry } from '@/utils/bizPrint'
 import { usePurchaseInquiryPresentation } from '@/composables/usePurchaseInquiryPresentation'
 import { usePurchaseInquiryList } from '@/composables/usePurchaseInquiryList'
+import { usePurchaseInquiryForm } from '@/composables/usePurchaseInquiryForm'
+import { usePurchaseInquiryQuotes } from '@/composables/usePurchaseInquiryQuotes'
 
 const { t } = useI18n()
 const userStore = useUserStore()
@@ -419,303 +419,54 @@ const {
   supplierLabelByEntity
 } = usePurchaseInquiryPresentation(t, products, suppliers)
 
-const submitting = ref(false)
 const creatingPo = ref(false)
 const current = ref<PurchaseInquiry>()
 
-const today = () => {
-  const d = new Date()
-  const m = `${d.getMonth() + 1}`.padStart(2, '0')
-  const day = `${d.getDate()}`.padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
-
-// ---- 新建/编辑 ----
-const formVisible = ref(false)
-const editingId = ref<string | number | null>(null)
-const form = reactive<{
-  inquiryDate: string
-  title: string
-  remark: string
-  lines: Array<{ productId: string; qty: number; remark: string }>
-}>({
-  inquiryDate: '',
-  title: '',
-  remark: '',
-  lines: []
+const {
+  addLine,
+  confirmSave,
+  editingId,
+  form,
+  formVisible,
+  handleCreate,
+  handleEdit,
+  removeLine,
+  submitting: formSubmitting
+} = usePurchaseInquiryForm(t, {
+  loadOptions,
+  getInquiry: getPurchaseInquiry,
+  createInquiry: createPurchaseInquiry,
+  updateInquiry: updatePurchaseInquiry,
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => loadData()
 })
 
-const resetForm = () => {
-  editingId.value = null
-  form.inquiryDate = today()
-  form.title = ''
-  form.remark = ''
-  form.lines = [{ productId: '', qty: 1, remark: '' }]
-}
-
-const addLine = () => {
-  form.lines.push({ productId: '', qty: 1, remark: '' })
-}
-
-const removeLine = (index: number) => {
-  if (form.lines.length <= 1) {
-    ElMessage.warning(t('purchaseInquiryOps.validation.keepOneLine'))
-    return
-  }
-  form.lines.splice(index, 1)
-}
-
-const handleCreate = async () => {
-  await loadOptions()
-  resetForm()
-  formVisible.value = true
-}
-
-const handleEdit = async (row: PurchaseInquiry) => {
-  try {
-    await loadOptions()
-    const detail = await getPurchaseInquiry(row.id)
-    editingId.value = detail.id
-    form.inquiryDate = detail.inquiryDate
-    form.title = detail.title || ''
-    form.remark = detail.remark || ''
-    form.lines = (detail.lines || []).map((line) => ({
-      productId: String(line.productId),
-      qty: Number(line.qty || 0),
-      remark: line.remark || ''
-    }))
-    if (!form.lines.length) {
-      form.lines = [{ productId: '', qty: 1, remark: '' }]
-    }
-    formVisible.value = true
-  } catch {
-    // 拦截器已提示
-  }
-}
-
-const confirmSave = async () => {
-  if (!form.inquiryDate) {
-    ElMessage.warning(t('purchaseInquiryOps.validation.inquiryDate'))
-    return
-  }
-  const lines = form.lines
-    .filter((line) => String(line.productId || '').trim())
-    .map((line) => ({
-      productId: line.productId,
-      qty: Number(line.qty),
-      remark: line.remark || undefined
-    }))
-  if (!lines.length) {
-    ElMessage.warning(t('purchaseInquiryOps.validation.lineRequired'))
-    return
-  }
-  if (lines.some((line) => !line.qty || line.qty <= 0)) {
-    ElMessage.warning(t('purchaseInquiryOps.validation.quantityPositive'))
-    return
-  }
-  submitting.value = true
-  try {
-    const payload = {
-      inquiryDate: form.inquiryDate,
-      title: form.title || undefined,
-      remark: form.remark || undefined,
-      lines
-    }
-    if (editingId.value) {
-      await updatePurchaseInquiry(editingId.value, payload)
-      ElMessage.success(t('purchaseInquiryOps.message.saved'))
-    } else {
-      await createPurchaseInquiry(payload)
-      ElMessage.success(t('purchaseInquiryOps.message.created'))
-    }
-    formVisible.value = false
-    await loadData()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    submitting.value = false
-  }
-}
-
-// ---- 提交/作废 ----
-const handleSubmit = async (row: PurchaseInquiry) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseInquiryOps.message.submitConfirm', { no: row.inquiryNo }),
-      t('purchaseInquiryOps.prompt'),
-      {
-        type: 'warning',
-        confirmButtonText: t('purchaseInquiryOps.action.confirm'),
-        cancelButtonText: t('purchaseInquiryOps.action.cancel')
-      }
-    )
-  } catch {
-    return
-  }
-  try {
-    await submitPurchaseInquiry(row.id)
-    ElMessage.success(t('purchaseInquiryOps.message.submitted'))
-    await loadData()
-  } catch {
-    // 拦截器已提示
-  }
-}
-
-const handleCancel = async (row: PurchaseInquiry) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseInquiryOps.message.voidConfirm', { no: row.inquiryNo }),
-      t('purchaseInquiryOps.prompt'),
-      {
-        type: 'warning',
-        confirmButtonText: t('purchaseInquiryOps.action.confirm'),
-        cancelButtonText: t('purchaseInquiryOps.action.cancel')
-      }
-    )
-  } catch {
-    return
-  }
-  try {
-    await cancelPurchaseInquiry(row.id)
-    ElMessage.success(t('purchaseInquiryOps.message.voided'))
-    loadData()
-  } catch {
-    // 拦截器已提示
-  }
-}
-
-// ---- 报价 ----
-const quoteVisible = ref(false)
-const quoteInquiryId = ref<string | number | null>(null)
-const quoteForm = reactive<{
-  supplierId: string
-  remark: string
-  lines: Array<{
-    inquiryLineId: string
-    productId: string
-    qty: number
-    unitPrice: number
-    taxRate: number
-  }>
-}>({
-  supplierId: '',
-  remark: '',
-  lines: []
+const {
+  confirmQuote,
+  confirmSelectQuote,
+  handleAddQuote,
+  handleSelectQuote,
+  onSelectQuoteRow,
+  quoteForm,
+  quoteVisible,
+  selectInquiryLines,
+  selectQuotes,
+  selectVisible,
+  selectedQuoteId,
+  submitting: quoteSubmitting
+} = usePurchaseInquiryQuotes(t, {
+  loadOptions,
+  getInquiry: getPurchaseInquiry,
+  addQuote: addPurchaseInquiryQuote,
+  selectQuote: selectPurchaseInquiryQuote,
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onError: (message) => ElMessage.error(message),
+  onCompleted: () => loadData()
 })
 
-const handleAddQuote = async (row: PurchaseInquiry) => {
-  try {
-    await loadOptions()
-    const detail = await getPurchaseInquiry(row.id)
-    if ((detail.lines || []).some((line) => line.id == null)) {
-      ElMessage.error(t('purchaseInquiryOps.validation.lineIdMissing'))
-      return
-    }
-    quoteInquiryId.value = detail.id
-    quoteForm.supplierId = ''
-    quoteForm.remark = ''
-    quoteForm.lines = (detail.lines || []).map((line) => ({
-      inquiryLineId: String(line.id),
-      productId: String(line.productId),
-      qty: Number(line.qty ?? 0),
-      unitPrice: 0,
-      taxRate: 13
-    }))
-    if (!quoteForm.lines.length) {
-      ElMessage.warning(t('purchaseInquiryOps.validation.noQuotableLines'))
-      return
-    }
-    quoteVisible.value = true
-  } catch {
-    // 拦截器已提示
-  }
-}
-
-const confirmQuote = async () => {
-  if (!quoteInquiryId.value) return
-  if (!String(quoteForm.supplierId || '').trim()) {
-    ElMessage.warning(t('purchaseInquiryOps.validation.supplier'))
-    return
-  }
-  if (!quoteForm.lines.length) {
-    ElMessage.warning(t('purchaseInquiryOps.validation.noQuotableLines'))
-    return
-  }
-  if (quoteForm.lines.some((line) => !Number.isFinite(Number(line.unitPrice)) || Number(line.unitPrice) < 0)) {
-    ElMessage.warning(t('purchaseInquiryOps.validation.lineUnitPrice'))
-    return
-  }
-  if (quoteForm.lines.some((line) => !Number.isFinite(Number(line.taxRate)) || Number(line.taxRate) < 0)) {
-    ElMessage.warning(t('purchaseInquiryOps.validation.taxRate'))
-    return
-  }
-  submitting.value = true
-  try {
-    await addPurchaseInquiryQuote(quoteInquiryId.value, {
-      supplierId: quoteForm.supplierId,
-      lines: quoteForm.lines.map((line) => ({
-        inquiryLineId: line.inquiryLineId,
-        unitPrice: Number(line.unitPrice),
-        taxRate: Number(line.taxRate)
-      })),
-      remark: quoteForm.remark || undefined
-    })
-    ElMessage.success(t('purchaseInquiryOps.message.quoteAdded'))
-    quoteVisible.value = false
-    loadData()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    submitting.value = false
-  }
-}
-
-// ---- 选定中标 ----
-const selectVisible = ref(false)
-const selectInquiryId = ref<string | number | null>(null)
-const selectQuotes = ref<PurchaseInquiryQuote[]>([])
-const selectInquiryLines = ref<PurchaseInquiryLine[]>([])
-const selectedQuoteId = ref<string | number | null>(null)
-
-const handleSelectQuote = async (row: PurchaseInquiry) => {
-  try {
-    await loadOptions()
-    const detail = await getPurchaseInquiry(row.id)
-    selectInquiryId.value = detail.id
-    selectInquiryLines.value = detail.lines || []
-    selectQuotes.value = (detail.quotes || []).filter((q) => q.status === 'PENDING')
-    selectedQuoteId.value = null
-    if (!selectQuotes.value.length) {
-      ElMessage.warning(t('purchaseInquiryOps.validation.noPendingQuotes'))
-      return
-    }
-    selectVisible.value = true
-  } catch {
-    // 拦截器已提示
-  }
-}
-
-const onSelectQuoteRow = (row: PurchaseInquiryQuote | undefined) => {
-  selectedQuoteId.value = row?.id ?? null
-}
-
-const confirmSelectQuote = async () => {
-  if (!selectInquiryId.value || !selectedQuoteId.value) {
-    ElMessage.warning(t('purchaseInquiryOps.validation.selectQuote'))
-    return
-  }
-  submitting.value = true
-  try {
-    await selectPurchaseInquiryQuote(selectInquiryId.value, selectedQuoteId.value)
-    ElMessage.success(t('purchaseInquiryOps.message.winnerSelected'))
-    selectVisible.value = false
-    loadData()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    submitting.value = false
-  }
-}
+const submitting = computed(() => formSubmitting.value || quoteSubmitting.value)
 
 // ---- 详情 / PO 预填 / 创建 PO ----
 const detailVisible = ref(false)
@@ -726,29 +477,6 @@ const handleView = async (row: PurchaseInquiry) => {
     detailVisible.value = true
   } catch {
     // 拦截器已提示
-  }
-}
-
-const handlePrint = async (row: PurchaseInquiry) => {
-  try {
-    await loadOptions()
-    const detail = await getPurchaseInquiry(row.id)
-    const productMap = new Map(products.value.map((product) => [String(product.id), product]))
-    const supplier = suppliers.value.find((item) => String(item.id) === String(detail.selectedSupplierId))
-    printPurchaseInquiry({
-      ...detail,
-      selectedSupplierName: supplier?.supplierName || supplier?.name || detail.selectedSupplierId,
-      lines: (detail.lines || []).map((line) => {
-        const product = productMap.get(String(line.productId))
-        return {
-          ...line,
-          productCode: line.productCode || product?.productCode || product?.code || line.productId,
-          productName: line.productName || product?.productName || product?.name || ''
-        }
-      })
-    })
-  } catch {
-    ElMessage.error(t('purchaseInquiryOps.message.printLoadFailed'))
   }
 }
 
