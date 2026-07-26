@@ -168,9 +168,11 @@ const coreMessages = {
       }
     },
     inventorySerial: {
-      keyword: '关键字', status: '状态', search: '查询', create: '登记序列号', serialNo: '序列号', productCode: '商品编码', productName: '商品名称', warehouse: '仓库', location: '库位', inboundBizNo: '入库单号', outboundBizNo: '出库单号', actions: '操作', issue: '出库', scrap: '报废', createTitle: '登记序列号', product: '商品', cancel: '取消', save: '保存', remark: '备注',
+      keyword: '关键字', keywordPlaceholder: '序列号/商品', selectWarehouse: '选择仓库', selectLocation: '选择库位', selectStatus: '选择状态', selectProduct: '选择商品',
+      status: '状态', search: '查询', create: '登记序列号', serialNo: '序列号', serialNoPlaceholder: '请输入序列号', productCode: '商品编码', productName: '商品名称', warehouse: '仓库', location: '库位', inboundBizNo: '入库单号', inboundBizNoPlaceholder: '可选入库单号', outboundBizNo: '出库单号', actions: '操作', issue: '出库', scrap: '报废', createTitle: '登记序列号', product: '商品', cancel: '取消', save: '保存', remark: '备注', remarkPlaceholder: '选填备注',
+      statusValue: { inStock: '在库', issued: '已出库', scrapped: '已报废' },
       validation: { required: '请填写商品和序列号' },
-      message: { created: '登记成功', issued: '已出库', scrapped: '已报废' }
+      message: { created: '登记成功', issued: '已出库', scrapped: '已报废', loadFailed: '加载序列号失败', optionsLoadFailed: '加载仓库/库位失败', productsLoadFailed: '加载商品失败', createFailed: '登记失败', issueFailed: '出库失败', scrapFailed: '报废失败' }
     },
     warehouseLocation: {
       warehouse: '仓库', selectWarehouse: '选择仓库', keyword: '关键字', keywordPlaceholder: '库位编码/名称', status: '状态', search: '查询', create: '新建库位',
@@ -377,9 +379,11 @@ const coreMessages = {
       }
     },
     inventorySerial: {
-      keyword: 'Keyword', status: 'Status', search: 'Search', create: 'Register serial', serialNo: 'Serial no.', productCode: 'Product code', productName: 'Product name', warehouse: 'Warehouse', location: 'Location', inboundBizNo: 'Inbound no.', outboundBizNo: 'Outbound no.', actions: 'Actions', issue: 'Issue', scrap: 'Scrap', createTitle: 'Register serial', product: 'Product', cancel: 'Cancel', save: 'Save', remark: 'Remark',
+      keyword: 'Keyword', keywordPlaceholder: 'Serial / product', selectWarehouse: 'Select warehouse', selectLocation: 'Select location', selectStatus: 'Select status', selectProduct: 'Select product',
+      status: 'Status', search: 'Search', create: 'Register serial', serialNo: 'Serial no.', serialNoPlaceholder: 'Enter serial no.', productCode: 'Product code', productName: 'Product name', warehouse: 'Warehouse', location: 'Location', inboundBizNo: 'Inbound no.', inboundBizNoPlaceholder: 'Optional inbound no.', outboundBizNo: 'Outbound no.', actions: 'Actions', issue: 'Issue', scrap: 'Scrap', createTitle: 'Register serial', product: 'Product', cancel: 'Cancel', save: 'Save', remark: 'Remark', remarkPlaceholder: 'Optional remark',
+      statusValue: { inStock: 'In stock', issued: 'Issued', scrapped: 'Scrapped' },
       validation: { required: 'Product and serial no. are required' },
-      message: { created: 'Created', issued: 'Issued', scrapped: 'Scrapped' }
+      message: { created: 'Created', issued: 'Issued', scrapped: 'Scrapped', loadFailed: 'Failed to load serials', optionsLoadFailed: 'Failed to load warehouses/locations', productsLoadFailed: 'Failed to load products', createFailed: 'Failed to register serial', issueFailed: 'Failed to issue serial', scrapFailed: 'Failed to scrap serial' }
     },
     warehouseLocation: {
       warehouse: 'Warehouse', selectWarehouse: 'Select warehouse', keyword: 'Keyword', keywordPlaceholder: 'Location code / name', status: 'Status', search: 'Search', create: 'New location',
