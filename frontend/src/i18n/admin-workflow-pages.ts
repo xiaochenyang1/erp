@@ -925,7 +925,10 @@ const messageSource = {
     },
     message: {
       created: ['异常工单已创建', 'Exception ticket created'],
-      actionSubmitted: ['处理已提交', 'Action submitted']
+      actionSubmitted: ['处理已提交', 'Action submitted'],
+      loadFailed: ['加载异常工单失败', 'Failed to load exception tickets'],
+      createFailed: ['创建异常工单失败', 'Failed to create exception ticket'],
+      actionFailed: ['处理失败', 'Action failed']
     }
   }
 } as const satisfies MessageSource

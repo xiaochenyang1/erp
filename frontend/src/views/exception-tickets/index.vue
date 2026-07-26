@@ -215,7 +215,7 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         class="pagination"
-        @size-change="handlePageChange"
+        @size-change="handleSizeChange"
         @current-change="handlePageChange"
       />
     </el-card>
@@ -313,13 +313,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { Clock, Close, Finished, Plus, Refresh, Search, User, Warning } from '@element-plus/icons-vue'
-import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   assignExceptionTicket,
   closeExceptionTicket,
@@ -327,75 +326,77 @@ import {
   getExceptionTickets,
   resolveExceptionTicket,
   startExceptionTicket,
-  type ExceptionTicket,
-  type ExceptionTicketCreateRequest,
-  type ExceptionTicketPriority,
-  type ExceptionTicketQuery,
-  type ExceptionTicketStatus
+  type ExceptionTicket
 } from '@/api/exceptionTicket'
-
-type Option = { label: string; value: string }
-type ActionMode = 'assign' | 'start' | 'resolve' | 'close'
+import { useExceptionTicketPresentation } from '@/composables/useExceptionTicketPresentation'
+import { useExceptionTicketList } from '@/composables/useExceptionTicketList'
+import { useExceptionTicketForm } from '@/composables/useExceptionTicketForm'
 
 const router = useRouter()
 const { t } = useI18n()
-
-const statusOptions = computed<Option[]>(() => [
-  { label: t('exceptionTicket.statuses.open'), value: 'OPEN' },
-  { label: t('exceptionTicket.statuses.processing'), value: 'PROCESSING' },
-  { label: t('exceptionTicket.statuses.resolved'), value: 'RESOLVED' },
-  { label: t('exceptionTicket.statuses.closed'), value: 'CLOSED' }
-])
-
-const priorityOptions = computed<Option[]>(() => [
-  { label: t('exceptionTicket.priorities.low'), value: 'LOW' },
-  { label: t('exceptionTicket.priorities.medium'), value: 'MEDIUM' },
-  { label: t('exceptionTicket.priorities.high'), value: 'HIGH' },
-  { label: t('exceptionTicket.priorities.urgent'), value: 'URGENT' }
-])
-
-const categoryOptions = computed<Option[]>(() => [
-  { label: t('exceptionTicket.categories.general'), value: 'GENERAL' },
-  { label: t('exceptionTicket.categories.lowStock'), value: 'LOW_STOCK' },
-  { label: t('exceptionTicket.categories.paymentOverdue'), value: 'PAYMENT_OVERDUE' },
-  { label: t('exceptionTicket.categories.deliveryDelay'), value: 'DELIVERY_DELAY' },
-  { label: t('exceptionTicket.categories.qualityIssue'), value: 'QUALITY_ISSUE' },
-  { label: t('exceptionTicket.categories.systemError'), value: 'SYSTEM_ERROR' }
-])
-
-const queryForm = reactive<ExceptionTicketQuery>({
-  keyword: '',
-  status: '',
-  priority: '',
-  category: '',
-  assigneeUserId: undefined,
-  sourceNo: '',
-  overdueOnly: false
-})
-
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const loading = ref(false)
-const submitLoading = ref(false)
-const tableData = ref<ExceptionTicket[]>([])
-
-const createDialogVisible = ref(false)
 const createFormRef = ref<FormInstance>()
-const createForm = reactive<ExceptionTicketCreateRequest>({
-  category: 'GENERAL',
-  priority: 'HIGH',
-  title: '',
-  description: '',
-  sourceType: '',
-  sourceId: '',
-  sourceNo: '',
-  sourceRoute: '',
-  assigneeUserId: undefined,
-  dueTime: ''
+
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loading,
+  pagination,
+  queryForm,
+  tableData
+} = useExceptionTicketList(t, {
+  getTickets: getExceptionTickets,
+  onError: notify.onError
+})
+
+const {
+  actionLabel,
+  categoryLabel,
+  categoryOptions,
+  eventType,
+  formatDateTime,
+  isOverdue,
+  priorityLabel,
+  priorityOptions,
+  priorityType,
+  statusLabel,
+  statusOptions,
+  statusType,
+  summaryItems
+} = useExceptionTicketPresentation(t, tableData, {
+  warning: Warning,
+  clock: Clock,
+  finished: Finished
+})
+
+const {
+  actionDialogTitle,
+  actionDialogVisible,
+  actionForm,
+  actionMode,
+  actionPlaceholder,
+  createDialogVisible,
+  createForm,
+  handleAction,
+  handleCreate: createTicket,
+  openActionDialog,
+  openCreateDialog,
+  submitLoading
+} = useExceptionTicketForm(t, {
+  createTicket: createExceptionTicket,
+  assignTicket: assignExceptionTicket,
+  startTicket: startExceptionTicket,
+  resolveTicket: resolveExceptionTicket,
+  closeTicket: closeExceptionTicket,
+  onSubmitted: loadData,
+  ...notify
 })
 
 const createRules = computed<FormRules>(() => ({
@@ -404,183 +405,10 @@ const createRules = computed<FormRules>(() => ({
   priority: [{ required: true, message: t('exceptionTicket.validation.priority'), trigger: 'change' }]
 }))
 
-const actionDialogVisible = ref(false)
-const actionMode = ref<ActionMode>('assign')
-const actionTarget = ref<ExceptionTicket>()
-const actionForm = reactive({
-  assigneeUserId: undefined as string | undefined,
-  comment: ''
-})
-
-const summaryItems = computed(() => [
-  {
-    label: t('exceptionTicket.summary.open'),
-    value: countByStatus('OPEN'),
-    icon: Warning,
-    tone: 'orange'
-  },
-  {
-    label: t('exceptionTicket.summary.processing'),
-    value: countByStatus('PROCESSING'),
-    icon: Clock,
-    tone: 'blue'
-  },
-  {
-    label: t('exceptionTicket.summary.resolved'),
-    value: countByStatus('RESOLVED'),
-    icon: Finished,
-    tone: 'green'
-  },
-  {
-    label: t('exceptionTicket.summary.overdue'),
-    value: tableData.value.filter(isOverdue).length,
-    icon: Warning,
-    tone: 'red'
-  },
-  {
-    label: t('exceptionTicket.summary.highPriority'),
-    value: tableData.value.filter((item) => item.priority === 'HIGH' || item.priority === 'URGENT').length,
-    icon: Warning,
-    tone: 'purple'
-  }
-])
-
-const actionDialogTitle = computed(() => {
-  const titleMap: Record<ActionMode, string> = {
-    assign: t('exceptionTicket.dialog.assign'),
-    start: t('exceptionTicket.dialog.start'),
-    resolve: t('exceptionTicket.dialog.resolve'),
-    close: t('exceptionTicket.dialog.close')
-  }
-  const ticketNo = actionTarget.value?.ticketNo ? ` - ${actionTarget.value.ticketNo}` : ''
-  return `${titleMap[actionMode.value]}${ticketNo}`
-})
-
-const actionPlaceholder = computed(() => {
-  const placeholderMap: Record<ActionMode, string> = {
-    assign: t('exceptionTicket.actionPlaceholders.assign'),
-    start: t('exceptionTicket.actionPlaceholders.start'),
-    resolve: t('exceptionTicket.actionPlaceholders.resolve'),
-    close: t('exceptionTicket.actionPlaceholders.close')
-  }
-  return placeholderMap[actionMode.value]
-})
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const page = await getExceptionTickets(buildQueryParams())
-    tableData.value = page.records || []
-    pagination.total = page.total || 0
-  } finally {
-    loading.value = false
-  }
-}
-
-const buildQueryParams = (): ExceptionTicketQuery => ({
-  ...queryForm,
-  assigneeUserId: normalizeOptionalId(queryForm.assigneeUserId),
-  keyword: queryForm.keyword || undefined,
-  status: queryForm.status || undefined,
-  priority: queryForm.priority || undefined,
-  category: queryForm.category || undefined,
-  sourceNo: queryForm.sourceNo || undefined,
-  overdueOnly: queryForm.overdueOnly || undefined,
-  pageNo: pagination.page,
-  pageSize: pagination.size
-})
-
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-const handlePageChange = () => {
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.keyword = ''
-  queryForm.status = ''
-  queryForm.priority = ''
-  queryForm.category = ''
-  queryForm.assigneeUserId = undefined
-  queryForm.sourceNo = ''
-  queryForm.overdueOnly = false
-  pagination.page = 1
-  loadData()
-}
-
-const openCreateDialog = () => {
-  resetCreateForm()
-  createDialogVisible.value = true
-}
-
-const resetCreateForm = () => {
-  createForm.category = 'GENERAL'
-  createForm.priority = 'HIGH'
-  createForm.title = ''
-  createForm.description = ''
-  createForm.sourceType = ''
-  createForm.sourceId = ''
-  createForm.sourceNo = ''
-  createForm.sourceRoute = ''
-  createForm.assigneeUserId = undefined
-  createForm.dueTime = ''
-}
-
 const handleCreate = async () => {
   const valid = await createFormRef.value?.validate().catch(() => false)
   if (!valid) return
-  submitLoading.value = true
-  try {
-    await createExceptionTicket({
-      ...createForm,
-      dueTime: toIsoDateTime(createForm.dueTime),
-      sourceType: createForm.sourceType?.trim() || undefined,
-      sourceId: createForm.sourceId?.trim() || undefined,
-      sourceNo: createForm.sourceNo?.trim() || undefined,
-      sourceRoute: createForm.sourceRoute?.trim() || undefined,
-      assigneeUserId: normalizeOptionalId(createForm.assigneeUserId),
-      description: createForm.description?.trim() || undefined
-    })
-    ElMessage.success(t('exceptionTicket.message.created'))
-    createDialogVisible.value = false
-    loadData()
-  } finally {
-    submitLoading.value = false
-  }
-}
-
-const openActionDialog = (mode: ActionMode, row: ExceptionTicket) => {
-  actionMode.value = mode
-  actionTarget.value = row
-  actionForm.assigneeUserId = row.assigneeUserId
-  actionForm.comment = ''
-  actionDialogVisible.value = true
-}
-
-const handleAction = async () => {
-  if (!actionTarget.value) return
-  submitLoading.value = true
-  try {
-    const id = actionTarget.value.id
-    const comment = actionForm.comment?.trim() || undefined
-    if (actionMode.value === 'assign') {
-      await assignExceptionTicket(id, { assigneeUserId: normalizeOptionalId(actionForm.assigneeUserId), comment })
-    } else if (actionMode.value === 'start') {
-      await startExceptionTicket(id, { comment })
-    } else if (actionMode.value === 'resolve') {
-      await resolveExceptionTicket(id, { comment })
-    } else {
-      await closeExceptionTicket(id, { comment })
-    }
-    ElMessage.success(t('exceptionTicket.message.actionSubmitted'))
-    actionDialogVisible.value = false
-    loadData()
-  } finally {
-    submitLoading.value = false
-  }
+  await createTicket()
 }
 
 const goBusinessTrace = (row: ExceptionTicket) => {
@@ -591,78 +419,6 @@ const goBusinessTrace = (row: ExceptionTicket) => {
   if (row.traceKeyword) {
     router.push({ path: '/reports/traces', query: { keyword: row.traceKeyword } })
   }
-}
-
-const countByStatus = (status: ExceptionTicketStatus) => {
-  return tableData.value.filter((item) => item.status === status).length
-}
-
-const statusLabel = (status?: string) => {
-  return statusOptions.value.find((item) => item.value === status)?.label || status || '-'
-}
-
-const priorityLabel = (priority?: string) => {
-  return priorityOptions.value.find((item) => item.value === priority)?.label || priority || '-'
-}
-
-const categoryLabel = (category?: string) => {
-  return categoryOptions.value.find((item) => item.value === category)?.label || category || '-'
-}
-
-const actionLabel = (action?: string) => {
-  const labelMap: Record<string, string> = {
-    CREATE: t('exceptionTicket.eventActions.create'),
-    ASSIGN: t('exceptionTicket.eventActions.assign'),
-    START: t('exceptionTicket.eventActions.start'),
-    RESOLVE: t('exceptionTicket.eventActions.resolve'),
-    CLOSE: t('exceptionTicket.eventActions.close')
-  }
-  return action ? labelMap[action] || action : '-'
-}
-
-const statusType = (status: string) => {
-  const typeMap: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
-    OPEN: 'warning',
-    PROCESSING: 'primary',
-    RESOLVED: 'success',
-    CLOSED: 'info'
-  }
-  return typeMap[status] || 'info'
-}
-
-const priorityType = (priority: ExceptionTicketPriority | string) => {
-  const typeMap: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
-    LOW: 'info',
-    MEDIUM: 'primary',
-    HIGH: 'warning',
-    URGENT: 'danger'
-  }
-  return typeMap[priority] || 'info'
-}
-
-const eventType = (action: string) => {
-  if (action === 'CLOSE') return 'info'
-  if (action === 'RESOLVE') return 'success'
-  if (action === 'ASSIGN') return 'warning'
-  return 'primary'
-}
-
-const isOverdue = (ticket: ExceptionTicket) => {
-  if (!ticket.dueTime || ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') return false
-  return Date.parse(ticket.dueTime) < Date.now()
-}
-
-const formatDateTime = (value?: string) => {
-  return formatLocalizedDateTime(value)
-}
-
-const normalizeOptionalId = (value?: string | number) => {
-  const normalized = value == null ? '' : String(value).trim()
-  return normalized || undefined
-}
-
-const toIsoDateTime = (value?: string) => {
-  return value ? value.replace(' ', 'T') : undefined
 }
 
 onMounted(() => {
