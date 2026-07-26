@@ -262,6 +262,28 @@ export function printProductionRouting(routing: any) {
   printHtml(`工艺路线 ${routing.routingCode || routing.id || ''}`, html)
 }
 
+export function printProductionWorkCenter(workCenter: any) {
+  const html = buildDocPrintHtml({
+    title: '工作中心',
+    docNo: workCenter.workCenterCode || workCenter.id || 'work-center',
+    fields: [
+      ['编码', workCenter.workCenterCode || workCenter.id || '-'],
+      ['名称', workCenter.workCenterName || '-'],
+      ['状态', workCenter.status || '-'],
+      ['备注', workCenter.remark || '-']
+    ],
+    columns: ['项目', '值'],
+    rows: [
+      ['编码', escapeHtml(workCenter.workCenterCode || workCenter.id || '')],
+      ['名称', escapeHtml(workCenter.workCenterName || '')],
+      ['状态', escapeHtml(workCenter.status || '')],
+      ['备注', escapeHtml(workCenter.remark || '')]
+    ],
+    totals: [['状态', escapeHtml(workCenter.status || '-')]]
+  })
+  printHtml(`工作中心 ${workCenter.workCenterCode || workCenter.id || ''}`, html)
+}
+
 export function printSalesQuote(quote: any) {
   const lines = quote.lines || quote.items || []
   const html = buildDocPrintHtml({

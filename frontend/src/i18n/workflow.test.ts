@@ -122,6 +122,8 @@ describe('production work center localization', () => {
     expect(i18n.global.t('productionWorkCenter.validation.code')).toBe('Enter a work center code')
     expect(i18n.global.t('productionWorkCenter.message.disableConfirm', { name: 'Assembly' })).toBe('Disable work center “Assembly”?')
     expect(i18n.global.t('productionWorkCenter.message.loadFailed')).toBe('Failed to load work centers')
+    expect(i18n.global.t('productionWorkCenter.print')).toBe('Print')
+    expect(i18n.global.t('productionWorkCenter.message.printLoadFailed')).toBe('Failed to load print data')
   })
 })
 

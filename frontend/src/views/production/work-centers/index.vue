@@ -48,8 +48,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="t('productionWorkCenter.remark')" min-width="200" show-overflow-tooltip />
-        <el-table-column :label="t('productionWorkCenter.actions')" width="200" align="center" fixed="right">
+        <el-table-column :label="t('productionWorkCenter.actions')" width="260" align="center" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link @click="handlePrint(row)">{{ t('productionWorkCenter.print') }}</el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
               v-permission="'production:work-center:update'"
@@ -120,12 +121,14 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Search, Refresh, Plus, Edit } from '@element-plus/icons-vue'
 import {
   getWorkCenters,
+  getWorkCenter,
   createWorkCenter,
   updateWorkCenter,
   enableWorkCenter,
   disableWorkCenter,
   type WorkCenter
 } from '@/api/production'
+import { printProductionWorkCenter } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 
@@ -204,6 +207,15 @@ const handleEdit = (row: WorkCenter) => {
     remark: row.remark || ''
   })
   dialogVisible.value = true
+}
+
+const handlePrint = async (row: WorkCenter) => {
+  try {
+    const detail = await getWorkCenter(row.id)
+    printProductionWorkCenter(detail)
+  } catch {
+    ElMessage.error(t('productionWorkCenter.message.printLoadFailed'))
+  }
 }
 
 const handleEnable = async (row: WorkCenter) => {

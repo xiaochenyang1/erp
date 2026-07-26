@@ -820,7 +820,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, View } from '@element-plus/icons-vue'
@@ -836,11 +836,10 @@ import {
   returnProductionMaterials,
   cancelProductionOrder,
   getProductionOrderOperations,
-  reportProductionOperation,
-  type ProductionOrder
+  reportProductionOperation
 } from '@/api/production'
-import { getProducts, getProduct, getWarehouses, getLocations, type Product, type Warehouse, type Location } from '@/api/masterdata'
-import { getBOMs, type BOM } from '@/api/production'
+import { getProducts, getProduct, getWarehouses, getLocations } from '@/api/masterdata'
+import { getBOMs } from '@/api/production'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
 import { printProductionOrder } from '@/utils/bizPrint'
 import {
@@ -852,34 +851,40 @@ import { useProductionOrderOperations } from '@/composables/useProductionOrderOp
 import { useProductionOrderCompletion } from '@/composables/useProductionOrderCompletion'
 import { useProductionOrderMaterials } from '@/composables/useProductionOrderMaterials'
 import { useProductionOrderForm } from '@/composables/useProductionOrderForm'
+import { useProductionOrderList } from '@/composables/useProductionOrderList'
 
 const { t } = useI18n()
 
-// 查询表单
-const queryForm = reactive({
-  orderNo: '',
-  productId: undefined as string | number | undefined,
-  status: '',
-  priority: ''
+const {
+  allBomOptions,
+  finishedLocations,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  handleView,
+  loadData,
+  loadFinishedLocations,
+  loadMaterialLocations,
+  loadOptions,
+  loading,
+  materialLocations,
+  pagination,
+  productOptions,
+  queryForm,
+  tableData,
+  viewData,
+  viewDialogVisible,
+  warehouseOptions
+} = useProductionOrderList(t, {
+  getOrders: getProductionOrders,
+  getOrder: getProductionOrder,
+  getProducts,
+  getWarehouses,
+  getBoms: getBOMs,
+  getLocations,
+  printOrder: printProductionOrder,
+  onError: (message) => ElMessage.error(message)
 })
-
-// 表格数据
-const loading = ref(false)
-const tableData = ref<ProductionOrder[]>([])
-
-// 分页
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-// 选项数据
-const productOptions = ref<Product[]>([])
-const warehouseOptions = ref<Warehouse[]>([])
-const allBomOptions = ref<BOM[]>([])
-const finishedLocations = ref<Location[]>([])
-const materialLocations = ref<Location[]>([])
 const {
   getPriorityLabel,
   getPriorityType,
@@ -991,120 +996,10 @@ const {
   onCompleted: () => loadData()
 })
 
-// 查看对话框
-const viewDialogVisible = ref(false)
-const viewData = ref<ProductionOrder>({} as ProductionOrder)
-
-const loadLocationsByWarehouse = async (warehouseId?: string | number) => {
-  if (warehouseId == null || warehouseId === '') {
-    return [] as Location[]
-  }
-  const page = await getLocations({
-    pageNo: 1,
-    pageSize: 500,
-    status: 'ACTIVE',
-    warehouseId
-  })
-  return page.records || []
-}
-
-const loadFinishedLocations = async (warehouseId?: string | number) => {
-  try {
-    finishedLocations.value = await loadLocationsByWarehouse(warehouseId)
-  } catch (error) {
-    finishedLocations.value = []
-    console.error(t('productionOrder.message.optionsLoadFailed'), error)
-  }
-}
-
-const loadMaterialLocations = async (warehouseId?: string | number) => {
-  try {
-    materialLocations.value = await loadLocationsByWarehouse(warehouseId)
-  } catch (error) {
-    materialLocations.value = []
-    console.error(t('productionOrder.message.optionsLoadFailed'), error)
-  }
-}
-
-// 加载选项数据
-const loadOptions = async () => {
-  try {
-    const optionPageQuery = { pageNo: 1, pageSize: 200 }
-    const [products, warehouses, boms] = await Promise.all([
-      getProducts(optionPageQuery),
-      getWarehouses(optionPageQuery),
-      getBOMs(optionPageQuery)
-    ])
-    productOptions.value = products.records || []
-    warehouseOptions.value = warehouses.records || []
-    allBomOptions.value = boms.records || []
-    bomOptions.value = allBomOptions.value
-  } catch (error) {
-    console.error(t('productionOrder.message.optionsLoadFailed'), error)
-  }
-}
-
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const params = {
-      ...queryForm,
-      page: pagination.page,
-      size: pagination.size
-    }
-    const res = await getProductionOrders(params)
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    console.error(t('productionOrder.message.orderLoadFailed'), error)
-    ElMessage.error(t('productionOrder.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  Object.assign(queryForm, {
-    orderNo: '',
-    productId: undefined,
-    status: '',
-    priority: ''
-  })
-  pagination.page = 1
-  loadData()
-}
-
-// 查看
-const handleView = async (row: ProductionOrder) => {
-  try {
-    const res = await getProductionOrder(row.id)
-    viewData.value = res
-    viewDialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('productionOrder.message.detailLoadFailed'))
-  }
-}
-
-const handlePrint = async (row: ProductionOrder) => {
-  try {
-    const order = await getProductionOrder(row.id)
-    printProductionOrder(order)
-  } catch {
-    ElMessage.error(t('productionOrder.message.printLoadFailed'))
-  }
-}
-
-onMounted(() => {
-  loadOptions()
-  loadData()
+onMounted(async () => {
+  await loadOptions()
+  bomOptions.value = allBomOptions.value
+  await loadData()
 })
 </script>
 

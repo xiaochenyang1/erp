@@ -203,11 +203,11 @@ const coreMessages = {
       message: { optionsLoadFailed: '加载工作中心/BOM选项失败', loadFailed: '加载工艺路线失败', detailLoadFailed: '加载工艺路线详情失败', printLoadFailed: '加载打印数据失败', enableConfirm: '确认启用工艺路线“{name}”吗？', disableConfirm: '确认停用工艺路线“{name}”吗？', enabled: '已启用', disabled: '已停用', updated: '更新成功', created: '创建成功', prompt: '提示' }
     },
     productionWorkCenter: {
-      title: '工作中心', keyword: '关键字', keywordPlaceholder: '工作中心编码/名称', statusLabel: '状态', all: '全部', search: '查询', reset: '重置', create: '新增工作中心', code: '编码', name: '名称', remark: '备注', actions: '操作', edit: '编辑', enable: '启用', disable: '停用', codePlaceholder: '请输入工作中心编码', namePlaceholder: '请输入工作中心名称', remarkPlaceholder: '请输入备注', cancel: '取消', save: '保存',
+      title: '工作中心', keyword: '关键字', keywordPlaceholder: '工作中心编码/名称', statusLabel: '状态', all: '全部', search: '查询', reset: '重置', create: '新增工作中心', code: '编码', name: '名称', remark: '备注', actions: '操作', view: '查看', print: '打印', edit: '编辑', enable: '启用', disable: '停用', codePlaceholder: '请输入工作中心编码', namePlaceholder: '请输入工作中心名称', remarkPlaceholder: '请输入备注', cancel: '取消', save: '保存',
       status: { active: '启用', disabled: '已停用' },
       dialog: { create: '新增工作中心', edit: '编辑工作中心' },
       validation: { code: '请输入工作中心编码', name: '请输入工作中心名称' },
-      message: { loadFailed: '加载工作中心失败', enableConfirm: '确认启用工作中心“{name}”吗？', disableConfirm: '确认停用工作中心“{name}”吗？', enabled: '已启用', disabled: '已停用', updated: '更新成功', created: '创建成功', prompt: '提示' }
+      message: { loadFailed: '加载工作中心失败', printLoadFailed: '加载打印数据失败', enableConfirm: '确认启用工作中心“{name}”吗？', disableConfirm: '确认停用工作中心“{name}”吗？', enabled: '已启用', disabled: '已停用', updated: '更新成功', created: '创建成功', prompt: '提示' }
     },
     productionBom: {
       title: 'BOM管理', bomCode: 'BOM编码', bomCodePlaceholder: '请输入BOM编码', product: '产品', selectProduct: '请选择产品', statusLabel: '状态', select: '请选择', search: '查询', reset: '重置', create: '新增BOM', baseQuantity: '基准数量', remark: '备注', createdAt: '创建时间', createdBy: '创建人', actions: '操作', view: '查看', print: '打印', edit: '编辑', materialList: '物料清单', materialDetails: '物料明细', material: '物料', selectMaterial: '请选择物料', quantity: '用量', scrapRatePercent: '损耗率(%)', scrapRate: '损耗率', delete: '删除', addMaterial: '添加物料', remarkPlaceholder: '请输入备注', cancel: '取消', save: '保存', close: '关闭', detailTitle: 'BOM详情', productFallback: '产品{id}',
@@ -414,11 +414,11 @@ const coreMessages = {
       message: { optionsLoadFailed: 'Failed to load work center and BOM options', loadFailed: 'Failed to load routings', detailLoadFailed: 'Failed to load routing details', printLoadFailed: 'Failed to load print data', enableConfirm: 'Enable routing “{name}”?', disableConfirm: 'Disable routing “{name}”?', enabled: 'Routing enabled', disabled: 'Routing disabled', updated: 'Routing updated', created: 'Routing created', prompt: 'Confirmation' }
     },
     productionWorkCenter: {
-      title: 'Work centers', keyword: 'Keyword', keywordPlaceholder: 'Work center code or name', statusLabel: 'Status', all: 'All', search: 'Search', reset: 'Reset', create: 'New work center', code: 'Code', name: 'Name', remark: 'Remark', actions: 'Actions', edit: 'Edit', enable: 'Enable', disable: 'Disable', codePlaceholder: 'Enter a work center code', namePlaceholder: 'Enter a work center name', remarkPlaceholder: 'Enter a remark', cancel: 'Cancel', save: 'Save',
+      title: 'Work centers', keyword: 'Keyword', keywordPlaceholder: 'Work center code or name', statusLabel: 'Status', all: 'All', search: 'Search', reset: 'Reset', create: 'New work center', code: 'Code', name: 'Name', remark: 'Remark', actions: 'Actions', view: 'View', print: 'Print', edit: 'Edit', enable: 'Enable', disable: 'Disable', codePlaceholder: 'Enter a work center code', namePlaceholder: 'Enter a work center name', remarkPlaceholder: 'Enter a remark', cancel: 'Cancel', save: 'Save',
       status: { active: 'Active', disabled: 'Disabled' },
       dialog: { create: 'New work center', edit: 'Edit work center' },
       validation: { code: 'Enter a work center code', name: 'Enter a work center name' },
-      message: { loadFailed: 'Failed to load work centers', enableConfirm: 'Enable work center “{name}”?', disableConfirm: 'Disable work center “{name}”?', enabled: 'Work center enabled', disabled: 'Work center disabled', updated: 'Work center updated', created: 'Work center created', prompt: 'Confirmation' }
+      message: { loadFailed: 'Failed to load work centers', printLoadFailed: 'Failed to load print data', enableConfirm: 'Enable work center “{name}”?', disableConfirm: 'Disable work center “{name}”?', enabled: 'Work center enabled', disabled: 'Work center disabled', updated: 'Work center updated', created: 'Work center created', prompt: 'Confirmation' }
     },
     productionBom: {
       title: 'BOM management', bomCode: 'BOM code', bomCodePlaceholder: 'Enter a BOM code', product: 'Product', selectProduct: 'Select a product', statusLabel: 'Status', select: 'Select', search: 'Search', reset: 'Reset', create: 'New BOM', baseQuantity: 'Base quantity', remark: 'Remark', createdAt: 'Created', createdBy: 'Created by', actions: 'Actions', view: 'View', print: 'Print', edit: 'Edit', materialList: 'Material list', materialDetails: 'Material details', material: 'Material', selectMaterial: 'Select a material', quantity: 'Quantity', scrapRatePercent: 'Scrap rate (%)', scrapRate: 'Scrap rate', delete: 'Delete', addMaterial: 'Add material', remarkPlaceholder: 'Enter a remark', cancel: 'Cancel', save: 'Save', close: 'Close', detailTitle: 'BOM details', productFallback: 'Product {id}',
