@@ -829,7 +829,9 @@ const messageSource = {
       escalationPriority: ['请选择升级优先级', 'Select an escalation priority']
     },
     message: {
-      saved: ['SLA 策略已保存', 'SLA policy saved']
+      saved: ['SLA 策略已保存', 'SLA policy saved'],
+      loadFailed: ['加载 SLA 策略失败', 'Failed to load SLA policies'],
+      saveFailed: ['保存 SLA 策略失败', 'Failed to save SLA policy']
     }
   },
   exceptionTicket: {

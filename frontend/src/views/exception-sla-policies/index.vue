@@ -117,7 +117,7 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         class="pagination"
-        @size-change="handlePageChange"
+        @size-change="handleSizeChange"
         @current-change="handlePageChange"
       />
     </el-card>
@@ -170,65 +170,71 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { AlarmClock, CircleCheck, CircleClose, EditPen, Refresh, Search, TrendCharts, Warning } from '@element-plus/icons-vue'
-import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   getExceptionSlaPolicies,
-  updateExceptionSlaPolicy,
-  type ExceptionSlaPolicy,
-  type ExceptionSlaPolicyQuery,
-  type ExceptionSlaPolicyUpdateRequest
+  updateExceptionSlaPolicy
 } from '@/api/exceptionSlaPolicy'
-
-type Option = { label: string; value: string }
-type EnabledFilter = '' | 'true' | 'false'
+import { useExceptionSlaPolicyPresentation } from '@/composables/useExceptionSlaPolicyPresentation'
+import { useExceptionSlaPolicyList } from '@/composables/useExceptionSlaPolicyList'
+import { useExceptionSlaPolicyForm } from '@/composables/useExceptionSlaPolicyForm'
 
 const { t } = useI18n()
-
-const categoryOptions = computed<Option[]>(() => [
-  { label: t('exceptionSlaPolicy.categories.general'), value: 'GENERAL' },
-  { label: t('exceptionSlaPolicy.categories.lowStock'), value: 'LOW_STOCK' },
-  { label: t('exceptionSlaPolicy.categories.paymentOverdue'), value: 'PAYMENT_OVERDUE' },
-  { label: t('exceptionSlaPolicy.categories.deliveryDelay'), value: 'DELIVERY_DELAY' },
-  { label: t('exceptionSlaPolicy.categories.qualityIssue'), value: 'QUALITY_ISSUE' },
-  { label: t('exceptionSlaPolicy.categories.systemError'), value: 'SYSTEM_ERROR' }
-])
-
-const priorityOptions = computed<Option[]>(() => [
-  { label: t('exceptionSlaPolicy.priorities.low'), value: 'LOW' },
-  { label: t('exceptionSlaPolicy.priorities.medium'), value: 'MEDIUM' },
-  { label: t('exceptionSlaPolicy.priorities.high'), value: 'HIGH' },
-  { label: t('exceptionSlaPolicy.priorities.urgent'), value: 'URGENT' }
-])
-
-const queryForm = reactive({
-  category: '',
-  priority: '',
-  enabled: '' as EnabledFilter
-})
-
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const loading = ref(false)
-const editSubmitting = ref(false)
-const tableData = ref<ExceptionSlaPolicy[]>([])
-const editDialogVisible = ref(false)
 const editFormRef = ref<FormInstance>()
-const editTarget = ref<ExceptionSlaPolicy>()
-const editForm = reactive<ExceptionSlaPolicyUpdateRequest>({
-  dueHours: 24,
-  escalationEnabled: true,
-  escalateToPriority: 'HIGH',
-  enabled: true,
-  remark: ''
+
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loading,
+  pagination,
+  queryForm,
+  tableData
+} = useExceptionSlaPolicyList(t, {
+  getPolicies: getExceptionSlaPolicies,
+  onError: notify.onError
+})
+
+const {
+  categoryLabel,
+  categoryOptions,
+  formatDateTime,
+  priorityLabel,
+  priorityOptions,
+  priorityType,
+  summaryItems
+} = useExceptionSlaPolicyPresentation(t, tableData, {
+  circleCheck: CircleCheck,
+  circleClose: CircleClose,
+  trendCharts: TrendCharts,
+  alarmClock: AlarmClock,
+  warning: Warning
+})
+
+const {
+  editDialogVisible,
+  editForm,
+  editSubmitting,
+  editTargetLabel,
+  handleSaveEdit: saveEdit,
+  openEditDialog
+} = useExceptionSlaPolicyForm(t, {
+  updatePolicy: updateExceptionSlaPolicy,
+  categoryLabel,
+  priorityLabel,
+  onSubmitted: loadData,
+  ...notify
 })
 
 const editRules = computed<FormRules>(() => ({
@@ -236,137 +242,10 @@ const editRules = computed<FormRules>(() => ({
   escalateToPriority: [{ required: true, message: t('exceptionSlaPolicy.validation.escalationPriority'), trigger: 'change' }]
 }))
 
-const summaryItems = computed(() => [
-  {
-    label: t('exceptionSlaPolicy.summary.enabledPolicies'),
-    value: tableData.value.filter((item) => item.enabled).length,
-    icon: CircleCheck,
-    tone: 'green'
-  },
-  {
-    label: t('exceptionSlaPolicy.summary.disabledPolicies'),
-    value: tableData.value.filter((item) => !item.enabled).length,
-    icon: CircleClose,
-    tone: 'gray'
-  },
-  {
-    label: t('exceptionSlaPolicy.summary.escalationEnabled'),
-    value: tableData.value.filter((item) => item.escalationEnabled).length,
-    icon: TrendCharts,
-    tone: 'blue'
-  },
-  {
-    label: t('exceptionSlaPolicy.summary.averageLimit'),
-    value: averageDueHours.value,
-    icon: AlarmClock,
-    tone: 'orange'
-  },
-  {
-    label: t('exceptionSlaPolicy.summary.urgentPolicies'),
-    value: tableData.value.filter((item) => item.priority === 'URGENT').length,
-    icon: Warning,
-    tone: 'red'
-  }
-])
-
-const averageDueHours = computed(() => {
-  if (!tableData.value.length) return '-'
-  const total = tableData.value.reduce((sum, item) => sum + (item.dueHours || 0), 0)
-  return t('exceptionSlaPolicy.hours', { count: Math.round(total / tableData.value.length) })
-})
-
-const editTargetLabel = computed(() => {
-  if (!editTarget.value) return ''
-  return `${categoryLabel(editTarget.value.category)} / ${priorityLabel(editTarget.value.priority)}`
-})
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const page = await getExceptionSlaPolicies(buildQueryParams())
-    tableData.value = page.records || []
-    pagination.total = page.total || 0
-  } finally {
-    loading.value = false
-  }
-}
-
-const buildQueryParams = (): ExceptionSlaPolicyQuery => ({
-  category: queryForm.category || undefined,
-  priority: queryForm.priority || undefined,
-  enabled: queryForm.enabled === '' ? undefined : queryForm.enabled === 'true',
-  pageNo: pagination.page,
-  pageSize: pagination.size
-})
-
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.category = ''
-  queryForm.priority = ''
-  queryForm.enabled = ''
-  pagination.page = 1
-  loadData()
-}
-
-const handlePageChange = () => {
-  loadData()
-}
-
-const openEditDialog = (row: ExceptionSlaPolicy) => {
-  editTarget.value = row
-  editForm.dueHours = row.dueHours
-  editForm.escalationEnabled = row.escalationEnabled
-  editForm.escalateToPriority = row.escalateToPriority
-  editForm.enabled = row.enabled
-  editForm.remark = row.remark || ''
-  editDialogVisible.value = true
-}
-
 const handleSaveEdit = async () => {
-  if (!editTarget.value) return
   const valid = await editFormRef.value?.validate().catch(() => false)
   if (!valid) return
-  editSubmitting.value = true
-  try {
-    await updateExceptionSlaPolicy(editTarget.value.id, {
-      dueHours: editForm.dueHours,
-      escalationEnabled: editForm.escalationEnabled,
-      escalateToPriority: editForm.escalateToPriority,
-      enabled: editForm.enabled,
-      remark: editForm.remark?.trim() || undefined
-    })
-    ElMessage.success(t('exceptionSlaPolicy.message.saved'))
-    editDialogVisible.value = false
-    await loadData()
-  } finally {
-    editSubmitting.value = false
-  }
-}
-
-const categoryLabel = (value?: string) => {
-  return categoryOptions.value.find((item) => item.value === value)?.label || value || '-'
-}
-
-const priorityLabel = (value?: string) => {
-  return priorityOptions.value.find((item) => item.value === value)?.label || value || '-'
-}
-
-const priorityType = (value?: string) => {
-  const typeMap: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
-    LOW: 'info',
-    MEDIUM: 'primary',
-    HIGH: 'warning',
-    URGENT: 'danger'
-  }
-  return value ? typeMap[value] || 'info' : 'info'
-}
-
-const formatDateTime = (value?: string) => {
-  return formatLocalizedDateTime(value) || '-'
+  await saveEdit()
 }
 
 onMounted(() => {
