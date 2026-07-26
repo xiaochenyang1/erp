@@ -211,58 +211,87 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Search, Plus, Edit, Delete } from '@element-plus/icons-vue'
+import { Delete, Edit, Plus, Search } from '@element-plus/icons-vue'
 import {
+  createDictItem,
+  createDictType,
+  deleteDictItem,
+  deleteDictType,
+  enableDictItem,
+  enableDictType,
+  getDictItems,
+  getDictType,
   getDictTypes,
+  updateDictItem,
+  updateDictType,
+  type DictType
+} from '@/api/system'
+import { useSystemDictPresentation } from '@/composables/useSystemDictPresentation'
+import { useSystemDictList } from '@/composables/useSystemDictList'
+import { useSystemDictForm } from '@/composables/useSystemDictForm'
+
+const { t } = useI18n()
+const typeFormRef = ref<FormInstance>()
+const itemFormRef = ref<FormInstance>()
+
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  currentType,
+  filteredTypeList,
+  handleDisableItem,
+  handleDisableType,
+  handleEnableItem,
+  handleEnableType,
+  handleTypeSelect,
+  itemList,
+  itemLoading,
+  loadTypeList,
+  refreshCurrentItems,
+  typeLoading,
+  typeSearchText
+} = useSystemDictList(t, {
+  getDictTypes,
+  getDictItems,
+  deleteDictType,
+  enableDictType,
+  deleteDictItem,
+  enableDictItem,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  ...notify
+})
+
+const {
+  handleAddItem: openAddItem,
+  handleAddType,
+  handleEditItem,
+  handleEditType,
+  handleItemSubmit: saveItem,
+  handleTypeSubmit: saveType,
+  itemDialogTitle,
+  itemDialogVisible,
+  itemFormData,
+  resetItemForm,
+  resetTypeForm,
+  submitLoading,
+  typeDialogTitle,
+  typeDialogVisible,
+  typeFormData
+} = useSystemDictForm(t, {
   getDictType,
   createDictType,
   updateDictType,
-  deleteDictType,
-  enableDictType,
-  getDictItems,
   createDictItem,
   updateDictItem,
-  deleteDictItem,
-  enableDictItem,
-  type DictType,
-  type DictItem
-} from '@/api/system'
-
-const { t } = useI18n()
-
-// 字典类型
-const typeLoading = ref(false)
-const typeList = ref<DictType[]>([])
-const currentType = ref<DictType | null>(null)
-const typeSearchText = ref('')
-
-// 过滤后的字典类型列表
-const filteredTypeList = computed(() => {
-  if (!typeSearchText.value) return typeList.value
-  return typeList.value.filter(
-    (item) =>
-      item.code.toLowerCase().includes(typeSearchText.value.toLowerCase()) ||
-      item.name.toLowerCase().includes(typeSearchText.value.toLowerCase())
-  )
-})
-
-// 字典项
-const itemLoading = ref(false)
-const itemList = ref<DictItem[]>([])
-
-// 字典类型对话框
-const typeDialogVisible = ref(false)
-const typeDialogTitle = ref('')
-const typeFormRef = ref<FormInstance>()
-const typeFormData = reactive({
-  id: undefined as number | undefined,
-  code: '',
-  name: '',
-  status: 'ACTIVE',
-  remark: ''
+  onTypeSubmitted: loadTypeList,
+  onItemSubmitted: refreshCurrentItems,
+  ...notify
 })
 
 const typeFormRules = computed<FormRules>(() => ({
@@ -270,259 +299,40 @@ const typeFormRules = computed<FormRules>(() => ({
   name: [{ required: true, message: t('systemDicts.namePlaceholder'), trigger: 'blur' }]
 }))
 
-// 字典项对话框
-const itemDialogVisible = ref(false)
-const itemDialogTitle = ref('')
-const itemFormRef = ref<FormInstance>()
-const itemFormData = reactive({
-  id: undefined as number | undefined,
-  typeCode: '',
-  label: '',
-  value: '',
-  orderNum: 0,
-  status: 'ACTIVE'
-})
-
 const itemFormRules = computed<FormRules>(() => ({
   label: [{ required: true, message: t('systemDicts.labelPlaceholder'), trigger: 'blur' }],
   value: [{ required: true, message: t('systemDicts.valuePlaceholder'), trigger: 'blur' }]
 }))
 
-const submitLoading = ref(false)
-
-// 加载字典类型列表
-const loadTypeList = async () => {
-  typeLoading.value = true
-  try {
-    const res = await getDictTypes({ page: 1, size: 1000 })
-    typeList.value = res.records || []
-  } catch (error) {
-    console.error(t('systemDicts.message.loadTypesFailed'), error)
-    ElMessage.error(t('systemDicts.message.loadTypesFailed'))
-  } finally {
-    typeLoading.value = false
-  }
-}
-
-// 选择字典类型
-const handleTypeSelect = (row: DictType | null) => {
-  currentType.value = row
-  if (row) {
-    loadItemList(row.code)
-  } else {
-    itemList.value = []
-  }
-}
-
-// 加载字典项列表
-const loadItemList = async (typeCode: string) => {
-  itemLoading.value = true
-  try {
-    const res = await getDictItems(typeCode)
-    itemList.value = res || []
-  } catch (error) {
-    console.error(t('systemDicts.message.loadItemsFailed'), error)
-    ElMessage.error(t('systemDicts.message.loadItemsFailed'))
-  } finally {
-    itemLoading.value = false
-  }
-}
-
-// 新增字典类型
-const handleAddType = () => {
-  typeDialogTitle.value = t('systemDicts.dialog.addType')
-  typeDialogVisible.value = true
-}
-
-// 编辑字典类型
-const handleEditType = async (row: DictType) => {
-  typeDialogTitle.value = t('systemDicts.dialog.editType')
-  try {
-    const res = await getDictType(row.id)
-    Object.assign(typeFormData, {
-      id: res.id,
-      code: res.code,
-      name: res.name,
-      status: res.status,
-      remark: res.remark
-    })
-    typeDialogVisible.value = true
-  } catch (error) {
-    ElMessage.error(t('systemDicts.message.loadTypeDetailFailed'))
-  }
-}
-
-// 停用字典类型
-const handleDisableType = async (row: DictType) => {
-  try {
-    await ElMessageBox.confirm(t('systemDicts.message.disableTypeConfirm', { name: row.name }), t('systemDicts.prompt'), {
-      type: 'warning'
-    })
-    await deleteDictType(row.id)
-    ElMessage.success(t('systemDicts.message.disableSuccess'))
-    loadTypeList()
-    if (currentType.value?.id === row.id) {
-      currentType.value = null
-      itemList.value = []
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemDicts.message.disableFailed'))
-    }
-  }
-}
-
-// 启用字典类型
-const handleEnableType = async (row: DictType) => {
-  try {
-    await ElMessageBox.confirm(t('systemDicts.message.enableTypeConfirm', { name: row.name }), t('systemDicts.prompt'), {
-      type: 'warning'
-    })
-    await enableDictType(row.id)
-    ElMessage.success(t('systemDicts.message.enableSuccess'))
-    loadTypeList()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemDicts.message.enableFailed'))
-    }
-  }
-}
-
-// 提交字典类型
-const handleTypeSubmit = async () => {
-  if (!typeFormRef.value) return
-
-  await typeFormRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    submitLoading.value = true
-    try {
-      if (typeFormData.id) {
-        await updateDictType(typeFormData.id, typeFormData)
-        ElMessage.success(t('systemDicts.message.updateSuccess'))
-      } else {
-        await createDictType(typeFormData)
-        ElMessage.success(t('systemDicts.message.createSuccess'))
-      }
-      typeDialogVisible.value = false
-      loadTypeList()
-    } catch (error) {
-      ElMessage.error(t('systemDicts.message.operationFailed'))
-    } finally {
-      submitLoading.value = false
-    }
-  })
-}
-
-// 字典类型对话框关闭
-const handleTypeDialogClose = () => {
-  typeFormRef.value?.resetFields()
-  Object.assign(typeFormData, {
-    id: undefined,
-    code: '',
-    name: '',
-    status: 'ACTIVE',
-    remark: ''
-  })
-}
-
-// 新增字典项
 const handleAddItem = () => {
   if (!currentType.value) return
-  itemDialogTitle.value = t('systemDicts.dialog.addItem')
-  itemFormData.typeCode = currentType.value.code
-  itemDialogVisible.value = true
+  openAddItem(currentType.value.code)
 }
 
-// 编辑字典项
-const handleEditItem = (row: DictItem) => {
-  itemDialogTitle.value = t('systemDicts.dialog.editItem')
-  Object.assign(itemFormData, {
-    id: row.id,
-    typeCode: row.typeCode,
-    label: row.label,
-    value: row.value,
-    orderNum: row.orderNum,
-    status: row.status
+const handleTypeSubmit = async () => {
+  if (!typeFormRef.value) return
+  await typeFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    await saveType()
   })
-  itemDialogVisible.value = true
 }
 
-// 停用字典项
-const handleDisableItem = async (row: DictItem) => {
-  try {
-    await ElMessageBox.confirm(t('systemDicts.message.disableItemConfirm', { label: row.label }), t('systemDicts.prompt'), {
-      type: 'warning'
-    })
-    await deleteDictItem(row.id)
-    ElMessage.success(t('systemDicts.message.disableSuccess'))
-    if (currentType.value) {
-      loadItemList(currentType.value.code)
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemDicts.message.disableFailed'))
-    }
-  }
-}
-
-// 启用字典项
-const handleEnableItem = async (row: DictItem) => {
-  try {
-    await ElMessageBox.confirm(t('systemDicts.message.enableItemConfirm', { label: row.label }), t('systemDicts.prompt'), {
-      type: 'warning'
-    })
-    await enableDictItem(row.id)
-    ElMessage.success(t('systemDicts.message.enableSuccess'))
-    if (currentType.value) {
-      loadItemList(currentType.value.code)
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemDicts.message.enableFailed'))
-    }
-  }
-}
-
-// 提交字典项
 const handleItemSubmit = async () => {
   if (!itemFormRef.value) return
-
   await itemFormRef.value.validate(async (valid) => {
     if (!valid) return
-
-    submitLoading.value = true
-    try {
-      if (itemFormData.id) {
-        await updateDictItem(itemFormData.id, itemFormData)
-        ElMessage.success(t('systemDicts.message.updateSuccess'))
-      } else {
-        await createDictItem(itemFormData)
-        ElMessage.success(t('systemDicts.message.createSuccess'))
-      }
-      itemDialogVisible.value = false
-      if (currentType.value) {
-        loadItemList(currentType.value.code)
-      }
-    } catch (error) {
-      ElMessage.error(t('systemDicts.message.operationFailed'))
-    } finally {
-      submitLoading.value = false
-    }
+    await saveItem()
   })
 }
 
-// 字典项对话框关闭
+const handleTypeDialogClose = () => {
+  typeFormRef.value?.resetFields()
+  resetTypeForm()
+}
+
 const handleItemDialogClose = () => {
   itemFormRef.value?.resetFields()
-  Object.assign(itemFormData, {
-    id: undefined,
-    typeCode: '',
-    label: '',
-    value: '',
-    orderNum: 0,
-    status: 'ACTIVE'
-  })
+  resetItemForm()
 }
 
 onMounted(() => {

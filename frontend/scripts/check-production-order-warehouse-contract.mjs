@@ -75,7 +75,13 @@ const roleView = [
 const menuView = readFileSync(resolve(root, 'src/views/system/menus/index.vue'), 'utf8')
 const deptView = readFileSync(resolve(root, 'src/views/system/depts/index.vue'), 'utf8')
 const postView = readFileSync(resolve(root, 'src/views/system/posts/index.vue'), 'utf8')
-const dictView = readFileSync(resolve(root, 'src/views/system/dicts/index.vue'), 'utf8')
+// 系统字典页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const dictView = [
+  'src/views/system/dicts/index.vue',
+  'src/composables/useSystemDictPresentation.ts',
+  'src/composables/useSystemDictList.ts',
+  'src/composables/useSystemDictForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // 系统配置页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const configView = [
   'src/views/system/configs/index.vue',
@@ -1717,8 +1723,8 @@ const systemEnableViewContracts = [
       'enableDictItem,',
       'const handleEnableType = async (row: DictType) =>',
       'const handleEnableItem = async (row: DictItem) =>',
-      'await enableDictType(row.id)',
-      'await enableDictItem(row.id)',
+      'await options.enableDictType(row.id)',
+      'await options.enableDictItem(row.id)',
       'systemDicts.disable',
       'systemDicts.enable'
     ]
