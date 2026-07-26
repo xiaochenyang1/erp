@@ -475,6 +475,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
+  Box,
   View,
   Edit,
   CircleCheck,
@@ -494,11 +495,10 @@ import {
   getPurchaseReceipts,
   getPurchaseReceipt,
   type PurchaseReturn,
-  type PurchaseReturnQuery,
   type PurchaseReturnCreateRequest,
   type PurchaseReceipt
 } from '@/api/purchase'
-import { getLocations, getProducts, type Location, type Product } from '@/api/masterdata'
+import { getLocations, getProducts } from '@/api/masterdata'
 import {
   hydrateProductLineLabels,
   serialCaptureProgress,
@@ -509,54 +509,70 @@ import { downloadBlob } from '@/utils/download'
 import { printPurchaseReturn } from '@/utils/bizPrint'
 import { useUserStore } from '@/store/modules/user'
 import { formatLocalizedDateTime } from '@/utils/locale'
+import { usePurchaseReturnSummary } from '@/composables/usePurchaseReturnPresentation'
+import { usePurchaseReturnList } from '@/composables/usePurchaseReturnList'
 
 const userStore = useUserStore()
 const { t } = useI18n()
 const canCreate = computed(() => userStore.hasPermission('purchase:return:create'))
 
-// 查询表单
-const queryForm = reactive<PurchaseReturnQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  returnNo: '',
-  receiptId: undefined,
-  status: '',
-  startDate: '',
-  endDate: ''
+const {
+  availableReceipts,
+  currentRow,
+  dateRange,
+  detailLoading,
+  detailVisible,
+  handleCancel,
+  handleComplete,
+  handleDateChange,
+  handleExport,
+  handlePageChange,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  handleView,
+  linkedReceipt,
+  linkedReceiptLoading,
+  linkedReceiptVisible,
+  loadCreateOptions,
+  loadOptions,
+  loading,
+  locations,
+  products,
+  queryForm,
+  tableData,
+  total,
+  viewReceipt
+} = usePurchaseReturnList(t, {
+  getReturns: getPurchaseReturns,
+  getReturn: getPurchaseReturn,
+  getReceipt: getPurchaseReceipt,
+  getReceipts: getPurchaseReceipts,
+  postReturn: postPurchaseReturn,
+  cancelReturn: cancelPurchaseReturn,
+  exportReturns: exportPurchaseReturns,
+  getProducts,
+  getLocations,
+  printReturn: printPurchaseReturn,
+  downloadBlob,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
-
-// 日期范围
-const dateRange = ref<[string, string]>()
-
-// 表格数据
-const tableData = ref<PurchaseReturn[]>([])
-const total = ref(0)
-const loading = ref(false)
-const draftCount = computed(() => tableData.value.filter(item => item.status === 'DRAFT').length)
-const completedCount = computed(() => tableData.value.filter(item => item.status === 'POSTED' || item.status === 'COMPLETED').length)
 
 // 对话框
 const dialogVisible = ref(false)
 const editingId = ref<string | number>('')
 const formRef = ref<FormInstance>()
 const submitLoading = ref(false)
-const detailVisible = ref(false)
-const detailLoading = ref(false)
-const currentRow = ref<PurchaseReturn>()
-const linkedReceiptVisible = ref(false)
-const linkedReceiptLoading = ref(false)
-const linkedReceipt = ref<PurchaseReceipt>()
-
-// 可用收货单列表
-const availableReceipts = ref<PurchaseReceipt[]>([])
 const selectedReceipt = ref<PurchaseReceipt>()
-const products = ref<Product[]>([])
-const locations = ref<Location[]>([])
-const locationsForSelectedReceipt = computed(() => {
-  const warehouseId = selectedReceipt.value?.warehouseId
-  if (!warehouseId) return locations.value
-  return locations.value.filter((location) => String(location.warehouseId) === String(warehouseId))
-})
+
+const {
+  completedCount,
+  draftCount,
+  locationsForSelectedReceipt
+} = usePurchaseReturnSummary(tableData, locations, selectedReceipt)
 
 // 表单数据
 const form = reactive<PurchaseReturnCreateRequest>({
@@ -566,84 +582,43 @@ const form = reactive<PurchaseReturnCreateRequest>({
   remark: ''
 })
 
-// 表单验证规则
 const formRules = computed<FormRules>(() => ({
   receiptId: [{ required: true, message: t('purchaseReturn.validation.receipt'), trigger: 'change' }],
   returnDate: [{ required: true, message: t('purchaseReturn.validation.date'), trigger: 'change' }]
 }))
 
-// 查询数据
-const handleQuery = async () => {
-  loading.value = true
-  try {
-    const res = await getPurchaseReturns(queryForm)
-    tableData.value = res.records
-    total.value = res.total
-  } catch (error) {
-    ElMessage.error(t('purchaseReturn.message.loadFailed'))
-  } finally {
-    loading.value = false
+const productInfoById = (productId: string | number) => {
+  const product = products.value.find(item => String(item.id) === String(productId))
+  return {
+    productCode: product?.code || product?.productCode || '',
+    productName: product?.name || product?.productName || ''
   }
 }
 
-// 重置查询
-const handleReset = () => {
-  queryForm.returnNo = ''
-  queryForm.receiptId = undefined
-  queryForm.status = ''
-  queryForm.startDate = ''
-  queryForm.endDate = ''
-  queryForm.pageNo = 1
-  dateRange.value = undefined
-  handleQuery()
+const resetForm = () => {
+  editingId.value = ''
+  form.receiptId = ''
+  form.returnDate = ''
+  form.items = []
+  form.remark = ''
+  selectedReceipt.value = undefined
+  formRef.value?.resetFields()
 }
 
-// 日期范围变化
-const handleDateChange = (dates: [string, string] | null) => {
-  if (dates) {
-    queryForm.startDate = dates[0]
-    queryForm.endDate = dates[1]
-  } else {
-    queryForm.startDate = ''
-    queryForm.endDate = ''
-  }
-}
-
-// 分页
-const handlePageChange = (page: number, size: number) => {
-  queryForm.pageNo = page
-  queryForm.pageSize = size
-  handleQuery()
-}
-
-// 新增
 const handleAdd = async () => {
-  // 加载已过账的采购收货单
   try {
-    const receiptPageQuery = { pageNo: 1, pageSize: 200, status: 'POSTED' }
-    const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-    const [res, productResponse, locationResponse] = await Promise.all([
-      getPurchaseReceipts(receiptPageQuery),
-      getProducts(optionPageQuery),
-      getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
-    ])
-    availableReceipts.value = res.records
-    products.value = productResponse.records
-    locations.value = locationResponse.records || []
-
-    if (availableReceipts.value.length === 0) {
+    const receipts = await loadCreateOptions()
+    if (receipts.length === 0) {
       ElMessage.warning(t('purchaseReturn.message.noAvailableReceipts'))
       return
     }
-
     resetForm()
     dialogVisible.value = true
-  } catch (error) {
+  } catch {
     ElMessage.error(t('purchaseReturn.message.ordersLoadFailed'))
   }
 }
 
-// 收货单变更
 const handleReceiptChange = async () => {
   const summary = availableReceipts.value.find(receipt => String(receipt.id) === String(form.receiptId))
   const receipt = summary?.items?.length ? summary : await getPurchaseReceipt(form.receiptId)
@@ -678,20 +653,10 @@ const handleReceiptChange = async () => {
   }
 }
 
-const productInfoById = (productId: string | number) => {
-  const product = products.value.find(item => String(item.id) === String(productId))
-  return {
-    productCode: product?.code || product?.productCode || '',
-    productName: product?.name || product?.productName || ''
-  }
-}
-
-// 编辑草稿
 const handleEdit = async (row: PurchaseReturn) => {
   try {
     const detail = await getPurchaseReturn(row.id)
     editingId.value = detail.id
-    // 载入所属收货单，供只读展示（草稿不允许改收货单）
     const receipt = await getPurchaseReceipt(detail.receiptId)
     availableReceipts.value = [receipt]
     selectedReceipt.value = receipt
@@ -706,7 +671,6 @@ const handleEdit = async (row: PurchaseReturn) => {
       productName: item.productName,
       receiptQty: item.receiptQty,
       returnedQty: item.returnedQty || 0,
-      // 可退数量需把本草稿已占用的数量加回，否则编辑时上限会偏小
       availableReturnQty: (item.availableReturnQty ?? 0) + Number(item.quantity ?? item.qty ?? 0),
       quantity: Number(item.quantity ?? item.qty ?? 0),
       price: item.price || 0,
@@ -725,113 +689,11 @@ const handleEdit = async (row: PurchaseReturn) => {
       return product || {}
     })
     dialogVisible.value = true
-  } catch (error) {
+  } catch {
     ElMessage.error(t('purchaseReturn.message.returnLoadFailed'))
   }
 }
 
-// 查看
-const handleView = async (row: PurchaseReturn) => {
-  detailVisible.value = true
-  currentRow.value = undefined
-  detailLoading.value = true
-  try {
-    currentRow.value = await getPurchaseReturn(row.id)
-  } catch (error) {
-    ElMessage.error(t('purchaseReturn.message.detailLoadFailed'))
-    detailVisible.value = false
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const handlePrint = async (row: PurchaseReturn) => {
-  try {
-    const detail = await getPurchaseReturn(row.id)
-    printPurchaseReturn(detail)
-  } catch {
-    ElMessage.error(t('purchaseReturn.message.printLoadFailed'))
-  }
-}
-
-// 查看收货单
-const viewReceipt = async (receiptId: string | number) => {
-  if (!receiptId) {
-    ElMessage.warning(t('purchaseReturn.message.missingReceiptId'))
-    return
-  }
-
-  linkedReceiptVisible.value = true
-  linkedReceipt.value = undefined
-  linkedReceiptLoading.value = true
-  try {
-    linkedReceipt.value = await getPurchaseReceipt(receiptId)
-  } catch (error) {
-    ElMessage.error(t('purchaseReturn.message.receiptDetailLoadFailed'))
-    linkedReceiptVisible.value = false
-  } finally {
-    linkedReceiptLoading.value = false
-  }
-}
-
-// 过账退货
-const handleComplete = async (row: PurchaseReturn) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseReturn.message.postConfirm'),
-      t('purchaseReturn.message.prompt'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'success'
-      }
-    )
-
-    await postPurchaseReturn(row.id)
-    ElMessage.success(t('purchaseReturn.message.posted'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseReturn.message.postFailed'))
-    }
-  }
-}
-
-// 取消退货
-const handleCancel = async (row: PurchaseReturn) => {
-  try {
-    await ElMessageBox.confirm(
-      t('purchaseReturn.message.cancelConfirm', { returnNo: row.returnNo }),
-      t('purchaseReturn.message.prompt'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    )
-
-    await cancelPurchaseReturn(row.id)
-    ElMessage.success(t('purchaseReturn.message.cancelled'))
-    handleQuery()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('purchaseReturn.message.cancelFailed'))
-    }
-  }
-}
-
-// 导出
-const handleExport = async () => {
-  try {
-    const blob = await exportPurchaseReturns(queryForm)
-    downloadBlob(blob, t('purchaseReturn.message.exportFile', { timestamp: Date.now() }))
-    ElMessage.success(t('purchaseReturn.message.exported'))
-  } catch (error) {
-    ElMessage.error(t('purchaseReturn.message.exportFailed'))
-  }
-}
-
-// 提交表单
 const handleSubmitForm = async () => {
   if (!formRef.value) return
 
@@ -871,7 +733,7 @@ const handleSubmitForm = async () => {
       }
       dialogVisible.value = false
       handleQuery()
-    } catch (error) {
+    } catch {
       ElMessage.error(editingId.value ? t('purchaseReturn.message.updateFailed') : t('purchaseReturn.message.createFailed'))
     } finally {
       submitLoading.value = false
@@ -879,26 +741,9 @@ const handleSubmitForm = async () => {
   })
 }
 
-// 重置表单
-const resetForm = () => {
-  editingId.value = ''
-  form.receiptId = ''
-  form.returnDate = ''
-  form.items = []
-  form.remark = ''
-  selectedReceipt.value = undefined
-  formRef.value?.resetFields()
-}
-
-// 初始化
 onMounted(async () => {
   handleQuery()
-  try {
-    const page = await getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
-    locations.value = page.records || []
-  } catch {
-    locations.value = []
-  }
+  await loadOptions()
 })
 </script>
 
@@ -910,7 +755,7 @@ onMounted(async () => {
   font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-.pageNo-header {
+.page-header {
   margin-bottom: 24px;
   animation: slideDown 0.4s ease-out;
 }
@@ -1013,14 +858,14 @@ onMounted(async () => {
   color: #ffffff;
 }
 
-.pageNo-title {
+.page-title {
   font-size: 28px;
   font-weight: 700;
   margin: 0 0 8px 0;
   letter-spacing: 0.5px;
 }
 
-.pageNo-subtitle {
+.page-subtitle {
   font-size: 14px;
   margin: 0;
   opacity: 0.95;
