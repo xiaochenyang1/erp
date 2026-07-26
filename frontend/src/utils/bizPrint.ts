@@ -195,6 +195,38 @@ export function printProductionOrder(order: any) {
   printHtml(`生产订单 ${order.orderNo}`, html)
 }
 
+export function printProductionBom(bom: any) {
+  const items = bom.items || bom.lines || []
+  const html = buildDocPrintHtml({
+    title: '生产BOM',
+    docNo: bom.bomCode || bom.bomNo || bom.id || 'bom',
+    fields: [
+      ['BOM编码', bom.bomCode || bom.bomNo || bom.id || '-'],
+      ['产品', bom.productName || bom.productCode || bom.productId || '-'],
+      ['基准数量', qty(bom.baseQty ?? bom.quantity)],
+      ['状态', bom.status || '-'],
+      ['备注', bom.remark || '-']
+    ],
+    columns: ['行', '编码', '品名', '用量', '单位', '损耗率', '备注'],
+    rows: items.map((item: any, index: number) => [
+      String(index + 1),
+      escapeHtml(item.materialCode || item.productCode || item.materialProductId || item.materialId || ''),
+      escapeHtml(item.materialName || item.productName || ''),
+      qty(item.quantity ?? item.qtyPer),
+      escapeHtml(item.unit || item.materialUnit || ''),
+      escapeHtml(item.scrapRate != null || item.lossRate != null
+        ? `${item.scrapRate ?? item.lossRate}%`
+        : '0%'),
+      escapeHtml(item.remark || '')
+    ]),
+    totals: [
+      ['基准数量', qty(bom.baseQty ?? bom.quantity)],
+      ['物料行数', String(items.length)]
+    ]
+  })
+  printHtml(`生产BOM ${bom.bomCode || bom.bomNo || bom.id || ''}`, html)
+}
+
 export function printSalesQuote(quote: any) {
   const lines = quote.lines || quote.items || []
   const html = buildDocPrintHtml({

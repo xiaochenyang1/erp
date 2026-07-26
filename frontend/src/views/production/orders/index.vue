@@ -645,7 +645,7 @@
       </el-form>
       <template #footer>
         <el-button @click="issueDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleConfirmIssueMaterials">
+        <el-button type="primary" :loading="materialsSubmitLoading" @click="handleConfirmIssueMaterials">
           {{ t('productionOrder.confirmIssue') }}
         </el-button>
       </template>
@@ -743,7 +743,7 @@
       </el-form>
       <template #footer>
         <el-button @click="returnDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleConfirmReturnMaterials">
+        <el-button type="primary" :loading="materialsSubmitLoading" @click="handleConfirmReturnMaterials">
           {{ t('productionOrder.confirmReturn') }}
         </el-button>
       </template>
@@ -837,52 +837,22 @@ import {
   cancelProductionOrder,
   getProductionOrderOperations,
   reportProductionOperation,
-  type ProductionOrder,
-  type ProductionOrderMaterial
+  type ProductionOrder
 } from '@/api/production'
 import { getProducts, getProduct, getWarehouses, getLocations, type Product, type Warehouse, type Location } from '@/api/masterdata'
 import { getBOMs, type BOM } from '@/api/production'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
 import { printProductionOrder } from '@/utils/bizPrint'
 import {
-  serialCaptureProgress,
-  validateProductControlLines
+  serialCaptureProgress
 } from '@/utils/productLines'
 import { useProductionOrderPresentation } from '@/composables/useProductionOrderPresentation'
 import { useProductionOrderProductControls } from '@/composables/useProductionOrderProductControls'
 import { useProductionOrderOperations } from '@/composables/useProductionOrderOperations'
 import { useProductionOrderCompletion } from '@/composables/useProductionOrderCompletion'
+import { useProductionOrderMaterials } from '@/composables/useProductionOrderMaterials'
 
 const { t } = useI18n()
-
-interface ReturnMaterialRow extends ProductionOrderMaterial {
-  returnQty: number
-  lotNo?: string
-  locationId?: string | number
-  serialNos?: string
-  lotControlled?: boolean
-  shelfLifeControlled?: boolean
-  serialControlled?: boolean
-  productCode?: string
-  productName?: string
-  quantity?: number
-  remark?: string
-}
-
-interface IssueMaterialRow extends ProductionOrderMaterial {
-  remainingQty: number
-  issueQty: number
-  lotNo?: string
-  locationId?: string | number
-  serialNos?: string
-  lotControlled?: boolean
-  shelfLifeControlled?: boolean
-  serialControlled?: boolean
-  productCode?: string
-  productName?: string
-  quantity?: number
-  remark?: string
-}
 
 // 查询表单
 const queryForm = reactive({
@@ -968,6 +938,29 @@ const {
   onWarning: (message) => ElMessage.warning(message),
   onCompleted: () => loadData()
 })
+const {
+  canReturnMaterials,
+  handleConfirmIssueMaterials,
+  handleConfirmReturnMaterials,
+  handleIssue,
+  handleReturnMaterials,
+  issueDialogVisible,
+  issueForm,
+  returnDialogVisible,
+  returnForm,
+  submitLoading: materialsSubmitLoading
+} = useProductionOrderMaterials(t, {
+  loadOrder: getProductionOrder,
+  issueOrder: issueProductionOrder,
+  returnMaterials: returnProductionMaterials,
+  hydrateMaterialControls,
+  loadMaterialLocations: (warehouseId) => loadMaterialLocations(warehouseId),
+  formatBusinessDate,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => loadData()
+})
 
 // 新增/编辑对话框
 const dialogVisible = ref(false)
@@ -1000,23 +993,6 @@ const formRules = computed<FormRules>(() => ({
 // 查看对话框
 const viewDialogVisible = ref(false)
 const viewData = ref<ProductionOrder>({} as ProductionOrder)
-
-// 生产退料对话框
-const returnDialogVisible = ref(false)
-const returnForm = reactive({
-  orderId: '' as string | number,
-  returnDate: '',
-  remark: '',
-  materials: [] as ReturnMaterialRow[]
-})
-
-const issueDialogVisible = ref(false)
-const issueForm = reactive({
-  orderId: '' as string | number,
-  issueDate: '',
-  remark: '',
-  materials: [] as IssueMaterialRow[]
-})
 
 const loadLocationsByWarehouse = async (warehouseId?: string | number) => {
   if (warehouseId == null || warehouseId === '') {
@@ -1185,198 +1161,6 @@ const handleRelease = async (row: ProductionOrder) => {
     if (error !== 'cancel') {
       ElMessage.error(t('productionOrder.message.releaseFailed'))
     }
-  }
-}
-
-// 领料
-const handleIssue = async (row: ProductionOrder) => {
-  try {
-    const order = await getProductionOrder(row.id)
-    const issuableMaterials = await hydrateMaterialControls(
-      (order.materials || [])
-        .map((material) => {
-          const remainingQty = Math.max(
-            Number(material.requiredQuantity || 0) - Number(material.issuedQuantity || 0),
-            0
-          )
-          return {
-            ...material,
-            remainingQty,
-            issueQty: remainingQty,
-            lotNo: '',
-            locationId: undefined,
-            serialNos: '',
-            remark: '',
-            productCode: material.materialCode,
-            productName: material.materialName
-          } as IssueMaterialRow
-        })
-        .filter((material) => Number(material.remainingQty || 0) > 0)
-    )
-
-    if (issuableMaterials.length === 0) {
-      ElMessage.warning(t('productionOrder.message.noIssuableMaterials'))
-      return
-    }
-
-    issueForm.orderId = order.id
-    issueForm.issueDate = order.actualStartDate || order.planStartDate || formatBusinessDate()
-    issueForm.remark = t('productionOrder.issueRemark')
-    issueForm.materials = issuableMaterials
-    issueDialogVisible.value = true
-    void loadMaterialLocations(order.materialWarehouseId || order.warehouseId)
-  } catch (error) {
-    ElMessage.error(t('productionOrder.message.issuableLoadFailed'))
-  }
-}
-
-const handleConfirmIssueMaterials = async () => {
-  const selectedMaterials = issueForm.materials.filter((material) => Number(material.issueQty || 0) > 0)
-  if (selectedMaterials.length === 0) {
-    ElMessage.warning(t('productionOrder.validation.issueQuantity'))
-    return
-  }
-
-  const controlIssues = validateProductControlLines(selectedMaterials.map((material) => ({
-    productId: material.materialProductId ?? material.materialId,
-    productCode: material.productCode || material.materialCode,
-    productName: material.productName || material.materialName,
-    quantity: material.issueQty,
-    lotNo: material.lotNo,
-    serialNos: material.serialNos,
-    lotControlled: material.lotControlled,
-    shelfLifeControlled: material.shelfLifeControlled,
-    serialControlled: material.serialControlled
-  })))
-  if (controlIssues.length > 0) {
-    const issue = controlIssues[0]
-    const product = issue.productCode || issue.productName || String(issue.productId)
-    ElMessage.warning(t(`productionOrder.validation.${issue.messageKey}`, {
-      line: issue.index + 1,
-      product,
-      expected: issue.expectedSerialCount,
-      actual: issue.actualSerialCount
-    }))
-    return
-  }
-
-  const lines = selectedMaterials.map((material) => ({
-    orderMaterialId: material.id,
-    issueQty: material.issueQty,
-    lotNo: material.lotNo || undefined,
-    locationId: material.locationId || undefined,
-    serialNos: material.serialNos || undefined,
-    remark: material.remark || undefined
-  }))
-
-  submitLoading.value = true
-  try {
-    await issueProductionOrder(issueForm.orderId, {
-      issueDate: issueForm.issueDate,
-      remark: issueForm.remark || undefined,
-      lines
-    })
-    ElMessage.success(t('productionOrder.message.issued'))
-    issueDialogVisible.value = false
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('productionOrder.message.issueFailed'))
-  } finally {
-    submitLoading.value = false
-  }
-}
-
-const canReturnMaterials = (row: ProductionOrder) => {
-  return ['MATERIAL_ISSUED', 'IN_PROGRESS'].includes(row.status)
-}
-
-const handleReturnMaterials = async (row: ProductionOrder) => {
-  try {
-    const order = await getProductionOrder(row.id)
-    const returnableMaterials = await hydrateMaterialControls(
-      (order.materials || [])
-        .filter(material => Number(material.issuedQuantity || 0) > 0)
-        .map(material => ({
-          ...material,
-          returnQty: 0,
-          lotNo: '',
-          locationId: undefined,
-          serialNos: '',
-          remark: '',
-          productCode: material.materialCode,
-          productName: material.materialName
-        } as ReturnMaterialRow))
-    )
-
-    if (returnableMaterials.length === 0) {
-      ElMessage.warning(t('productionOrder.message.noReturnableMaterials'))
-      return
-    }
-
-    returnForm.orderId = order.id
-    returnForm.returnDate = order.actualStartDate || order.planStartDate || formatBusinessDate()
-    returnForm.remark = ''
-    returnForm.materials = returnableMaterials
-    returnDialogVisible.value = true
-    void loadMaterialLocations(order.materialWarehouseId || order.warehouseId)
-  } catch (error) {
-    ElMessage.error(t('productionOrder.message.returnableLoadFailed'))
-  }
-}
-
-const handleConfirmReturnMaterials = async () => {
-  const selectedMaterials = returnForm.materials.filter(material => Number(material.returnQty || 0) > 0)
-  if (selectedMaterials.length === 0) {
-    ElMessage.warning(t('productionOrder.validation.returnQuantity'))
-    return
-  }
-
-  const controlIssues = validateProductControlLines(selectedMaterials.map((material) => ({
-    productId: material.materialProductId ?? material.materialId,
-    productCode: material.productCode || material.materialCode,
-    productName: material.productName || material.materialName,
-    quantity: material.returnQty,
-    lotNo: material.lotNo,
-    serialNos: material.serialNos,
-    lotControlled: material.lotControlled,
-    shelfLifeControlled: material.shelfLifeControlled,
-    serialControlled: material.serialControlled
-  })))
-  if (controlIssues.length > 0) {
-    const issue = controlIssues[0]
-    const product = issue.productCode || issue.productName || String(issue.productId)
-    ElMessage.warning(t(`productionOrder.validation.${issue.messageKey}`, {
-      line: issue.index + 1,
-      product,
-      expected: issue.expectedSerialCount,
-      actual: issue.actualSerialCount
-    }))
-    return
-  }
-
-  const lines = selectedMaterials.map(material => ({
-    orderMaterialId: material.id,
-    returnQty: material.returnQty,
-    lotNo: material.lotNo || undefined,
-    locationId: material.locationId || undefined,
-    serialNos: material.serialNos || undefined,
-    remark: material.remark || undefined
-  }))
-
-  submitLoading.value = true
-  try {
-    await returnProductionMaterials(returnForm.orderId, {
-      returnDate: returnForm.returnDate,
-      remark: returnForm.remark,
-      lines
-    })
-    ElMessage.success(t('productionOrder.message.returned'))
-    returnDialogVisible.value = false
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('productionOrder.message.returnFailed'))
-  } finally {
-    submitLoading.value = false
   }
 }
 

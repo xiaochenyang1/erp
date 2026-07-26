@@ -106,6 +106,8 @@ describe('production BOM localization', () => {
     expect(i18n.global.t('productionBom.validation.materials')).toBe('Add at least one material line')
     expect(i18n.global.t('productionBom.productFallback', { id: 7 })).toBe('Product 7')
     expect(i18n.global.t('productionBom.message.created')).toBe('BOM created')
+    expect(i18n.global.t('productionBom.print')).toBe('Print')
+    expect(i18n.global.t('productionBom.message.printLoadFailed')).toBe('Failed to load print data')
   })
 })
 

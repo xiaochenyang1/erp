@@ -67,9 +67,10 @@
         <el-table-column prop="createdAt" :label="t('productionBom.createdAt')" width="180">
           <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column :label="t('productionBom.actions')" width="200" align="center" fixed="right">
+        <el-table-column :label="t('productionBom.actions')" width="240" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleView(row)">{{ t('productionBom.view') }}</el-button>
+            <el-button type="primary" link @click="handlePrint(row)">{{ t('productionBom.print') }}</el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
               v-permission="'production:bom:manage'"
@@ -291,6 +292,7 @@ import {
 } from '@/api/production'
 import { getProducts, type Product } from '@/api/masterdata'
 import { formatLocalizedDateTime } from '@/utils/locale'
+import { printProductionBom } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 
@@ -416,6 +418,25 @@ const handleView = async (row: BOM) => {
     viewDialogVisible.value = true
   } catch (error) {
     ElMessage.error(t('productionBom.message.detailLoadFailed'))
+  }
+}
+
+const handlePrint = async (row: BOM) => {
+  try {
+    const detail = await getBOM(row.id)
+    printProductionBom({
+      ...detail,
+      productCode: productById(detail.productId)?.productCode || productById(detail.productId)?.code,
+      productName: productLabelById(detail.productId),
+      items: (detail.items || []).map((item) => ({
+        ...item,
+        materialCode: item.materialCode || productById(item.materialId ?? item.materialProductId)?.productCode,
+        materialName: item.materialName || productById(item.materialId ?? item.materialProductId)?.productName,
+        unit: materialUnit(item)
+      }))
+    })
+  } catch {
+    ElMessage.error(t('productionBom.message.printLoadFailed'))
   }
 }
 
