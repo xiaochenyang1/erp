@@ -60,12 +60,26 @@ describe('sales price and quote localization', () => {
   }
 
   it('formats sales prices, quote amounts, and quote dates through locale helpers', () => {
-    const priceSource = readFileSync(resolve(process.cwd(), pages.salesPrice), 'utf8')
     const quoteSource = readFileSync(resolve(process.cwd(), pages.salesQuote), 'utf8')
 
-    expect(priceSource).toContain('formatLocalizedCurrency(row.listPrice)')
-    expect(priceSource).toContain('formatLocalizedDate(row.effectiveFrom)')
     expect(quoteSource).toContain('formatLocalizedCurrency(row.totalAmount)')
     expect(quoteSource).toContain('formatLocalizedDate(row.quoteDate)')
   })
+
+  // Price pages delegate money/date rendering to their presentation composables,
+  // so the locale helpers are asserted where they now live.
+  for (const [namespace, composablePath] of Object.entries({
+    salesPrice: 'src/composables/useSalesPricePresentation.ts',
+    purchasePrice: 'src/composables/usePurchasePricePresentation.ts'
+  })) {
+    it(`formats ${namespace} money and dates through locale helpers`, () => {
+      const pageSource = readFileSync(resolve(process.cwd(), pages[namespace as keyof typeof pages]), 'utf8')
+      const composableSource = readFileSync(resolve(process.cwd(), composablePath), 'utf8')
+
+      expect(pageSource).toContain('formatMoney(row.listPrice)')
+      expect(pageSource).toContain('formatEffectivePeriod(row.effectiveFrom, row.effectiveTo)')
+      expect(composableSource).toContain('formatLocalizedCurrency(')
+      expect(composableSource).toContain('formatLocalizedDate(')
+    })
+  }
 })

@@ -70,15 +70,15 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadData"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
     <el-dialog v-model="withdrawVisible" :title="$t('workflowRecord.withdrawDialog')" width="520px" @close="resetWithdraw">
       <el-alert
         v-if="currentRecord"
-        :title="$t('workflowRecord.recordSummary', { type: businessTypeLabel(currentRecord.businessType), no: currentRecord.businessNo || currentRecord.businessId })"
+        :title="recordSummary(currentRecord)"
         type="warning"
         show-icon
         :closable="false"
@@ -105,164 +105,65 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
-import { formatLocalizedDateTime } from '@/utils/locale'
 import {
   getBusinessWorkflowRecords,
   getWorkflowRecords,
-  withdrawWorkflow,
-  type WorkflowRecord,
-  type WorkflowRecordQuery
+  withdrawWorkflow
 } from '@/api/workflow'
+import { useWorkflowRecordList } from '@/composables/useWorkflowRecordList'
+import { useWorkflowRecordPresentation } from '@/composables/useWorkflowRecordPresentation'
 
 const route = useRoute()
 const { t } = useI18n()
-const loading = ref(false)
-const tableData = ref<WorkflowRecord[]>([])
-const total = ref(0)
-const withdrawVisible = ref(false)
-const withdrawSubmitting = ref(false)
-const currentRecord = ref<WorkflowRecord | null>(null)
-const withdrawForm = reactive({
-  comment: ''
-})
 
 const readQueryString = (key: string) => {
   const value = route.query[key]
   return typeof value === 'string' ? value : ''
 }
 
-const queryParams = reactive<WorkflowRecordQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  businessType: readQueryString('businessType'),
-  businessId: readQueryString('businessId'),
-  businessNo: readQueryString('businessNo'),
-  action: readQueryString('action')
+const {
+  currentRecord,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loading,
+  openWithdraw,
+  queryParams,
+  resetWithdraw,
+  submitWithdraw,
+  tableData,
+  total,
+  withdrawForm,
+  withdrawSubmitting,
+  withdrawVisible
+} = useWorkflowRecordList(t, {
+  getWorkflowRecords,
+  getBusinessWorkflowRecords,
+  withdrawWorkflow,
+  initialQuery: {
+    businessType: readQueryString('businessType'),
+    businessId: readQueryString('businessId'),
+    businessNo: readQueryString('businessNo'),
+    action: readQueryString('action')
+  },
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    if (queryParams.businessType && queryParams.businessId) {
-      const records = await getBusinessWorkflowRecords(queryParams.businessType, queryParams.businessId)
-      const filteredRecords = filterBusinessRecords(records)
-      total.value = filteredRecords.length
-      tableData.value = paginateRecords(filteredRecords)
-    } else {
-      const response = await getWorkflowRecords(cleanQuery(queryParams))
-      tableData.value = response.records
-      total.value = response.total
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryParams.businessType = ''
-  queryParams.businessId = undefined
-  queryParams.businessNo = ''
-  queryParams.action = ''
-  handleQuery()
-}
-
-const openWithdraw = (row: WorkflowRecord) => {
-  currentRecord.value = row
-  withdrawVisible.value = true
-}
-
-const submitWithdraw = async () => {
-  if (!currentRecord.value) return
-  withdrawSubmitting.value = true
-  try {
-    await withdrawWorkflow({
-      businessType: currentRecord.value.businessType,
-      businessId: currentRecord.value.businessId,
-      comment: withdrawForm.comment.trim() || undefined
-    })
-    ElMessage.success(t('workflowRecord.message.withdrawSuccess'))
-    withdrawVisible.value = false
-    await loadData()
-  } catch (error) {
-    ElMessage.error(t('workflowRecord.message.withdrawFailed'))
-  } finally {
-    withdrawSubmitting.value = false
-  }
-}
-
-const resetWithdraw = () => {
-  withdrawForm.comment = ''
-  currentRecord.value = null
-}
-
-const cleanQuery = (query: WorkflowRecordQuery): WorkflowRecordQuery => ({
-  pageNo: query.pageNo,
-  pageSize: query.pageSize,
-  businessType: query.businessType || undefined,
-  businessId: query.businessId || undefined,
-  businessNo: query.businessNo || undefined,
-  action: query.action || undefined
-})
-
-const filterBusinessRecords = (records: WorkflowRecord[]) => {
-  return records.filter((record) => {
-    const businessNoMatched = !queryParams.businessNo || record.businessNo?.includes(queryParams.businessNo)
-    const actionMatched = !queryParams.action || record.action === queryParams.action
-    return businessNoMatched && actionMatched
-  })
-}
-
-const paginateRecords = (records: WorkflowRecord[]) => {
-  const pageNo = queryParams.pageNo || 1
-  const pageSize = queryParams.pageSize || 10
-  const start = (pageNo - 1) * pageSize
-  return records.slice(start, start + pageSize)
-}
-
-const businessTypeLabel = (type?: string) => {
-  const map: Record<string, string> = {
-    PURCHASE_ORDER: t('workflowRecord.businessTypes.purchaseOrder'),
-    SALES_ORDER: t('workflowRecord.businessTypes.salesOrder'),
-    EXPENSE: t('workflowRecord.businessTypes.expense')
-  }
-  return type ? map[type] || type : '-'
-}
-
-const actionLabel = (action: string) => {
-  const map: Record<string, string> = {
-    SUBMIT: t('workflowRecord.actions.submit'),
-    APPROVE: t('workflowRecord.actions.approve'),
-    REJECT: t('workflowRecord.actions.reject'),
-    WITHDRAW: t('workflowRecord.actions.withdraw'),
-    CANCEL: t('workflowRecord.actions.cancel')
-  }
-  return map[action] || action
-}
-
-const actionType = (action: string) => {
-  const map: Record<string, 'info' | 'warning' | 'success' | 'danger'> = {
-    SUBMIT: 'info',
-    APPROVE: 'success',
-    REJECT: 'danger',
-    WITHDRAW: 'warning',
-    CANCEL: 'info'
-  }
-  return map[action] || 'info'
-}
-
-const formatTime = (value?: string) => {
-  return formatLocalizedDateTime(value) || '-'
-}
+const {
+  actionLabel,
+  actionType,
+  businessTypeLabel,
+  formatTime,
+  recordSummary
+} = useWorkflowRecordPresentation(t)
 
 onMounted(() => {
   loadData()
