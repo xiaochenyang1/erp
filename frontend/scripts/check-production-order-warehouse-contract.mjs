@@ -24,7 +24,12 @@ const dashboardApi = readFileSync(resolve(root, 'src/api/dashboard.ts'), 'utf8')
 const businessTraceApi = readFileSync(resolve(root, 'src/api/businessTrace.ts'), 'utf8')
 const businessTimelineApiPath = resolve(root, 'src/api/businessTimeline.ts')
 const businessTimelineApi = existsSync(businessTimelineApiPath) ? readFileSync(businessTimelineApiPath, 'utf8') : ''
-const businessTraceView = readFileSync(resolve(root, 'src/views/reports/traces/index.vue'), 'utf8')
+// 单据追踪页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
+const businessTraceView = [
+  'src/views/reports/traces/index.vue',
+  'src/composables/useBusinessTracePresentation.ts',
+  'src/composables/useBusinessTraceList.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const salesOrderView = readFileSync(resolve(root, 'src/views/sales/orders/index.vue'), 'utf8')
 const salesDeliveryView = readFileSync(resolve(root, 'src/views/sales/deliveries/index.vue'), 'utf8')
 const purchaseOrderView = readFileSync(resolve(root, 'src/views/purchase/orders/index.vue'), 'utf8')
@@ -746,9 +751,20 @@ for (const fragment of [
 }
 
 for (const fragment of [
-  "router.push(normalizeTraceRoute(target))",
+  'normalizeTraceRoute(',
+  'export const normalizeTraceRoute =',
   'const normalizeTraceRoute ='
 ]) {
+  // 允许页面调用与 composable 导出两种写法
+  if (fragment === 'const normalizeTraceRoute =' || fragment === 'export const normalizeTraceRoute =') {
+    if (
+      !businessTraceView.includes('const normalizeTraceRoute =')
+      && !businessTraceView.includes('export const normalizeTraceRoute =')
+    ) {
+      errors.push('单据追踪页缺少跳转路由归一化片段: normalizeTraceRoute definition')
+    }
+    continue
+  }
   if (!businessTraceView.includes(fragment)) {
     errors.push(`单据追踪页缺少跳转路由归一化片段: ${fragment}`)
   }

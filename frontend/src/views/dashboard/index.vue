@@ -318,15 +318,14 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAppStore } from '@/store/modules/app'
-import { useUserStore } from '@/store/modules/user'
 import { ElMessage } from 'element-plus'
 import {
+  DocumentChecked,
+  Warning,
   ShoppingCart,
   Sell,
   Box,
-  DocumentChecked,
-  Warning,
+  List,
   Plus,
   Search,
   Money,
@@ -344,15 +343,12 @@ import {
 } from 'echarts/components'
 import { init, use, type ComposeOption, type EChartsType } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import {
-  getOperationsDashboard,
-  type OperationsDashboard,
-  type OperationsDashboardFailedOperation,
-  type OperationsDashboardLowStock,
-  type OperationsDashboardTodo
-} from '@/api/dashboard'
-import { getFinanceAgingSummary, type FinanceAgingSummary } from '@/api/finance'
-import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import { getOperationsDashboard } from '@/api/dashboard'
+import { getFinanceAgingSummary } from '@/api/finance'
+import { useAppStore } from '@/store/modules/app'
+import { useUserStore } from '@/store/modules/user'
+import { useDashboardPresentation } from '@/composables/useDashboardPresentation'
+import { useDashboardData } from '@/composables/useDashboardData'
 
 use([BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
@@ -369,54 +365,45 @@ const appStore = useAppStore()
 const userStore = useUserStore()
 const { t } = useI18n()
 
-const emptyDashboard: OperationsDashboard = {
-  summary: {
-    pendingApprovals: 0,
-    overdueApprovals: 0,
-    lowStockAlerts: 0,
-    openReceivables: 0,
-    openReceivableAmount: 0,
-    openPayables: 0,
-    openPayableAmount: 0,
-    todayPurchaseOrders: 0,
-    todaySalesAmount: 0
-  },
-  todos: [],
-  lowStock: [],
-  failedOperations: [],
-  topSkus: [],
-  generatedAt: ''
-}
-
-const userName = computed(() => userStore.userInfo?.realName || t('dashboard.user'))
-const currentTime = ref('')
-const loading = ref(false)
-const agingLoading = ref(false)
-const dashboard = ref<OperationsDashboard>(emptyDashboard)
-const aging = ref<FinanceAgingSummary>()
-
-const summary = computed(() => dashboard.value.summary)
-const todos = computed<OperationsDashboardTodo[]>(() => dashboard.value.todos || [])
-const lowStock = computed<OperationsDashboardLowStock[]>(() => dashboard.value.lowStock || [])
-const failedOperations = computed<OperationsDashboardFailedOperation[]>(() => dashboard.value.failedOperations || [])
 const displayPreferences = computed(() => ({
   locale: appStore.locale,
   timeZone: appStore.timeZone
 }))
-const generatedTimeText = computed(() => {
-  return dashboard.value.generatedAt
-    ? t('dashboard.updatedAt', { time: formatDateTime(dashboard.value.generatedAt) })
-    : t('dashboard.waitingData')
+
+const {
+  formatCurrency,
+  formatCurrentDate,
+  formatDateTime,
+  formatNumber,
+  formatPriority,
+  getTodoColor,
+  getTodoIcon,
+  getTodoTagType,
+  quickActions: buildQuickActions
+} = useDashboardPresentation(t, () => displayPreferences.value)
+
+const {
+  aging,
+  agingLoading,
+  failedOperations,
+  generatedTimeText,
+  loadDashboard,
+  loading,
+  lowStock,
+  summary,
+  todos,
+  topSkus
+} = useDashboardData(t, {
+  getDashboard: getOperationsDashboard,
+  getAgingSummary: getFinanceAgingSummary,
+  formatDateTime,
+  onError: (message) => ElMessage.error(message),
+  onLoaded: () => updateCharts()
 })
 
-const quickActions = computed(() => [
-  { name: t('dashboard.quickPurchaseOrders'), icon: 'ShoppingCart', color: '#409eff', route: '/purchase/orders' },
-  { name: t('dashboard.quickSalesOrders'), icon: 'Sell', color: '#67c23a', route: '/sales/orders' },
-  { name: t('dashboard.quickInventoryStocks'), icon: 'Box', color: '#e6a23c', route: '/inventory/stocks' },
-  { name: t('dashboard.quickFinanceVouchers'), icon: 'Tickets', color: '#f56c6c', route: '/finance/vouchers' },
-  { name: t('dashboard.quickFinancePayments'), icon: 'Money', color: '#909399', route: '/finance/payments' },
-  { name: t('dashboard.quickProductionOrders'), icon: 'List', color: '#606266', route: '/production/orders' }
-])
+const userName = computed(() => userStore.userInfo?.realName || t('dashboard.user'))
+const currentTime = ref('')
+const quickActions = computed(() => buildQuickActions())
 
 const operationsChartRef = ref<HTMLDivElement>()
 const settlementChartRef = ref<HTMLDivElement>()
@@ -424,42 +411,13 @@ let operationsChart: EChartsType | null = null
 let settlementChart: EChartsType | null = null
 
 const updateTime = () => {
-  const now = new Date()
-  const { locale, timeZone } = displayPreferences.value
-  currentTime.value = new Intl.DateTimeFormat(locale, {
-    timeZone,
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long'
-  }).format(now)
+  currentTime.value = formatCurrentDate()
 }
 
 watch([() => appStore.locale, () => appStore.timeZone], () => {
   updateTime()
   updateCharts()
 })
-
-const loadDashboard = async () => {
-  loading.value = true
-  agingLoading.value = true
-  try {
-    const [dash, agingSummary] = await Promise.all([
-      getOperationsDashboard(),
-      getFinanceAgingSummary().catch(() => undefined)
-    ])
-    dashboard.value = dash
-    aging.value = agingSummary
-    updateCharts()
-  } catch (error) {
-    dashboard.value = emptyDashboard
-    ElMessage.error(t('dashboard.loadFailed'))
-    updateCharts()
-  } finally {
-    loading.value = false
-    agingLoading.value = false
-  }
-}
 
 const initCharts = () => {
   if (operationsChartRef.value) {
@@ -548,66 +506,12 @@ const updateSettlementChart = () => {
   settlementChart.setOption(option)
 }
 
-const formatNumber = (num?: number) => {
-  return formatLocalizedNumber(Number(num || 0), {}, displayPreferences.value)
-}
-
-const formatCurrency = (num?: number) => {
-  return formatLocalizedCurrency(Number(num || 0), {}, displayPreferences.value)
-}
-
-const formatDateTime = (value?: string) => {
-  return formatLocalizedDateTime(value, {}, displayPreferences.value) || '-'
-}
-
-const formatPriority = (priority: string) => {
-  const labels: Record<string, string> = {
-    HIGH: t('dashboard.priority.high'),
-    MEDIUM: t('dashboard.priority.medium'),
-    LOW: t('dashboard.priority.low')
-  }
-  return labels[priority] || priority || t('dashboard.priority.low')
-}
-
-const getTodoIcon = (type: string) => {
-  const icons: Record<string, string> = {
-    WORKFLOW: 'DocumentChecked',
-    LOW_STOCK: 'Warning',
-    RECEIVABLE_OVERDUE: 'Money',
-    PAYABLE_OVERDUE: 'Tickets',
-    FAILED_OPERATION: 'CircleClose'
-  }
-  return icons[type] || 'Document'
-}
-
-const getTodoColor = (type: string) => {
-  const colors: Record<string, string> = {
-    WORKFLOW: '#f56c6c',
-    LOW_STOCK: '#e6a23c',
-    RECEIVABLE_OVERDUE: '#626aef',
-    PAYABLE_OVERDUE: '#909399',
-    FAILED_OPERATION: '#f56c6c'
-  }
-  return colors[type] || '#409eff'
-}
-
-const getTodoTagType = (priority: string) => {
-  const types: Record<string, 'danger' | 'warning' | 'info' | 'success'> = {
-    HIGH: 'danger',
-    MEDIUM: 'warning',
-    LOW: 'info'
-  }
-  return types[priority] || 'info'
-}
-
 const handleQuickAction = (route: string) => {
   router.push(route)
 }
 
-const handleTodoClick = (todo: OperationsDashboardTodo) => {
-  if (todo.route) {
-    router.push(todo.route)
-  }
+const handleTodoClick = (todo: { route?: string }) => {
+  if (todo.route) router.push(todo.route)
 }
 
 const handleViewAllTodos = () => {

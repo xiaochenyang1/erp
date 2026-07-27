@@ -768,7 +768,10 @@ export const financeReportPageMessages = {
         message: {
           noRoute: '该事件暂无跳转目标',
           commentRequired: '请输入业务备注',
-          commentSubmitted: '备注已提交'
+          commentSubmitted: '备注已提交',
+          loadFailed: '加载单据追踪失败',
+          timelineLoadFailed: '加载业务动态失败',
+          commentFailed: '提交备注失败'
         }
       }
     }
@@ -1074,7 +1077,14 @@ export const financeReportPageMessages = {
           posted: 'Posted', completed: 'Completed', cancelled: 'Cancelled', closed: 'Closed', success: 'Success', failed: 'Failed'
         },
         event: { comment: 'Business comment', uploaded: 'Attachment uploaded', deleted: 'Attachment deleted' },
-        message: { noRoute: 'No destination is available for this event', commentRequired: 'Enter a business comment', commentSubmitted: 'Comment submitted' }
+        message: {
+          noRoute: 'No destination is available for this event',
+          commentRequired: 'Enter a business comment',
+          commentSubmitted: 'Comment submitted',
+          loadFailed: 'Failed to load business traces',
+          timelineLoadFailed: 'Failed to load business activity',
+          commentFailed: 'Failed to submit comment'
+        }
       }
     }
   }

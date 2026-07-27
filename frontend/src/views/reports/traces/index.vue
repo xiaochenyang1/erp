@@ -236,8 +236,8 @@
           :total="businessTimelineTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next"
-          @size-change="loadBusinessTimeline"
-          @current-change="loadBusinessTimeline"
+          @size-change="handleTimelineSizeChange"
+          @current-change="handleTimelinePageChange"
         />
       </template>
     </el-dialog>
@@ -245,9 +245,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
 import {
   Box,
   Clock,
@@ -259,328 +260,100 @@ import {
   Search,
   Warning
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
-import {
-  getBusinessTrace,
-  type BusinessTraceDocument,
-  type BusinessTraceResponse
-} from '@/api/businessTrace'
+import { getBusinessTrace } from '@/api/businessTrace'
 import {
   createBusinessTimelineComment,
-  getBusinessTimeline,
-  type BusinessTimelineEvent
+  getBusinessTimeline
 } from '@/api/businessTimeline'
-
-const emptyTrace = (): BusinessTraceResponse => ({
-  keyword: '',
-  documents: [],
-  timeline: [],
-  summary: {
-    documentCount: 0,
-    timelineCount: 0,
-    openReceivableAmount: 0,
-    openPayableAmount: 0,
-    inventoryMovementQuantity: 0,
-    failedOperationCount: 0,
-    openExceptionTicketCount: 0
-  },
-  exceptionTickets: [],
-  generatedAt: ''
-})
+import { useBusinessTracePresentation } from '@/composables/useBusinessTracePresentation'
+import {
+  normalizeTraceRoute,
+  useBusinessTraceList
+} from '@/composables/useBusinessTraceList'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const loading = ref(false)
-const trace = ref<BusinessTraceResponse>(emptyTrace())
-const businessTimelineVisible = ref(false)
-const businessTimelineLoading = ref(false)
-const timelineCommentSubmitting = ref(false)
-const selectedTimelineDocument = ref<BusinessTraceDocument>()
-const businessTimelineEvents = ref<BusinessTimelineEvent[]>([])
-const businessTimelineTotal = ref(0)
-const queryForm = reactive({
-  keyword: ''
-})
-const businessTimelineQuery = reactive({
-  pageNo: 1,
-  pageSize: 20
-})
-const timelineCommentForm = reactive({
-  content: ''
-})
 
-const summaryItems = computed(() => [
-  {
-    label: t('financeReportPages.traces.relatedDocuments'),
-    value: trace.value.summary.documentCount,
-    icon: Document,
-    tone: 'blue'
-  },
-  {
-    label: t('financeReportPages.traces.timelineEvents'),
-    value: trace.value.summary.timelineCount,
-    icon: Clock,
-    tone: 'green'
-  },
-  {
-    label: t('financeReportPages.traces.openReceivables'),
-    value: formatMoney(trace.value.summary.openReceivableAmount),
-    icon: Money,
-    tone: 'orange'
-  },
-  {
-    label: t('financeReportPages.traces.openPayables'),
-    value: formatMoney(trace.value.summary.openPayableAmount),
-    icon: Money,
-    tone: 'red'
-  },
-  {
-    label: t('financeReportPages.traces.inventoryMovement'),
-    value: formatNumber(trace.value.summary.inventoryMovementQuantity),
-    icon: Box,
-    tone: 'purple'
-  },
-  {
-    label: t('financeReportPages.traces.failedOperations'),
-    value: trace.value.summary.failedOperationCount,
-    icon: Warning,
-    tone: 'red'
-  },
-  {
-    label: t('financeReportPages.traces.openExceptions'),
-    value: trace.value.summary.openExceptionTicketCount,
-    icon: Warning,
-    tone: 'orange'
-  }
-])
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message),
+  onInfo: (message: string) => ElMessage.info(message)
+}
 
-const handleSearch = async () => {
-  const keyword = queryForm.keyword.trim()
-  if (!keyword) {
-    trace.value = emptyTrace()
-    return
-  }
-  loading.value = true
-  try {
-    trace.value = await getBusinessTrace({ keyword })
+const {
+  applyKeyword,
+  businessTimelineEvents,
+  businessTimelineLoading,
+  businessTimelineQuery,
+  businessTimelineTotal,
+  businessTimelineVisible,
+  handleReset,
+  handleSearch,
+  handleTimelinePageChange,
+  handleTimelineSizeChange,
+  loadBusinessTimeline,
+  loading,
+  openBusinessTimeline,
+  queryForm,
+  resolveRouteTarget,
+  selectedTimelineDocument,
+  submitTimelineComment,
+  timelineCommentForm,
+  timelineCommentSubmitting,
+  trace
+} = useBusinessTraceList(t, {
+  getBusinessTrace,
+  getBusinessTimeline,
+  createBusinessTimelineComment,
+  onKeywordChange: (keyword) => {
     router.replace({ path: route.path, query: { keyword } })
-  } finally {
-    loading.value = false
-  }
-}
+  },
+  onKeywordClear: () => {
+    router.replace({ path: route.path })
+  },
+  ...notify
+})
 
-const handleReset = () => {
-  queryForm.keyword = ''
-  trace.value = emptyTrace()
-  router.replace({ path: route.path })
-}
+const {
+  buildSummaryItems,
+  businessTimelineEventLabel,
+  businessTimelineItemType,
+  businessTimelineTagType,
+  documentTagType,
+  eventIcon,
+  eventTagType,
+  formatDateTime,
+  formatMoney,
+  formatNumber,
+  priorityLabel,
+  priorityTagType,
+  ticketStatusLabel,
+  ticketStatusTagType,
+  timelineItemType,
+  traceStatusLabel
+} = useBusinessTracePresentation(t, {
+  document: Document,
+  clock: Clock,
+  money: Money,
+  box: Box,
+  warning: Warning,
+  connection: Connection
+})
+
+const summaryItems = computed(() => buildSummaryItems(trace.value))
 
 const goRoute = (target?: string) => {
-  if (!target) {
-    ElMessage.info(t('financeReportPages.traces.message.noRoute'))
-    return
-  }
-  router.push(normalizeTraceRoute(target))
-}
-
-const normalizeTraceRoute = (target: string) => target
-
-const openBusinessTimeline = (
-  businessType: string,
-  businessId: string,
-  businessNo: string,
-  row: BusinessTraceDocument
-) => {
-  selectedTimelineDocument.value = {
-    ...row,
-    documentType: businessType,
-    documentId: businessId,
-    bizNo: businessNo
-  }
-  businessTimelineQuery.pageNo = 1
-  timelineCommentForm.content = ''
-  businessTimelineVisible.value = true
-  loadBusinessTimeline()
-}
-
-const loadBusinessTimeline = async () => {
-  if (!selectedTimelineDocument.value) return
-  businessTimelineLoading.value = true
-  try {
-    const page = await getBusinessTimeline({
-      pageNo: businessTimelineQuery.pageNo,
-      pageSize: businessTimelineQuery.pageSize,
-      businessType: selectedTimelineDocument.value.documentType,
-      businessId: selectedTimelineDocument.value.documentId,
-      businessNo: selectedTimelineDocument.value.bizNo
-    })
-    businessTimelineEvents.value = page.records
-    businessTimelineTotal.value = page.total
-  } finally {
-    businessTimelineLoading.value = false
-  }
-}
-
-const submitTimelineComment = async () => {
-  if (!selectedTimelineDocument.value) return
-  const content = timelineCommentForm.content.trim()
-  if (!content) {
-    ElMessage.warning(t('financeReportPages.traces.message.commentRequired'))
-    return
-  }
-
-  timelineCommentSubmitting.value = true
-  try {
-    await createBusinessTimelineComment({
-      businessType: selectedTimelineDocument.value.documentType,
-      businessId: selectedTimelineDocument.value.documentId,
-      businessNo: selectedTimelineDocument.value.bizNo,
-      content
-    })
-    timelineCommentForm.content = ''
-    ElMessage.success(t('financeReportPages.traces.message.commentSubmitted'))
-    businessTimelineQuery.pageNo = 1
-    await loadBusinessTimeline()
-  } finally {
-    timelineCommentSubmitting.value = false
-  }
-}
-
-const formatMoney = (amount?: number) => {
-  return formatLocalizedCurrency(Number(amount || 0))
-}
-
-const formatNumber = (value?: number) => {
-  return formatLocalizedNumber(Number(value || 0), {
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4
-  })
-}
-
-const formatDateTime = (value?: string) => {
-  return formatLocalizedDateTime(value)
-}
-
-const documentTagType = (type: string) => {
-  if (type.includes('SALES')) return 'success'
-  if (type.includes('PURCHASE')) return 'primary'
-  if (type.includes('RECEIVABLE')) return 'warning'
-  if (type.includes('PAYABLE')) return 'danger'
-  return 'info'
-}
-
-const timelineItemType = (severity?: string) => {
-  if (severity === 'ERROR') return 'danger'
-  if (severity === 'WARNING') return 'warning'
-  return 'primary'
-}
-
-const eventTagType = (severity?: string) => {
-  if (severity === 'ERROR') return 'danger'
-  if (severity === 'WARNING') return 'warning'
-  return 'info'
-}
-
-const priorityLabel = (priority?: string) => {
-  const map: Record<string, string> = {
-    LOW: t('financeReportPages.traces.priorityLabel.low'),
-    MEDIUM: t('financeReportPages.traces.priorityLabel.medium'),
-    HIGH: t('financeReportPages.traces.priorityLabel.high'),
-    URGENT: t('financeReportPages.traces.priorityLabel.urgent')
-  }
-  return priority ? map[priority] || priority : '-'
-}
-
-const priorityTagType = (priority?: string) => {
-  const map: Record<string, 'info' | 'primary' | 'success' | 'warning' | 'danger'> = {
-    LOW: 'info',
-    MEDIUM: 'primary',
-    HIGH: 'warning',
-    URGENT: 'danger'
-  }
-  return priority ? map[priority] || 'info' : 'info'
-}
-
-const ticketStatusLabel = (status?: string) => {
-  const map: Record<string, string> = {
-    OPEN: t('financeReportPages.traces.ticketStatus.open'),
-    PROCESSING: t('financeReportPages.traces.ticketStatus.processing'),
-    RESOLVED: t('financeReportPages.traces.ticketStatus.resolved'),
-    CLOSED: t('financeReportPages.traces.ticketStatus.closed')
-  }
-  return status ? map[status] || status : '-'
-}
-
-const ticketStatusTagType = (status?: string) => {
-  const map: Record<string, 'info' | 'primary' | 'success' | 'warning' | 'danger'> = {
-    OPEN: 'warning',
-    PROCESSING: 'primary',
-    RESOLVED: 'success',
-    CLOSED: 'info'
-  }
-  return status ? map[status] || 'info' : 'info'
-}
-
-const traceStatusLabel = (status?: string) => {
-  const labels: Record<string, string> = {
-    DRAFT: t('financeReportPages.traces.status.draft'),
-    SUBMITTED: t('financeReportPages.traces.status.submitted'),
-    PENDING: t('financeReportPages.traces.status.pending'),
-    APPROVED: t('financeReportPages.traces.status.approved'),
-    REJECTED: t('financeReportPages.traces.status.rejected'),
-    POSTED: t('financeReportPages.traces.status.posted'),
-    COMPLETED: t('financeReportPages.traces.status.completed'),
-    CANCELLED: t('financeReportPages.traces.status.cancelled'),
-    CLOSED: t('financeReportPages.traces.status.closed'),
-    SUCCESS: t('financeReportPages.traces.status.success'),
-    FAILED: t('financeReportPages.traces.status.failed')
-  }
-  return status ? labels[status] || status : '-'
-}
-
-const eventIcon = (type: string) => {
-  const iconMap: Record<string, unknown> = {
-    ORDER: Document,
-    FULFILLMENT: Box,
-    FINANCE: Money,
-    INVENTORY: Box,
-    WORKFLOW: Connection,
-    OPERATION_LOG: Warning
-  }
-  return iconMap[type] || Document
-}
-
-const businessTimelineEventLabel = (type: string) => {
-  const map: Record<string, string> = {
-    COMMENT: t('financeReportPages.traces.event.comment'),
-    ATTACHMENT_UPLOADED: t('financeReportPages.traces.event.uploaded'),
-    ATTACHMENT_DELETED: t('financeReportPages.traces.event.deleted')
-  }
-  return map[type] || type
-}
-
-const businessTimelineTagType = (type: string) => {
-  const map: Record<string, 'info' | 'primary' | 'success' | 'warning' | 'danger'> = {
-    COMMENT: 'primary',
-    ATTACHMENT_UPLOADED: 'success',
-    ATTACHMENT_DELETED: 'warning'
-  }
-  return map[type] || 'info'
-}
-
-const businessTimelineItemType = (type: string) => {
-  if (type === 'ATTACHMENT_DELETED') return 'warning'
-  if (type === 'ATTACHMENT_UPLOADED') return 'success'
-  return 'primary'
+  const routeTarget = resolveRouteTarget(target)
+  if (!routeTarget) return
+  router.push(normalizeTraceRoute(routeTarget))
 }
 
 const applyKeywordFromRoute = () => {
   const keyword = route.query.keyword
   if (typeof keyword === 'string' && keyword.trim()) {
-    queryForm.keyword = keyword
-    handleSearch()
+    applyKeyword(keyword)
   }
 }
 
