@@ -7,7 +7,7 @@
             v-model="query.keyword"
             clearable
             :placeholder="t('inventorySerial.keywordPlaceholder')"
-            @keyup.enter="loadData"
+            @keyup.enter="handleSearch"
           />
         </el-form-item>
         <el-form-item :label="t('inventorySerial.warehouse')">
@@ -56,7 +56,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadData">{{ t('inventorySerial.search') }}</el-button>
+          <el-button type="primary" @click="handleSearch">{{ t('inventorySerial.search') }}</el-button>
           <el-button v-permission="'inventory:serial:manage'" type="success" @click="openCreate">
             {{ t('inventorySerial.create') }}
           </el-button>
@@ -176,188 +176,77 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import {
   createInventorySerial,
   getInventorySerials,
   issueInventorySerial,
-  scrapInventorySerial,
-  type InventorySerial
+  scrapInventorySerial
 } from '@/api/inventory'
-import { getLocations, getProducts, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
+import { getLocations, getProducts, getWarehouses } from '@/api/masterdata'
+import { useInventorySerialForm } from '@/composables/useInventorySerialForm'
+import { useInventorySerialList } from '@/composables/useInventorySerialList'
+import { useInventorySerialPresentation } from '@/composables/useInventorySerialPresentation'
 
 const { t } = useI18n()
-const loading = ref(false)
-const saving = ref(false)
-const rows = ref<InventorySerial[]>([])
-const products = ref<Product[]>([])
-const warehouses = ref<Warehouse[]>([])
-const locations = ref<Location[]>([])
-const dialogVisible = ref(false)
-const query = reactive({
-  keyword: '',
-  status: '',
-  warehouseId: '',
-  locationId: '',
-  pageNo: 1,
-  pageSize: 50
-})
-const form = reactive({
-  productId: '',
-  warehouseId: '',
-  locationId: '',
-  serialNo: '',
-  inboundBizNo: '',
-  remark: ''
-})
 
-const locationsForQuery = computed(() => {
-  if (!query.warehouseId) return locations.value
-  return locations.value.filter((location) => String(location.warehouseId) === String(query.warehouseId))
-})
-const locationsForForm = computed(() => {
-  if (!form.warehouseId) return locations.value
-  return locations.value.filter((location) => String(location.warehouseId) === String(form.warehouseId))
+const {
+  handleQueryWarehouseChange,
+  handleSearch,
+  issue,
+  loadData,
+  loadOptions,
+  loading,
+  locations,
+  locationsForQuery,
+  query,
+  rows,
+  scrap,
+  warehouses
+} = useInventorySerialList(t, {
+  getInventorySerials,
+  issueInventorySerial,
+  scrapInventorySerial,
+  getWarehouses,
+  getLocations,
+  locationsForWarehouse: (warehouseId, all = locations.value) => {
+    if (!warehouseId) return all
+    return all.filter((location) => String(location.warehouseId) === String(warehouseId))
+  },
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
 
-const warehouseLabel = (warehouseId?: string | number | null) => {
-  if (warehouseId == null || warehouseId === '') return '-'
-  const warehouse = warehouses.value.find((item) => String(item.id) === String(warehouseId))
-  return warehouse ? (warehouse.name || warehouse.warehouseName || String(warehouseId)) : String(warehouseId)
-}
+const {
+  locationLabel,
+  locationsForWarehouse,
+  productLabel,
+  statusLabel,
+  statusType,
+  warehouseLabel
+} = useInventorySerialPresentation(t, { warehouses, locations })
 
-const locationLabel = (locationId?: string | number | null) => {
-  if (locationId == null || locationId === '') return '-'
-  const location = locations.value.find((item) => String(item.id) === String(locationId))
-  return location ? `${location.locationCode} ${location.locationName}` : String(locationId)
-}
-
-const productLabel = (product: Product) => {
-  const code = product.code || product.productCode || ''
-  const name = product.name || product.productName || ''
-  return [code, name].filter(Boolean).join(' ') || String(product.id)
-}
-
-const statusLabel = (status?: string) => {
-  const map: Record<string, string> = {
-    IN_STOCK: t('inventorySerial.statusValue.inStock'),
-    ISSUED: t('inventorySerial.statusValue.issued'),
-    SCRAPPED: t('inventorySerial.statusValue.scrapped')
-  }
-  return map[String(status || '')] || status || '-'
-}
-
-const statusType = (status?: string) => {
-  return ({
-    IN_STOCK: 'success',
-    ISSUED: 'info',
-    SCRAPPED: 'warning'
-  }[String(status || '')] || 'info') as 'success' | 'info' | 'warning'
-}
-
-const loadOptions = async () => {
-  try {
-    const [warehousePage, locationPage] = await Promise.all([
-      getWarehouses({ pageNo: 1, pageSize: 500, status: 'ACTIVE' }),
-      getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
-    ])
-    warehouses.value = warehousePage.records || []
-    locations.value = locationPage.records || []
-  } catch {
-    ElMessage.error(t('inventorySerial.message.optionsLoadFailed'))
-  }
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const page = await getInventorySerials({
-      keyword: query.keyword || undefined,
-      status: query.status || undefined,
-      warehouseId: query.warehouseId || undefined,
-      locationId: query.locationId || undefined,
-      pageNo: query.pageNo,
-      pageSize: query.pageSize
-    })
-    rows.value = page.records || []
-  } catch {
-    ElMessage.error(t('inventorySerial.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQueryWarehouseChange = () => {
-  query.locationId = ''
-}
-
-const handleFormWarehouseChange = () => {
-  form.locationId = ''
-}
-
-const openCreate = async () => {
-  try {
-    const page = await getProducts({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    products.value = (page.records || []).filter((product) => Boolean(product.serialControlled))
-  } catch {
-    products.value = []
-    ElMessage.error(t('inventorySerial.message.productsLoadFailed'))
-  }
-  form.productId = ''
-  form.warehouseId = ''
-  form.locationId = ''
-  form.serialNo = ''
-  form.inboundBizNo = ''
-  form.remark = ''
-  dialogVisible.value = true
-}
-
-const save = async () => {
-  if (!form.productId || !form.serialNo) {
-    ElMessage.warning(t('inventorySerial.validation.required'))
-    return
-  }
-  saving.value = true
-  try {
-    await createInventorySerial({
-      productId: form.productId,
-      warehouseId: form.warehouseId || undefined,
-      locationId: form.locationId || undefined,
-      serialNo: form.serialNo,
-      inboundBizNo: form.inboundBizNo || undefined,
-      remark: form.remark || undefined
-    })
-    ElMessage.success(t('inventorySerial.message.created'))
-    dialogVisible.value = false
-    await loadData()
-  } catch {
-    ElMessage.error(t('inventorySerial.message.createFailed'))
-  } finally {
-    saving.value = false
-  }
-}
-
-const issue = async (row: InventorySerial) => {
-  try {
-    await issueInventorySerial(row.id)
-    ElMessage.success(t('inventorySerial.message.issued'))
-    await loadData()
-  } catch {
-    ElMessage.error(t('inventorySerial.message.issueFailed'))
-  }
-}
-
-const scrap = async (row: InventorySerial) => {
-  try {
-    await scrapInventorySerial(row.id)
-    ElMessage.success(t('inventorySerial.message.scrapped'))
-    await loadData()
-  } catch {
-    ElMessage.error(t('inventorySerial.message.scrapFailed'))
-  }
-}
+const {
+  dialogVisible,
+  form,
+  handleFormWarehouseChange,
+  locationsForForm,
+  openCreate,
+  products,
+  save,
+  saving
+} = useInventorySerialForm(t, {
+  createInventorySerial,
+  getProducts,
+  locationsForWarehouse,
+  allLocations: locations,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onSubmitted: () => loadData()
+})
 
 onMounted(async () => {
   await loadOptions()
