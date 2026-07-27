@@ -1,6 +1,5 @@
 <template>
   <div class="app-container">
-    <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
         <el-form-item :label="$t('financeReportPages.ledger.subject')">
@@ -34,10 +33,8 @@
       </el-form>
     </el-card>
 
-    <!-- 标签页 -->
     <el-card shadow="never" class="table-card">
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-        <!-- 总账 -->
         <el-tab-pane :label="$t('financeReportPages.ledger.generalTab')" name="general">
           <el-table
             v-loading="generalLoading"
@@ -69,7 +66,6 @@
           </el-table>
         </el-tab-pane>
 
-        <!-- 明细账 -->
         <el-tab-pane :label="$t('financeReportPages.ledger.detailTab')" name="detail">
           <el-table
             v-loading="detailLoading"
@@ -97,16 +93,15 @@
             </el-table-column>
           </el-table>
 
-          <!-- 分页 -->
           <el-pagination
-            v-model:current-page="pagination.page"
-            v-model:page-size="pagination.size"
+            :current-page="pagination.page"
+            :page-size="pagination.size"
             :total="pagination.total"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            @size-change="handleQuery"
-            @current-change="handleQuery"
             style="margin-top: 20px; justify-content: flex-end"
+            @size-change="handleSizeChange"
+            @current-change="handlePageChange"
           />
         </el-tab-pane>
       </el-tabs>
@@ -115,240 +110,60 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, Download } from '@element-plus/icons-vue'
+import { Download, Refresh, Search } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
-import { formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
 import {
+  exportLedger,
   getAccountSubjectTree,
   getLedgerEntries,
-  getLedgerSummary,
-  exportLedger,
-  type AccountSubject,
-  type LedgerEntry,
-  type LedgerSummary
+  getLedgerSummary
 } from '@/api/finance'
+import { useFinanceLedgerList } from '@/composables/useFinanceLedgerList'
+import { useFinanceLedgerPresentation } from '@/composables/useFinanceLedgerPresentation'
 
 const { t } = useI18n()
 
-// 标签页
-const activeTab = ref('general')
+const {
+  formatAmount,
+  formatDate,
+  getGeneralSummary
+} = useFinanceLedgerPresentation(t)
 
-// 查询表单
-const queryForm = reactive({
-  subjectId: undefined as string | number | undefined,
-  startDate: '',
-  endDate: ''
+const {
+  activeTab,
+  dateRange,
+  detailLedger,
+  detailLoading,
+  generalLedger,
+  generalLoading,
+  handleExport,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  handleTabChange,
+  handleViewDetail,
+  loadGeneralLedger,
+  loadSubjects,
+  pagination,
+  queryForm,
+  subjectOptions
+} = useFinanceLedgerList(t, {
+  getAccountSubjectTree,
+  getLedgerSummary,
+  getLedgerEntries,
+  exportLedger,
+  downloadBlob,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
 
-const dateRange = ref<string[]>([])
-
-// 科目选项
-const subjectOptions = ref<AccountSubject[]>([])
-
-// 总账数据
-const generalLoading = ref(false)
-const generalLedger = ref<LedgerSummary[]>([])
-
-// 明细账数据
-const detailLoading = ref(false)
-const detailLedger = ref<LedgerEntry[]>([])
-
-// 分页
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-// 加载科目选项
-const loadSubjects = async () => {
-  try {
-    const subjects = await getAccountSubjectTree()
-    subjectOptions.value = subjects || []
-  } catch (error) {
-    console.error('Failed to load account subjects:', error)
-    ElMessage.error(t('financeReportPages.ledger.message.subjectsLoadFailed'))
-  }
-}
-
-// 加载总账
-const loadGeneralLedger = async () => {
-  generalLoading.value = true
-  try {
-    const params = buildLedgerQueryParams()
-    const res = await getLedgerSummary(params)
-    generalLedger.value = res || []
-  } catch (error) {
-    console.error('Failed to load the general ledger:', error)
-    ElMessage.error(t('financeReportPages.ledger.message.generalLoadFailed'))
-  } finally {
-    generalLoading.value = false
-  }
-}
-
-// 加载明细账
-const loadDetailLedger = async () => {
-  detailLoading.value = true
-  try {
-    const entries = await getLedgerEntries(buildLedgerQueryParams())
-    const start = (pagination.page - 1) * pagination.size
-    detailLedger.value = entries.slice(start, start + pagination.size)
-    pagination.total = entries.length
-  } catch (error) {
-    console.error('Failed to load ledger entries:', error)
-    ElMessage.error(t('financeReportPages.ledger.message.detailLoadFailed'))
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  syncDateRange()
-
-  if (activeTab.value === 'general') {
-    loadGeneralLedger()
-  } else {
-    loadDetailLedger()
-  }
-}
-
-// 重置
-const handleReset = () => {
-  queryForm.subjectId = undefined
-  queryForm.startDate = ''
-  queryForm.endDate = ''
-  dateRange.value = []
-  pagination.page = 1
-  handleQuery()
-}
-
-// 标签页切换
-const handleTabChange = (tabName: string) => {
-  if (tabName === 'general') {
-    loadGeneralLedger()
-  } else {
-    loadDetailLedger()
-  }
-}
-
-// 查看明细
-const handleViewDetail = (row: LedgerSummary) => {
-  // 切换到明细账标签页，并设置科目过滤
-  const subject = findSubjectByCode(row.subjectCode)
-  if (subject) {
-    queryForm.subjectId = subject.id
-  }
-  activeTab.value = 'detail'
-  loadDetailLedger()
-}
-
-// 递归查找科目
-const findSubjectByCode = (code: string): AccountSubject | null => {
-  const search = (subjects: AccountSubject[]): AccountSubject | null => {
-    for (const subject of subjects) {
-      if (subject.code === code) return subject
-      if (subject.children) {
-        const found = search(subject.children)
-        if (found) return found
-      }
-    }
-    return null
-  }
-  return search(subjectOptions.value)
-}
-
-const findSubjectById = (id?: string | number): AccountSubject | null => {
-  if (!id) return null
-  const search = (subjects: AccountSubject[]): AccountSubject | null => {
-    for (const subject of subjects) {
-      if (String(subject.id) === String(id)) return subject
-      if (subject.children) {
-        const found = search(subject.children)
-        if (found) return found
-      }
-    }
-    return null
-  }
-  return search(subjectOptions.value)
-}
-
-const selectedSubjectCode = () => {
-  const subject = findSubjectById(queryForm.subjectId)
-  return subject?.code || subject?.subjectCode || undefined
-}
-
-const syncDateRange = () => {
-  if (dateRange.value && dateRange.value.length === 2) {
-    queryForm.startDate = dateRange.value[0]
-    queryForm.endDate = dateRange.value[1]
-  } else {
-    queryForm.startDate = ''
-    queryForm.endDate = ''
-  }
-}
-
-const buildLedgerQueryParams = () => ({
-  subjectCode: selectedSubjectCode(),
-  startDate: queryForm.startDate,
-  endDate: queryForm.endDate
-})
-
-// 导出
-const handleExport = async () => {
-  try {
-    syncDateRange()
-    const blob = await exportLedger(buildLedgerQueryParams())
-    downloadBlob(blob, t('financeReportPages.ledger.fileName', { timestamp: Date.now() }))
-    ElMessage.success(t('financeReportPages.ledger.message.exported'))
-  } catch {
-    ElMessage.error(t('financeReportPages.ledger.message.exportFailed'))
-  }
-}
-
-// 格式化金额
-const formatAmount = (amount: number) => {
-  return formatLocalizedCurrency(Number(amount || 0))
-}
-
-const formatDate = (value?: string) => formatLocalizedDate(value)
-
-// 总账合计行
-const getGeneralSummary = (param: any) => {
-  const { columns, data } = param
-  const sums: string[] = []
-  columns.forEach((column: any, index: number) => {
-    if (index === 0) {
-      sums[index] = t('financeReportPages.ledger.total')
-      return
-    }
-    if (index === 1) {
-      sums[index] = ''
-      return
-    }
-    const values = data.map((item: any) => Number(item[column.property]))
-    if (!values.every((value: number) => isNaN(value))) {
-      const total = values.reduce((prev: number, curr: number) => {
-        const value = Number(curr)
-        if (!isNaN(value)) {
-          return prev + curr
-        }
-        return prev
-      }, 0)
-      sums[index] = formatAmount(total)
-    } else {
-      sums[index] = ''
-    }
-  })
-  return sums
-}
-
-onMounted(() => {
-  loadSubjects()
-  loadGeneralLedger()
+onMounted(async () => {
+  await loadSubjects()
+  await loadGeneralLedger()
 })
 </script>
 
