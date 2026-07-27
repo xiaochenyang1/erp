@@ -140,7 +140,17 @@ const routerConfig = readFileSync(resolve(root, 'src/router/index.ts'), 'utf8')
 const importsApiPath = resolve(root, 'src/api/imports.ts')
 const importsViewPath = resolve(root, 'src/views/system/imports/index.vue')
 const importsApi = existsSync(importsApiPath) ? readFileSync(importsApiPath, 'utf8') : ''
-const importsView = existsSync(importsViewPath) ? readFileSync(importsViewPath, 'utf8') : ''
+// 导入任务页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
+const importsView = existsSync(importsViewPath)
+  ? [
+      importsViewPath,
+      resolve(root, 'src/composables/useSystemImportPresentation.ts'),
+      resolve(root, 'src/composables/useSystemImportList.ts')
+    ]
+      .filter((path) => existsSync(path))
+      .map((path) => readFileSync(path, 'utf8'))
+      .join('\n')
+  : ''
 const inventoryStockView = readFileSync(resolve(root, 'src/views/inventory/stocks/index.vue'), 'utf8')
 const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInventoryStockDetails.ts'), 'utf8')
 const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInventoryStockActions.ts'), 'utf8')

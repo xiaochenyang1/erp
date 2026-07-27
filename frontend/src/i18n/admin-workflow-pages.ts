@@ -289,12 +289,18 @@ const messageSource = {
     },
     message: {
       templateDownloadStarted: ['模板下载已开始', 'Template download started'],
+      templateDownloadFailed: ['模板下载失败', 'Failed to download template'],
       selectCsv: ['请选择 CSV 文件', 'Select a CSV file'],
       previewValidated: ['预览校验通过', 'Preview validation passed'],
       previewHasErrors: ['预览包含错误数据', 'Preview contains errors'],
+      previewFailed: ['预览失败', 'Failed to preview import'],
       errorExportStarted: ['错误行导出已开始', 'Error-row export started'],
+      errorExportFailed: ['错误行导出失败', 'Failed to export error rows'],
+      detailLoadFailed: ['加载导入任务详情失败', 'Failed to load import job details'],
+      loadFailed: ['加载导入任务失败', 'Failed to load import jobs'],
       commitConfirm: ['确定{action}导入任务“{jobId}”吗？', '{action} import job “{jobId}”?'],
-      commitSuccess: ['导入提交成功', 'Import committed successfully']
+      commitSuccess: ['导入提交成功', 'Import committed successfully'],
+      commitFailed: ['导入提交失败', 'Failed to commit import']
     }
   },
   systemUsers: {

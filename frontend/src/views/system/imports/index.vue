@@ -170,7 +170,7 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         class="pager"
-        @size-change="handlePageChange"
+        @size-change="handleSizeChange"
         @current-change="handlePageChange"
       />
     </el-card>
@@ -249,203 +249,82 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
-import { Check, Document, Download, Refresh, Search, Upload, View, Warning } from '@element-plus/icons-vue'
+import { Check, Document, Download, Refresh, Search, Upload, View } from '@element-plus/icons-vue'
 import {
   commitImportJob,
   downloadImportTemplate,
   exportImportErrorRows,
   getImportJob,
   listImportJobs,
-  previewImportJob,
-  type ImportJob,
-  type ImportJobQuery,
-  type ImportJobStatus,
-  type ImportType
+  previewImportJob
 } from '@/api/imports'
 import { downloadBlob } from '@/utils/download'
+import { useSystemImportPresentation } from '@/composables/useSystemImportPresentation'
+import { useSystemImportList } from '@/composables/useSystemImportList'
 
 const { t } = useI18n()
-
-const importTypeOptions = computed<Array<{ label: string; value: ImportType }>>(() => [
-  { label: t('systemImports.types.product'), value: 'PRODUCT' },
-  { label: t('systemImports.types.customer'), value: 'CUSTOMER' },
-  { label: t('systemImports.types.supplier'), value: 'SUPPLIER' },
-  { label: t('systemImports.types.warehouse'), value: 'WAREHOUSE' },
-  { label: t('systemImports.types.location'), value: 'LOCATION' },
-  { label: t('systemImports.types.openingInventory'), value: 'OPENING_INVENTORY' },
-  { label: t('systemImports.types.openingReceivable'), value: 'OPENING_RECEIVABLE' },
-  { label: t('systemImports.types.openingPayable'), value: 'OPENING_PAYABLE' },
-  { label: t('systemImports.types.openingAccountBalance'), value: 'OPENING_ACCOUNT_BALANCE' }
-])
-
-const statusOptions = computed<Array<{ label: string; value: ImportJobStatus }>>(() => [
-  { label: t('systemImports.statuses.validated'), value: 'VALIDATED' },
-  { label: t('systemImports.statuses.invalid'), value: 'INVALID' },
-  { label: t('systemImports.statuses.committing'), value: 'COMMITTING' },
-  { label: t('systemImports.statuses.committed'), value: 'COMMITTED' },
-  { label: t('systemImports.statuses.failed'), value: 'FAILED' }
-])
-
-const queryForm = reactive<ImportJobQuery>({
-  importType: '',
-  status: '',
-  createdBy: ''
-})
-
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const loading = ref(false)
-const previewing = ref(false)
-const tableData = ref<ImportJob[]>([])
-const jobsWithErrors = computed(() => (tableData.value || []).filter((j) => Number(j.errorRows || 0) > 0).length)
-const previewJob = ref<ImportJob>()
-const detailJob = ref<ImportJob>()
-const detailVisible = ref(false)
-const committingId = ref('')
-const selectedFile = ref<File | null>(null)
 const uploaderRef = ref<UploadInstance>()
 
-const currentImportType = computed<ImportType>(() => {
-  return (queryForm.importType || importTypeOptions.value[0].value) as ImportType
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message),
+  onWarning: (message: string) => ElMessage.warning(message)
+}
+
+const {
+  committingId,
+  currentImportType,
+  detailJob,
+  detailVisible,
+  handleCommit,
+  handleDownloadTemplate,
+  handleExportErrors,
+  handleFileChange: setSelectedFile,
+  handleFileRemove,
+  handlePageChange,
+  handlePreview,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  handleViewDetail,
+  jobsWithErrors,
+  loadData,
+  loading,
+  pagination,
+  previewJob,
+  previewing,
+  queryForm,
+  selectedFile,
+  tableData
+} = useSystemImportList(t, {
+  listJobs: listImportJobs,
+  getJob: getImportJob,
+  previewJob: previewImportJob,
+  commitJob: commitImportJob,
+  downloadTemplate: downloadImportTemplate,
+  exportErrorRows: exportImportErrorRows,
+  downloadBlob,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  ...notify
 })
+
+const {
+  canCommit,
+  formatJson,
+  importTypeLabel,
+  importTypeOptions,
+  statusLabel,
+  statusOptions,
+  statusTagType
+} = useSystemImportPresentation(t)
 
 const currentImportTypeLabel = computed(() => importTypeLabel(currentImportType.value))
 
-const buildQueryParams = (): ImportJobQuery => ({
-  importType: queryForm.importType || undefined,
-  status: queryForm.status || undefined,
-  createdBy: queryForm.createdBy ? String(queryForm.createdBy).trim() : undefined,
-  pageNo: pagination.page,
-  pageSize: pagination.size
-})
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await listImportJobs(buildQueryParams())
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.importType = ''
-  queryForm.status = ''
-  queryForm.createdBy = ''
-  pagination.page = 1
-  loadData()
-}
-
-const handlePageChange = () => {
-  loadData()
-}
-
-const handleDownloadTemplate = async () => {
-  const type = currentImportType.value
-  const blob = await downloadImportTemplate(type)
-  downloadBlob(blob, t('systemImports.templateFile', { type: type.toLowerCase() }))
-  ElMessage.success(t('systemImports.message.templateDownloadStarted'))
-}
-
 const handleFileChange = (uploadFile: UploadFile) => {
-  selectedFile.value = uploadFile.raw || null
-}
-
-const handleFileRemove = () => {
-  selectedFile.value = null
-}
-
-const handlePreview = async () => {
-  if (!selectedFile.value) {
-    ElMessage.warning(t('systemImports.message.selectCsv'))
-    return
-  }
-
-  previewing.value = true
-  try {
-    const job = await previewImportJob(currentImportType.value, selectedFile.value)
-    previewJob.value = job
-    detailJob.value = job
-    detailVisible.value = true
-    queryForm.importType = job.importType
-    pagination.page = 1
-    await loadData()
-    ElMessage.success(job.status === 'VALIDATED'
-      ? t('systemImports.message.previewValidated')
-      : t('systemImports.message.previewHasErrors'))
-  } finally {
-    previewing.value = false
-  }
-}
-
-const handleViewDetail = async (row: ImportJob) => {
-  const job = await getImportJob(row.jobId)
-  detailJob.value = job
-  detailVisible.value = true
-}
-
-const handleExportErrors = async (row: ImportJob) => {
-  const blob = await exportImportErrorRows(row.jobId)
-  downloadBlob(blob, t('systemImports.errorFile', { jobId: row.jobId }))
-  ElMessage.success(t('systemImports.message.errorExportStarted'))
-}
-
-const canCommit = (row: ImportJob) => {
-  if (row.status === 'VALIDATED') return true
-  return row.status === 'FAILED' && row.validRows > 0 && row.errorRows === 0 && row.committedRows === 0
-}
-
-const handleCommit = async (row: ImportJob) => {
-  const action = row.status === 'FAILED' ? t('systemImports.retryCommit') : t('systemImports.commit')
-  await ElMessageBox.confirm(t('systemImports.message.commitConfirm', { action, jobId: row.jobId }), t('systemImports.prompt'), {
-    confirmButtonText: t('systemImports.confirm'),
-    cancelButtonText: t('systemImports.cancel'),
-    type: 'warning'
-  })
-
-  committingId.value = row.jobId
-  try {
-    const job = await commitImportJob(row.jobId)
-    previewJob.value = previewJob.value?.jobId === job.jobId ? job : previewJob.value
-    detailJob.value = detailJob.value?.jobId === job.jobId ? job : detailJob.value
-    await loadData()
-    ElMessage.success(t('systemImports.message.commitSuccess'))
-  } finally {
-    committingId.value = ''
-  }
-}
-
-const importTypeLabel = (value: string) => {
-  return importTypeOptions.value.find((item) => item.value === value)?.label || value
-}
-
-const statusLabel = (value: string) => {
-  return statusOptions.value.find((item) => item.value === value)?.label || value
-}
-
-const statusTagType = (value: string) => {
-  if (value === 'VALIDATED' || value === 'COMMITTED') return 'success'
-  if (value === 'INVALID' || value === 'FAILED') return 'danger'
-  if (value === 'COMMITTING') return 'warning'
-  return 'info'
-}
-
-const formatJson = (value: unknown) => {
-  return JSON.stringify(value || {}, null, 2)
+  setSelectedFile(uploadFile.raw || null)
 }
 
 onMounted(() => {
