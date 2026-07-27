@@ -50,9 +50,8 @@
       <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
         <el-table-column :label="$t('salesPrice.scope')" min-width="160">
           <template #default="{ row }">
-            <el-tag v-if="row.customerId" type="warning" size="small">{{ $t('salesPrice.customerSpecific') }}</el-tag>
-            <el-tag v-else type="info" size="small">{{ $t('salesPrice.productGeneral') }}</el-tag>
-            <div class="sub">{{ row.customerId ? row.customerName || row.customerId : $t('salesPrice.allCustomers') }}</div>
+            <el-tag :type="scopeTagType(row.customerId)" size="small">{{ scopeLabel(row.customerId) }}</el-tag>
+            <div class="sub">{{ scopeDetail(row) }}</div>
           </template>
         </el-table-column>
         <el-table-column :label="$t('salesPrice.product')" min-width="180">
@@ -61,20 +60,20 @@
           </template>
         </el-table-column>
         <el-table-column prop="listPrice" :label="$t('salesPrice.listPrice')" width="130" align="right">
-          <template #default="{ row }">{{ formatLocalizedCurrency(row.listPrice) }}</template>
+          <template #default="{ row }">{{ formatMoney(row.listPrice) }}</template>
         </el-table-column>
         <el-table-column prop="minPrice" :label="$t('salesPrice.minPrice')" width="130" align="right">
-          <template #default="{ row }">{{ formatLocalizedCurrency(row.minPrice) }}</template>
+          <template #default="{ row }">{{ formatMoney(row.minPrice) }}</template>
         </el-table-column>
         <el-table-column :label="$t('salesPrice.effectivePeriod')" min-width="220">
           <template #default="{ row }">
-            {{ formatLocalizedDate(row.effectiveFrom) }} ~ {{ row.effectiveTo ? formatLocalizedDate(row.effectiveTo) : $t('salesPrice.longTerm') }}
+            {{ formatEffectivePeriod(row.effectiveFrom, row.effectiveTo) }}
           </template>
         </el-table-column>
         <el-table-column :label="$t('salesPrice.status')" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-              {{ row.status === 'ACTIVE' ? $t('salesPrice.active') : $t('salesPrice.inactive') }}
+            <el-tag :type="statusTagType(row.status)" size="small">
+              {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -183,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -193,44 +192,65 @@ import {
   enableSalesPrice,
   getSalesPrice,
   getSalesPrices,
-  updateSalesPrice,
-  type SalesPrice,
-  type SalesPriceQuery
+  updateSalesPrice
 } from '@/api/sales'
-import { getCustomers, getProducts, type Customer, type Product } from '@/api/masterdata'
-import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
+import { getCustomers, getProducts } from '@/api/masterdata'
+import { useSalesPriceList } from '@/composables/useSalesPriceList'
+import { useSalesPricePresentation } from '@/composables/useSalesPricePresentation'
 import { printSalesPrice } from '@/utils/bizPrint'
 
 const { t } = useI18n()
-
-const loading = ref(false)
-const submitting = ref(false)
-const tableData = ref<SalesPrice[]>([])
-const total = ref(0)
-const customers = ref<Customer[]>([])
-const products = ref<Product[]>([])
-const dialogVisible = ref(false)
-const editingId = ref<string | number | null>(null)
-const scopeType = ref<'PRODUCT' | 'CUSTOMER'>('PRODUCT')
 const formRef = ref<FormInstance>()
 
-const searchForm = reactive<SalesPriceQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  keyword: '',
-  customerId: '',
-  status: ''
+const {
+  customers,
+  dialogVisible,
+  editingId,
+  form,
+  handleCreate,
+  handleDisable,
+  handleEdit,
+  handleEnable,
+  handlePageChange,
+  handlePrint,
+  handleReset,
+  handleSearch,
+  handleSizeChange,
+  loadData,
+  loadOptions,
+  loading,
+  products,
+  scopeType,
+  searchForm,
+  submitSave,
+  submitting,
+  tableData,
+  total
+} = useSalesPriceList(t, {
+  getSalesPrices,
+  getSalesPrice,
+  createSalesPrice,
+  updateSalesPrice,
+  enableSalesPrice,
+  disableSalesPrice,
+  getCustomers,
+  getProducts,
+  printSalesPrice,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
-const form = reactive({
-  customerId: '' as string,
-  productId: '' as string,
-  listPrice: 0,
-  minPrice: 0,
-  effectiveFrom: '',
-  effectiveTo: '' as string,
-  remark: ''
-})
+const {
+  formatEffectivePeriod,
+  formatMoney,
+  scopeDetail,
+  scopeLabel,
+  scopeTagType,
+  statusLabel,
+  statusTagType
+} = useSalesPricePresentation(t)
 
 const rules = computed<FormRules>(() => ({
   customerId: [{ required: true, message: t('salesPrice.validation.customer'), trigger: 'change' }],
@@ -240,165 +260,12 @@ const rules = computed<FormRules>(() => ({
   effectiveFrom: [{ required: true, message: t('salesPrice.validation.effectiveFrom'), trigger: 'change' }]
 }))
 
-watch(scopeType, (value) => {
-  if (value === 'PRODUCT') {
-    form.customerId = ''
-  }
-})
-
-const today = () => formatBusinessDate()
-
-const loadOptions = async () => {
-  const [customerPage, productPage] = await Promise.all([
-    getCustomers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' }),
-    getProducts({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-  ])
-  customers.value = customerPage.records || []
-  products.value = productPage.records || []
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getSalesPrices({
-      ...searchForm,
-      customerId: searchForm.customerId || undefined,
-      status: searchForm.status || undefined,
-      keyword: searchForm.keyword || undefined
-    })
-    tableData.value = res.records || []
-    total.value = res.total || 0
-  } catch {
-    // The shared request interceptor already surfaces the error.
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleSearch = () => {
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  searchForm.keyword = ''
-  searchForm.customerId = ''
-  searchForm.status = ''
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const handlePageChange = (page: number) => {
-  searchForm.pageNo = page
-  loadData()
-}
-
-const handleSizeChange = (size: number) => {
-  searchForm.pageSize = size
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const resetForm = () => {
-  editingId.value = null
-  scopeType.value = 'PRODUCT'
-  form.customerId = ''
-  form.productId = ''
-  form.listPrice = 0
-  form.minPrice = 0
-  form.effectiveFrom = today()
-  form.effectiveTo = ''
-  form.remark = ''
-}
-
-const handleCreate = async () => {
-  await loadOptions()
-  resetForm()
-  dialogVisible.value = true
-}
-
-const handleEdit = async (row: SalesPrice) => {
-  await loadOptions()
-  editingId.value = row.id
-  scopeType.value = row.customerId ? 'CUSTOMER' : 'PRODUCT'
-  form.customerId = row.customerId ? String(row.customerId) : ''
-  form.productId = String(row.productId)
-  form.listPrice = Number(row.listPrice || 0)
-  form.minPrice = Number(row.minPrice || 0)
-  form.effectiveFrom = row.effectiveFrom
-  form.effectiveTo = row.effectiveTo || ''
-  form.remark = row.remark || ''
-  dialogVisible.value = true
-}
-
-const handlePrint = async (row: SalesPrice) => {
-  try {
-    const detail = await getSalesPrice(row.id)
-    printSalesPrice(detail)
-  } catch {
-    ElMessage.error(t('salesPrice.message.printLoadFailed'))
-  }
-}
-
 const confirmSave = async () => {
   if (!formRef.value) return
-  if (scopeType.value === 'CUSTOMER' && !form.customerId) {
-    ElMessage.warning(t('salesPrice.validation.customer'))
-    return
-  }
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    if (form.minPrice > form.listPrice) {
-      ElMessage.warning(t('salesPrice.validation.minAboveList'))
-      return
-    }
-    submitting.value = true
-    try {
-      const payload = {
-        customerId: scopeType.value === 'CUSTOMER' ? form.customerId : null,
-        productId: form.productId,
-        listPrice: form.listPrice,
-        minPrice: form.minPrice,
-        effectiveFrom: form.effectiveFrom,
-        effectiveTo: form.effectiveTo || null,
-        remark: form.remark || undefined
-      }
-      if (editingId.value) {
-        await updateSalesPrice(editingId.value, payload)
-        ElMessage.success(t('salesPrice.message.saved'))
-      } else {
-        await createSalesPrice(payload)
-        ElMessage.success(t('salesPrice.message.created'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch {
-      // The shared request interceptor already surfaces the error.
-    } finally {
-      submitting.value = false
-    }
+    await submitSave()
   })
-}
-
-const handleEnable = async (row: SalesPrice) => {
-  try {
-    await enableSalesPrice(row.id)
-    ElMessage.success(t('salesPrice.message.enabled'))
-    loadData()
-  } catch {
-    // The shared request interceptor already surfaces the error.
-  }
-}
-
-const handleDisable = async (row: SalesPrice) => {
-  try {
-    await ElMessageBox.confirm(t('salesPrice.message.disableConfirm'), t('salesPrice.message.prompt'), { type: 'warning' })
-    await disableSalesPrice(row.id)
-    ElMessage.success(t('salesPrice.message.disabled'))
-    loadData()
-  } catch {
-    // Cancelled by the user or handled by the shared interceptor.
-  }
 }
 
 onMounted(async () => {

@@ -52,7 +52,11 @@ export const salesCommercialPageMessages = {
         disabled: '已停用',
         disableConfirm: '确认停用该价目吗？',
         prompt: '提示',
-        printLoadFailed: '加载打印数据失败'
+        printLoadFailed: '加载打印数据失败',
+        loadFailed: '加载价目失败',
+        optionsLoadFailed: '加载客户/商品选项失败',
+        saveFailed: '保存价目失败',
+        enableFailed: '启用价目失败'
       }
     },
     purchasePrice: {
@@ -107,7 +111,11 @@ export const salesCommercialPageMessages = {
         disabled: '已停用',
         disableConfirm: '确认停用该价目吗？',
         prompt: '提示',
-        printLoadFailed: '加载打印数据失败'
+        printLoadFailed: '加载打印数据失败',
+        loadFailed: '加载价目失败',
+        optionsLoadFailed: '加载供应商/商品选项失败',
+        saveFailed: '保存价目失败',
+        enableFailed: '启用价目失败'
       }
     },
     salesQuote: {
@@ -212,7 +220,11 @@ export const salesCommercialPageMessages = {
         disabled: 'Price disabled',
         disableConfirm: 'Disable this price?',
         prompt: 'Confirm',
-        printLoadFailed: 'Failed to load print data'
+        printLoadFailed: 'Failed to load print data',
+        loadFailed: 'Failed to load prices',
+        optionsLoadFailed: 'Failed to load customer and product options',
+        saveFailed: 'Failed to save price',
+        enableFailed: 'Failed to enable price'
       }
     },
     purchasePrice: {
@@ -267,7 +279,11 @@ export const salesCommercialPageMessages = {
         disabled: 'Disabled',
         disableConfirm: 'Disable this price list entry?',
         prompt: 'Confirm',
-        printLoadFailed: 'Failed to load print data'
+        printLoadFailed: 'Failed to load print data',
+        loadFailed: 'Failed to load prices',
+        optionsLoadFailed: 'Failed to load supplier and product options',
+        saveFailed: 'Failed to save price',
+        enableFailed: 'Failed to enable price'
       }
     },
     salesQuote: {

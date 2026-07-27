@@ -50,9 +50,8 @@
       <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
         <el-table-column :label="$t('purchasePrice.scope')" min-width="160">
           <template #default="{ row }">
-            <el-tag v-if="row.supplierId" type="warning" size="small">{{ $t('purchasePrice.supplierSpecific') }}</el-tag>
-            <el-tag v-else type="info" size="small">{{ $t('purchasePrice.productGeneral') }}</el-tag>
-            <div class="sub">{{ row.supplierId ? row.supplierName || row.supplierId : $t('purchasePrice.allSuppliers') }}</div>
+            <el-tag :type="scopeTagType(row.supplierId)" size="small">{{ scopeLabel(row.supplierId) }}</el-tag>
+            <div class="sub">{{ scopeDetail(row) }}</div>
           </template>
         </el-table-column>
         <el-table-column :label="$t('purchasePrice.product')" min-width="180">
@@ -61,20 +60,20 @@
           </template>
         </el-table-column>
         <el-table-column prop="listPrice" :label="$t('purchasePrice.listPrice')" width="130" align="right">
-          <template #default="{ row }">{{ formatLocalizedCurrency(row.listPrice) }}</template>
+          <template #default="{ row }">{{ formatMoney(row.listPrice) }}</template>
         </el-table-column>
         <el-table-column prop="maxPrice" :label="$t('purchasePrice.maxPrice')" width="130" align="right">
-          <template #default="{ row }">{{ formatLocalizedCurrency(row.maxPrice) }}</template>
+          <template #default="{ row }">{{ formatMoney(row.maxPrice) }}</template>
         </el-table-column>
         <el-table-column :label="$t('purchasePrice.effectivePeriod')" min-width="220">
           <template #default="{ row }">
-            {{ formatLocalizedDate(row.effectiveFrom) }} ~ {{ row.effectiveTo ? formatLocalizedDate(row.effectiveTo) : $t('purchasePrice.longTerm') }}
+            {{ formatEffectivePeriod(row.effectiveFrom, row.effectiveTo) }}
           </template>
         </el-table-column>
         <el-table-column :label="$t('purchasePrice.status')" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-              {{ row.status === 'ACTIVE' ? $t('purchasePrice.active') : $t('purchasePrice.inactive') }}
+            <el-tag :type="statusTagType(row.status)" size="small">
+              {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -183,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -193,44 +192,65 @@ import {
   enablePurchasePrice,
   getPurchasePrice,
   getPurchasePrices,
-  updatePurchasePrice,
-  type PurchasePrice,
-  type PurchasePriceQuery
+  updatePurchasePrice
 } from '@/api/purchase'
-import { getSuppliers, getProducts, type Supplier, type Product } from '@/api/masterdata'
-import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
+import { getProducts, getSuppliers } from '@/api/masterdata'
+import { usePurchasePriceList } from '@/composables/usePurchasePriceList'
+import { usePurchasePricePresentation } from '@/composables/usePurchasePricePresentation'
 import { printPurchasePrice } from '@/utils/bizPrint'
 
 const { t } = useI18n()
-
-const loading = ref(false)
-const submitting = ref(false)
-const tableData = ref<PurchasePrice[]>([])
-const total = ref(0)
-const suppliers = ref<Supplier[]>([])
-const products = ref<Product[]>([])
-const dialogVisible = ref(false)
-const editingId = ref<string | number | null>(null)
-const scopeType = ref<'PRODUCT' | 'SUPPLIER'>('PRODUCT')
 const formRef = ref<FormInstance>()
 
-const searchForm = reactive<PurchasePriceQuery>({
-  pageNo: 1,
-  pageSize: 20,
-  keyword: '',
-  supplierId: '',
-  status: ''
+const {
+  dialogVisible,
+  editingId,
+  form,
+  handleCreate,
+  handleDisable,
+  handleEdit,
+  handleEnable,
+  handlePageChange,
+  handlePrint,
+  handleReset,
+  handleSearch,
+  handleSizeChange,
+  loadData,
+  loadOptions,
+  loading,
+  products,
+  scopeType,
+  searchForm,
+  submitSave,
+  submitting,
+  suppliers,
+  tableData,
+  total
+} = usePurchasePriceList(t, {
+  getPurchasePrices,
+  getPurchasePrice,
+  createPurchasePrice,
+  updatePurchasePrice,
+  enablePurchasePrice,
+  disablePurchasePrice,
+  getSuppliers,
+  getProducts,
+  printPurchasePrice,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
-const form = reactive({
-  supplierId: '' as string,
-  productId: '' as string,
-  listPrice: 0,
-  maxPrice: 0,
-  effectiveFrom: '',
-  effectiveTo: '' as string,
-  remark: ''
-})
+const {
+  formatEffectivePeriod,
+  formatMoney,
+  scopeDetail,
+  scopeLabel,
+  scopeTagType,
+  statusLabel,
+  statusTagType
+} = usePurchasePricePresentation(t)
 
 const rules = computed<FormRules>(() => ({
   supplierId: [{ required: true, message: t('purchasePrice.validation.supplier'), trigger: 'change' }],
@@ -240,165 +260,12 @@ const rules = computed<FormRules>(() => ({
   effectiveFrom: [{ required: true, message: t('purchasePrice.validation.effectiveFrom'), trigger: 'change' }]
 }))
 
-watch(scopeType, (value) => {
-  if (value === 'PRODUCT') {
-    form.supplierId = ''
-  }
-})
-
-const today = () => formatBusinessDate()
-
-const loadOptions = async () => {
-  const [supplierPage, productPage] = await Promise.all([
-    getSuppliers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' }),
-    getProducts({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-  ])
-  suppliers.value = supplierPage.records || []
-  products.value = productPage.records || []
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getPurchasePrices({
-      ...searchForm,
-      supplierId: searchForm.supplierId || undefined,
-      status: searchForm.status || undefined,
-      keyword: searchForm.keyword || undefined
-    })
-    tableData.value = res.records || []
-    total.value = res.total || 0
-  } catch {
-    // The shared request interceptor already surfaces the error.
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleSearch = () => {
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  searchForm.keyword = ''
-  searchForm.supplierId = ''
-  searchForm.status = ''
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const handlePageChange = (page: number) => {
-  searchForm.pageNo = page
-  loadData()
-}
-
-const handleSizeChange = (size: number) => {
-  searchForm.pageSize = size
-  searchForm.pageNo = 1
-  loadData()
-}
-
-const resetForm = () => {
-  editingId.value = null
-  scopeType.value = 'PRODUCT'
-  form.supplierId = ''
-  form.productId = ''
-  form.listPrice = 0
-  form.maxPrice = 0
-  form.effectiveFrom = today()
-  form.effectiveTo = ''
-  form.remark = ''
-}
-
-const handleCreate = async () => {
-  await loadOptions()
-  resetForm()
-  dialogVisible.value = true
-}
-
-const handleEdit = async (row: PurchasePrice) => {
-  await loadOptions()
-  editingId.value = row.id
-  scopeType.value = row.supplierId ? 'SUPPLIER' : 'PRODUCT'
-  form.supplierId = row.supplierId ? String(row.supplierId) : ''
-  form.productId = String(row.productId)
-  form.listPrice = Number(row.listPrice || 0)
-  form.maxPrice = Number(row.maxPrice || 0)
-  form.effectiveFrom = row.effectiveFrom
-  form.effectiveTo = row.effectiveTo || ''
-  form.remark = row.remark || ''
-  dialogVisible.value = true
-}
-
-const handlePrint = async (row: PurchasePrice) => {
-  try {
-    const detail = await getPurchasePrice(row.id)
-    printPurchasePrice(detail)
-  } catch {
-    ElMessage.error(t('purchasePrice.message.printLoadFailed'))
-  }
-}
-
 const confirmSave = async () => {
   if (!formRef.value) return
-  if (scopeType.value === 'SUPPLIER' && !form.supplierId) {
-    ElMessage.warning(t('purchasePrice.validation.supplier'))
-    return
-  }
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    if (form.maxPrice < form.listPrice) {
-      ElMessage.warning(t('purchasePrice.validation.maxBelowList'))
-      return
-    }
-    submitting.value = true
-    try {
-      const payload = {
-        supplierId: scopeType.value === 'SUPPLIER' ? form.supplierId : null,
-        productId: form.productId,
-        listPrice: form.listPrice,
-        maxPrice: form.maxPrice,
-        effectiveFrom: form.effectiveFrom,
-        effectiveTo: form.effectiveTo || null,
-        remark: form.remark || undefined
-      }
-      if (editingId.value) {
-        await updatePurchasePrice(editingId.value, payload)
-        ElMessage.success(t('purchasePrice.message.saved'))
-      } else {
-        await createPurchasePrice(payload)
-        ElMessage.success(t('purchasePrice.message.created'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch {
-      // The shared request interceptor already surfaces the error.
-    } finally {
-      submitting.value = false
-    }
+    await submitSave()
   })
-}
-
-const handleEnable = async (row: PurchasePrice) => {
-  try {
-    await enablePurchasePrice(row.id)
-    ElMessage.success(t('purchasePrice.message.enabled'))
-    loadData()
-  } catch {
-    // The shared request interceptor already surfaces the error.
-  }
-}
-
-const handleDisable = async (row: PurchasePrice) => {
-  try {
-    await ElMessageBox.confirm(t('purchasePrice.message.disableConfirm'), t('purchasePrice.message.prompt'), { type: 'warning' })
-    await disablePurchasePrice(row.id)
-    ElMessage.success(t('purchasePrice.message.disabled'))
-    loadData()
-  } catch {
-    // Cancelled by the user or handled by the shared interceptor.
-  }
 }
 
 onMounted(async () => {
