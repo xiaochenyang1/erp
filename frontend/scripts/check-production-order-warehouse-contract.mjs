@@ -123,7 +123,12 @@ const customerView = readFileSync(resolve(root, 'src/views/masterdata/customers/
 const supplierView = readFileSync(resolve(root, 'src/views/masterdata/suppliers/index.vue'), 'utf8')
 const warehouseView = readFileSync(resolve(root, 'src/views/masterdata/warehouses/index.vue'), 'utf8')
 const workflowApi = readFileSync(resolve(root, 'src/api/workflow.ts'), 'utf8')
-const workflowTaskView = readFileSync(resolve(root, 'src/views/workflow/tasks/index.vue'), 'utf8')
+// 审批待办页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
+const workflowTaskView = [
+  'src/views/workflow/tasks/index.vue',
+  'src/composables/useWorkflowTaskPresentation.ts',
+  'src/composables/useWorkflowTaskList.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const workflowTaskQuery = readFileSync(resolve(root, 'src/views/workflow/tasks/query.ts'), 'utf8')
 const workflowRecordView = readFileSync(resolve(root, 'src/views/workflow/records/index.vue'), 'utf8')
 const workflowConfigViewPath = resolve(root, 'src/views/workflow/configs/index.vue')
@@ -2069,10 +2074,10 @@ for (const fragment of [
 
 for (const fragment of [
   "import { createWorkflowTaskQueryFromRoute } from './query'",
-  'reactive<WorkflowTaskQuery>(createWorkflowTaskQueryFromRoute(route.query))',
-  'Object.assign(queryParams, createWorkflowTaskQueryFromRoute(route.query))',
-  'approveWorkflowTask({ taskId: currentTask.value.id',
-  'rejectWorkflowTask({ taskId: currentTask.value.id'
+  'initialQuery: createWorkflowTaskQueryFromRoute(route.query)',
+  'applyRouteQuery(createWorkflowTaskQueryFromRoute(route.query))',
+  'approveWorkflowTask({\n          taskId: currentTask.value.id',
+  'rejectWorkflowTask({\n          taskId: currentTask.value.id'
 ]) {
   if (!workflowTaskView.includes(fragment)) {
     errors.push(`审批待办页缺少工作流真实操作兼容片段: ${fragment}`)

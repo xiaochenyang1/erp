@@ -68,7 +68,8 @@ const coreMessages = {
       escalationTitle: '超时审批升级', escalateTo: '升级给', selectAssignee: '选择新处理人', escalationComment: '升级说明', confirmEscalation: '确认升级',
       approvalComment: '审批意见', rejectionReason: '驳回原因', inputApprovalComment: '请输入审批意见', inputRejectionReason: '请输入驳回原因',
       transferTitle: '转签任务', transferTo: '转签给', selectUser: '选择用户', comment: '备注', confirmTransfer: '确定转签',
-      selectTransferUser: '请选择转签用户', transferSuccess: '转签成功', transferFailed: '转签失败', selectEscalationUser: '请选择升级目标用户', escalationSuccess: '超时审批已升级', approvalSuccess: '审批通过', rejectedSuccess: '已驳回'
+      selectTransferUser: '请选择转签用户', transferSuccess: '转签成功', transferFailed: '转签失败', selectEscalationUser: '请选择升级目标用户', escalationSuccess: '超时审批已升级', escalationFailed: '升级失败', approvalSuccess: '审批通过', approvalFailed: '审批失败', rejectedSuccess: '已驳回', rejectFailed: '驳回失败',
+      loadFailed: '加载审批待办失败', loadDetailFailed: '加载审批任务详情失败'
     },
     financeAccount: {
       tabs: { receivables: '应收账款', payables: '应付账款' },
@@ -276,7 +277,8 @@ const coreMessages = {
       escalationTitle: 'Escalate overdue task', escalateTo: 'Escalate to', selectAssignee: 'Select a new assignee', escalationComment: 'Reason', confirmEscalation: 'Confirm escalation',
       approvalComment: 'Approval comment', rejectionReason: 'Rejection reason', inputApprovalComment: 'Enter an approval comment', inputRejectionReason: 'Enter a rejection reason',
       transferTitle: 'Transfer task', transferTo: 'Transfer to', selectUser: 'Select a user', comment: 'Comment', confirmTransfer: 'Confirm transfer',
-      selectTransferUser: 'Select a transfer user', transferSuccess: 'Task transferred', transferFailed: 'Failed to transfer task', selectEscalationUser: 'Select an escalation target', escalationSuccess: 'Overdue task escalated', approvalSuccess: 'Task approved', rejectedSuccess: 'Task rejected'
+      selectTransferUser: 'Select a transfer user', transferSuccess: 'Task transferred', transferFailed: 'Failed to transfer task', selectEscalationUser: 'Select an escalation target', escalationSuccess: 'Overdue task escalated', escalationFailed: 'Failed to escalate task', approvalSuccess: 'Task approved', approvalFailed: 'Failed to approve task', rejectedSuccess: 'Task rejected', rejectFailed: 'Failed to reject task',
+      loadFailed: 'Failed to load approval tasks', loadDetailFailed: 'Failed to load approval task details'
     },
     financeAccount: {
       tabs: { receivables: 'Receivables', payables: 'Payables' },

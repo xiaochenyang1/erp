@@ -110,8 +110,8 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadData"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -209,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -220,215 +220,75 @@ import {
   getWorkflowTask,
   getWorkflowTasks,
   rejectWorkflowTask,
-  transferWorkflowTask,
-  type WorkflowTask,
-  type WorkflowTaskQuery
+  transferWorkflowTask
 } from '@/api/workflow'
 import { getUsers } from '@/api/system'
-import { formatLocalizedDateTime } from '@/utils/locale'
+import { useWorkflowTaskList } from '@/composables/useWorkflowTaskList'
+import { useWorkflowTaskPresentation } from '@/composables/useWorkflowTaskPresentation'
 import { createWorkflowTaskQueryFromRoute } from './query'
 
 const route = useRoute()
 const { t } = useI18n()
-const loading = ref(false)
-const submitLoading = ref(false)
-const tableData = ref<WorkflowTask[]>([])
-const total = ref(0)
-const detailVisible = ref(false)
-const actionVisible = ref(false)
-const currentTask = ref<WorkflowTask | null>(null)
-const actionMode = ref<'approve' | 'reject'>('approve')
-const escalateVisible = ref(false)
-const escalateUserId = ref('')
-const escalateComment = ref('')
-const escalateUsers = ref<any[]>([])
 
-const queryParams = reactive<WorkflowTaskQuery>(createWorkflowTaskQueryFromRoute(route.query))
-
-const actionForm = reactive({
-  comment: ''
+const {
+  actionForm,
+  actionMode,
+  actionTitle,
+  actionVisible,
+  applyRouteQuery,
+  currentTask,
+  detailVisible,
+  escalateComment,
+  escalateUserId,
+  escalateUsers,
+  escalateVisible,
+  handleConfirmAction,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  handleView,
+  loadData,
+  loading,
+  openApprove,
+  openEscalate,
+  openReject,
+  openTransfer,
+  queryParams,
+  resetAction,
+  submitEscalate,
+  submitLoading,
+  submitTransfer,
+  tableData,
+  toTaskRow,
+  total,
+  transferUserId,
+  transferUsers,
+  transferVisible
+} = useWorkflowTaskList(t, {
+  getWorkflowTasks,
+  getWorkflowTask,
+  approveWorkflowTask,
+  rejectWorkflowTask,
+  transferWorkflowTask,
+  escalateWorkflowTask,
+  getUsers,
+  initialQuery: createWorkflowTaskQueryFromRoute(route.query),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
-const actionTitle = computed(() => (actionMode.value === 'approve' ? t('workflow.approveAction') : t('workflow.reject')))
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await getWorkflowTasks(cleanQuery(queryParams))
-    tableData.value = response.records
-    total.value = response.total
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryParams.businessType = ''
-  queryParams.businessId = undefined
-  queryParams.businessNo = ''
-  queryParams.status = 'PENDING'
-  queryParams.overdueOnly = false
-  handleQuery()
-}
-
-const handleView = async (row: WorkflowTask) => {
-  currentTask.value = await getWorkflowTask(row.id)
-  detailVisible.value = true
-}
-
-const openApprove = (row: WorkflowTask) => {
-  currentTask.value = row
-  actionMode.value = 'approve'
-  actionVisible.value = true
-}
-
-const transferVisible = ref(false)
-const transferUserId = ref('')
-const transferUsers = ref<any[]>([])
-const openTransfer = async (row: WorkflowTask) => {
-  currentTask.value = row
-  transferUserId.value = ''
-  try {
-    const page = await getUsers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    transferUsers.value = page.records || []
-  } catch {
-    transferUsers.value = []
-  }
-  transferVisible.value = true
-}
-const submitTransfer = async () => {
-  if (!currentTask.value || !transferUserId.value) {
-    ElMessage.warning(t('workflow.selectTransferUser'))
-    return
-  }
-  try {
-    await transferWorkflowTask({ taskId: currentTask.value.id, targetUserId: transferUserId.value, comment: actionForm.comment })
-    ElMessage.success(t('workflow.transferSuccess'))
-    transferVisible.value = false
-    loadData()
-  } catch {
-    ElMessage.error(t('workflow.transferFailed'))
-  }
-}
-const openEscalate = async (row: WorkflowTask) => {
-  currentTask.value = row
-  escalateUserId.value = ''
-  escalateComment.value = ''
-  try {
-    const page = await getUsers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    escalateUsers.value = (page.records || []).filter((user: any) => String(user.id) !== row.approverUserId)
-  } catch {
-    escalateUsers.value = []
-  }
-  escalateVisible.value = true
-}
-const submitEscalate = async () => {
-  if (!currentTask.value || !escalateUserId.value) {
-    ElMessage.warning(t('workflow.selectEscalationUser'))
-    return
-  }
-  submitLoading.value = true
-  try {
-    await escalateWorkflowTask({
-      taskId: currentTask.value.id,
-      targetUserId: escalateUserId.value,
-      comment: escalateComment.value.trim() || undefined
-    })
-    ElMessage.success(t('workflow.escalationSuccess'))
-    escalateVisible.value = false
-    await loadData()
-  } finally {
-    submitLoading.value = false
-  }
-}
-const openReject = (row: WorkflowTask) => {
-  currentTask.value = row
-  actionMode.value = 'reject'
-  actionVisible.value = true
-}
-
-const handleConfirmAction = async () => {
-  if (!currentTask.value) return
-  if (actionMode.value === 'reject' && !actionForm.comment.trim()) {
-    ElMessage.warning(t('workflow.inputRejectionReason'))
-    return
-  }
-
-  submitLoading.value = true
-  try {
-    if (actionMode.value === 'approve') {
-      await approveWorkflowTask({ taskId: currentTask.value.id, comment: actionForm.comment.trim() || undefined })
-      ElMessage.success(t('workflow.approvalSuccess'))
-    } else {
-      await rejectWorkflowTask({ taskId: currentTask.value.id, reason: actionForm.comment.trim() })
-      ElMessage.success(t('workflow.rejectedSuccess'))
-    }
-    actionVisible.value = false
-    detailVisible.value = false
-    await loadData()
-  } finally {
-    submitLoading.value = false
-  }
-}
-
-const resetAction = () => {
-  actionForm.comment = ''
-}
-
-const toTaskRow = (row: unknown) => row as WorkflowTask
-
-const cleanQuery = (query: WorkflowTaskQuery): WorkflowTaskQuery => ({
-  pageNo: query.pageNo,
-  pageSize: query.pageSize,
-  businessType: query.businessType || undefined,
-  businessId: query.businessId || undefined,
-  businessNo: query.businessNo || undefined,
-  status: query.status || undefined,
-  overdueOnly: query.overdueOnly || undefined
-})
-
-const businessTypeLabel = (type?: string) => {
-  const map: Record<string, string> = {
-    PURCHASE_ORDER: t('workflow.purchaseOrder'),
-    SALES_ORDER: t('workflow.salesOrder'),
-    EXPENSE: t('workflow.expense')
-  }
-  return type ? map[type] || type : '-'
-}
-
-const taskStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    PENDING: t('workflow.pending'),
-    APPROVED: t('workflow.approved'),
-    REJECTED: t('workflow.rejected'),
-    CANCELLED: t('workflow.cancelled')
-  }
-  return map[status] || status
-}
-
-const taskStatusType = (status: string) => {
-  const map: Record<string, 'info' | 'warning' | 'success' | 'danger'> = {
-    PENDING: 'warning',
-    APPROVED: 'success',
-    REJECTED: 'danger',
-    CANCELLED: 'info'
-  }
-  return map[status] || 'info'
-}
-
-const formatTime = (value?: string) => {
-  return formatLocalizedDateTime(value) || '-'
-}
+const {
+  businessTypeLabel,
+  formatTime,
+  taskStatusLabel,
+  taskStatusType
+} = useWorkflowTaskPresentation(t)
 
 watch(() => route.fullPath, () => {
   if (route.name !== 'WorkflowTasks') return
-  Object.assign(queryParams, createWorkflowTaskQueryFromRoute(route.query))
-  loadData()
+  applyRouteQuery(createWorkflowTaskQueryFromRoute(route.query))
 })
 
 onMounted(() => {

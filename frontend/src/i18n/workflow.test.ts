@@ -11,6 +11,9 @@ describe('workflow localization', () => {
     expect(i18n.global.t('workflow.tasks')).toBe('Approval tasks')
     expect(i18n.global.t('workflow.escalationTitle')).toBe('Escalate overdue task')
     expect(i18n.global.t('workflow.escalationSuccess')).toBe('Overdue task escalated')
+    expect(i18n.global.t('workflow.loadFailed')).toBe('Failed to load approval tasks')
+    expect(i18n.global.t('workflow.approvalFailed')).toBe('Failed to approve task')
+    expect(i18n.global.t('workflow.escalationFailed')).toBe('Failed to escalate task')
   })
 })
 
