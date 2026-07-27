@@ -3,7 +3,7 @@
     <el-card shadow="never">
       <el-form inline>
         <el-form-item :label="$t('salesQuote.keyword')">
-          <el-input v-model="query.keyword" clearable style="width: 160px" @keyup.enter="loadData" />
+          <el-input v-model="query.keyword" clearable style="width: 160px" @keyup.enter="handleSearch" />
         </el-form-item>
         <el-form-item :label="$t('salesQuote.status')">
           <el-select v-model="query.status" clearable style="width: 140px">
@@ -14,7 +14,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadData">{{ $t('salesQuote.search') }}</el-button>
+          <el-button type="primary" @click="handleSearch">{{ $t('salesQuote.search') }}</el-button>
           <el-button v-permission="'sales:quote:manage'" type="success" @click="openCreate">{{ $t('salesQuote.create') }}</el-button>
         </el-form-item>
       </el-form>
@@ -25,36 +25,40 @@
         <el-table-column prop="quoteNo" :label="$t('salesQuote.quoteNo')" min-width="160" />
         <el-table-column prop="customerName" :label="$t('salesQuote.customer')" min-width="140" />
         <el-table-column prop="quoteDate" :label="$t('salesQuote.quoteDate')" width="130">
-          <template #default="{ row }">{{ formatLocalizedDate(row.quoteDate) }}</template>
+          <template #default="{ row }">{{ formatDate(row.quoteDate) }}</template>
         </el-table-column>
         <el-table-column prop="validUntil" :label="$t('salesQuote.validUntil')" width="130">
-          <template #default="{ row }">{{ formatLocalizedDate(row.validUntil) || '-' }}</template>
+          <template #default="{ row }">{{ formatDate(row.validUntil) }}</template>
         </el-table-column>
         <el-table-column prop="totalAmount" :label="$t('salesQuote.amount')" width="140" align="right">
-          <template #default="{ row }">{{ formatLocalizedCurrency(row.totalAmount) }}</template>
+          <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('salesQuote.status')" width="110">
-          <template #default="{ row }">{{ statusLabel(row.status) }}</template>
+          <template #default="{ row }">
+            <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+          </template>
         </el-table-column>
         <el-table-column :label="$t('salesQuote.actions')" width="420" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openView(row)">{{ $t('salesQuote.detail') }}</el-button>
             <el-button link type="primary" @click="handlePrint(row)">{{ $t('salesQuote.print') }}</el-button>
             <el-button v-if="row.status === 'DRAFT'" v-permission="'sales:quote:manage'" link type="primary" @click="openEdit(row)">{{ $t('salesQuote.edit') }}</el-button>
-            <el-button v-if="row.status === 'DRAFT'" v-permission="'sales:quote:manage'" link type="success" @click="confirm(row)">{{ $t('salesQuote.confirm') }}</el-button>
+            <el-button v-if="row.status === 'DRAFT'" v-permission="'sales:quote:manage'" link type="success" @click="confirmQuote(row)">{{ $t('salesQuote.confirm') }}</el-button>
             <el-button v-if="row.status === 'CONFIRMED'" v-permission="'sales:quote:manage'" link type="warning" @click="openConvert(row)">{{ $t('salesQuote.convert') }}</el-button>
-            <el-button v-if="row.status === 'DRAFT' || row.status === 'CONFIRMED'" v-permission="'sales:quote:manage'" link type="danger" @click="cancel(row)">{{ $t('salesQuote.cancelQuote') }}</el-button>
+            <el-button v-if="row.status === 'DRAFT' || row.status === 'CONFIRMED'" v-permission="'sales:quote:manage'" link type="danger" @click="cancelQuote(row)">{{ $t('salesQuote.cancelQuote') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
       <el-pagination
         class="pager"
         background
-        layout="total, prev, pager, next"
+        layout="total, sizes, prev, pager, next"
         :total="total"
-        v-model:current-page="query.pageNo"
-        v-model:page-size="query.pageSize"
-        @current-change="loadData"
+        :current-page="query.pageNo"
+        :page-size="query.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        @current-change="handlePageChange"
+        @size-change="handleSizeChange"
       />
     </el-card>
 
@@ -108,7 +112,7 @@
           </el-table-column>
           <el-table-column :label="$t('salesQuote.actions')" width="90">
             <template #default="{ $index }">
-              <el-button link type="danger" @click="form.lines.splice($index, 1)">{{ $t('salesQuote.delete') }}</el-button>
+              <el-button link type="danger" @click="removeLine($index)">{{ $t('salesQuote.delete') }}</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -136,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -146,212 +150,86 @@ import {
   createSalesQuote,
   getSalesQuote,
   getSalesQuotes,
-  updateSalesQuote,
-  type SalesQuote
+  updateSalesQuote
 } from '@/api/sales'
 import { getCustomers, getProducts, getWarehouses } from '@/api/masterdata'
-import { formatBusinessDate, formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
+import { useSalesQuoteForm } from '@/composables/useSalesQuoteForm'
+import { useSalesQuoteList } from '@/composables/useSalesQuoteList'
+import { useSalesQuotePresentation } from '@/composables/useSalesQuotePresentation'
 import { printSalesQuote } from '@/utils/bizPrint'
 
 const { t } = useI18n()
 
-const loading = ref(false)
-const saving = ref(false)
-const converting = ref(false)
-const rows = ref<SalesQuote[]>([])
-const total = ref(0)
-const query = reactive({ pageNo: 1, pageSize: 20, keyword: '', status: '' })
-const customers = ref<any[]>([])
-const products = ref<any[]>([])
-const warehouses = ref<any[]>([])
-const formVisible = ref(false)
-const editingId = ref<string | number | null>(null)
-const form = reactive({
-  customerId: '',
-  quoteDate: '',
-  validUntil: '',
-  remark: '',
-  lines: [] as Array<{ productId: string; qty: number; price: number; taxRate: number }>
+const {
+  detailContent,
+  formatDate,
+  formatMoney,
+  statusLabel,
+  statusTagType
+} = useSalesQuotePresentation(t)
+
+const {
+  addLine,
+  customers,
+  editingId,
+  form,
+  formVisible,
+  loadOptions,
+  openCreate,
+  openEdit,
+  products,
+  removeLine,
+  save,
+  saving
+} = useSalesQuoteForm(t, {
+  getSalesQuote,
+  createSalesQuote,
+  updateSalesQuote,
+  getCustomers,
+  getProducts,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onSaved: () => loadData()
 })
-const convertVisible = ref(false)
-const convertQuoteId = ref<string | number>('')
-const convertWarehouseId = ref('')
 
-const today = () => formatBusinessDate()
-
-const statusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    DRAFT: t('salesQuote.statusValue.draft'),
-    CONFIRMED: t('salesQuote.statusValue.confirmed'),
-    CONVERTED: t('salesQuote.statusValue.converted'),
-    CANCELLED: t('salesQuote.statusValue.cancelled')
-  }
-  return map[status] || status
-}
-
-const loadOptions = async () => {
-  const [c, p, w] = await Promise.all([
-    getCustomers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' }),
-    getProducts({ pageNo: 1, pageSize: 200, status: 'ACTIVE' }),
-    getWarehouses({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-  ])
-  customers.value = c.records || []
-  products.value = p.records || []
-  warehouses.value = w.records || []
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const page = await getSalesQuotes(query)
-    rows.value = page.records || []
-    total.value = page.total || 0
-  } catch {
-    ElMessage.error(t('salesQuote.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const addLine = () => form.lines.push({ productId: '', qty: 1, price: 0, taxRate: 0.13 })
-
-const openCreate = async () => {
-  await loadOptions()
-  editingId.value = null
-  form.customerId = ''
-  form.quoteDate = today()
-  form.validUntil = ''
-  form.remark = ''
-  form.lines = [{ productId: '', qty: 1, price: 0, taxRate: 0.13 }]
-  formVisible.value = true
-}
-
-const openEdit = async (row: SalesQuote) => {
-  await loadOptions()
-  const detail = await getSalesQuote(row.id)
-  editingId.value = detail.id
-  form.customerId = String(detail.customerId)
-  form.quoteDate = detail.quoteDate
-  form.validUntil = detail.validUntil || ''
-  form.remark = detail.remark || ''
-  form.lines = (detail.lines || []).map((l) => ({
-    productId: String(l.productId),
-    qty: Number(l.qty),
-    price: Number(l.price),
-    taxRate: Number(l.taxRate || 0)
-  }))
-  formVisible.value = true
-}
-
-const openView = async (row: SalesQuote) => {
-  const detail = await getSalesQuote(row.id)
-  ElMessageBox.alert(
-    t('salesQuote.detailContent', {
-      quoteNo: detail.quoteNo,
-      customer: detail.customerName,
-      amount: formatLocalizedCurrency(detail.totalAmount),
-      status: statusLabel(detail.status),
-      count: detail.lines?.length || 0
-    }),
-    t('salesQuote.detailTitle')
-  )
-}
-
-const handlePrint = async (row: SalesQuote) => {
-  try {
-    const detail = await getSalesQuote(row.id)
-    const productMap = new Map(
-      products.value.map((product) => [String(product.id), product])
-    )
-    if (productMap.size === 0) {
-      await loadOptions()
-      products.value.forEach((product) => productMap.set(String(product.id), product))
-    }
-    printSalesQuote({
-      ...detail,
-      lines: (detail.lines || []).map((line) => {
-        const product = productMap.get(String(line.productId))
-        return {
-          ...line,
-          productCode: product?.productCode || product?.code || line.productId,
-          productName: product?.productName || product?.name || ''
-        }
-      })
-    })
-  } catch {
-    ElMessage.error(t('salesQuote.message.printLoadFailed'))
-  }
-}
-
-const save = async () => {
-  if (!form.customerId || !form.quoteDate || !form.lines.some((l) => l.productId)) {
-    ElMessage.warning(t('salesQuote.message.completeForm'))
-    return
-  }
-  saving.value = true
-  try {
-    const payload = {
-      customerId: form.customerId,
-      quoteDate: form.quoteDate,
-      validUntil: form.validUntil || undefined,
-      remark: form.remark || undefined,
-      lines: form.lines
-        .filter((l) => l.productId)
-        .map((l) => ({ productId: l.productId, qty: l.qty, price: l.price, taxRate: l.taxRate }))
-    }
-    if (editingId.value) await updateSalesQuote(editingId.value, payload)
-    else await createSalesQuote(payload)
-    ElMessage.success(t('salesQuote.message.saved'))
-    formVisible.value = false
-    loadData()
-  } catch {
-    // The shared request interceptor already surfaces the error.
-  } finally {
-    saving.value = false
-  }
-}
-
-const confirm = async (row: SalesQuote) => {
-  await confirmSalesQuote(row.id)
-  ElMessage.success(t('salesQuote.message.confirmed'))
-  loadData()
-}
-
-const cancel = async (row: SalesQuote) => {
-  await ElMessageBox.confirm(
-    t('salesQuote.message.cancelConfirm', { quoteNo: row.quoteNo }),
-    t('salesQuote.message.prompt'),
-    { type: 'warning' }
-  )
-  await cancelSalesQuote(row.id)
-  ElMessage.success(t('salesQuote.message.cancelled'))
-  loadData()
-}
-
-const openConvert = async (row: SalesQuote) => {
-  await loadOptions()
-  convertQuoteId.value = row.id
-  convertWarehouseId.value = ''
-  convertVisible.value = true
-}
-
-const doConvert = async () => {
-  if (!convertWarehouseId.value) {
-    ElMessage.warning(t('salesQuote.message.selectWarehouse'))
-    return
-  }
-  converting.value = true
-  try {
-    const order = await convertSalesQuoteToOrder(convertQuoteId.value, convertWarehouseId.value)
-    ElMessage.success(t('salesQuote.message.converted', { orderNo: order.orderNo }))
-    convertVisible.value = false
-    loadData()
-  } catch {
-    // The shared request interceptor already surfaces the error.
-  } finally {
-    converting.value = false
-  }
-}
+const {
+  cancelQuote,
+  confirmQuote,
+  convertVisible,
+  convertWarehouseId,
+  converting,
+  doConvert,
+  handlePageChange,
+  handlePrint,
+  handleSearch,
+  handleSizeChange,
+  loadData,
+  loading,
+  openConvert,
+  openView,
+  query,
+  rows,
+  total,
+  warehouses
+} = useSalesQuoteList(t, {
+  getSalesQuotes,
+  getSalesQuote,
+  confirmSalesQuote,
+  cancelSalesQuote,
+  convertSalesQuoteToOrder,
+  getWarehouses,
+  getProducts,
+  printSalesQuote,
+  detailContent,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  alert: (message, title) => ElMessageBox.alert(message, title),
+  products,
+  loadProducts: loadOptions,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
+})
 
 onMounted(async () => {
   await loadOptions()

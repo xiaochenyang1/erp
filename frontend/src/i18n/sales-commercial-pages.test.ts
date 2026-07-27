@@ -59,25 +59,31 @@ describe('sales price and quote localization', () => {
     })
   }
 
-  it('formats sales prices, quote amounts, and quote dates through locale helpers', () => {
-    const quoteSource = readFileSync(resolve(process.cwd(), pages.salesQuote), 'utf8')
-
-    expect(quoteSource).toContain('formatLocalizedCurrency(row.totalAmount)')
-    expect(quoteSource).toContain('formatLocalizedDate(row.quoteDate)')
-  })
-
-  // Price pages delegate money/date rendering to their presentation composables,
-  // so the locale helpers are asserted where they now live.
-  for (const [namespace, composablePath] of Object.entries({
-    salesPrice: 'src/composables/useSalesPricePresentation.ts',
-    purchasePrice: 'src/composables/usePurchasePricePresentation.ts'
+  // Commercial pages delegate money/date rendering to presentation composables.
+  for (const [namespace, config] of Object.entries({
+    salesPrice: {
+      page: pages.salesPrice,
+      composable: 'src/composables/useSalesPricePresentation.ts',
+      pageMarkers: ['formatMoney(row.listPrice)', 'formatEffectivePeriod(row.effectiveFrom, row.effectiveTo)']
+    },
+    purchasePrice: {
+      page: pages.purchasePrice,
+      composable: 'src/composables/usePurchasePricePresentation.ts',
+      pageMarkers: ['formatMoney(row.listPrice)', 'formatEffectivePeriod(row.effectiveFrom, row.effectiveTo)']
+    },
+    salesQuote: {
+      page: pages.salesQuote,
+      composable: 'src/composables/useSalesQuotePresentation.ts',
+      pageMarkers: ['formatMoney(row.totalAmount)', 'formatDate(row.quoteDate)']
+    }
   })) {
     it(`formats ${namespace} money and dates through locale helpers`, () => {
-      const pageSource = readFileSync(resolve(process.cwd(), pages[namespace as keyof typeof pages]), 'utf8')
-      const composableSource = readFileSync(resolve(process.cwd(), composablePath), 'utf8')
+      const pageSource = readFileSync(resolve(process.cwd(), config.page), 'utf8')
+      const composableSource = readFileSync(resolve(process.cwd(), config.composable), 'utf8')
 
-      expect(pageSource).toContain('formatMoney(row.listPrice)')
-      expect(pageSource).toContain('formatEffectivePeriod(row.effectiveFrom, row.effectiveTo)')
+      for (const marker of config.pageMarkers) {
+        expect(pageSource).toContain(marker)
+      }
       expect(composableSource).toContain('formatLocalizedCurrency(')
       expect(composableSource).toContain('formatLocalizedDate(')
     })

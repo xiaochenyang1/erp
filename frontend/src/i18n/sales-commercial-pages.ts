@@ -155,14 +155,20 @@ export const salesCommercialPageMessages = {
       detailContent: '单号 {quoteNo}\n客户 {customer}\n金额 {amount}\n状态 {status}\n明细 {count} 行',
       message: {
         loadFailed: '加载报价失败',
+        optionsLoadFailed: '加载客户/商品/仓库选项失败',
+        detailLoadFailed: '加载报价详情失败',
         completeForm: '请完善客户、日期与明细',
         saved: '保存成功',
+        saveFailed: '保存报价失败',
         confirmed: '已确认',
+        confirmFailed: '确认报价失败',
         cancelConfirm: '作废报价 {quoteNo}？',
         prompt: '提示',
         cancelled: '已作废',
+        cancelFailed: '作废报价失败',
         selectWarehouse: '请选择仓库',
         converted: '已转销售订单 {orderNo}',
+        convertFailed: '转销售订单失败',
         printLoadFailed: '加载打印数据失败'
       }
     }
@@ -323,14 +329,20 @@ export const salesCommercialPageMessages = {
       detailContent: 'Quote {quoteNo}\nCustomer {customer}\nAmount {amount}\nStatus {status}\nLines {count}',
       message: {
         loadFailed: 'Failed to load quotes',
+        optionsLoadFailed: 'Failed to load customer, product, or warehouse options',
+        detailLoadFailed: 'Failed to load quote details',
         completeForm: 'Complete the customer, date, and quote lines',
         saved: 'Quote saved',
+        saveFailed: 'Failed to save quote',
         confirmed: 'Quote confirmed',
+        confirmFailed: 'Failed to confirm quote',
         cancelConfirm: 'Cancel quote {quoteNo}?',
         prompt: 'Confirm',
         cancelled: 'Quote cancelled',
+        cancelFailed: 'Failed to cancel quote',
         selectWarehouse: 'Select a warehouse',
         converted: 'Converted to sales order {orderNo}',
+        convertFailed: 'Failed to convert quote to sales order',
         printLoadFailed: 'Failed to load print data'
       }
     }
