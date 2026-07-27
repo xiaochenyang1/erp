@@ -1,6 +1,5 @@
 <template>
   <div class="app-container">
-    <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
         <el-form-item :label="$t('financeReportPages.subjects.code')">
@@ -31,7 +30,6 @@
       </el-form>
     </el-card>
 
-    <!-- 工具栏 -->
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
@@ -40,7 +38,6 @@
         </div>
       </template>
 
-      <!-- 树形表格 -->
       <el-table
         v-loading="loading"
         :data="subjectTree"
@@ -61,15 +58,15 @@
         <el-table-column prop="level" :label="$t('financeReportPages.subjects.level')" width="80" align="center" />
         <el-table-column prop="isLeaf" :label="$t('financeReportPages.subjects.leaf')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.isLeaf ? 'success' : 'info'" size="small">
-              {{ row.isLeaf ? $t('financeReportPages.subjects.yes') : $t('financeReportPages.subjects.no') }}
+            <el-tag :type="leafType(row.isLeaf)" size="small">
+              {{ leafLabel(row.isLeaf) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'ACTIVE' ? $t('financeReportPages.subjects.status.active') : $t('financeReportPages.subjects.status.disabled') }}
+            <el-tag :type="statusType(row.status)" size="small">
+              {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -104,12 +101,11 @@
       </el-table>
     </el-card>
 
-    <!-- 新增/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
       width="600px"
-      @close="handleDialogClose"
+      @close="onDialogClose"
     >
       <el-form
         ref="formRef"
@@ -164,59 +160,76 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Search, Refresh, Plus, Edit, CircleClose, CircleCheck } from '@element-plus/icons-vue'
+import { CircleCheck, CircleClose, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import {
+  createAccountSubject,
+  disableAccountSubject,
+  enableAccountSubject,
+  getAccountSubject,
   getAccountSubjects,
   getAccountSubjectTree,
+  updateAccountSubject
+} from '@/api/finance'
+import { useAccountSubjectForm } from '@/composables/useAccountSubjectForm'
+import { useAccountSubjectList } from '@/composables/useAccountSubjectList'
+import { useAccountSubjectPresentation } from '@/composables/useAccountSubjectPresentation'
+
+const { t } = useI18n()
+const formRef = ref<FormInstance>()
+
+const {
+  getCategoryLabel,
+  getCategoryType,
+  leafLabel,
+  leafType,
+  statusLabel,
+  statusType,
+  subjectDisplayName
+} = useAccountSubjectPresentation(t)
+
+const {
+  handleDisable,
+  handleEnable,
+  handleQuery,
+  handleReset,
+  loadData,
+  loading,
+  queryForm,
+  subjectTree,
+  subjectTreeOptions
+} = useAccountSubjectList(t, {
+  getAccountSubjectTree,
+  getAccountSubjects,
+  enableAccountSubject,
+  disableAccountSubject,
+  subjectDisplayName,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
+})
+
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleAdd,
+  handleAddChild,
+  handleDialogClose,
+  handleEdit,
+  submitLoading,
+  submitSave
+} = useAccountSubjectForm(t, {
   getAccountSubject,
   createAccountSubject,
   updateAccountSubject,
-  enableAccountSubject,
-  disableAccountSubject,
-  type AccountSubject
-} from '@/api/finance'
-
-const { t } = useI18n()
-
-// 查询表单
-const queryForm = reactive({
-  subjectCode: '',
-  subjectName: '',
-  subjectType: '',
-  status: ''
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onSubmitted: () => loadData()
 })
 
-// 表格数据
-const loading = ref(false)
-const subjectTree = ref<AccountSubject[]>([])
-
-// 对话框
-const dialogVisible = ref(false)
-const dialogMode = ref<'create' | 'createChild' | 'edit'>('create')
-const dialogTitle = computed(() => ({
-  create: t('financeReportPages.subjects.dialog.create'),
-  createChild: t('financeReportPages.subjects.dialog.createChild'),
-  edit: t('financeReportPages.subjects.dialog.edit')
-})[dialogMode.value])
-const submitLoading = ref(false)
-const formRef = ref<FormInstance>()
-const formData = reactive({
-  id: undefined as string | undefined,
-  parentId: undefined as string | undefined,
-  subjectCode: '',
-  subjectName: '',
-  subjectType: '',
-  balanceDirection: 'DEBIT',
-  remark: ''
-})
-
-// 树形选择器选项
-const subjectTreeOptions = ref<AccountSubject[]>([])
-
-// 表单验证规则
 const formRules = computed<FormRules>(() => ({
   subjectCode: [{ required: true, message: t('financeReportPages.subjects.validation.code'), trigger: 'blur' }],
   subjectName: [{ required: true, message: t('financeReportPages.subjects.validation.name'), trigger: 'blur' }],
@@ -224,183 +237,17 @@ const formRules = computed<FormRules>(() => ({
   balanceDirection: [{ required: true, message: t('financeReportPages.subjects.validation.direction'), trigger: 'change' }]
 }))
 
-const hasSubjectQuery = () => {
-  return Boolean(queryForm.subjectCode || queryForm.subjectName || queryForm.subjectType || queryForm.status)
-}
-
-// 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const subjects = await getAccountSubjectTree()
-    subjectTreeOptions.value = subjects || []
-    if (hasSubjectQuery()) {
-      const page = await getAccountSubjects({
-        ...queryForm,
-        pageNo: 1,
-        pageSize: 200,
-      })
-      subjectTree.value = page.records || []
-    } else {
-      subjectTree.value = subjects || []
-    }
-  } catch (error) {
-    console.error('Failed to load account subjects:', error)
-    ElMessage.error(t('financeReportPages.subjects.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// 查询
-const handleQuery = () => {
-  loadData()
-}
-
-// 重置
-const handleReset = () => {
-  queryForm.subjectCode = ''
-  queryForm.subjectName = ''
-  queryForm.subjectType = ''
-  queryForm.status = ''
-  loadData()
-}
-
-// 新增
-const handleAdd = () => {
-  dialogMode.value = 'create'
-  dialogVisible.value = true
-}
-
-// 新增下级
-const handleAddChild = (row: AccountSubject) => {
-  dialogMode.value = 'createChild'
-  formData.parentId = row.id
-  dialogVisible.value = true
-}
-
-// 编辑
-const handleEdit = async (row: AccountSubject) => {
-  dialogMode.value = 'edit'
-  try {
-    const subject = await getAccountSubject(row.id)
-    Object.assign(formData, {
-      id: subject.id,
-      parentId: subject.parentId,
-      subjectCode: subject.subjectCode || subject.code || '',
-      subjectName: subject.subjectName || subject.name || '',
-      subjectType: subject.subjectType || subject.category || '',
-      balanceDirection: subject.balanceDirection || defaultBalanceDirection(subject.subjectType || subject.category),
-      remark: subject.remark || ''
-    })
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('financeReportPages.subjects.message.detailLoadFailed'))
-  }
-}
-
-// 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return
-
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-
-    submitLoading.value = true
-    try {
-      if (formData.id) {
-        await updateAccountSubject(formData.id, formData)
-        ElMessage.success(t('financeReportPages.subjects.message.updated'))
-      } else {
-        await createAccountSubject(formData)
-        ElMessage.success(t('financeReportPages.subjects.message.created'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch {
-      ElMessage.error(t('financeReportPages.subjects.message.actionFailed'))
-    } finally {
-      submitLoading.value = false
-    }
+    await submitSave()
   })
 }
 
-// 启用
-const handleEnable = async (row: AccountSubject) => {
-  try {
-    await ElMessageBox.confirm(t('financeReportPages.subjects.message.enableConfirm', {
-      name: row.name || row.subjectName || row.id
-    }), t('financeReportPages.common.prompt'), {
-      type: 'warning'
-    })
-    await enableAccountSubject(row.id)
-    ElMessage.success(t('financeReportPages.subjects.message.enabled'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('financeReportPages.subjects.message.enableFailed'))
-    }
-  }
-}
-
-// 停用
-const handleDisable = async (row: AccountSubject) => {
-  try {
-    await ElMessageBox.confirm(t('financeReportPages.subjects.message.disableConfirm', {
-      name: row.name || row.subjectName || row.id
-    }), t('financeReportPages.common.prompt'), {
-      type: 'warning'
-    })
-    await disableAccountSubject(row.id)
-    ElMessage.success(t('financeReportPages.subjects.message.disabled'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('financeReportPages.subjects.message.disableFailed'))
-    }
-  }
-}
-
-// 对话框关闭
-const handleDialogClose = () => {
+const onDialogClose = () => {
   formRef.value?.resetFields()
-  Object.assign(formData, {
-    id: undefined,
-    parentId: undefined,
-    subjectCode: '',
-    subjectName: '',
-    subjectType: '',
-    balanceDirection: 'DEBIT',
-    remark: ''
-  })
-}
-
-const defaultBalanceDirection = (subjectType?: string) => {
-  return ['LIABILITY', 'EQUITY', 'REVENUE'].includes(subjectType || '') ? 'CREDIT' : 'DEBIT'
-}
-
-// 获取类别标签
-const getCategoryLabel = (category: string) => {
-  const map: Record<string, string> = {
-    ASSET: t('financeReportPages.subjects.categoryValue.asset'),
-    LIABILITY: t('financeReportPages.subjects.categoryValue.liability'),
-    EQUITY: t('financeReportPages.subjects.categoryValue.equity'),
-    REVENUE: t('financeReportPages.subjects.categoryValue.revenue'),
-    EXPENSE: t('financeReportPages.subjects.categoryValue.expense')
-  }
-  return map[category] || category
-}
-
-// 获取类别类型
-const getCategoryType = (category: string) => {
-  const map: Record<string, any> = {
-    ASSET: 'success',
-    LIABILITY: 'warning',
-    EQUITY: 'info',
-    REVENUE: 'success',
-    EXPENSE: 'danger'
-  }
-  return map[category] || ''
+  handleDialogClose()
 }
 
 onMounted(() => {
