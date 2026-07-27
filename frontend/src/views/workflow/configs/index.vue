@@ -155,217 +155,49 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, Delete, Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   getWorkflowApprovalConfig,
-  saveWorkflowApprovalConfig,
-  type WorkflowApprovalConfig,
-  type WorkflowApprovalConfigRequest
+  saveWorkflowApprovalConfig
 } from '@/api/workflow'
-import { getRoles, getUsers, type Role, type User } from '@/api/system'
-
-type BusinessTypeOption = {
-  label: string
-  value: string
-}
-
-type ApproverForm = {
-  localKey: string
-  id?: string
-  approverType: 'USER' | 'ROLE'
-  approverId: string
-}
-
-type NodeForm = {
-  localKey: string
-  id?: string
-  nodeName: string
-  approvalMode: 'ANY' | 'ALL'
-  approvers: ApproverForm[]
-}
+import { getRoles, getUsers } from '@/api/system'
+import { useWorkflowConfigForm } from '@/composables/useWorkflowConfigForm'
+import { useWorkflowConfigPresentation } from '@/composables/useWorkflowConfigPresentation'
 
 const { t } = useI18n()
 
-const businessTypes = computed<BusinessTypeOption[]>(() => [
-  { label: t('workflowConfig.businessTypes.purchaseOrder'), value: 'PURCHASE_ORDER' },
-  { label: t('workflowConfig.businessTypes.salesOrder'), value: 'SALES_ORDER' },
-  { label: t('workflowConfig.businessTypes.expense'), value: 'EXPENSE' }
-])
-
-const activeBusinessType = ref('PURCHASE_ORDER')
-const loading = ref(false)
-const saving = ref(false)
-const users = ref<User[]>([])
-const roles = ref<Role[]>([])
-
-const configForm = reactive({
-  id: undefined as string | undefined,
-  configName: '',
-  status: 'ACTIVE',
-  taskTimeoutHours: 24,
-  remark: '',
-  nodes: [] as NodeForm[]
+const {
+  activeBusinessType,
+  addApprover,
+  addNode,
+  configForm,
+  loadConfig,
+  loadOptions,
+  loading,
+  removeApprover,
+  removeNode,
+  roles,
+  saving,
+  submitConfig,
+  users
+} = useWorkflowConfigForm(t, {
+  getWorkflowApprovalConfig,
+  saveWorkflowApprovalConfig,
+  getUsers,
+  getRoles,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
-const newLocalKey = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
-
-const createApprover = (): ApproverForm => ({
-  localKey: newLocalKey(),
-  approverType: 'USER',
-  approverId: ''
-})
-
-const createNode = (order: number): NodeForm => ({
-  localKey: newLocalKey(),
-  nodeName: t('workflowConfig.defaultNode', { order }),
-  approvalMode: 'ANY',
-  approvers: [createApprover()]
-})
-
-const currentBusinessTypeLabel = () => {
-  return businessTypes.value.find((item) => item.value === activeBusinessType.value)?.label || activeBusinessType.value
-}
-
-const applyConfig = (config: WorkflowApprovalConfig) => {
-  configForm.id = config.id
-  configForm.configName = config.configName || t('workflowConfig.defaultConfigName', {
-    businessType: currentBusinessTypeLabel()
-  })
-  configForm.status = config.status || 'ACTIVE'
-  configForm.taskTimeoutHours = config.taskTimeoutHours || 24
-  configForm.remark = config.remark || ''
-  configForm.nodes = config.nodes.length
-    ? config.nodes.map((node, index) => ({
-      localKey: newLocalKey(),
-      id: node.id,
-      nodeName: node.nodeName || t('workflowConfig.defaultNode', { order: index + 1 }),
-      approvalMode: node.approvalMode === 'ALL' ? 'ALL' : 'ANY',
-      approvers: node.approvers.length
-        ? node.approvers.map((approver) => ({
-          localKey: newLocalKey(),
-          id: approver.id,
-          approverType: approver.approverType === 'ROLE' ? 'ROLE' : 'USER',
-          approverId: approver.approverId
-        }))
-        : [createApprover()]
-    }))
-    : [createNode(1)]
-}
-
-const loadConfig = async () => {
-  loading.value = true
-  try {
-    const config = await getWorkflowApprovalConfig(activeBusinessType.value)
-    applyConfig(config)
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadOptions = async () => {
-  const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-  const [userPage, rolePage] = await Promise.all([
-    getUsers(optionPageQuery),
-    getRoles(optionPageQuery)
-  ])
-  users.value = userPage.records
-  roles.value = rolePage.records
-}
-
-const addNode = () => {
-  configForm.nodes.push(createNode(configForm.nodes.length + 1))
-}
-
-const removeNode = (index: number) => {
-  if (configForm.nodes.length === 1) return
-  configForm.nodes.splice(index, 1)
-}
-
-const addApprover = (nodeIndex: number) => {
-  configForm.nodes[nodeIndex].approvers.push(createApprover())
-}
-
-const removeApprover = (nodeIndex: number, approverIndex: number) => {
-  const approvers = configForm.nodes[nodeIndex].approvers
-  if (approvers.length === 1) return
-  approvers.splice(approverIndex, 1)
-}
-
-const validateConfig = () => {
-  if (!configForm.configName.trim()) {
-    ElMessage.warning(t('workflowConfig.validation.configName'))
-    return false
-  }
-  if (!configForm.nodes.length) {
-    ElMessage.warning(t('workflowConfig.validation.nodeRequired'))
-    return false
-  }
-  if (configForm.taskTimeoutHours < 1 || configForm.taskTimeoutHours > 720) {
-    ElMessage.warning(t('workflowConfig.validation.timeoutRange'))
-    return false
-  }
-  for (const [nodeIndex, node] of configForm.nodes.entries()) {
-    if (!node.nodeName.trim()) {
-      ElMessage.warning(t('workflowConfig.validation.nodeName', { node: nodeIndex + 1 }))
-      return false
-    }
-    if (!node.approvers.length) {
-      ElMessage.warning(t('workflowConfig.validation.approverRequired', { node: nodeIndex + 1 }))
-      return false
-    }
-    for (const [approverIndex, approver] of node.approvers.entries()) {
-      if (!approver.approverId) {
-        ElMessage.warning(t('workflowConfig.validation.selectApprover', {
-          node: nodeIndex + 1,
-          approver: approverIndex + 1
-        }))
-        return false
-      }
-    }
-  }
-  return true
-}
-
-const toPayload = (): WorkflowApprovalConfigRequest => ({
-  configName: configForm.configName.trim(),
-  status: configForm.status,
-  taskTimeoutHours: configForm.taskTimeoutHours,
-  remark: configForm.remark.trim() || undefined,
-  nodes: configForm.nodes.map((node, index) => ({
-    nodeName: node.nodeName.trim(),
-    nodeOrder: index + 1,
-    approvalMode: node.approvalMode,
-    approvers: node.approvers.map((approver) => ({
-      approverType: approver.approverType,
-      approverId: approver.approverId
-    }))
-  }))
-})
-
-const submitConfig = async () => {
-  if (!validateConfig()) return
-
-  saving.value = true
-  try {
-    const config = await saveWorkflowApprovalConfig(activeBusinessType.value, toPayload())
-    applyConfig(config)
-    ElMessage.success(t('workflowConfig.message.saved'))
-  } finally {
-    saving.value = false
-  }
-}
-
-const userLabel = (user: User) => t('workflowConfig.userOption', {
-  name: user.realName || user.username,
-  username: user.username
-})
-const roleLabel = (role: Role) => t('workflowConfig.roleOption', {
-  name: role.name || role.roleName || role.code,
-  code: role.code || role.roleCode
-})
+const {
+  businessTypes,
+  roleLabel,
+  userLabel
+} = useWorkflowConfigPresentation(t)
 
 onMounted(async () => {
   await loadOptions()

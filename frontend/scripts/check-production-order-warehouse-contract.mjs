@@ -131,8 +131,18 @@ const workflowTaskView = [
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const workflowTaskQuery = readFileSync(resolve(root, 'src/views/workflow/tasks/query.ts'), 'utf8')
 const workflowRecordView = readFileSync(resolve(root, 'src/views/workflow/records/index.vue'), 'utf8')
+// 审批配置页已按 E-1 拆分为展示/表单 composable，契约仍按整块特性校验
 const workflowConfigViewPath = resolve(root, 'src/views/workflow/configs/index.vue')
-const workflowConfigView = existsSync(workflowConfigViewPath) ? readFileSync(workflowConfigViewPath, 'utf8') : ''
+const workflowConfigView = existsSync(workflowConfigViewPath)
+  ? [
+      workflowConfigViewPath,
+      resolve(root, 'src/composables/useWorkflowConfigPresentation.ts'),
+      resolve(root, 'src/composables/useWorkflowConfigForm.ts')
+    ]
+      .filter((path) => existsSync(path))
+      .map((path) => readFileSync(path, 'utf8'))
+      .join('\n')
+  : ''
 const exceptionTicketApi = readFileSync(resolve(root, 'src/api/exceptionTicket.ts'), 'utf8')
 const exceptionTicketView = readFileSync(resolve(root, 'src/views/exception-tickets/index.vue'), 'utf8')
 const exceptionRuleApi = readFileSync(resolve(root, 'src/api/exceptionRule.ts'), 'utf8')

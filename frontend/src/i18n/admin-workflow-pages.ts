@@ -63,7 +63,10 @@ const messageSource = {
       timeoutRange: ['审批超时必须在 1 到 720 小时之间', 'Approval timeout must be between 1 and 720 hours']
     },
     message: {
-      saved: ['工作流配置已保存', 'Workflow configuration saved']
+      saved: ['工作流配置已保存', 'Workflow configuration saved'],
+      loadFailed: ['加载工作流配置失败', 'Failed to load workflow configuration'],
+      optionsLoadFailed: ['加载用户/角色选项失败', 'Failed to load user and role options'],
+      saveFailed: ['保存工作流配置失败', 'Failed to save workflow configuration']
     }
   },
   workflowRecord: {
