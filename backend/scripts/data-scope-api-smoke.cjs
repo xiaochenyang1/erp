@@ -3,7 +3,7 @@
  *
  * 验证：
  * 1) 用户/角色 data-scope GET/PUT 可用
- * 2) 受限角色去掉 ALL 后仅 SELF：仅见自己创建的采购单；他人单据详情 403
+ * 2) 受限角色去掉 ALL 后仅 SELF：列表和 CSV 仅见自己创建的采购单；他人单据详情 403
  * 3) 仓库范围 WAREHOUSE：库存余额仅见授权仓
  *
  * 用法：
@@ -62,6 +62,17 @@ async function api(token, method, urlPath, body) {
     j = { code: String(r.status), message: text.slice(0, 300) }
   }
   return { status: r.status, body: j }
+}
+
+async function textApi(token, urlPath) {
+  const r = await fetch(`${BASE}${urlPath}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return {
+    status: r.status,
+    contentType: r.headers.get('content-type') || '',
+    text: await r.text(),
+  }
 }
 
 function ok(res) {
@@ -226,12 +237,16 @@ async function main() {
 
   // 3) 采购订单 SELF：admin 有 1 条历史单；受限用户列表不应包含他人单；他人详情 403
   let foreignOrderId
+  let foreignOrderNo
   let ownOrderId
+  let ownOrderNo
   {
     const adminList = await api(adminToken, 'GET', '/api/purchase/orders?pageNo=1&pageSize=20')
     const adminOrders = recordsOf(adminList)
-    foreignOrderId = adminOrders.find((o) => String(o.createdBy || o.createdById || '') !== limitedUserId)?.id
-      || adminOrders[0]?.id
+    const foreignOrder = adminOrders.find((o) => String(o.createdBy || o.createdById || '') !== limitedUserId)
+      || adminOrders[0]
+    foreignOrderId = foreignOrder?.id
+    foreignOrderNo = foreignOrder?.orderNo
     row('S5', 'admin 可列出采购订单作为对照',
       ok(adminList) && adminOrders.length > 0,
       `total=${dataOf(adminList)?.total} sampleId=${foreignOrderId || '-'}`)
@@ -251,6 +266,7 @@ async function main() {
       })
       if (ok(createPo)) {
         ownOrderId = String(dataOf(createPo).id)
+        ownOrderNo = String(dataOf(createPo).orderNo)
       } else {
         console.log('  note: create PO as limited user failed:', createPo.body?.message || createPo.status)
       }
@@ -273,6 +289,17 @@ async function main() {
     row('S6b', 'SELF 列表可见本人创建单',
       !!ownOrderId && seesOwn,
       ownOrderId ? `ownId=${ownOrderId} seesOwn=${seesOwn}` : 'create own PO failed')
+
+    const limitedExport = await textApi(limitedToken, '/api/purchase/orders/export')
+    const exportSeesForeign = !!foreignOrderNo && limitedExport.text.includes(String(foreignOrderNo))
+    const exportSeesOwn = !!ownOrderNo && limitedExport.text.includes(String(ownOrderNo))
+    row('S6c', 'SELF CSV 仅导出本人采购单',
+      limitedExport.status < 400
+        && limitedExport.contentType.includes('text/csv')
+        && !!ownOrderNo
+        && exportSeesOwn
+        && !exportSeesForeign,
+      `status=${limitedExport.status} ownNo=${ownOrderNo || '-'} seesOwn=${exportSeesOwn} foreignNo=${foreignOrderNo || '-'} seesForeign=${exportSeesForeign}`)
 
     if (foreignOrderId) {
       const detail = await api(limitedToken, 'GET', `/api/purchase/orders/${foreignOrderId}`)

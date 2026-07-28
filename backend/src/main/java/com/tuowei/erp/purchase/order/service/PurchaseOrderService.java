@@ -261,22 +261,9 @@ public class PurchaseOrderService {
         PurchaseOrderPageQuery safeQuery = query == null ? new PurchaseOrderPageQuery() : query;
         long pageNo = normalizePageNo(safeQuery.getPageNo());
         long pageSize = normalizePageSize(safeQuery.getPageSize());
-        String keyword = normalizeNullableText(safeQuery.getKeyword());
-        String status = normalizeStatus(safeQuery.getStatus());
-        String approvalStatus = normalizeStatus(safeQuery.getApprovalStatus());
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
 
         Page<PurchaseOrderEntity> page = new Page<>(pageNo, pageSize);
-        LambdaQueryWrapper<PurchaseOrderEntity> wrapper = buildListQuery(keyword, status, approvalStatus, safeQuery.getSupplierId());
-        wrapper = dataScopeService.applyPurchaseOrderScope(
-                wrapper,
-                currentUser,
-                snapshot,
-                scopedUserIds.deptUserIds(),
-                scopedUserIds.postUserIds()
-        );
+        LambdaQueryWrapper<PurchaseOrderEntity> wrapper = scopedListQuery(safeQuery);
         Page<PurchaseOrderEntity> result = purchaseOrderMapper.selectPage(
                 page,
                 wrapper
@@ -622,6 +609,28 @@ public class PurchaseOrderService {
         return wrapper.orderByDesc(PurchaseOrderEntity::getId);
     }
 
+    private LambdaQueryWrapper<PurchaseOrderEntity> scopedListQuery(PurchaseOrderPageQuery safeQuery) {
+        String keyword = normalizeNullableText(safeQuery.getKeyword());
+        String status = normalizeStatus(safeQuery.getStatus());
+        String approvalStatus = normalizeStatus(safeQuery.getApprovalStatus());
+        CurrentUser currentUser = currentUserContext.requireCurrentUser();
+        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
+        LambdaQueryWrapper<PurchaseOrderEntity> wrapper = buildListQuery(
+                keyword,
+                status,
+                approvalStatus,
+                safeQuery.getSupplierId()
+        );
+        return dataScopeService.applyPurchaseOrderScope(
+                wrapper,
+                currentUser,
+                snapshot,
+                scopedUserIds.deptUserIds(),
+                scopedUserIds.postUserIds()
+        );
+    }
+
     private void assertCanView(PurchaseOrderEntity entity) {
         CurrentUser currentUser = currentUserContext.requireCurrentUser();
         DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
@@ -907,17 +916,7 @@ public class PurchaseOrderService {
 
     private void exportToCsv(PurchaseOrderPageQuery query, OutputStream outputStream) throws IOException {
         PurchaseOrderPageQuery safeQuery = query == null ? new PurchaseOrderPageQuery() : query;
-        AuditMetadata audit = auditMetadataFactory.current();
-
-        LambdaQueryWrapper<PurchaseOrderEntity> wrapper = buildListQuery(
-                safeQuery.getKeyword(),
-                safeQuery.getStatus(),
-                safeQuery.getApprovalStatus(),
-                safeQuery.getSupplierId()
-        );
-        wrapper.eq(PurchaseOrderEntity::getCompanyId, audit.companyId())
-                .eq(PurchaseOrderEntity::getAccountBookId, audit.accountBookId());
-        wrapper.orderByDesc(PurchaseOrderEntity::getOrderDate).orderByDesc(PurchaseOrderEntity::getId);
+        LambdaQueryWrapper<PurchaseOrderEntity> wrapper = scopedListQuery(safeQuery);
 
         List<String> headers = List.of(
                 "订单编号", "供应商", "订单日期", "交货日期",
