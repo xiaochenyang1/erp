@@ -281,7 +281,13 @@ const exceptionSlaPolicyView = [
   'src/composables/useExceptionSlaPolicyForm.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const attachmentApi = readFileSync(resolve(root, 'src/api/attachment.ts'), 'utf8')
-const attachmentView = readFileSync(resolve(root, 'src/views/system/attachments/index.vue'), 'utf8')
+// 附件中心页已按 E-1 拆分为展示/列表/上传表单 composable，契约仍按整块特性校验
+const attachmentView = [
+  'src/views/system/attachments/index.vue',
+  'src/composables/useAttachmentPresentation.ts',
+  'src/composables/useAttachmentList.ts',
+  'src/composables/useAttachmentUploadForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const routerConfig = readFileSync(resolve(root, 'src/router/index.ts'), 'utf8')
 const importsApiPath = resolve(root, 'src/api/imports.ts')
 const importsViewPath = resolve(root, 'src/views/system/imports/index.vue')
@@ -2512,7 +2518,7 @@ for (const fragment of [
   'v-model="queryForm.businessId"',
   'v-model="uploadForm.businessId"',
   'uploadForm.businessId.trim()',
-  'queryForm.businessId = uploadForm.businessId.trim()'
+  'queryForm.businessId = scope.businessId'
 ]) {
   if (!attachmentView.includes(fragment)) {
     errors.push(`附件中心页缺少业务 Long ID 字符串输入片段: ${fragment}`)

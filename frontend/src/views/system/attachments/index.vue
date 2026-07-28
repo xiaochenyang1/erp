@@ -128,49 +128,101 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile, type UploadInstance } from 'element-plus'
+import {
+  ElMessage,
+  ElMessageBox,
+  type FormInstance,
+  type FormRules,
+  type UploadFile,
+  type UploadInstance
+} from 'element-plus'
 import { Delete, Download, Paperclip, Refresh, Search, Upload } from '@element-plus/icons-vue'
 import {
   deleteAttachment,
   downloadAttachment,
   getAttachments,
-  uploadAttachment,
-  type Attachment,
-  type AttachmentQuery
+  uploadAttachment
 } from '@/api/attachment'
+import { useAttachmentList } from '@/composables/useAttachmentList'
+import { useAttachmentPresentation } from '@/composables/useAttachmentPresentation'
+import { useAttachmentUploadForm } from '@/composables/useAttachmentUploadForm'
 import { downloadBlob } from '@/utils/download'
 import { formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
 
 const { t } = useI18n()
-
-const queryForm = reactive<AttachmentQuery>({
-  businessType: '',
-  businessId: '',
-  businessNo: ''
-})
-
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const loading = ref(false)
-const tableData = ref<Attachment[]>([])
-
-const uploadDialogVisible = ref(false)
-const uploading = ref(false)
 const uploadFormRef = ref<FormInstance>()
 const uploaderRef = ref<UploadInstance>()
-const selectedFile = ref<File | null>(null)
 
-const uploadForm = reactive({
-  businessType: '',
-  businessId: '',
-  businessNo: '',
-  file: null as File | null
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  handleDelete,
+  handleDownload,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  loadData,
+  loading,
+  pagination,
+  queryForm,
+  tableData
+} = useAttachmentList(t, {
+  getAttachments,
+  downloadAttachment,
+  deleteAttachment,
+  downloadBlob,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  reportLoadError: (error) => console.error('Failed to load attachments:', error),
+  ...notify
+})
+
+const { formatFileSize } = useAttachmentPresentation({
+  formatNumber: formatLocalizedNumber
+})
+
+const validateUploadForm = async () => {
+  const form = uploadFormRef.value
+  if (!form) return false
+  return new Promise<boolean>((resolve) => {
+    form.validate((valid) => resolve(valid))
+  })
+}
+
+const {
+  handleFileChange: selectUploadFile,
+  handleFileRemove,
+  handleOpenUpload: openUpload,
+  handleSubmitUpload,
+  handleUploadDialogClose,
+  selectedFile,
+  uploadDialogVisible,
+  uploadForm,
+  uploading
+} = useAttachmentUploadForm(t, {
+  uploadAttachment,
+  validate: validateUploadForm,
+  validateFile: () => {
+    uploadFormRef.value?.validateField('file')
+  },
+  resetFields: () => {
+    uploadFormRef.value?.resetFields()
+  },
+  clearFiles: () => {
+    uploaderRef.value?.clearFiles()
+  },
+  onUploaded: (scope) => {
+    queryForm.businessType = scope.businessType
+    queryForm.businessId = scope.businessId
+    queryForm.businessNo = scope.businessNo
+    pagination.page = 1
+    loadData()
+  },
+  ...notify
 })
 
 const uploadRules = computed<FormRules>(() => ({
@@ -190,134 +242,12 @@ const uploadRules = computed<FormRules>(() => ({
   ]
 }))
 
-const buildQueryParams = (): AttachmentQuery => ({
-  businessType: queryForm.businessType?.trim() || undefined,
-  businessId: queryForm.businessId != null ? String(queryForm.businessId).trim() || undefined : undefined,
-  businessNo: queryForm.businessNo?.trim() || undefined,
-  pageNo: pagination.page,
-  pageSize: pagination.size
-})
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getAttachments(buildQueryParams())
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    console.error('Failed to load attachments:', error)
-    ElMessage.error(t('systemAttachments.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-const handlePageChange = () => {
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.businessType = ''
-  queryForm.businessId = ''
-  queryForm.businessNo = ''
-  pagination.page = 1
-  loadData()
-}
-
 const handleOpenUpload = () => {
-  uploadForm.businessType = queryForm.businessType || 'SALES_ORDER'
-  uploadForm.businessId = queryForm.businessId != null ? String(queryForm.businessId) : ''
-  uploadForm.businessNo = queryForm.businessNo || ''
-  selectedFile.value = null
-  uploadForm.file = null
-  uploadDialogVisible.value = true
+  openUpload(queryForm)
 }
 
 const handleFileChange = (uploadFile: UploadFile) => {
-  selectedFile.value = uploadFile.raw || null
-  uploadForm.file = selectedFile.value
-  uploadFormRef.value?.validateField('file')
-}
-
-const handleFileRemove = () => {
-  selectedFile.value = null
-  uploadForm.file = null
-  uploadFormRef.value?.validateField('file')
-}
-
-const handleSubmitUpload = async () => {
-  if (!uploadFormRef.value) return
-  await uploadFormRef.value.validate(async (valid) => {
-    const businessId = uploadForm.businessId.trim()
-    if (!valid || !selectedFile.value || !businessId) return
-    uploading.value = true
-    try {
-      await uploadAttachment(
-        selectedFile.value,
-        uploadForm.businessType,
-        uploadForm.businessId.trim(),
-        uploadForm.businessNo || undefined
-      )
-      ElMessage.success(t('systemAttachments.message.uploaded'))
-      uploadDialogVisible.value = false
-      queryForm.businessType = uploadForm.businessType
-      queryForm.businessId = uploadForm.businessId.trim()
-      queryForm.businessNo = uploadForm.businessNo
-      pagination.page = 1
-      loadData()
-    } catch {
-      ElMessage.error(t('systemAttachments.message.uploadFailed'))
-    } finally {
-      uploading.value = false
-    }
-  })
-}
-
-const handleUploadDialogClose = () => {
-  uploadFormRef.value?.resetFields()
-  uploaderRef.value?.clearFiles()
-  selectedFile.value = null
-  uploadForm.file = null
-}
-
-const handleDownload = async (row: Attachment) => {
-  try {
-    const blob = await downloadAttachment(row.id)
-    downloadBlob(blob, row.originalFilename || `attachment-${row.id}`)
-    ElMessage.success(t('systemAttachments.message.downloaded'))
-  } catch {
-    ElMessage.error(t('systemAttachments.message.downloadFailed'))
-  }
-}
-
-const handleDelete = async (row: Attachment) => {
-  try {
-    await ElMessageBox.confirm(t('systemAttachments.message.deleteConfirm', { filename: row.originalFilename }), t('systemAttachments.message.prompt'), {
-      confirmButtonText: t('systemAttachments.message.confirm'),
-      cancelButtonText: t('systemAttachments.message.cancelled'),
-      type: 'warning'
-    })
-    await deleteAttachment(row.id)
-    ElMessage.success(t('systemAttachments.message.deleted'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemAttachments.message.deleteFailed'))
-    }
-  }
-}
-
-const formatFileSize = (size: number) => {
-  if (size < 1024) return `${formatLocalizedNumber(size)} B`
-  if (size < 1024 * 1024) {
-    return `${formatLocalizedNumber(size / 1024, { maximumFractionDigits: 1 })} KB`
-  }
-  return `${formatLocalizedNumber(size / 1024 / 1024, { maximumFractionDigits: 1 })} MB`
+  selectUploadFile(uploadFile.raw || null)
 }
 
 onMounted(() => {

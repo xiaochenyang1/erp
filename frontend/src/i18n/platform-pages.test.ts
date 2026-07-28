@@ -70,6 +70,10 @@ describe('platform page localization', () => {
     const observability = readFileSync(resolve(process.cwd(), pagePaths[1]), 'utf8')
     const sessions = readFileSync(resolve(process.cwd(), pagePaths[3]), 'utf8')
     const attachments = readFileSync(resolve(process.cwd(), pagePaths[4]), 'utf8')
+    const attachmentPresentation = readFileSync(
+      resolve(process.cwd(), 'src/composables/useAttachmentPresentation.ts'),
+      'utf8'
+    )
     const notifications = readFileSync(resolve(process.cwd(), pagePaths[5]), 'utf8')
 
     expect(observability).toContain('formatLocalizedDateTime(health.generatedAt)')
@@ -77,7 +81,8 @@ describe('platform page localization', () => {
     expect(sessions).toContain('formatLocalizedDateTime(row.lastUsedAt)')
     expect(sessions).toContain('formatLocalizedDateTime(row.expiresAt)')
     expect(attachments).toContain('formatLocalizedDateTime(row.createdTime)')
-    expect(attachments).toContain('formatLocalizedNumber(size / 1024')
+    expect(attachments).toContain('formatNumber: formatLocalizedNumber')
+    expect(attachmentPresentation).toContain('formatNumber(size / 1024')
     expect(notifications).toContain('formatLocalizedDateTime(row.createdTime)')
     expect(notifications).toContain('formatLocalizedNumber(unreadCount)')
   })
