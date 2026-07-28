@@ -125,7 +125,13 @@ const roleView = [
   'src/composables/useSystemRoleForm.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const menuView = readFileSync(resolve(root, 'src/views/system/menus/index.vue'), 'utf8')
-const deptView = readFileSync(resolve(root, 'src/views/system/depts/index.vue'), 'utf8')
+// 系统部门页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const deptView = [
+  'src/views/system/depts/index.vue',
+  'src/composables/useSystemDeptPresentation.ts',
+  'src/composables/useSystemDeptList.ts',
+  'src/composables/useSystemDeptForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // 系统岗位页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const postView = [
   'src/views/system/posts/index.vue',
@@ -1883,7 +1889,7 @@ const systemEnableViewContracts = [
   {
     name: '系统部门页',
     content: deptView,
-    fragments: ['enableDept,', 'const handleEnable = async (row: Dept) =>', 'await enableDept(row.id)', 'systemDept.disable', 'systemDept.enable']
+    fragments: ['enableDept,', 'const handleEnable = async (row: Dept) =>', 'await options.enableDept(row.id)', 'systemDept.disable', 'systemDept.enable']
   },
   {
     name: '系统岗位页',

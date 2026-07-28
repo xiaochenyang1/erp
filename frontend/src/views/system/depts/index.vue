@@ -27,8 +27,7 @@
         <el-table-column prop="orderNum" :label="$t('systemDept.order')" width="80" />
         <el-table-column prop="status" :label="$t('systemDept.status')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'ACTIVE'" type="success">{{ $t('systemDept.active') }}</el-tag>
-            <el-tag v-else type="danger">{{ $t('systemDept.inactive') }}</el-tag>
+            <el-tag :type="statusType(row.status)">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="$t('systemDept.actions')" width="280" fixed="right">
@@ -84,33 +83,66 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getDeptTree, getDept, createDept, updateDept, deleteDept, enableDept, type Dept, type DeptSaveRequest } from '@/api/system'
+import { Plus, DCaret } from '@element-plus/icons-vue'
+import {
+  getDeptTree,
+  getDept,
+  createDept,
+  updateDept,
+  deleteDept,
+  enableDept,
+  type Dept
+} from '@/api/system'
+import { useSystemDeptPresentation } from '@/composables/useSystemDeptPresentation'
+import { useSystemDeptList } from '@/composables/useSystemDeptList'
+import { useSystemDeptForm } from '@/composables/useSystemDeptForm'
 
 const { t } = useI18n()
-
-const loading = ref(false)
-const tableData = ref<Dept[]>([])
-const deptTree = ref<Dept[]>([])
-const dialogVisible = ref(false)
-const submitLoading = ref(false)
-const dialogTitle = ref('')
-const isEdit = ref(false)
-const currentId = ref<string | number>('')
 const formRef = ref<FormInstance>()
 const tableRef = ref()
 
-const formData = reactive<DeptSaveRequest>({
-  parentId: undefined,
-  name: '',
-  code: '',
-  manager: '',
-  contact: '',
-  orderNum: 0,
-  status: 'ACTIVE'
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const { statusText, statusType, buildParentTree } = useSystemDeptPresentation(t)
+
+const {
+  deptTree,
+  handleDisable,
+  handleEnable,
+  loadData,
+  loading,
+  tableData
+} = useSystemDeptList(t, {
+  getDeptTree,
+  deleteDept,
+  enableDept,
+  buildParentTree,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  ...notify
+})
+
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleCreate,
+  handleEdit: openEdit,
+  handleSubmit: saveDept,
+  resetForm: resetFormState,
+  submitLoading
+} = useSystemDeptForm(t, {
+  getDept,
+  createDept,
+  updateDept,
+  onSubmitted: loadData,
+  ...notify
 })
 
 const formRules = computed<FormRules>(() => ({
@@ -118,112 +150,25 @@ const formRules = computed<FormRules>(() => ({
   orderNum: [{ required: true, message: t('systemDept.validation.order'), trigger: 'blur' }]
 }))
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const data = await getDeptTree()
-    tableData.value = data
-    deptTree.value = [{ id: 0, name: t('systemDept.root'), children: data } as any]
-  } catch {
-    ElMessage.error(t('systemDept.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
 const expandAll = () => {
   tableRef.value?.toggleAllRowExpansion()
 }
 
-const handleCreate = (row: Dept | null) => {
-  dialogTitle.value = t('systemDept.create')
-  isEdit.value = false
-  resetForm()
-  if (row) {
-    formData.parentId = row.id
-  }
-  dialogVisible.value = true
-}
-
 const handleEdit = async (row: Dept) => {
-  dialogTitle.value = t('systemDept.editTitle')
-  isEdit.value = true
-  currentId.value = row.id
-  try {
-    const data = await getDept(row.id)
-    Object.assign(formData, data)
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('systemDept.message.detailLoadFailed'))
-  }
-}
-
-const handleDisable = async (row: Dept) => {
-  try {
-    await ElMessageBox.confirm(t('systemDept.message.disableConfirm', { name: row.name }), t('systemDept.message.prompt'), {
-      confirmButtonText: t('systemDept.message.confirm'),
-      cancelButtonText: t('systemDept.message.cancel'),
-      type: 'warning'
-    })
-    await deleteDept(row.id)
-    ElMessage.success(t('systemDept.message.disabled'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemDept.message.disableFailed'))
-    }
-  }
-}
-
-const handleEnable = async (row: Dept) => {
-  try {
-    await ElMessageBox.confirm(t('systemDept.message.enableConfirm', { name: row.name }), t('systemDept.message.prompt'), {
-      confirmButtonText: t('systemDept.message.confirm'),
-      cancelButtonText: t('systemDept.message.cancel'),
-      type: 'warning'
-    })
-    await enableDept(row.id)
-    ElMessage.success(t('systemDept.message.enabled'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemDept.message.enableFailed'))
-    }
-  }
+  await openEdit(row)
 }
 
 const handleSubmit = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitLoading.value = true
-      try {
-        if (isEdit.value) {
-          await updateDept(currentId.value, formData)
-        } else {
-          await createDept(formData)
-        }
-        ElMessage.success(t('systemDept.message.saved'))
-        dialogVisible.value = false
-        loadData()
-      } catch {
-        ElMessage.error(t('systemDept.message.saveFailed'))
-      } finally {
-        submitLoading.value = false
-      }
-    }
+    if (!valid) return
+    await saveDept()
   })
 }
 
 const resetForm = () => {
-  formData.parentId = undefined
-  formData.name = ''
-  formData.code = ''
-  formData.manager = ''
-  formData.contact = ''
-  formData.orderNum = 0
-  formData.status = 'ACTIVE'
   formRef.value?.clearValidate()
+  resetFormState()
 }
 
 onMounted(() => {
