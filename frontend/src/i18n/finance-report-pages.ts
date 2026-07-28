@@ -708,7 +708,7 @@ export const financeReportPageMessages = {
           productionCompletion: '生产入库'
         },
         fileName: '{report}-{timestamp}.csv',
-        message: { exported: '导出成功', exportFailed: '导出失败' }
+        message: { loadFailed: '加载报表失败', exported: '导出成功', exportFailed: '导出失败' }
       },
       traces: {
         businessKeyword: '业务关键字',
@@ -1056,7 +1056,7 @@ export const financeReportPageMessages = {
           salesReturn: 'Sales return', inventoryAdjustment: 'Inventory adjustment', inventoryTransfer: 'Inventory transfer',
           productionIssue: 'Production issue', productionCompletion: 'Production completion'
         },
-        message: { exported: 'Export complete', exportFailed: 'Export failed' }
+        message: { loadFailed: 'Failed to load report', exported: 'Export complete', exportFailed: 'Export failed' }
       },
       traces: {
         businessKeyword: 'Business keyword', keywordPlaceholder: 'Enter an order, receipt/delivery, receivable, or payable no.',

@@ -15,6 +15,8 @@ const componentPaths = [
   'src/views/finance/payments/index.vue',
   'src/views/finance/vouchers/manual/index.vue',
   'src/views/reports/index.vue',
+  'src/composables/useReportPresentation.ts',
+  'src/composables/useReportList.ts',
   'src/views/reports/traces/index.vue'
 ] as const
 

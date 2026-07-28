@@ -155,21 +155,20 @@
         :total="activeState.total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadActiveReport"
-        @current-change="loadActiveReport"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
-import { formatLocalizedCurrency, formatLocalizedNumber } from '@/utils/locale'
 import {
   exportFinanceSettlementReport,
   exportInventoryBalanceReport,
@@ -180,215 +179,52 @@ import {
   getInventoryBalanceReport,
   getInventoryTransactionReport,
   getPurchaseOrderReport,
-  getSalesOrderReport,
-  type FinanceSettlementReportRow,
-  type InventoryBalanceReportRow,
-  type InventoryTransactionReportRow,
-  type OrderReportRow,
-  type ReportQuery
+  getSalesOrderReport
 } from '@/api/workflow'
-
-type ReportKey = 'purchase' | 'sales' | 'inventoryBalance' | 'inventoryTransaction' | 'financeSettlement'
-type ReportRecord = OrderReportRow | InventoryBalanceReportRow | InventoryTransactionReportRow | FinanceSettlementReportRow
-
-interface ReportState {
-  loading: boolean
-  pageNo: number
-  pageSize: number
-  total: number
-  records: ReportRecord[]
-}
+import { useReportList } from '@/composables/useReportList'
+import { useReportPresentation } from '@/composables/useReportPresentation'
 
 const { t } = useI18n()
-
-const reportTabs = computed<Array<{ key: ReportKey; label: string }>>(() => [
-  { key: 'purchase', label: t('financeReportPages.reports.tabs.purchase') },
-  { key: 'sales', label: t('financeReportPages.reports.tabs.sales') },
-  { key: 'inventoryBalance', label: t('financeReportPages.reports.tabs.inventoryBalance') },
-  { key: 'inventoryTransaction', label: t('financeReportPages.reports.tabs.inventoryTransaction') },
-  { key: 'financeSettlement', label: t('financeReportPages.reports.tabs.financeSettlement') }
-])
-
 const route = useRoute()
-const activeKey = ref<ReportKey>('purchase')
-const dateRange = ref<[string, string] | null>(null)
-const queryForm = reactive({ keyword: '' })
-const reportStates = reactive<Record<ReportKey, ReportState>>({
-  purchase: emptyState(),
-  sales: emptyState(),
-  inventoryBalance: emptyState(),
-  inventoryTransaction: emptyState(),
-  financeSettlement: emptyState()
+const {
+  activeKey,
+  activeState,
+  dateRange,
+  handleExport,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  handleTabChange,
+  loadActiveReport,
+  queryForm
+} = useReportList(t, {
+  getPurchaseOrderReport,
+  getSalesOrderReport,
+  getInventoryBalanceReport,
+  getInventoryTransactionReport,
+  getFinanceSettlementReport,
+  exportPurchaseOrderReport,
+  exportSalesOrderReport,
+  exportInventoryBalanceReport,
+  exportInventoryTransactionReport,
+  exportFinanceSettlementReport,
+  downloadBlob,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
-
-const activeState = computed(() => reportStates[activeKey.value])
-const activeReport = computed(() => reportTabs.value.find((item) => item.key === activeKey.value) || reportTabs.value[0])
-const pageCount = computed(() => Math.max(1, Math.ceil(activeState.value.total / activeState.value.pageSize)))
-const summaryAmount = computed(() => {
-  return activeState.value.records.reduce((sum, row) => {
-    if ('totalAmount' in row) return sum + Number(row.totalAmount || 0)
-    if ('amountOnHand' in row) return sum + Number(row.amountOnHand || 0)
-    if ('amount' in row) return sum + Number(row.amount || 0)
-    if ('remainingAmount' in row) return sum + Number(row.remainingAmount || 0)
-    return sum
-  }, 0)
-})
-
-function emptyState(): ReportState {
-  return {
-    loading: false,
-    pageNo: 1,
-    pageSize: 10,
-    total: 0,
-    records: []
-  }
-}
-
-const handleQuery = () => {
-  activeState.value.pageNo = 1
-  loadActiveReport()
-}
-
-const handleReset = () => {
-  dateRange.value = null
-  queryForm.keyword = ''
-  handleQuery()
-}
-
-const handleTabChange = () => {
-  if (activeState.value.records.length === 0) {
-    loadActiveReport()
-  }
-}
-
-const loadActiveReport = async () => {
-  const state = activeState.value
-  state.loading = true
-  try {
-    const params = buildParams(activeKey.value, state)
-    const page = await fetchReport(activeKey.value, params)
-    state.records = page.records
-    state.total = page.total
-    state.pageNo = page.pageNo
-    state.pageSize = page.pageSize
-  } finally {
-    state.loading = false
-  }
-}
-
-const fetchReport = (key: ReportKey, params: ReportQuery) => {
-  const loaders = {
-    purchase: getPurchaseOrderReport,
-    sales: getSalesOrderReport,
-    inventoryBalance: getInventoryBalanceReport,
-    inventoryTransaction: getInventoryTransactionReport,
-    financeSettlement: getFinanceSettlementReport
-  }
-  return loaders[key](params)
-}
-
-const buildParams = (key: ReportKey, state: ReportState): ReportQuery => {
-  const params: ReportQuery = {
-    pageNo: state.pageNo,
-    pageSize: state.pageSize
-  }
-  if (key === 'purchase' || key === 'sales') {
-    params.keyword = queryForm.keyword || undefined
-    params.orderDateFrom = dateRange.value?.[0]
-    params.orderDateTo = dateRange.value?.[1]
-  } else if (key === 'inventoryTransaction') {
-    params.bizNo = queryForm.keyword || undefined
-    params.occurredTimeFrom = dateRange.value?.[0] ? `${dateRange.value[0]}T00:00:00` : undefined
-    params.occurredTimeTo = dateRange.value?.[1] ? `${dateRange.value[1]}T23:59:59` : undefined
-  } else if (key === 'financeSettlement') {
-    params.bizDateFrom = dateRange.value?.[0]
-    params.bizDateTo = dateRange.value?.[1]
-  }
-  return params
-}
-
-const handleExport = async () => {
-  try {
-    const params = buildParams(activeKey.value, activeState.value)
-    const exporters = {
-      purchase: exportPurchaseOrderReport,
-      sales: exportSalesOrderReport,
-      inventoryBalance: exportInventoryBalanceReport,
-      inventoryTransaction: exportInventoryTransactionReport,
-      financeSettlement: exportFinanceSettlementReport
-    }
-    const blob = await exporters[activeKey.value](params)
-    downloadBlob(blob, t('financeReportPages.reports.fileName', {
-      report: activeReport.value.label,
-      timestamp: Date.now()
-    }))
-    ElMessage.success(t('financeReportPages.reports.message.exported'))
-  } catch (error) {
-    ElMessage.error(t('financeReportPages.reports.message.exportFailed'))
-  }
-}
-
-const formatMoney = (amount?: number) => {
-  return formatLocalizedCurrency(Number(amount || 0))
-}
-
-const formatNumber = (value?: number) => {
-  return formatLocalizedNumber(Number(value || 0), {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
-}
-
-const reportStatusLabel = (status?: string) => {
-  const labels: Record<string, string> = {
-    DRAFT: t('financeReportPages.reports.status.draft'),
-    SUBMITTED: t('financeReportPages.reports.status.submitted'),
-    APPROVED: t('financeReportPages.reports.status.approved'),
-    REJECTED: t('financeReportPages.reports.status.rejected'),
-    CONFIRMED: t('financeReportPages.reports.status.confirmed'),
-    CLOSED: t('financeReportPages.reports.status.closed'),
-    CANCELLED: t('financeReportPages.reports.status.cancelled'),
-    NOT_SUBMITTED: t('financeReportPages.reports.status.notSubmitted'),
-    PENDING: t('financeReportPages.reports.status.pending'),
-    NOT_RECEIVED: t('financeReportPages.reports.status.notReceived'),
-    PARTIALLY_RECEIVED: t('financeReportPages.reports.status.partiallyReceived'),
-    PARTIAL_RECEIVED: t('financeReportPages.reports.status.partiallyReceived'),
-    RECEIVED: t('financeReportPages.reports.status.received'),
-    NOT_DELIVERED: t('financeReportPages.reports.status.notDelivered'),
-    PARTIALLY_DELIVERED: t('financeReportPages.reports.status.partiallyDelivered'),
-    PARTIAL_DELIVERED: t('financeReportPages.reports.status.partiallyDelivered'),
-    DELIVERED: t('financeReportPages.reports.status.delivered'),
-    UNSETTLED: t('financeReportPages.reports.status.unsettled'),
-    PARTIALLY_SETTLED: t('financeReportPages.reports.status.partiallySettled'),
-    SETTLED: t('financeReportPages.reports.status.settled'),
-    OFFSET: t('financeReportPages.reports.status.offset')
-  }
-  return status ? labels[status] || status : '-'
-}
-
-const reportDirectionLabel = (direction?: string) => {
-  if (direction === 'IN') return t('financeReportPages.reports.directionValue.inbound')
-  if (direction === 'OUT') return t('financeReportPages.reports.directionValue.outbound')
-  return direction || '-'
-}
-
-const reportBusinessTypeLabel = (type?: string) => {
-  const labels: Record<string, string> = {
-    PURCHASE_RECEIPT: t('financeReportPages.reports.businessTypeValue.purchaseReceipt'),
-    PURCHASE_RETURN: t('financeReportPages.reports.businessTypeValue.purchaseReturn'),
-    SALES_DELIVERY: t('financeReportPages.reports.businessTypeValue.salesDelivery'),
-    SALES_RETURN: t('financeReportPages.reports.businessTypeValue.salesReturn'),
-    INVENTORY_ADJUSTMENT: t('financeReportPages.reports.businessTypeValue.inventoryAdjustment'),
-    INVENTORY_TRANSFER: t('financeReportPages.reports.businessTypeValue.inventoryTransfer'),
-    PRODUCTION_ISSUE: t('financeReportPages.reports.businessTypeValue.productionIssue'),
-    PRODUCTION_COMPLETION: t('financeReportPages.reports.businessTypeValue.productionCompletion')
-  }
-  return type ? labels[type] || type : '-'
-}
-
-const isReportKey = (value: unknown): value is ReportKey => {
-  return typeof value === 'string' && reportTabs.value.some((item) => item.key === value)
-}
+const {
+  activeReport,
+  formatMoney,
+  formatNumber,
+  isReportKey,
+  pageCount,
+  reportBusinessTypeLabel,
+  reportDirectionLabel,
+  reportStatusLabel,
+  reportTabs,
+  summaryAmount
+} = useReportPresentation(t, activeKey, activeState)
 
 onMounted(() => {
   if (isReportKey(route.query.tab)) {
