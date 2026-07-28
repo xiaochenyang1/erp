@@ -31,8 +31,12 @@
         </el-form-item>
         <el-form-item :label="$t('systemNotifications.status')">
           <el-select v-model="readStatus" :placeholder="$t('systemNotifications.selectStatus')" clearable style="width: 140px">
-            <el-option :label="$t('systemNotifications.unread')" value="UNREAD" />
-            <el-option :label="$t('systemNotifications.all')" value="ALL" />
+            <el-option
+              v-for="option in readStatusOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -44,7 +48,7 @@
 
     <el-card shadow="never" class="table-card">
       <el-table v-loading="loading" :data="tableData" border stripe @selection-change="onSelectionChange">
-        <el-table-column type="selection" width="48" :selectable="(row: Notification) => !row.readFlag" />
+        <el-table-column type="selection" width="48" :selectable="canSelectNotification" />
         <el-table-column prop="title" :label="$t('systemNotifications.notificationTitle')" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
             <el-badge is-dot :hidden="row.readFlag" class="notice-badge">
@@ -56,15 +60,15 @@
           <template #default="{ row }">{{ row.category || '-' }}</template>
         </el-table-column>
         <el-table-column prop="notificationType" :label="$t('systemNotifications.type')" width="150">
-          <template #default="{ row }">{{ row.notificationType || row.type || '-' }}</template>
+          <template #default="{ row }">{{ notificationTypeLabel(row) }}</template>
         </el-table-column>
         <el-table-column prop="bizNo" :label="$t('systemNotifications.businessNo')" width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ row.bizNo || '-' }}</template>
         </el-table-column>
         <el-table-column prop="readFlag" :label="$t('systemNotifications.status')" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.readFlag ? 'info' : 'warning'">
-              {{ row.readFlag ? $t('systemNotifications.read') : $t('systemNotifications.unread') }}
+            <el-tag :type="notificationStatusTagType(row)">
+              {{ notificationStatusLabel(row) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -110,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Check, Refresh, Search, View } from '@element-plus/icons-vue'
@@ -120,126 +124,52 @@ import {
   getUnreadCount,
   markAllNotificationsRead,
   markNotificationRead,
-  markNotificationsReadBatch,
-  type Notification,
-  type NotificationQuery
+  markNotificationsReadBatch
 } from '@/api/notification'
+import { useSystemNotificationList } from '@/composables/useSystemNotificationList'
+import { useSystemNotificationPresentation } from '@/composables/useSystemNotificationPresentation'
 
 const { t } = useI18n()
 
-const queryForm = reactive<NotificationQuery>({
-  category: '',
-  notificationType: ''
+const {
+  canSelectNotification,
+  notificationStatusLabel,
+  notificationStatusTagType,
+  notificationTypeLabel,
+  readStatusOptions
+} = useSystemNotificationPresentation(t)
+
+const {
+  detailData,
+  detailVisible,
+  handleMarkAllRead,
+  handleMarkRead,
+  handleMarkSelectedRead,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleView,
+  loadData,
+  loading,
+  onSelectionChange,
+  pagination,
+  queryForm,
+  readStatus,
+  selectedRows,
+  tableData,
+  unreadCount
+} = useSystemNotificationList(t, {
+  getNotifications,
+  getUnreadCount,
+  markNotificationRead,
+  markAllNotificationsRead,
+  markNotificationsReadBatch,
+  formatNumber: formatLocalizedNumber,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  reportLoadError: (error) => console.error('Failed to load notifications:', error)
 })
-const readStatus = ref('ALL')
-const unreadCount = ref(0)
-const selectedRows = ref<Notification[]>([])
-
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const loading = ref(false)
-const tableData = ref<Notification[]>([])
-const detailVisible = ref(false)
-const detailData = ref<Notification>({} as Notification)
-
-const onSelectionChange = (rows: Notification[]) => {
-  selectedRows.value = rows
-}
-
-const buildQueryParams = (): NotificationQuery => ({
-  ...queryForm,
-  unreadOnly: readStatus.value === 'UNREAD' ? true : undefined,
-  pageNo: pagination.page,
-  pageSize: pagination.size
-})
-
-const loadUnreadCount = async () => {
-  const res = await getUnreadCount()
-  unreadCount.value = res.unreadCount
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getNotifications(buildQueryParams())
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-    await loadUnreadCount()
-  } catch (error) {
-    console.error('Failed to load notifications:', error)
-    ElMessage.error(t('systemNotifications.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.category = ''
-  queryForm.notificationType = ''
-  readStatus.value = 'ALL'
-  pagination.page = 1
-  loadData()
-}
-
-const handlePageChange = () => {
-  loadData()
-}
-
-const handleView = async (row: Notification) => {
-  detailData.value = row
-  detailVisible.value = true
-  if (!row.readFlag) {
-    await handleMarkRead(row, false)
-  }
-}
-
-const handleMarkRead = async (row: Notification, showMessage = true) => {
-  try {
-    await markNotificationRead(row.recipientId)
-    if (showMessage) ElMessage.success(t('systemNotifications.message.markedRead'))
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('systemNotifications.message.markReadFailed'))
-  }
-}
-
-const handleMarkAllRead = async () => {
-  try {
-    await markAllNotificationsRead()
-    ElMessage.success(t('systemNotifications.message.allMarkedRead'))
-    selectedRows.value = []
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('systemNotifications.message.markAllReadFailed'))
-  }
-}
-
-const handleMarkSelectedRead = async () => {
-  const ids = selectedRows.value.filter((r) => !r.readFlag).map((r) => r.recipientId)
-  if (!ids.length) {
-    ElMessage.warning(t('systemNotifications.message.selectUnread'))
-    return
-  }
-  try {
-    const res = await markNotificationsReadBatch(ids)
-    ElMessage.success(t('systemNotifications.message.batchMarkedRead', {
-      count: formatLocalizedNumber(res?.updated ?? ids.length)
-    }))
-    selectedRows.value = []
-    loadData()
-  } catch (error) {
-    ElMessage.error(t('systemNotifications.message.batchMarkReadFailed'))
-  }
-}
 
 onMounted(() => {
   loadData()
