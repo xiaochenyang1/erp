@@ -283,6 +283,7 @@ export const platformPageMessages = {
       validation: { code: '请输入岗位编码', name: '请输入岗位名称', dept: '请选择所属部门' },
       message: {
         loadFailed: '加载数据失败',
+        optionsLoadFailed: '加载部门选项失败',
         detailLoadFailed: '加载岗位详情失败',
         disableConfirm: '确定要停用岗位“{name}”吗？',
         enableConfirm: '确定要启用岗位“{name}”吗？',
@@ -581,6 +582,7 @@ export const platformPageMessages = {
       validation: { code: 'Enter a post code', name: 'Enter a post name', dept: 'Select a department' },
       message: {
         loadFailed: 'Failed to load posts',
+        optionsLoadFailed: 'Failed to load department options',
         detailLoadFailed: 'Failed to load the post',
         disableConfirm: 'Disable post “{name}”?',
         enableConfirm: 'Enable post “{name}”?',

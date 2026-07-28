@@ -4,7 +4,17 @@ import { resolve } from 'node:path'
 import { interfaceIncludes } from './check-contract-utils.mjs'
 
 const root = resolve(import.meta.dirname, '..')
-const orderView = readFileSync(resolve(root, 'src/views/production/orders/index.vue'), 'utf8')
+// 生产订单页已按 E-1 拆分为展示/列表/表单/领退料/工序/完工/控制标志 composable，契约仍按整块特性校验
+const orderView = [
+  'src/views/production/orders/index.vue',
+  'src/composables/useProductionOrderPresentation.ts',
+  'src/composables/useProductionOrderList.ts',
+  'src/composables/useProductionOrderForm.ts',
+  'src/composables/useProductionOrderMaterials.ts',
+  'src/composables/useProductionOrderOperations.ts',
+  'src/composables/useProductionOrderCompletion.ts',
+  'src/composables/useProductionOrderProductControls.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // BOM 页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const bomView = [
   'src/views/production/boms/index.vue',
@@ -16,9 +26,28 @@ const productionApi = readFileSync(resolve(root, 'src/api/production.ts'), 'utf8
 const inventoryApi = readFileSync(resolve(root, 'src/api/inventory.ts'), 'utf8')
 const authApi = readFileSync(resolve(root, 'src/api/auth.ts'), 'utf8')
 const purchaseApi = readFileSync(resolve(root, 'src/api/purchase.ts'), 'utf8')
-const purchaseInquiryView = readFileSync(resolve(root, 'src/views/purchase/inquiries/index.vue'), 'utf8')
-const purchaseReceiptView = readFileSync(resolve(root, 'src/views/purchase/receipts/index.vue'), 'utf8')
-const purchaseReturnView = readFileSync(resolve(root, 'src/views/purchase/returns/index.vue'), 'utf8')
+// 采购询价页已按 E-1 拆分为展示/列表/表单/报价 composable，契约仍按整块特性校验
+const purchaseInquiryView = [
+  'src/views/purchase/inquiries/index.vue',
+  'src/composables/usePurchaseInquiryPresentation.ts',
+  'src/composables/usePurchaseInquiryList.ts',
+  'src/composables/usePurchaseInquiryForm.ts',
+  'src/composables/usePurchaseInquiryQuotes.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+// 采购收货页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const purchaseReceiptView = [
+  'src/views/purchase/receipts/index.vue',
+  'src/composables/usePurchaseReceiptPresentation.ts',
+  'src/composables/usePurchaseReceiptList.ts',
+  'src/composables/usePurchaseReceiptForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+// 采购退货页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const purchaseReturnView = [
+  'src/views/purchase/returns/index.vue',
+  'src/composables/usePurchaseReturnPresentation.ts',
+  'src/composables/usePurchaseReturnList.ts',
+  'src/composables/usePurchaseReturnForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const salesApi = readFileSync(resolve(root, 'src/api/sales.ts'), 'utf8')
 const dashboardApi = readFileSync(resolve(root, 'src/api/dashboard.ts'), 'utf8')
 const businessTraceApi = readFileSync(resolve(root, 'src/api/businessTrace.ts'), 'utf8')
@@ -30,9 +59,27 @@ const businessTraceView = [
   'src/composables/useBusinessTracePresentation.ts',
   'src/composables/useBusinessTraceList.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
-const salesOrderView = readFileSync(resolve(root, 'src/views/sales/orders/index.vue'), 'utf8')
-const salesDeliveryView = readFileSync(resolve(root, 'src/views/sales/deliveries/index.vue'), 'utf8')
-const purchaseOrderView = readFileSync(resolve(root, 'src/views/purchase/orders/index.vue'), 'utf8')
+// 销售订单页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const salesOrderView = [
+  'src/views/sales/orders/index.vue',
+  'src/composables/useSalesOrderPresentation.ts',
+  'src/composables/useSalesOrderList.ts',
+  'src/composables/useSalesOrderForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+// 销售发货页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const salesDeliveryView = [
+  'src/views/sales/deliveries/index.vue',
+  'src/composables/useSalesDeliveryPresentation.ts',
+  'src/composables/useSalesDeliveryList.ts',
+  'src/composables/useSalesDeliveryForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+// 采购订单页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const purchaseOrderView = [
+  'src/views/purchase/orders/index.vue',
+  'src/composables/usePurchaseOrderPresentation.ts',
+  'src/composables/usePurchaseOrderList.ts',
+  'src/composables/usePurchaseOrderForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const financeReceivableView = readFileSync(resolve(root, 'src/views/finance/receivables/index.vue'), 'utf8')
 const financePayableView = readFileSync(resolve(root, 'src/views/finance/payables/index.vue'), 'utf8')
 const financeAccountView = readFileSync(resolve(root, 'src/views/finance/FinanceAccountsPage.vue'), 'utf8')
@@ -79,7 +126,13 @@ const roleView = [
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const menuView = readFileSync(resolve(root, 'src/views/system/menus/index.vue'), 'utf8')
 const deptView = readFileSync(resolve(root, 'src/views/system/depts/index.vue'), 'utf8')
-const postView = readFileSync(resolve(root, 'src/views/system/posts/index.vue'), 'utf8')
+// 系统岗位页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const postView = [
+  'src/views/system/posts/index.vue',
+  'src/composables/useSystemPostPresentation.ts',
+  'src/composables/useSystemPostList.ts',
+  'src/composables/useSystemPostForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // 系统字典页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const dictView = [
   'src/views/system/dicts/index.vue',
@@ -94,7 +147,13 @@ const configView = [
   'src/composables/useSystemConfigList.ts',
   'src/composables/useSystemConfigForm.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
-const salesReturnView = readFileSync(resolve(root, 'src/views/sales/returns/index.vue'), 'utf8')
+// 销售退货页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const salesReturnView = [
+  'src/views/sales/returns/index.vue',
+  'src/composables/useSalesReturnPresentation.ts',
+  'src/composables/useSalesReturnList.ts',
+  'src/composables/useSalesReturnForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const financeApi = readFileSync(resolve(root, 'src/api/finance.ts'), 'utf8')
 // 费用页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const expenseView = [
@@ -104,9 +163,25 @@ const expenseView = [
   'src/composables/useExpenseForm.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const voucherView = readFileSync(resolve(root, 'src/views/finance/vouchers/index.vue'), 'utf8')
-const subjectView = readFileSync(resolve(root, 'src/views/finance/subjects/index.vue'), 'utf8')
-const ledgerView = readFileSync(resolve(root, 'src/views/finance/ledger/index.vue'), 'utf8')
-const financePeriodView = readFileSync(resolve(root, 'src/views/finance/periods/index.vue'), 'utf8')
+// 会计科目页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const subjectView = [
+  'src/views/finance/subjects/index.vue',
+  'src/composables/useAccountSubjectPresentation.ts',
+  'src/composables/useAccountSubjectList.ts',
+  'src/composables/useAccountSubjectForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+// 总账明细账页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
+const ledgerView = [
+  'src/views/finance/ledger/index.vue',
+  'src/composables/useFinanceLedgerPresentation.ts',
+  'src/composables/useFinanceLedgerList.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+// 财务期间页已按 E-1 拆分为展示/动作 composable，契约仍按整块特性校验
+const financePeriodView = [
+  'src/views/finance/periods/index.vue',
+  'src/composables/useFinancePeriodPresentation.ts',
+  'src/composables/useFinancePeriodActions.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const fundApi = readFileSync(resolve(root, 'src/api/fund.ts'), 'utf8')
 // 资金页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const fundView = [
@@ -118,10 +193,31 @@ const fundView = [
 const masterdataApi = readFileSync(resolve(root, 'src/api/masterdata.ts'), 'utf8')
 const barcodeScanField = readFileSync(resolve(root, 'src/components/common/BarcodeScanField.vue'), 'utf8')
 const barcodeUtils = readFileSync(resolve(root, 'src/utils/barcode.ts'), 'utf8')
-const productView = readFileSync(resolve(root, 'src/views/masterdata/products/index.vue'), 'utf8')
-const customerView = readFileSync(resolve(root, 'src/views/masterdata/customers/index.vue'), 'utf8')
-const supplierView = readFileSync(resolve(root, 'src/views/masterdata/suppliers/index.vue'), 'utf8')
-const warehouseView = readFileSync(resolve(root, 'src/views/masterdata/warehouses/index.vue'), 'utf8')
+// 主数据页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const productView = [
+  'src/views/masterdata/products/index.vue',
+  'src/composables/useProductPresentation.ts',
+  'src/composables/useProductList.ts',
+  'src/composables/useProductForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+const customerView = [
+  'src/views/masterdata/customers/index.vue',
+  'src/composables/useCustomerPresentation.ts',
+  'src/composables/useCustomerList.ts',
+  'src/composables/useCustomerForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+const supplierView = [
+  'src/views/masterdata/suppliers/index.vue',
+  'src/composables/useSupplierPresentation.ts',
+  'src/composables/useSupplierList.ts',
+  'src/composables/useSupplierForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+const warehouseView = [
+  'src/views/masterdata/warehouses/index.vue',
+  'src/composables/useWarehousePresentation.ts',
+  'src/composables/useWarehouseList.ts',
+  'src/composables/useWarehouseForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const workflowApi = readFileSync(resolve(root, 'src/api/workflow.ts'), 'utf8')
 // 审批待办页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
 const workflowTaskView = [
@@ -130,7 +226,12 @@ const workflowTaskView = [
   'src/composables/useWorkflowTaskList.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const workflowTaskQuery = readFileSync(resolve(root, 'src/views/workflow/tasks/query.ts'), 'utf8')
-const workflowRecordView = readFileSync(resolve(root, 'src/views/workflow/records/index.vue'), 'utf8')
+// 审批记录页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
+const workflowRecordView = [
+  'src/views/workflow/records/index.vue',
+  'src/composables/useWorkflowRecordPresentation.ts',
+  'src/composables/useWorkflowRecordList.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // 审批配置页已按 E-1 拆分为展示/表单 composable，契约仍按整块特性校验
 const workflowConfigViewPath = resolve(root, 'src/views/workflow/configs/index.vue')
 const workflowConfigView = existsSync(workflowConfigViewPath)
@@ -144,11 +245,29 @@ const workflowConfigView = existsSync(workflowConfigViewPath)
       .join('\n')
   : ''
 const exceptionTicketApi = readFileSync(resolve(root, 'src/api/exceptionTicket.ts'), 'utf8')
-const exceptionTicketView = readFileSync(resolve(root, 'src/views/exception-tickets/index.vue'), 'utf8')
+// 异常工单页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const exceptionTicketView = [
+  'src/views/exception-tickets/index.vue',
+  'src/composables/useExceptionTicketPresentation.ts',
+  'src/composables/useExceptionTicketList.ts',
+  'src/composables/useExceptionTicketForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const exceptionRuleApi = readFileSync(resolve(root, 'src/api/exceptionRule.ts'), 'utf8')
-const exceptionRuleView = readFileSync(resolve(root, 'src/views/exception-rules/index.vue'), 'utf8')
+// 异常规则页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const exceptionRuleView = [
+  'src/views/exception-rules/index.vue',
+  'src/composables/useExceptionRulePresentation.ts',
+  'src/composables/useExceptionRuleList.ts',
+  'src/composables/useExceptionRuleForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const exceptionSlaPolicyApi = readFileSync(resolve(root, 'src/api/exceptionSlaPolicy.ts'), 'utf8')
-const exceptionSlaPolicyView = readFileSync(resolve(root, 'src/views/exception-sla-policies/index.vue'), 'utf8')
+// 异常 SLA 策略页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const exceptionSlaPolicyView = [
+  'src/views/exception-sla-policies/index.vue',
+  'src/composables/useExceptionSlaPolicyPresentation.ts',
+  'src/composables/useExceptionSlaPolicyList.ts',
+  'src/composables/useExceptionSlaPolicyForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const attachmentApi = readFileSync(resolve(root, 'src/api/attachment.ts'), 'utf8')
 const attachmentView = readFileSync(resolve(root, 'src/views/system/attachments/index.vue'), 'utf8')
 const routerConfig = readFileSync(resolve(root, 'src/router/index.ts'), 'utf8')
@@ -171,7 +290,12 @@ const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInv
 const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInventoryStockActions.ts'), 'utf8')
 const inventoryStockResources = readFileSync(resolve(root, 'src/composables/useInventoryStockResources.ts'), 'utf8')
 const inventoryStockFeature = `${inventoryStockView}\n${inventoryStockDetails}\n${inventoryStockActions}\n${inventoryStockResources}`
-const inventoryAlertView = readFileSync(resolve(root, 'src/views/inventory/alerts/index.vue'), 'utf8')
+// 库存预警页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
+const inventoryAlertView = [
+  'src/views/inventory/alerts/index.vue',
+  'src/composables/useInventoryAlertPresentation.ts',
+  'src/composables/useInventoryAlertList.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // 盘点页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const inventoryCheckView = readFileSync(resolve(root, 'src/views/inventory/checks/index.vue'), 'utf8')
 const inventoryCheckPresentation = readFileSync(resolve(root, 'src/composables/useInventoryCheckPresentation.ts'), 'utf8')
@@ -220,9 +344,9 @@ const requiredFragments = [
   'prop="finishedWarehouseId"',
   'v-model="formData.finishedWarehouseId"',
   'const optionPageQuery = { pageNo: 1, pageSize: 200 }',
-  'getProducts(optionPageQuery)',
-  'getWarehouses(optionPageQuery)',
-  'getBOMs(optionPageQuery)'
+  'options.getProducts(optionPageQuery)',
+  'options.getWarehouses(optionPageQuery)',
+  'options.getBoms(optionPageQuery)'
 ]
 
 const forbiddenFragments = [
@@ -693,7 +817,11 @@ for (const view of [
   if (!view.content.includes(`${view.detailApi},`)) {
     errors.push(`${view.name}缺少主数据详情 API 导入片段: ${view.detailApi},`)
   }
-  if (!view.content.includes(`await ${view.detailApi}(row.id)`)) {
+  const detailCallOk = (
+    view.content.includes(`await ${view.detailApi}(row.id)`)
+    || view.content.includes(`await options.${view.detailApi}(row.id)`)
+  )
+  if (!detailCallOk) {
     errors.push(`${view.name}查看详情未调用后端详情接口片段: await ${view.detailApi}(row.id)`)
   }
   if (!view.content.includes('handleEnable(row)')) {
@@ -806,14 +934,20 @@ const traceRouteTargetViews = [
 ]
 
 for (const view of traceRouteTargetViews) {
+  const seedOk = (
+    view.content.includes(`${view.field} = readQueryString('keyword')`)
+    || view.content.includes("readQueryString('keyword')")
+  )
   for (const fragment of [
     'useRoute',
-    'const readQueryString =',
-    `${view.field} = readQueryString('keyword')`
+    'const readQueryString ='
   ]) {
     if (!view.content.includes(fragment)) {
       errors.push(`${view.name}缺少单据追踪跳转查询参数片段: ${fragment}`)
     }
+  }
+  if (!seedOk) {
+    errors.push(`${view.name}缺少单据追踪跳转查询参数片段: ${view.field} = readQueryString('keyword')`)
   }
 }
 
@@ -1194,10 +1328,10 @@ for (const fragment of [
 
 for (const fragment of [
   'getAccountSubjects,',
-  'const hasSubjectQuery = () =>',
-  'await getAccountSubjects({',
+  'export const hasSubjectQuery = (',
+  'await options.getAccountSubjects({',
   'pageNo: 1,',
-  'pageSize: 200,',
+  'pageSize: 200',
   `:label="$t('financeReportPages.subjects.code')"`,
   'v-model="formData.subjectCode"',
   `:label="$t('financeReportPages.subjects.name')"`,
@@ -1276,8 +1410,8 @@ for (const fragment of [
   'prop="debitAmount"',
   'prop="creditAmount"',
   'generalLedger.value = res || []',
-  'const entries = await getLedgerEntries(buildLedgerQueryParams())',
-  'detailLedger.value = entries.slice(start, start + pagination.size)',
+  'const entries = await options.getLedgerEntries(buildLedgerQueryParams())',
+  'detailLedger.value = paginateEntries(entries, pagination.page, pagination.size)',
   'pagination.total = entries.length'
 ]) {
   if (!ledgerView.includes(fragment)) {
@@ -1754,7 +1888,7 @@ const systemEnableViewContracts = [
   {
     name: '系统岗位页',
     content: postView,
-    fragments: ['enablePost,', 'const handleEnable = async (row: Post) =>', 'await enablePost(row.id)', 'systemPost.disable', 'systemPost.enable']
+    fragments: ['enablePost,', 'const handleEnable = async (row: Post) =>', 'await options.enablePost(row.id)', 'systemPost.disable', 'systemPost.enable']
   },
   {
     name: '系统字典页',
@@ -2118,14 +2252,14 @@ for (const fragment of [
   'const readQueryString =',
   'getBusinessWorkflowRecords,',
   'v-model="queryParams.businessId"',
-  'await getBusinessWorkflowRecords(queryParams.businessType, queryParams.businessId)',
+  'await options.getBusinessWorkflowRecords(',
   'withdrawWorkflow,',
   'withdrawVisible',
   'withdrawForm.comment',
   'openWithdraw(row)',
   'const openWithdraw = (row: WorkflowRecord) =>',
   'const submitWithdraw = async () =>',
-  'await withdrawWorkflow({',
+  'await options.withdrawWorkflow({',
   'businessType: currentRecord.value.businessType',
   'businessId: currentRecord.value.businessId'
 ]) {
@@ -2520,7 +2654,7 @@ for (const fragment of [
   "dialogTitle.value = t('productionOrder.dialog.edit')",
   'Object.assign(formData, {',
   'if (formData.id) {',
-  'await updateProductionOrder(formData.id, formData)',
+  'await options.updateOrder(formData.id, formData)',
   'reverseProductionCompletion,',
   'returnProductionMaterials,',
   'reverseDialogVisible',
@@ -2604,11 +2738,11 @@ for (const view of inventoryOptionViews) {
   if (!view.content.includes('const optionPageQuery = { pageNo: 1, pageSize: 200, status: \'ACTIVE\' }')) {
     errors.push(`${view.name}缺少库存选项分页契约: const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }`)
   }
-  if (!view.content.includes('getWarehouses(optionPageQuery)')) {
-    errors.push(`${view.name}仓库选项未使用统一分页契约: getWarehouses(optionPageQuery)`)
+  if (!view.content.includes('options.getWarehouses(optionPageQuery)')) {
+    errors.push(`${view.name}仓库选项未使用统一分页契约: options.getWarehouses(optionPageQuery)`)
   }
-  if (!view.content.includes('getProducts(optionPageQuery)')) {
-    errors.push(`${view.name}产品选项未使用统一分页契约: getProducts(optionPageQuery)`)
+  if (!view.content.includes('options.getProducts(optionPageQuery)')) {
+    errors.push(`${view.name}产品选项未使用统一分页契约: options.getProducts(optionPageQuery)`)
   }
   for (const fragment of [
     'getWarehouses({ pageNo: 1000',
@@ -2703,7 +2837,7 @@ for (const fragment of [
   'ruleForm.warehouseId',
   'ruleForm.productId',
   'ruleForm.minQty',
-  'createInventoryAlertRule(ruleForm)',
+  'await options.createRule(ruleForm)',
   'const submitRule = async () =>'
 ]) {
   if (!inventoryAlertView.includes(fragment)) {
@@ -3098,13 +3232,13 @@ for (const fragment of [
   'v-model="formData.deliveryId"',
   '@change="handleDeliveryChange"',
   "v-if=\"row.status === 'DRAFT'\"",
-  '过账',
+  'salesReturnOps.action.post',
   'salesReturnOps.message.postConfirm',
   'const handleDeliveryChange = async () =>',
-  'formData.items = delivery.items.map(item => ({',
+  '(delivery.items || []).map((item) => ({',
   'deliveryLineId: item.id',
   'quantity: item.quantity - (item.returnedQty || 0)',
-  'const deliveryPageQuery = { pageNo: 1, pageSize: 200, status: \'POSTED\' }'
+  "pageNo: 1, pageSize: 200, status: 'POSTED'"
 ]) {
   if (!salesReturnView.includes(fragment)) {
     errors.push(`销售退货页缺少后端契约兼容片段: ${fragment}`)
@@ -3150,7 +3284,7 @@ const purchaseReturnRequiredFragments = [
 for (const fragment of [
   'linkedOrderVisible',
   'const linkedOrder = ref<PurchaseOrder>()',
-  'await getPurchaseOrder(orderId)',
+  'await options.getOrder(orderId)',
   ':title="t(\'purchaseOrder.detailTitle\')"',
   'v-if="linkedOrder"'
 ]) {
@@ -3201,8 +3335,8 @@ for (const fragment of [
   "t('purchaseReturn.message.postConfirm')",
   'const handleReceiptChange = async () =>',
   'const handleView = async (row: PurchaseReturn) =>',
-  'currentRow.value = await getPurchaseReturn(row.id)',
-  'form.items = receipt.items.map(item => ({',
+  'currentRow.value = await options.getReturn(row.id)',
+  '(receipt.items || []).map((item) => ({',
   'receiptLineId: item.id',
   'quantity: item.quantity - (item.returnedQty || 0)',
   'const receiptPageQuery = { pageNo: 1, pageSize: 200, status: \'POSTED\' }'
@@ -3234,7 +3368,7 @@ for (const fragment of [
 for (const fragment of [
   'linkedReceiptVisible',
   'const linkedReceipt = ref<PurchaseReceipt>()',
-  'await getPurchaseReceipt(receiptId)',
+  'await options.getReceipt(receiptId)',
   ':title="t(\'purchaseReturn.linkedReceiptTitle\')"',
   'v-if="linkedReceipt"'
 ]) {

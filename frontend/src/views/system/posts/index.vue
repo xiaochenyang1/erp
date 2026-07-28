@@ -37,8 +37,8 @@
         <el-table-column prop="orderNum" :label="$t('systemPost.order')" width="100" align="center" />
         <el-table-column prop="status" :label="$t('systemPost.status')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'ACTIVE' ? $t('systemPost.active') : $t('systemPost.inactive') }}
+            <el-tag :type="statusType(row.status)" size="small">
+              {{ statusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -65,8 +65,8 @@
         :total="pagination.total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleQuery"
-        @current-change="handleQuery"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
         style="margin-top: 20px; justify-content: flex-end"
       />
     </el-card>
@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, Plus, Edit, Delete } from '@element-plus/icons-vue'
@@ -141,188 +141,83 @@ import {
   updatePost,
   deletePost,
   enablePost,
-  type Dept,
   type Post
 } from '@/api/system'
+import { useSystemPostPresentation } from '@/composables/useSystemPostPresentation'
+import { useSystemPostList } from '@/composables/useSystemPostList'
+import { useSystemPostForm } from '@/composables/useSystemPostForm'
 
 const { t } = useI18n()
-
-// Search form
-const queryForm = reactive({
-  code: '',
-  name: '',
-  status: ''
-})
-
-// Table data
-const loading = ref(false)
-const tableData = ref<Post[]>([])
-const deptOptions = ref<Dept[]>([])
-
-// Pagination
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-// Dialog state
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
-const formData = reactive({
-  id: undefined as string | undefined,
-  deptId: undefined as string | undefined,
-  code: '',
-  name: '',
-  orderNum: 0,
-  status: 'ACTIVE',
-  remark: ''
+
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  deptOptions,
+  handleDisable,
+  handleEnable,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loadDeptOptions,
+  loading,
+  pagination,
+  queryForm,
+  tableData
+} = useSystemPostList(t, {
+  getPosts,
+  getDeptTree,
+  deletePost,
+  enablePost,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  ...notify
 })
 
-// Validation rules
+const { statusText, statusType } = useSystemPostPresentation(t)
+
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleAdd,
+  handleEdit: openEdit,
+  handleSubmit: savePost,
+  resetForm: resetFormState,
+  submitLoading
+} = useSystemPostForm(t, {
+  getPost,
+  createPost,
+  updatePost,
+  onSubmitted: loadData,
+  ...notify
+})
+
 const formRules = computed<FormRules>(() => ({
   code: [{ required: true, message: t('systemPost.validation.code'), trigger: 'blur' }],
   name: [{ required: true, message: t('systemPost.validation.name'), trigger: 'blur' }],
   deptId: [{ required: true, message: t('systemPost.validation.dept'), trigger: 'change' }]
 }))
 
-// Data loading
-const loadData = async () => {
-  loading.value = true
-  try {
-    const params = {
-      ...queryForm,
-      page: pagination.page,
-      size: pagination.size
-    }
-    const res = await getPosts(params)
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    console.error('Failed to load posts:', error)
-    ElMessage.error(t('systemPost.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadDeptOptions = async () => {
-  deptOptions.value = await getDeptTree()
-}
-
-// Search
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-// Reset
-const handleReset = () => {
-  queryForm.code = ''
-  queryForm.name = ''
-  queryForm.status = ''
-  pagination.page = 1
-  loadData()
-}
-
-// Create
-const handleAdd = () => {
-  dialogTitle.value = t('systemPost.create')
-  dialogVisible.value = true
-}
-
-// Edit
 const handleEdit = async (row: Post) => {
-  dialogTitle.value = t('systemPost.editTitle')
-  try {
-    const res = await getPost(row.id)
-    Object.assign(formData, {
-      id: res.id,
-      deptId: res.deptId,
-      code: res.code,
-      name: res.name,
-      orderNum: res.orderNum,
-      status: res.status,
-      remark: res.remark
-    })
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('systemPost.message.detailLoadFailed'))
-  }
+  await openEdit(row)
 }
 
-// Disable
-const handleDisable = async (row: Post) => {
-  try {
-    await ElMessageBox.confirm(t('systemPost.message.disableConfirm', { name: row.name }), t('systemPost.message.prompt'), {
-      type: 'warning'
-    })
-    await deletePost(row.id)
-    ElMessage.success(t('systemPost.message.disabled'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemPost.message.disableFailed'))
-    }
-  }
-}
-
-// Enable
-const handleEnable = async (row: Post) => {
-  try {
-    await ElMessageBox.confirm(t('systemPost.message.enableConfirm', { name: row.name }), t('systemPost.message.prompt'), {
-      type: 'warning'
-    })
-    await enablePost(row.id)
-    ElMessage.success(t('systemPost.message.enabled'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemPost.message.enableFailed'))
-    }
-  }
-}
-
-// Submit
 const handleSubmit = async () => {
   if (!formRef.value) return
-
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-
-    submitLoading.value = true
-    try {
-      if (formData.id) {
-        await updatePost(formData.id, formData)
-        ElMessage.success(t('systemPost.message.updated'))
-      } else {
-        await createPost(formData)
-        ElMessage.success(t('systemPost.message.created'))
-      }
-      dialogVisible.value = false
-      loadData()
-    } catch {
-      ElMessage.error(t('systemPost.message.saveFailed'))
-    } finally {
-      submitLoading.value = false
-    }
+    await savePost()
   })
 }
 
-// Dialog cleanup
 const handleDialogClose = () => {
   formRef.value?.resetFields()
-  Object.assign(formData, {
-    id: undefined,
-    deptId: undefined,
-    code: '',
-    name: '',
-    orderNum: 0,
-    status: 'ACTIVE',
-    remark: ''
-  })
+  resetFormState()
 }
 
 onMounted(() => {
