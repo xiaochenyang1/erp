@@ -41,7 +41,7 @@ export const useSystemMenuForm = (
     updateMenu: (id: string | number, data: MenuSaveRequest) => Promise<unknown>
     onError?: Notify
     onSuccess?: Notify
-    onSubmitted?: () => void | Promise<unknown>
+    onSubmitted?: () => void | Promise<void>
   }
 ) => {
   const dialogVisible = ref(false)

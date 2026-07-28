@@ -152,7 +152,7 @@ const {
   dialogTitle,
   dialogVisible,
   formData,
-  handleCreate,
+  handleCreate: openCreate,
   handleEdit: openEdit,
   handleSubmit: saveMenu,
   submitLoading
@@ -160,7 +160,9 @@ const {
   getMenu,
   createMenu,
   updateMenu,
-  onSubmitted: loadData,
+  onSubmitted: async () => {
+    await loadData()
+  },
   ...notify
 })
 
@@ -174,16 +176,22 @@ const expandAll = () => {
   tableRef.value?.toggleAllRowExpansion()
 }
 
+const handleCreate = (row: Menu | null) => {
+  openCreate(row)
+  formRef.value?.clearValidate()
+}
+
 const handleEdit = async (row: Menu) => {
-  await openEdit(row)
+  if (await openEdit(row)) {
+    formRef.value?.clearValidate()
+  }
 }
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    await saveMenu()
-  })
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
+  await saveMenu()
 }
 
 onMounted(() => {
