@@ -51,6 +51,10 @@ describe('finance account localization', () => {
   it('keeps the shared page template free of hard-coded Chinese UI copy', () => {
     const componentPath = resolve(process.cwd(), 'src/views/finance/FinanceAccountsPage.vue')
     const source = readFileSync(componentPath, 'utf8')
+    const presentation = readFileSync(
+      resolve(process.cwd(), 'src/composables/useFinanceAccountPresentation.ts'),
+      'utf8'
+    )
 
     expect(source).not.toMatch(/[\u3400-\u9fff]/)
     expect(source).not.toMatch(/¥|\.toFixed\(/)
@@ -64,7 +68,8 @@ describe('finance account localization', () => {
     for (const status of ['UNSETTLED', 'PARTIALLY_SETTLED', 'SETTLED', 'OFFSET']) {
       expect(source).toContain(status)
     }
-    expect(source).toContain('formatLocalizedCurrency')
-    expect(source).toContain('formatLocalizedDateTime')
+    expect(source).toContain('useFinanceAccountPresentation')
+    expect(presentation).toContain('formatLocalizedCurrency')
+    expect(presentation).toContain('formatLocalizedDateTime')
   })
 })

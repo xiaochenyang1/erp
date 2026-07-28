@@ -155,7 +155,7 @@
     </el-tabs>
 
     <el-dialog v-model="receivableDetailVisible" :title="t('financeAccount.dialog.receivable')" width="720px">
-      <el-skeleton v-if="detailLoading" :rows="5" animated />
+      <el-skeleton v-if="receivableDetailLoading" :rows="5" animated />
       <el-descriptions v-else-if="selectedReceivable" :column="2" border>
         <el-descriptions-item :label="t('financeAccount.receivableNo')">{{ selectedReceivable.receivableNo }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.statusLabel')">{{ accountStatusLabel(selectedReceivable.status) }}</el-descriptions-item>
@@ -172,7 +172,7 @@
     </el-dialog>
 
     <el-dialog v-model="payableDetailVisible" :title="t('financeAccount.dialog.payable')" width="720px">
-      <el-skeleton v-if="detailLoading" :rows="5" animated />
+      <el-skeleton v-if="payableDetailLoading" :rows="5" animated />
       <el-descriptions v-else-if="selectedPayable" :column="2" border>
         <el-descriptions-item :label="t('financeAccount.payableNo')">{{ selectedPayable.payableNo }}</el-descriptions-item>
         <el-descriptions-item :label="t('financeAccount.statusLabel')">{{ accountStatusLabel(selectedPayable.status) }}</el-descriptions-item>
@@ -191,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -208,9 +208,11 @@ import {
   type Receivable,
   type ReceivableQuery
 } from '@/api/finance'
-import { getCustomers, getSuppliers, type Customer, type Supplier } from '@/api/masterdata'
+import { getCustomers, getSuppliers } from '@/api/masterdata'
+import { useFinanceAccountList } from '@/composables/useFinanceAccountList'
+import { useFinanceAccountPresentation } from '@/composables/useFinanceAccountPresentation'
+import { useFinanceAccountResources } from '@/composables/useFinanceAccountResources'
 import { downloadBlob } from '@/utils/download'
-import { formatLocalizedCurrency, formatLocalizedDate, formatLocalizedDateTime } from '@/utils/locale'
 import { useUserStore } from '@/store/modules/user'
 import {
   canLoadFinanceAccountOptions,
@@ -238,151 +240,89 @@ const canLoadPayableOptions = computed(() => canLoadFinanceAccountOptions('payab
 const preferredPath = props.defaultTab === 'payables' ? '/finance/payables' : '/finance/receivables'
 const activeTab = ref<FinanceAccountTab | null>(resolveFinanceAccountTab(preferredPath, userStore.hasPermission))
 
-// Receivables
-const receivableQuery = reactive<ReceivableQuery>({ pageNo: 1, pageSize: 20, receivableNo: '', customerId: undefined, status: '' })
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  detailLoading: receivableDetailLoading,
+  detailVisible: receivableDetailVisible,
+  handleExport: handleExportReceivables,
+  handleView: handleViewReceivable,
+  loadData: loadReceivables,
+  loading: receivableLoading,
+  query: receivableQuery,
+  selectedDocument: selectedReceivable,
+  tableData: receivableData,
+  total: receivableTotal
+} = useFinanceAccountList<Receivable, ReceivableQuery>(t, {
+  canView: () => canViewReceivables.value,
+  initialQuery: {
+    pageNo: 1,
+    pageSize: 20,
+    receivableNo: '',
+    customerId: undefined,
+    status: ''
+  },
+  getList: getReceivables,
+  getDetail: getReceivable,
+  exportList: exportReceivables,
+  listFailedKey: 'financeAccount.message.receivablesLoadFailed',
+  detailFailedKey: 'financeAccount.message.receivableDetailLoadFailed',
+  fileNameKey: 'financeAccount.file.receivables',
+  downloadBlob,
+  ...notify
+})
+
+const {
+  detailLoading: payableDetailLoading,
+  detailVisible: payableDetailVisible,
+  handleExport: handleExportPayables,
+  handleView: handleViewPayable,
+  loadData: loadPayables,
+  loading: payableLoading,
+  query: payableQuery,
+  selectedDocument: selectedPayable,
+  tableData: payableData,
+  total: payableTotal
+} = useFinanceAccountList<Payable, PayableQuery>(t, {
+  canView: () => canViewPayables.value,
+  initialQuery: {
+    pageNo: 1,
+    pageSize: 20,
+    payableNo: '',
+    supplierId: undefined,
+    status: ''
+  },
+  getList: getPayables,
+  getDetail: getPayable,
+  exportList: exportPayables,
+  listFailedKey: 'financeAccount.message.payablesLoadFailed',
+  detailFailedKey: 'financeAccount.message.payableDetailLoadFailed',
+  fileNameKey: 'financeAccount.file.payables',
+  downloadBlob,
+  ...notify
+})
+
 receivableQuery.receivableNo = readQueryString('keyword')
-const receivableLoading = ref(false)
-const receivableData = ref<Receivable[]>([])
-const receivableTotal = ref(0)
-const receivableDetailVisible = ref(false)
-const selectedReceivable = ref<Receivable>()
-
-// Payables
-const payableQuery = reactive<PayableQuery>({ pageNo: 1, pageSize: 20, payableNo: '', supplierId: undefined, status: '' })
 payableQuery.payableNo = readQueryString('keyword')
-const payableLoading = ref(false)
-const payableData = ref<Payable[]>([])
-const payableTotal = ref(0)
-const payableDetailVisible = ref(false)
-const selectedPayable = ref<Payable>()
-const detailLoading = ref(false)
 
-// Customer and supplier options
-const customers = ref<Customer[]>([])
-const suppliers = ref<Supplier[]>([])
+const { customers, loadCustomers, loadSuppliers, suppliers } = useFinanceAccountResources(t, {
+  canLoadCustomers: () => canLoadReceivableOptions.value,
+  canLoadSuppliers: () => canLoadPayableOptions.value,
+  getCustomers,
+  getSuppliers,
+  reportError: (message, error) => console.error(message, error)
+})
 
-const loadReceivables = async () => {
-  if (!canViewReceivables.value) return
-  receivableLoading.value = true
-  try {
-    const response = await getReceivables(receivableQuery)
-    receivableData.value = response.records
-    receivableTotal.value = response.total
-  } catch (error) {
-    ElMessage.error(t('financeAccount.message.receivablesLoadFailed'))
-  } finally {
-    receivableLoading.value = false
-  }
-}
-
-const loadPayables = async () => {
-  if (!canViewPayables.value) return
-  payableLoading.value = true
-  try {
-    const response = await getPayables(payableQuery)
-    payableData.value = response.records
-    payableTotal.value = response.total
-  } catch (error) {
-    ElMessage.error(t('financeAccount.message.payablesLoadFailed'))
-  } finally {
-    payableLoading.value = false
-  }
-}
-
-const handleExportReceivables = async () => {
-  if (!canViewReceivables.value) return
-  try {
-    const blob = await exportReceivables(receivableQuery)
-    downloadBlob(blob, t('financeAccount.file.receivables', { timestamp: Date.now() }))
-    ElMessage.success(t('financeAccount.message.exported'))
-  } catch (error) {
-    ElMessage.error(t('financeAccount.message.exportFailed'))
-  }
-}
-
-const handleExportPayables = async () => {
-  if (!canViewPayables.value) return
-  try {
-    const blob = await exportPayables(payableQuery)
-    downloadBlob(blob, t('financeAccount.file.payables', { timestamp: Date.now() }))
-    ElMessage.success(t('financeAccount.message.exported'))
-  } catch (error) {
-    ElMessage.error(t('financeAccount.message.exportFailed'))
-  }
-}
-
-const handleViewReceivable = async (row: Receivable) => {
-  if (!canViewReceivables.value) return
-  receivableDetailVisible.value = true
-  selectedReceivable.value = undefined
-  detailLoading.value = true
-  try {
-    selectedReceivable.value = await getReceivable(row.id)
-  } catch (error) {
-    ElMessage.error(t('financeAccount.message.receivableDetailLoadFailed'))
-    receivableDetailVisible.value = false
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const handleViewPayable = async (row: Payable) => {
-  if (!canViewPayables.value) return
-  payableDetailVisible.value = true
-  selectedPayable.value = undefined
-  detailLoading.value = true
-  try {
-    selectedPayable.value = await getPayable(row.id)
-  } catch (error) {
-    ElMessage.error(t('financeAccount.message.payableDetailLoadFailed'))
-    payableDetailVisible.value = false
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const loadCustomers = async () => {
-  if (!canLoadFinanceAccountOptions('receivables', userStore.hasPermission)) return
-  try {
-    const response = await getCustomers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    customers.value = response.records
-  } catch (error) {
-    console.error(t('financeAccount.message.customersLoadFailed'), error)
-  }
-}
-
-const loadSuppliers = async () => {
-  if (!canLoadFinanceAccountOptions('payables', userStore.hasPermission)) return
-  try {
-    const response = await getSuppliers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-    suppliers.value = response.records
-  } catch (error) {
-    console.error(t('financeAccount.message.suppliersLoadFailed'), error)
-  }
-}
-
-const formatCurrency = (value?: number) => formatLocalizedCurrency(Number(value ?? 0))
-const formatDate = (value?: string) => formatLocalizedDate(value) || '-'
-const formatDateTime = (value?: string) => formatLocalizedDateTime(value) || '-'
-type AccountStatus = Receivable['status'] | Payable['status']
-const accountStatusLabel = (status: AccountStatus) => {
-  const keyMap: Record<AccountStatus, string> = {
-    UNSETTLED: 'financeAccount.status.unsettled',
-    PARTIALLY_SETTLED: 'financeAccount.status.partiallySettled',
-    SETTLED: 'financeAccount.status.settled',
-    OFFSET: 'financeAccount.status.offset'
-  }
-  return t(keyMap[status])
-}
-const accountStatusType = (status: AccountStatus) => {
-  const typeMap: Record<AccountStatus, 'danger' | 'warning' | 'success' | 'info'> = {
-    UNSETTLED: 'danger',
-    PARTIALLY_SETTLED: 'warning',
-    SETTLED: 'success',
-    OFFSET: 'info'
-  }
-  return typeMap[status]
-}
+const {
+  accountStatusLabel,
+  accountStatusType,
+  formatCurrency,
+  formatDate,
+  formatDateTime
+} = useFinanceAccountPresentation(t)
 
 watch(activeTab, (newTab) => {
   if (newTab === 'receivables') {
@@ -398,8 +338,8 @@ onMounted(() => {
   } else {
     loadReceivables()
   }
-  if (canLoadFinanceAccountOptions('receivables', userStore.hasPermission)) loadCustomers()
-  if (canLoadFinanceAccountOptions('payables', userStore.hasPermission)) loadSuppliers()
+  if (canLoadReceivableOptions.value) loadCustomers()
+  if (canLoadPayableOptions.value) loadSuppliers()
 })
 </script>
 

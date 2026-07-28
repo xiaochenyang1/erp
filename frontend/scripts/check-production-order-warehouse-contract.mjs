@@ -82,7 +82,13 @@ const purchaseOrderView = [
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const financeReceivableView = readFileSync(resolve(root, 'src/views/finance/receivables/index.vue'), 'utf8')
 const financePayableView = readFileSync(resolve(root, 'src/views/finance/payables/index.vue'), 'utf8')
-const financeAccountView = readFileSync(resolve(root, 'src/views/finance/FinanceAccountsPage.vue'), 'utf8')
+// 应收/应付共享页已按 E-1 拆分，契约仍按页面与三个 composable 整块校验
+const financeAccountView = [
+  'src/views/finance/FinanceAccountsPage.vue',
+  'src/composables/useFinanceAccountPresentation.ts',
+  'src/composables/useFinanceAccountList.ts',
+  'src/composables/useFinanceAccountResources.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // 收付款页已按 E-1 拆分为展示/列表/表单/详情 composable，契约仍按整块特性校验
 const financePaymentView = [
   'src/views/finance/payments/index.vue',
@@ -1196,10 +1202,11 @@ for (const fragment of [
   'payableDetailVisible',
   'selectedReceivable',
   'selectedPayable',
-  'const handleViewReceivable = async (row: Receivable) =>',
-  'const handleViewPayable = async (row: Payable) =>',
-  'await getReceivable(row.id)',
-  'await getPayable(row.id)',
+  'handleView: handleViewReceivable',
+  'handleView: handleViewPayable',
+  'getDetail: getReceivable',
+  'getDetail: getPayable',
+  'selectedDocument.value = await options.getDetail(row.id)',
   ":title=\"t('financeAccount.dialog.receivable')\"",
   ":title=\"t('financeAccount.dialog.payable')\""
 ]) {
