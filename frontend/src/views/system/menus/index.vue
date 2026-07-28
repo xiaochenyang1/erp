@@ -27,14 +27,12 @@
         <el-table-column prop="orderNum" :label="$t('systemMenu.order')" width="80" />
         <el-table-column prop="type" :label="$t('systemMenu.type')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.type === 'MENU'">{{ $t('systemMenu.menu') }}</el-tag>
-            <el-tag v-else type="info">{{ $t('systemMenu.button') }}</el-tag>
+            <el-tag :type="typeTagType(row.type)">{{ typeText(row.type) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('systemMenu.status')" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'ACTIVE'" type="success">{{ $t('systemMenu.active') }}</el-tag>
-            <el-tag v-else type="danger">{{ $t('systemMenu.inactive') }}</el-tag>
+            <el-tag :type="statusType(row.status)">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="$t('systemMenu.actions')" width="280" fixed="right">
@@ -99,35 +97,71 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getMenuTree, getMenu, createMenu, updateMenu, deleteMenu, enableMenu, type Menu, type MenuSaveRequest } from '@/api/system'
+import { Plus, DCaret } from '@element-plus/icons-vue'
+import {
+  getMenuTree,
+  getMenu,
+  createMenu,
+  updateMenu,
+  deleteMenu,
+  enableMenu,
+  type Menu
+} from '@/api/system'
+import { useSystemMenuPresentation } from '@/composables/useSystemMenuPresentation'
+import { useSystemMenuList } from '@/composables/useSystemMenuList'
+import { useSystemMenuForm } from '@/composables/useSystemMenuForm'
 
 const { t } = useI18n()
-
-const loading = ref(false)
-const tableData = ref<Menu[]>([])
-const menuTree = ref<Menu[]>([])
-const dialogVisible = ref(false)
-const submitLoading = ref(false)
-const dialogTitle = ref('')
-const isEdit = ref(false)
-const currentId = ref<string | number>('')
 const formRef = ref<FormInstance>()
 const tableRef = ref()
 
-const formData = reactive<MenuSaveRequest>({
-  parentId: undefined,
-  name: '',
-  path: '',
-  component: '',
-  icon: '',
-  orderNum: 0,
-  type: 'MENU',
-  permission: '',
-  status: 'ACTIVE'
+const notify = {
+  onError: (message: string) => ElMessage.error(message),
+  onSuccess: (message: string) => ElMessage.success(message)
+}
+
+const {
+  buildParentTree,
+  statusText,
+  statusType,
+  typeTagType,
+  typeText
+} = useSystemMenuPresentation(t)
+
+const {
+  handleDisable,
+  handleEnable,
+  loadData,
+  loading,
+  menuTree,
+  tableData
+} = useSystemMenuList(t, {
+  getMenuTree,
+  deleteMenu,
+  enableMenu,
+  buildParentTree,
+  confirm: (message, title, options) => ElMessageBox.confirm(message, title, options as any),
+  ...notify
+})
+
+const {
+  dialogTitle,
+  dialogVisible,
+  formData,
+  handleCreate,
+  handleEdit: openEdit,
+  handleSubmit: saveMenu,
+  submitLoading
+} = useSystemMenuForm(t, {
+  getMenu,
+  createMenu,
+  updateMenu,
+  onSubmitted: loadData,
+  ...notify
 })
 
 const formRules = computed<FormRules>(() => ({
@@ -136,114 +170,20 @@ const formRules = computed<FormRules>(() => ({
   orderNum: [{ required: true, message: t('systemMenu.validation.order'), trigger: 'blur' }]
 }))
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const data = await getMenuTree()
-    tableData.value = data
-    menuTree.value = [{ id: 0, name: t('systemMenu.root'), children: data } as any]
-  } catch {
-    ElMessage.error(t('systemMenu.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
 const expandAll = () => {
   tableRef.value?.toggleAllRowExpansion()
 }
 
-const handleCreate = (row: Menu | null) => {
-  dialogTitle.value = t('systemMenu.create')
-  isEdit.value = false
-  resetForm()
-  if (row) {
-    formData.parentId = row.id
-  }
-  dialogVisible.value = true
-}
-
 const handleEdit = async (row: Menu) => {
-  dialogTitle.value = t('systemMenu.editTitle')
-  isEdit.value = true
-  currentId.value = row.id
-  try {
-    const data = await getMenu(row.id)
-    Object.assign(formData, data)
-    dialogVisible.value = true
-  } catch {
-    ElMessage.error(t('systemMenu.message.detailLoadFailed'))
-  }
-}
-
-const handleDisable = async (row: Menu) => {
-  try {
-    await ElMessageBox.confirm(t('systemMenu.message.disableConfirm', { name: row.name }), t('systemMenu.message.prompt'), {
-      confirmButtonText: t('systemMenu.message.confirm'),
-      cancelButtonText: t('systemMenu.message.cancel'),
-      type: 'warning'
-    })
-    await deleteMenu(row.id)
-    ElMessage.success(t('systemMenu.message.disabled'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemMenu.message.disableFailed'))
-    }
-  }
-}
-
-const handleEnable = async (row: Menu) => {
-  try {
-    await ElMessageBox.confirm(t('systemMenu.message.enableConfirm', { name: row.name }), t('systemMenu.message.prompt'), {
-      confirmButtonText: t('systemMenu.message.confirm'),
-      cancelButtonText: t('systemMenu.message.cancel'),
-      type: 'warning'
-    })
-    await enableMenu(row.id)
-    ElMessage.success(t('systemMenu.message.enabled'))
-    loadData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(t('systemMenu.message.enableFailed'))
-    }
-  }
+  await openEdit(row)
 }
 
 const handleSubmit = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitLoading.value = true
-      try {
-        if (isEdit.value) {
-          await updateMenu(currentId.value, formData)
-        } else {
-          await createMenu(formData)
-        }
-        ElMessage.success(t('systemMenu.message.saved'))
-        dialogVisible.value = false
-        loadData()
-      } catch {
-        ElMessage.error(t('systemMenu.message.saveFailed'))
-      } finally {
-        submitLoading.value = false
-      }
-    }
+    if (!valid) return
+    await saveMenu()
   })
-}
-
-const resetForm = () => {
-  formData.parentId = undefined
-  formData.name = ''
-  formData.path = ''
-  formData.component = ''
-  formData.icon = ''
-  formData.orderNum = 0
-  formData.type = 'MENU'
-  formData.permission = ''
-  formData.status = 'ACTIVE'
-  formRef.value?.clearValidate()
 }
 
 onMounted(() => {

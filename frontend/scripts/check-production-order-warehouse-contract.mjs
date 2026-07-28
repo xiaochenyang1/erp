@@ -124,7 +124,13 @@ const roleView = [
   'src/composables/useSystemRoleList.ts',
   'src/composables/useSystemRoleForm.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
-const menuView = readFileSync(resolve(root, 'src/views/system/menus/index.vue'), 'utf8')
+// 系统菜单页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const menuView = [
+  'src/views/system/menus/index.vue',
+  'src/composables/useSystemMenuPresentation.ts',
+  'src/composables/useSystemMenuList.ts',
+  'src/composables/useSystemMenuForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // 系统部门页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const deptView = [
   'src/views/system/depts/index.vue',
@@ -1884,7 +1890,7 @@ const systemEnableViewContracts = [
   {
     name: '系统菜单页',
     content: menuView,
-    fragments: ['enableMenu,', 'const handleEnable = async (row: Menu) =>', 'await enableMenu(row.id)', 'systemMenu.disable', 'systemMenu.enable']
+    fragments: ['enableMenu,', 'const handleEnable = async (row: Menu) =>', 'await options.enableMenu(row.id)', 'systemMenu.disable', 'systemMenu.enable']
   },
   {
     name: '系统部门页',
