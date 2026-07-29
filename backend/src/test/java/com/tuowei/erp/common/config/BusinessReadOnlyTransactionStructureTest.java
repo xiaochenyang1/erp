@@ -29,6 +29,8 @@ import com.tuowei.erp.production.bom.service.ProductionBomService;
 import com.tuowei.erp.production.bom.web.ProductionBomPageQuery;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
+import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryService;
+import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryPageQuery;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderQueryService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
@@ -87,6 +89,9 @@ class BusinessReadOnlyTransactionStructureTest {
 
     @Test
     void documentQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
+        assertReadOnly(PurchaseInquiryService.class, "list", PurchaseInquiryPageQuery.class);
+        assertReadOnly(PurchaseInquiryService.class, "getById", Long.class);
+        assertReadOnly(PurchaseInquiryService.class, "poPrefill", Long.class);
         assertReadOnly(PurchaseOrderService.class, "list", PurchaseOrderPageQuery.class);
         assertReadOnly(PurchaseOrderService.class, "getById", Long.class);
         assertReadOnly(PurchaseOrderService.class, "trace", Long.class);

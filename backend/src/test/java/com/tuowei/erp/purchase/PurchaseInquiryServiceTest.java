@@ -2,6 +2,7 @@ package com.tuowei.erp.purchase;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
@@ -17,6 +18,7 @@ import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryLineEntity;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryQuoteEntity;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryQuoteLineEntity;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryNumberService;
+import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQuoteService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryService;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryCreateRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryLineRequest;
@@ -173,6 +175,99 @@ class PurchaseInquiryServiceTest {
         assertThat(prefill.lines().get(0).price()).isEqualByComparingTo("12.50");
         assertThat(prefill.lines().get(0).taxRate()).isEqualByComparingTo("13.0000");
         assertThat(prefill.remark()).contains("RFQ202607170001");
+    }
+
+    @Test
+    void selectingWinnerRejectsOtherPendingQuotes() {
+        stubAudit();
+        PurchaseInquiryEntity inquiry = inquiry(5001L, "SUBMITTED");
+        PurchaseInquiryQuoteEntity winner = quote(7002L, 5001L, 7001L, "PENDING");
+        PurchaseInquiryQuoteEntity loser = quote(7003L, 5001L, 7004L, "PENDING");
+        when(purchaseInquiryMapper.selectById(5001L)).thenReturn(inquiry);
+        when(purchaseInquiryLineMapper.selectList(any())).thenReturn(List.of(line(5001L, 6001L)));
+        when(purchaseInquiryQuoteMapper.selectById(7002L)).thenReturn(winner);
+        when(purchaseInquiryQuoteMapper.updateById(any(PurchaseInquiryQuoteEntity.class))).thenReturn(1);
+        when(purchaseInquiryQuoteMapper.selectList(any()))
+                .thenReturn(List.of(loser))
+                .thenReturn(List.of(winner, loser));
+        when(purchaseInquiryMapper.updateById(inquiry)).thenReturn(1);
+
+        PurchaseInquiryResponse response = service().selectQuote(
+                5001L,
+                new PurchaseInquirySelectQuoteRequest(7002L)
+        );
+
+        assertThat(winner.getStatus()).isEqualTo("SELECTED");
+        assertThat(loser.getStatus()).isEqualTo("REJECTED");
+        assertThat(loser.getUpdatedBy()).isEqualTo(USER_ID);
+        assertThat(loser.getUpdatedTime()).isEqualTo(NOW);
+        assertThat(response.quotes())
+                .extracting(quote -> quote.id() + ":" + quote.status())
+                .containsExactly("7002:SELECTED", "7003:REJECTED");
+        verify(purchaseInquiryQuoteMapper, times(2)).updateById(any(PurchaseInquiryQuoteEntity.class));
+    }
+
+    @Test
+    void addQuoteRejectsSupplierOutsideCurrentTenant() {
+        stubAudit();
+        PurchaseInquiryEntity inquiry = inquiry(5001L, "SUBMITTED");
+        SupplierEntity foreignSupplier = supplier(7001L);
+        foreignSupplier.setCompanyId(999L);
+        when(purchaseInquiryMapper.selectById(5001L)).thenReturn(inquiry);
+        when(supplierMapper.selectById(7001L)).thenReturn(foreignSupplier);
+
+        assertThatThrownBy(() -> service().addQuote(
+                5001L,
+                new PurchaseInquiryQuoteRequest(7001L, new BigDecimal("12.50"), BigDecimal.ZERO, null)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("供应商不存在或已停用");
+
+        verify(purchaseInquiryQuoteMapper, never()).insert(any(PurchaseInquiryQuoteEntity.class));
+        verify(purchaseInquiryMapper, never()).updateById(any(PurchaseInquiryEntity.class));
+    }
+
+    @Test
+    void selectQuoteRejectsQuoteOutsideCurrentAccountBook() {
+        stubAudit();
+        PurchaseInquiryEntity inquiry = inquiry(5001L, "SUBMITTED");
+        PurchaseInquiryQuoteEntity foreignQuote = quote(7002L, 5001L, 7001L, "PENDING");
+        foreignQuote.setAccountBookId(999L);
+        when(purchaseInquiryMapper.selectById(5001L)).thenReturn(inquiry);
+        when(purchaseInquiryQuoteMapper.selectById(7002L)).thenReturn(foreignQuote);
+
+        assertThatThrownBy(() -> service().selectQuote(
+                5001L,
+                new PurchaseInquirySelectQuoteRequest(7002L)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("报价不存在");
+
+        verify(purchaseInquiryQuoteMapper, never()).updateById(any(PurchaseInquiryQuoteEntity.class));
+        verify(purchaseInquiryMapper, never()).updateById(any(PurchaseInquiryEntity.class));
+    }
+
+    @Test
+    void quoteOptimisticLockFailureDoesNotCloseInquiry() {
+        stubAudit();
+        PurchaseInquiryEntity inquiry = inquiry(5001L, "SUBMITTED");
+        PurchaseInquiryQuoteEntity winner = quote(7002L, 5001L, 7001L, "PENDING");
+        when(purchaseInquiryMapper.selectById(5001L)).thenReturn(inquiry);
+        when(purchaseInquiryQuoteMapper.selectById(7002L)).thenReturn(winner);
+        when(purchaseInquiryLineMapper.selectList(any())).thenReturn(List.of(line(5001L, 6001L)));
+        when(purchaseInquiryQuoteMapper.updateById(winner)).thenReturn(0);
+
+        assertThatThrownBy(() -> service().selectQuote(
+                5001L,
+                new PurchaseInquirySelectQuoteRequest(7002L)
+        ))
+                .isInstanceOf(BusinessConflictException.class)
+                .hasMessage("报价已被其他操作修改，请刷新后重试");
+
+        assertThat(inquiry.getStatus()).isEqualTo("SUBMITTED");
+        assertThat(inquiry.getSelectedSupplierId()).isNull();
+        assertThat(inquiry.getSelectedQuoteId()).isNull();
+        verify(purchaseInquiryMapper, never()).updateById(any(PurchaseInquiryEntity.class));
     }
 
     @Test
@@ -571,16 +666,20 @@ class PurchaseInquiryServiceTest {
     }
 
     private PurchaseInquiryService service() {
-        return new PurchaseInquiryService(
-                purchaseInquiryMapper,
+        PurchaseInquiryQuoteService quoteService = new PurchaseInquiryQuoteService(
                 purchaseInquiryLineMapper,
                 purchaseInquiryQuoteMapper,
                 purchaseInquiryQuoteLineMapper,
+                supplierMapper
+        );
+        return new PurchaseInquiryService(
+                purchaseInquiryMapper,
+                purchaseInquiryLineMapper,
                 purchaseInquiryNumberService,
                 productValidator,
-                supplierMapper,
                 auditMetadataFactory,
-                purchaseOrderService
+                purchaseOrderService,
+                quoteService
         );
     }
 
