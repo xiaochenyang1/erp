@@ -29,6 +29,8 @@ import com.tuowei.erp.production.bom.service.ProductionBomService;
 import com.tuowei.erp.production.bom.web.ProductionBomPageQuery;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
+import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
+import com.tuowei.erp.purchase.order.service.PurchaseOrderQueryService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderTraceService;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
@@ -83,6 +85,8 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(PurchaseOrderService.class, "list", PurchaseOrderPageQuery.class);
         assertReadOnly(PurchaseOrderService.class, "getById", Long.class);
         assertReadOnly(PurchaseOrderService.class, "trace", Long.class);
+        assertReadOnly(PurchaseOrderQueryService.class, "list", PurchaseOrderPageQuery.class);
+        assertReadOnly(PurchaseOrderQueryService.class, "assertCanView", PurchaseOrderEntity.class);
         assertReadOnly(PurchaseOrderTraceService.class, "trace", PurchaseOrderResponse.class);
         assertReadOnly(PurchaseReceiptService.class, "list", PurchaseReceiptPageQuery.class);
         assertReadOnly(PurchaseReceiptService.class, "getById", Long.class);

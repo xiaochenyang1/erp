@@ -1,17 +1,10 @@
 package com.tuowei.erp.purchase.order.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
-import com.tuowei.erp.common.export.CsvExport;
 import com.tuowei.erp.common.math.ProductAuxUnitConversion;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.DataScopeService;
-import com.tuowei.erp.common.security.DataScopeSnapshot;
-import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
@@ -33,27 +26,17 @@ import com.tuowei.erp.purchase.order.web.PurchaseOrderSubmitRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderTraceResponse;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderUpdateRequest;
 import com.tuowei.erp.purchase.support.PurchaseAmountCalculator;
-import com.tuowei.erp.system.user.mapper.UserMapper;
-import com.tuowei.erp.system.user.model.UserEntity;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.IOException;
-import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 public class PurchaseOrderService {
@@ -65,10 +48,7 @@ public class PurchaseOrderService {
     private final ProductValidator productValidator;
     private final PurchaseOrderNumberService purchaseOrderNumberService;
     private final AuditMetadataFactory auditMetadataFactory;
-    private final CurrentUserContext currentUserContext;
-    private final DataScopeService dataScopeService;
-    private final ScopedUserResolver scopedUserResolver;
-    private final UserMapper userMapper;
+    private final PurchaseOrderQueryService purchaseOrderQueryService;
     private final PurchaseOrderTraceService purchaseOrderTraceService;
     private final WorkflowService workflowService;
     private final PurchasePriceEvaluator purchasePriceEvaluator;
@@ -81,10 +61,7 @@ public class PurchaseOrderService {
             ProductValidator productValidator,
             PurchaseOrderNumberService purchaseOrderNumberService,
             AuditMetadataFactory auditMetadataFactory,
-            CurrentUserContext currentUserContext,
-            DataScopeService dataScopeService,
-            ScopedUserResolver scopedUserResolver,
-            UserMapper userMapper,
+            PurchaseOrderQueryService purchaseOrderQueryService,
             PurchaseOrderTraceService purchaseOrderTraceService,
             WorkflowService workflowService,
             PurchasePriceEvaluator purchasePriceEvaluator
@@ -96,10 +73,7 @@ public class PurchaseOrderService {
         this.productValidator = productValidator;
         this.purchaseOrderNumberService = purchaseOrderNumberService;
         this.auditMetadataFactory = auditMetadataFactory;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.scopedUserResolver = scopedUserResolver;
-        this.userMapper = userMapper;
+        this.purchaseOrderQueryService = purchaseOrderQueryService;
         this.purchaseOrderTraceService = purchaseOrderTraceService;
         this.workflowService = workflowService;
         this.purchasePriceEvaluator = purchasePriceEvaluator;
@@ -198,25 +172,7 @@ public class PurchaseOrderService {
     @Transactional(readOnly = true)
     public PageResponse<PurchaseOrderResponse> list(PurchaseOrderPageQuery query) {
         PurchaseOrderPageQuery safeQuery = query == null ? new PurchaseOrderPageQuery() : query;
-        long pageNo = normalizePageNo(safeQuery.getPageNo());
-        long pageSize = normalizePageSize(safeQuery.getPageSize());
-
-        Page<PurchaseOrderEntity> page = new Page<>(pageNo, pageSize);
-        LambdaQueryWrapper<PurchaseOrderEntity> wrapper = scopedListQuery(safeQuery);
-        Page<PurchaseOrderEntity> result = purchaseOrderMapper.selectPage(
-                page,
-                wrapper
-        );
-        Map<Long, String> supplierNames = loadSupplierNames(result.getRecords());
-
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream()
-                        .map(entity -> toSummaryResponse(entity, supplierNames.get(entity.getSupplierId())))
-                        .toList()
-        );
+        return purchaseOrderQueryService.list(safeQuery);
     }
 
     @Transactional
@@ -525,91 +481,8 @@ public class PurchaseOrderService {
         );
     }
 
-    private LambdaQueryWrapper<PurchaseOrderEntity> buildListQuery(
-            String keyword,
-            String status,
-            String approvalStatus,
-            Long supplierId
-    ) {
-        LambdaQueryWrapper<PurchaseOrderEntity> wrapper = new LambdaQueryWrapper<PurchaseOrderEntity>()
-                .eq(PurchaseOrderEntity::getDeletedFlag, 0);
-        if (StringUtils.hasText(keyword)) {
-            wrapper.like(PurchaseOrderEntity::getOrderNo, keyword);
-        }
-        if (StringUtils.hasText(status)) {
-            wrapper.eq(PurchaseOrderEntity::getStatus, status);
-        }
-        if (StringUtils.hasText(approvalStatus)) {
-            wrapper.eq(PurchaseOrderEntity::getApprovalStatus, approvalStatus);
-        }
-        if (supplierId != null) {
-            wrapper.eq(PurchaseOrderEntity::getSupplierId, supplierId);
-        }
-        return wrapper.orderByDesc(PurchaseOrderEntity::getId);
-    }
-
-    private LambdaQueryWrapper<PurchaseOrderEntity> scopedListQuery(PurchaseOrderPageQuery safeQuery) {
-        String keyword = normalizeNullableText(safeQuery.getKeyword());
-        String status = normalizeStatus(safeQuery.getStatus());
-        String approvalStatus = normalizeStatus(safeQuery.getApprovalStatus());
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
-        LambdaQueryWrapper<PurchaseOrderEntity> wrapper = buildListQuery(
-                keyword,
-                status,
-                approvalStatus,
-                safeQuery.getSupplierId()
-        );
-        return dataScopeService.applyPurchaseOrderScope(
-                wrapper,
-                currentUser,
-                snapshot,
-                scopedUserIds.deptUserIds(),
-                scopedUserIds.postUserIds()
-        );
-    }
-
     private void assertCanView(PurchaseOrderEntity entity) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = entity.getCreatedBy() == null ? null : userMapper.selectById(entity.getCreatedBy());
-        dataScopeService.assertCanViewPurchaseOrder(
-                entity,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
-    }
-
-    private String normalizeNullableText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        return value.trim();
-    }
-
-    private String normalizeStatus(String value) {
-        String normalized = normalizeNullableText(value);
-        if (normalized == null) {
-            return null;
-        }
-        return normalized.toUpperCase(Locale.ROOT);
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        if (pageNo == null || pageNo < 1) {
-            return 1L;
-        }
-        return pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        if (pageSize == null || pageSize < 1) {
-            return 20L;
-        }
-        return Math.min(pageSize, 200);
+        purchaseOrderQueryService.assertCanView(entity);
     }
 
     private void touch(PurchaseOrderEntity entity) {
@@ -656,44 +529,9 @@ public class PurchaseOrderService {
         );
     }
 
-    private PurchaseOrderResponse toSummaryResponse(PurchaseOrderEntity entity, String supplierName) {
-        return new PurchaseOrderResponse(
-                entity.getId(),
-                entity.getOrderNo(),
-                entity.getSupplierId(),
-                supplierName,
-                entity.getOrderDate(),
-                entity.getDeliveryDate(),
-                entity.getStatus(),
-                entity.getApprovalStatus(),
-                entity.getReceiptStatus(),
-                entity.getSourceInquiryId(),
-                entity.getSourceInquiryNo(),
-                entity.getSourceQuoteId(),
-                entity.getTotalQuantity(),
-                entity.getTotalAmount(),
-                entity.getTotalTaxAmount(),
-                entity.getRemark(),
-                List.of()
-        );
-    }
-
     private String findSupplierName(Long supplierId) {
         SupplierEntity supplier = supplierMapper.selectById(supplierId);
         return supplier == null ? null : supplier.getSupplierName();
-    }
-
-    private Map<Long, String> loadSupplierNames(List<PurchaseOrderEntity> orders) {
-        List<Long> supplierIds = orders.stream()
-                .map(PurchaseOrderEntity::getSupplierId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        if (supplierIds.isEmpty()) {
-            return Map.of();
-        }
-        return supplierMapper.selectBatchIds(supplierIds).stream()
-                .collect(Collectors.toMap(SupplierEntity::getId, SupplierEntity::getSupplierName));
     }
 
     private PurchaseOrderLineResponse toLineResponse(PurchaseOrderLineEntity entity) {
@@ -716,73 +554,11 @@ public class PurchaseOrderService {
         );
     }
 
-    private void exportToCsv(PurchaseOrderPageQuery query, OutputStream outputStream) throws IOException {
-        PurchaseOrderPageQuery safeQuery = query == null ? new PurchaseOrderPageQuery() : query;
-        LambdaQueryWrapper<PurchaseOrderEntity> wrapper = scopedListQuery(safeQuery);
-
-        List<String> headers = List.of(
-                "订单编号", "供应商", "订单日期", "交货日期",
-                "订单金额", "状态", "创建人", "创建时间", "备注"
-        );
-
-        List<PurchaseOrderEntity> orders = purchaseOrderMapper.selectList(wrapper);
-        Map<Long, String> supplierNames = loadSupplierNames(orders);
-        Map<Long, String> userNames = loadUserNames(orders);
-
-        List<List<String>> rows = orders.stream()
-                .map(order -> List.of(
-                        order.getOrderNo() != null ? order.getOrderNo() : "",
-                        supplierNames.getOrDefault(order.getSupplierId(), ""),
-                        order.getOrderDate() != null ? order.getOrderDate().toString() : "",
-                        order.getDeliveryDate() != null ? order.getDeliveryDate().toString() : "",
-                        order.getTotalAmount() != null ? order.getTotalAmount().toString() : "",
-                        order.getStatus() != null ? order.getStatus() : "",
-                        userNames.getOrDefault(order.getCreatedBy(), ""),
-                        order.getCreatedTime() != null ? order.getCreatedTime().toString() : "",
-                        order.getRemark() != null ? order.getRemark() : ""
-                ))
-                .toList();
-
-        CsvExport.write(outputStream, headers, rows);
-    }
-
     public StreamingResponseBody exportOrders(PurchaseOrderPageQuery query) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return outputStream -> withAuthentication(authentication, () -> exportToCsv(query, outputStream));
-    }
-
-    private Map<Long, String> loadUserNames(List<PurchaseOrderEntity> orders) {
-        Set<Long> userIds = orders.stream()
-                .map(PurchaseOrderEntity::getCreatedBy)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        if (userIds.isEmpty()) {
-            return Map.of();
-        }
-        return userMapper.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(UserEntity::getId, UserEntity::getUsername));
+        return purchaseOrderQueryService.exportOrders(query);
     }
 
     private record OrderTotals(BigDecimal totalQuantity, BigDecimal totalAmount, BigDecimal totalTaxAmount) {
     }
 
-    private void withAuthentication(Authentication authentication, ThrowingRunnable action) throws IOException {
-        Authentication previousAuthentication = SecurityContextHolder.getContext().getAuthentication();
-        try {
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            action.run();
-        } finally {
-            if (previousAuthentication == null) {
-                SecurityContextHolder.clearContext();
-            } else {
-                SecurityContextHolder.getContext().setAuthentication(previousAuthentication);
-            }
-        }
-    }
-
-    @FunctionalInterface
-    private interface ThrowingRunnable {
-
-        void run() throws IOException;
-    }
 }

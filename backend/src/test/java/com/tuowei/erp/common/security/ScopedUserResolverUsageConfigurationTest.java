@@ -40,7 +40,7 @@ class ScopedUserResolverUsageConfigurationTest {
         return List.of(
                 "src/main/java/com/tuowei/erp/finance/settlement/service/FinanceSettlementScopeSupport.java",
                 "src/main/java/com/tuowei/erp/production/order/service/ProductionOrderService.java",
-                "src/main/java/com/tuowei/erp/purchase/order/service/PurchaseOrderService.java",
+                "src/main/java/com/tuowei/erp/purchase/order/service/PurchaseOrderQueryService.java",
                 "src/main/java/com/tuowei/erp/purchase/receipt/service/PurchaseReceiptService.java",
                 "src/main/java/com/tuowei/erp/purchase/returnorder/service/PurchaseReturnService.java",
                 "src/main/java/com/tuowei/erp/report/service/ReportQueryService.java",

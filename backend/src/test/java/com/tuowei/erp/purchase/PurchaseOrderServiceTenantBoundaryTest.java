@@ -3,15 +3,10 @@ package com.tuowei.erp.purchase;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.DataScopeService;
-import com.tuowei.erp.common.security.DataScopeSnapshot;
-import com.tuowei.erp.common.security.ErpPrincipal;
-import com.tuowei.erp.common.security.ScopedUserResolver;
+import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -23,6 +18,7 @@ import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderNumberService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderInquirySource;
+import com.tuowei.erp.purchase.order.service.PurchaseOrderQueryService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderTraceService;
 import com.tuowei.erp.purchase.order.service.PurchasePriceEvaluator;
@@ -30,25 +26,18 @@ import com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
-import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -75,18 +64,6 @@ class PurchaseOrderServiceTenantBoundaryTest {
             "purchase_order_scope_user",
             "采购订单用户"
     );
-    private static final ErpPrincipal PRINCIPAL = new ErpPrincipal(
-            CURRENT_USER.userId(),
-            CURRENT_USER.companyId(),
-            CURRENT_USER.accountBookId(),
-            CURRENT_USER.deptId(),
-            CURRENT_USER.postId(),
-            CURRENT_USER.username(),
-            CURRENT_USER.realName(),
-            "N/A",
-            Set.of(),
-            DataScopeSnapshot.all()
-    );
     private static final Long SUPPLIER_ID = 4101L;
     private static final Long PRODUCT_ID = 4201L;
 
@@ -97,10 +74,7 @@ class PurchaseOrderServiceTenantBoundaryTest {
     private final ProductValidator productValidator = mock(ProductValidator.class);
     private final PurchaseOrderNumberService purchaseOrderNumberService = mock(PurchaseOrderNumberService.class);
     private final AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
-    private final CurrentUserContext currentUserContext = mock(CurrentUserContext.class);
-    private final DataScopeService dataScopeService = mock(DataScopeService.class);
-    private final ScopedUserResolver scopedUserResolver = mock(ScopedUserResolver.class);
-    private final UserMapper userMapper = mock(UserMapper.class);
+    private final PurchaseOrderQueryService purchaseOrderQueryService = mock(PurchaseOrderQueryService.class);
     private final PurchaseOrderTraceService purchaseOrderTraceService = mock(PurchaseOrderTraceService.class);
     private final WorkflowService workflowService = mock(WorkflowService.class);
 
@@ -112,7 +86,6 @@ class PurchaseOrderServiceTenantBoundaryTest {
 
     @Test
     void getByIdScopesLineQueryByCompanyAndAccountBook() {
-        stubCurrentUser();
         when(purchaseOrderMapper.selectById(4301L)).thenReturn(order());
         when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
 
@@ -123,11 +96,25 @@ class PurchaseOrderServiceTenantBoundaryTest {
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
         verify(purchaseOrderLineMapper).selectList(wrapperCaptor.capture());
         assertTenantScoped(wrapperCaptor.getValue());
+        verify(purchaseOrderQueryService).assertCanView(any(PurchaseOrderEntity.class));
+    }
+
+    @Test
+    void listAndExportKeepThePurchaseOrderFacade() {
+        PurchaseOrderPageQuery query = new PurchaseOrderPageQuery();
+        PageResponse<PurchaseOrderResponse> page = new PageResponse<>(1, 20, 0, List.of());
+        StreamingResponseBody export = outputStream -> outputStream.flush();
+        when(purchaseOrderQueryService.list(query)).thenReturn(page);
+        when(purchaseOrderQueryService.exportOrders(query)).thenReturn(export);
+
+        assertThat(service().list(query)).isSameAs(page);
+        assertThat(service().exportOrders(query)).isSameAs(export);
+        verify(purchaseOrderQueryService).list(query);
+        verify(purchaseOrderQueryService).exportOrders(query);
     }
 
     @Test
     void traceLoadsTheAuthorizedOrderBeforeDelegatingTheDocumentChain() {
-        stubCurrentUser();
         when(purchaseOrderMapper.selectById(4301L)).thenReturn(order());
         when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
 
@@ -212,7 +199,6 @@ class PurchaseOrderServiceTenantBoundaryTest {
 
     @Test
     void unapproveApprovedUnreceivedOrderReturnsToDraft() {
-        stubCurrentUser();
         stubAudit();
         PurchaseOrderEntity approved = order();
         approved.setStatus("APPROVED");
@@ -231,7 +217,6 @@ class PurchaseOrderServiceTenantBoundaryTest {
 
     @Test
     void unapproveRejectsReceivedOrderWithoutUpdating() {
-        stubCurrentUser();
         PurchaseOrderEntity received = order();
         received.setStatus("APPROVED");
         received.setApprovalStatus("APPROVED");
@@ -244,119 +229,8 @@ class PurchaseOrderServiceTenantBoundaryTest {
         verify(purchaseOrderMapper, never()).updateById(any(PurchaseOrderEntity.class));
     }
 
-    @ParameterizedTest(name = "{0} scope is shared by list and export")
-    @MethodSource("scopedQueryCases")
-    void listAndExportShareNormalizedScopedQuery(
-            String scopeName,
-            DataScopeSnapshot snapshot,
-            Set<Long> deptUserIds,
-            Set<Long> postUserIds,
-            Set<Long> expectedCreatorIds
-    ) throws Exception {
-        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
-        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
-        when(scopedUserResolver.resolve(CURRENT_USER, snapshot))
-                .thenReturn(new ScopedUserResolver.ScopedUserIds(deptUserIds, postUserIds));
-        when(purchaseOrderMapper.selectPage(any(), any())).thenAnswer(invocation -> {
-            Page<PurchaseOrderEntity> page = invocation.getArgument(0);
-            page.setRecords(List.of());
-            page.setTotal(0L);
-            return page;
-        });
-        when(purchaseOrderMapper.selectList(any())).thenReturn(List.of());
-
-        PurchaseOrderPageQuery query = new PurchaseOrderPageQuery();
-        query.setKeyword("  PO-SCOPE  ");
-        query.setStatus("  approved  ");
-        query.setApprovalStatus("  in_approval  ");
-        query.setSupplierId(SUPPLIER_ID);
-
-        PurchaseOrderService service = service(new DataScopeService(null, null, null, null));
-        service.list(query);
-        service.exportOrders(query).writeTo(new ByteArrayOutputStream());
-
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        ArgumentCaptor<LambdaQueryWrapper<PurchaseOrderEntity>> listWrapperCaptor =
-                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(purchaseOrderMapper).selectPage(any(), listWrapperCaptor.capture());
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        ArgumentCaptor<LambdaQueryWrapper<PurchaseOrderEntity>> exportWrapperCaptor =
-                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(purchaseOrderMapper).selectList(exportWrapperCaptor.capture());
-
-        assertNormalizedScope(listWrapperCaptor.getValue(), expectedCreatorIds);
-        assertNormalizedScope(exportWrapperCaptor.getValue(), expectedCreatorIds);
-    }
-
-    private static Stream<Arguments> scopedQueryCases() {
-        return Stream.of(
-                Arguments.of(
-                        "SELF",
-                        new DataScopeSnapshot(false, false, false, true, Set.of()),
-                        Set.of(),
-                        Set.of(),
-                        Set.of(CURRENT_USER.userId())
-                ),
-                Arguments.of(
-                        "DEPT",
-                        new DataScopeSnapshot(false, true, false, false, Set.of()),
-                        Set.of(9301L, 9302L),
-                        Set.of(),
-                        Set.of(9301L, 9302L)
-                ),
-                Arguments.of(
-                        "POST",
-                        new DataScopeSnapshot(false, false, true, false, Set.of()),
-                        Set.of(),
-                        Set.of(9401L, 9402L),
-                        Set.of(9401L, 9402L)
-                )
-        );
-    }
-
-    private void assertNormalizedScope(
-            LambdaQueryWrapper<PurchaseOrderEntity> wrapper,
-            Set<Long> expectedCreatorIds
-    ) {
-        assertThat(wrapper.getSqlSegment().toLowerCase(Locale.ROOT))
-                .contains("deleted_flag")
-                .contains("order_no")
-                .contains("status")
-                .contains("approval_status")
-                .contains("supplier_id")
-                .contains("company_id")
-                .contains("account_book_id")
-                .contains("created_by");
-        Collection<Object> parameters = wrapper.getParamNameValuePairs().values();
-        assertThat(parameters)
-                .contains("%PO-SCOPE%", "APPROVED", "IN_APPROVAL", SUPPLIER_ID,
-                        CURRENT_USER.companyId(), CURRENT_USER.accountBookId())
-                .containsAll(expectedCreatorIds)
-                .doesNotContain("%  PO-SCOPE  %", "  approved  ", "  in_approval  ");
-    }
-
-    private ErpPrincipal principal(DataScopeSnapshot snapshot) {
-        return new ErpPrincipal(
-                CURRENT_USER.userId(),
-                CURRENT_USER.companyId(),
-                CURRENT_USER.accountBookId(),
-                CURRENT_USER.deptId(),
-                CURRENT_USER.postId(),
-                CURRENT_USER.username(),
-                CURRENT_USER.realName(),
-                "N/A",
-                Set.of(),
-                snapshot
-        );
-    }
-
     private void stubAudit() {
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
-    }
-
-    private void stubCurrentUser() {
-        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
-        when(currentUserContext.requirePrincipal()).thenReturn(PRINCIPAL);
     }
 
     private void stubOrderInsert() {
@@ -368,10 +242,6 @@ class PurchaseOrderServiceTenantBoundaryTest {
     }
 
     private PurchaseOrderService service() {
-        return service(dataScopeService);
-    }
-
-    private PurchaseOrderService service(DataScopeService scopeService) {
         return new PurchaseOrderService(
                 purchaseOrderMapper,
                 purchaseOrderLineMapper,
@@ -380,10 +250,7 @@ class PurchaseOrderServiceTenantBoundaryTest {
                 productValidator,
                 purchaseOrderNumberService,
                 auditMetadataFactory,
-                currentUserContext,
-                scopeService,
-                scopedUserResolver,
-                userMapper,
+                purchaseOrderQueryService,
                 purchaseOrderTraceService,
                 workflowService,
                 mock(PurchasePriceEvaluator.class)
