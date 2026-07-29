@@ -139,7 +139,10 @@ public class PurchaseInquiryQuoteService {
             other.setStatus(QUOTE_REJECTED);
             other.setUpdatedBy(audit.userId());
             other.setUpdatedTime(now);
-            purchaseInquiryQuoteMapper.updateById(other);
+            OptimisticLockGuard.requireUpdated(
+                    purchaseInquiryQuoteMapper.updateById(other),
+                    "报价已被其他操作修改，请刷新后重试"
+            );
         }
         return quote;
     }

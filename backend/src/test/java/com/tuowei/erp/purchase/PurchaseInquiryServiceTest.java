@@ -271,6 +271,34 @@ class PurchaseInquiryServiceTest {
     }
 
     @Test
+    void losingQuoteOptimisticLockFailureDoesNotCloseInquiry() {
+        stubAudit();
+        PurchaseInquiryEntity inquiry = inquiry(5001L, "SUBMITTED");
+        PurchaseInquiryQuoteEntity winner = quote(7002L, 5001L, 7001L, "PENDING");
+        PurchaseInquiryQuoteEntity loser = quote(7003L, 5001L, 7004L, "PENDING");
+        when(purchaseInquiryMapper.selectById(5001L)).thenReturn(inquiry);
+        when(purchaseInquiryQuoteMapper.selectById(7002L)).thenReturn(winner);
+        when(purchaseInquiryLineMapper.selectList(any())).thenReturn(List.of(line(5001L, 6001L)));
+        when(purchaseInquiryQuoteMapper.updateById(winner)).thenReturn(1);
+        when(purchaseInquiryQuoteMapper.updateById(loser)).thenReturn(0);
+        when(purchaseInquiryQuoteMapper.selectList(any())).thenReturn(List.of(loser));
+
+        assertThatThrownBy(() -> service().selectQuote(
+                5001L,
+                new PurchaseInquirySelectQuoteRequest(7002L)
+        ))
+                .isInstanceOf(BusinessConflictException.class)
+                .hasMessage("报价已被其他操作修改，请刷新后重试");
+
+        assertThat(inquiry.getStatus()).isEqualTo("SUBMITTED");
+        assertThat(inquiry.getSelectedSupplierId()).isNull();
+        assertThat(inquiry.getSelectedQuoteId()).isNull();
+        verify(purchaseInquiryQuoteMapper).updateById(winner);
+        verify(purchaseInquiryQuoteMapper).updateById(loser);
+        verify(purchaseInquiryMapper, never()).updateById(any(PurchaseInquiryEntity.class));
+    }
+
+    @Test
     void convertCreatesOneSourcedPurchaseOrderAndPersistsReverseLink() {
         stubAudit();
         Long inquiryId = 5001L;
