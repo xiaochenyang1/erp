@@ -115,6 +115,13 @@ const userStore = readFileSync(resolve(root, 'src/store/modules/user.ts'), 'utf8
 const layoutView = readFileSync(resolve(root, 'src/layout/index.vue'), 'utf8')
 const observabilityApi = readFileSync(resolve(root, 'src/api/observability.ts'), 'utf8')
 const observabilityView = readFileSync(resolve(root, 'src/views/system/observability/index.vue'), 'utf8')
+const userSessionApi = readFileSync(resolve(root, 'src/api/userSession.ts'), 'utf8')
+// 在线会话页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
+const userSessionView = [
+  'src/views/system/user-sessions/index.vue',
+  'src/composables/useSystemUserSessionPresentation.ts',
+  'src/composables/useSystemUserSessionList.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const readinessApi = readFileSync(resolve(root, 'src/api/readiness.ts'), 'utf8')
 // 预生产验收页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const readinessView = [
@@ -572,6 +579,75 @@ for (const fragment of [
 ]) {
   if (!observabilityView.includes(fragment)) {
     errors.push(`可观测性页面缺少 /api/health 平台状态入口片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'export interface UserSession {\n  id: string\n  userId: string',
+  'userId?: string | number',
+  "request.get<PageResponse<UserSession>>('/system/user-sessions'",
+  'records: page.records.map(normalizeUserSession)',
+  'id: String(session.id)',
+  'userId: String(session.userId)',
+  'request.post<void>(`/system/user-sessions/${id}/revoke`)',
+  'request.post<void>(`/system/users/${userId}/sessions/revoke`)'
+]) {
+  if (!userSessionApi.includes(fragment)) {
+    errors.push(`在线会话 API 缺少 Long ID 或撤销真实契约片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  "import { useSystemUserSessionPresentation } from '@/composables/useSystemUserSessionPresentation'",
+  "import { useSystemUserSessionList } from '@/composables/useSystemUserSessionList'",
+  'useSystemUserSessionPresentation(t)',
+  'useSystemUserSessionList(t, {',
+  "v-permission=\"'system:user-session:revoke'\"",
+  'isActive(row.status)',
+  'options.revokeUserSession(row.id)',
+  'options.revokeUserSessionsByUser(row.userId)',
+  '@size-change="handleSizeChange"',
+  '@current-change="handlePageChange"',
+  'formatDateTime(row.issuedAt)',
+  'formatDateTime(row.lastUsedAt)',
+  'formatDateTime(row.expiresAt)'
+]) {
+  if (!userSessionView.includes(fragment)) {
+    errors.push(`在线会话页缺少展示/分页/Long ID 撤销契约片段: ${fragment}`)
+  }
+}
+
+if ((userSessionView.match(/v-permission="'system:user-session:revoke'"/g) || []).length < 2) {
+  errors.push('在线会话页两个撤销入口未同时保留 system:user-session:revoke 权限门控')
+}
+
+for (const fragment of [
+  "path: 'user-sessions'",
+  "component: () => import('@/views/system/user-sessions/index.vue')",
+  "permission: 'system:user-session:view'"
+]) {
+  if (!routerConfig.includes(fragment)) {
+    errors.push(`在线会话路由缺少查看权限或真实页面片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'Number(row.id)',
+  'Number(row.userId)',
+  'parseInt(row.id',
+  'parseInt(row.userId'
+]) {
+  if (userSessionView.includes(fragment)) {
+    errors.push(`在线会话页仍把业务 Long ID 转成 number: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'id: number',
+  'userId: number'
+]) {
+  if (userSessionApi.includes(fragment)) {
+    errors.push(`在线会话 API 仍保留 Long ID 数字精度风险片段: ${fragment}`)
   }
 }
 

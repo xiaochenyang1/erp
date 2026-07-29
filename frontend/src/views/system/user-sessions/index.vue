@@ -26,30 +26,30 @@
       <el-table v-loading="loading" :data="tableData" border stripe>
         <el-table-column prop="username" :label="$t('userSessions.username')" width="140" />
         <el-table-column prop="realName" :label="$t('userSessions.realName')" width="140">
-          <template #default="{ row }">{{ row.realName || '-' }}</template>
+          <template #default="{ row }">{{ realNameLabel(row.realName) }}</template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('userSessions.status')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">
+            <el-tag :type="statusTagType(row.status)">
               {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="loginIp" :label="$t('userSessions.loginIp')" width="150" />
         <el-table-column prop="issuedAt" :label="$t('userSessions.issuedAt')" width="170">
-          <template #default="{ row }">{{ formatLocalizedDateTime(row.issuedAt) || '-' }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.issuedAt) }}</template>
         </el-table-column>
         <el-table-column prop="lastUsedAt" :label="$t('userSessions.lastUsedAt')" width="170">
-          <template #default="{ row }">{{ formatLocalizedDateTime(row.lastUsedAt) || '-' }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.lastUsedAt) }}</template>
         </el-table-column>
         <el-table-column prop="expiresAt" :label="$t('userSessions.expiresAt')" width="170">
-          <template #default="{ row }">{{ formatLocalizedDateTime(row.expiresAt) || '-' }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.expiresAt) }}</template>
         </el-table-column>
         <el-table-column prop="userAgent" :label="$t('userSessions.userAgent')" min-width="260" show-overflow-tooltip />
         <el-table-column :label="$t('userSessions.actions')" width="180" align="center" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.status === 'ACTIVE'"
+              v-if="isActive(row.status)"
               v-permission="'system:user-session:revoke'"
               type="danger"
               link
@@ -59,7 +59,7 @@
               {{ $t('userSessions.revoke') }}
             </el-button>
             <el-button
-              v-if="row.status === 'ACTIVE'"
+              v-if="isActive(row.status)"
               v-permission="'system:user-session:revoke'"
               type="warning"
               link
@@ -77,7 +77,7 @@
         :total="pagination.total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handlePageChange"
+        @size-change="handleSizeChange"
         @current-change="handlePageChange"
         style="margin-top: 20px; justify-content: flex-end"
       />
@@ -86,104 +86,50 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Close, Refresh, Search } from '@element-plus/icons-vue'
 import {
   getUserSessions,
   revokeUserSession,
-  revokeUserSessionsByUser,
-  type UserSession,
-  type UserSessionQuery
+  revokeUserSessionsByUser
 } from '@/api/userSession'
-import { formatLocalizedDateTime } from '@/utils/locale'
+import { useSystemUserSessionList } from '@/composables/useSystemUserSessionList'
+import { useSystemUserSessionPresentation } from '@/composables/useSystemUserSessionPresentation'
 
 const { t } = useI18n()
 
-const queryForm = reactive<UserSessionQuery>({
-  username: '',
-  status: ''
+const {
+  formatDateTime,
+  isActive,
+  realNameLabel,
+  sessionUserLabel,
+  statusLabel,
+  statusTagType
+} = useSystemUserSessionPresentation(t)
+
+const {
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleRevoke,
+  handleRevokeUser,
+  handleSizeChange,
+  loadData,
+  loading,
+  pagination,
+  queryForm,
+  tableData
+} = useSystemUserSessionList(t, {
+  getUserSessions,
+  revokeUserSession,
+  revokeUserSessionsByUser,
+  sessionUserLabel,
+  confirm: ElMessageBox.confirm,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
 })
-
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
-
-const loading = ref(false)
-const tableData = ref<UserSession[]>([])
-
-const buildQueryParams = (): UserSessionQuery => ({
-  ...queryForm,
-  pageNo: pagination.page,
-  pageSize: pagination.size
-})
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getUserSessions(buildQueryParams())
-    tableData.value = res.records || []
-    pagination.total = res.total || 0
-  } catch (error) {
-    console.error('Failed to load online sessions:', error)
-    ElMessage.error(t('userSessions.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  pagination.page = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryForm.username = ''
-  queryForm.status = ''
-  pagination.page = 1
-  loadData()
-}
-
-const handlePageChange = () => {
-  loadData()
-}
-
-const handleRevoke = async (row: UserSession) => {
-  try {
-    await ElMessageBox.confirm(t('userSessions.message.revokeConfirm', { user: row.username || row.userId }), t('userSessions.message.prompt'), {
-      type: 'warning'
-    })
-    await revokeUserSession(row.id)
-    ElMessage.success(t('userSessions.message.revoked'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') ElMessage.error(t('userSessions.message.revokeFailed'))
-  }
-}
-
-const handleRevokeUser = async (row: UserSession) => {
-  try {
-    await ElMessageBox.confirm(t('userSessions.message.revokeUserConfirm', { user: row.username || row.userId }), t('userSessions.message.prompt'), {
-      type: 'warning'
-    })
-    await revokeUserSessionsByUser(row.userId)
-    ElMessage.success(t('userSessions.message.userRevoked'))
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') ElMessage.error(t('userSessions.message.revokeUserFailed'))
-  }
-}
-
-const statusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    ACTIVE: t('userSessions.statusValue.active'),
-    REVOKED: t('userSessions.statusValue.revoked')
-  }
-  return map[status] || status
-}
 
 onMounted(() => {
   loadData()
