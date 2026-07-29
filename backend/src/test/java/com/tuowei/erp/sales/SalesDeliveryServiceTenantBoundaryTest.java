@@ -6,19 +6,12 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.DataScopeService;
-import com.tuowei.erp.common.security.DataScopeSnapshot;
-import com.tuowei.erp.common.security.ErpPrincipal;
-import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryReservationMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -28,14 +21,15 @@ import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryLineEntity;
 import com.tuowei.erp.sales.delivery.service.SalesDeliveryNumberService;
+import com.tuowei.erp.sales.delivery.service.SalesDeliveryQueryService;
 import com.tuowei.erp.sales.delivery.service.SalesDeliveryService;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryCreateRequest;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryLineRequest;
+import com.tuowei.erp.sales.delivery.web.SalesDeliveryPageQuery;
 import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
-import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -49,7 +43,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,18 +62,6 @@ class SalesDeliveryServiceTenantBoundaryTest {
             "sales_delivery_scope_user",
             "销售出库用户"
     );
-    private static final ErpPrincipal PRINCIPAL = new ErpPrincipal(
-            CURRENT_USER.userId(),
-            CURRENT_USER.companyId(),
-            CURRENT_USER.accountBookId(),
-            CURRENT_USER.deptId(),
-            CURRENT_USER.postId(),
-            CURRENT_USER.username(),
-            CURRENT_USER.realName(),
-            "N/A",
-            Set.of(),
-            DataScopeSnapshot.all()
-    );
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 6, 8, 15, 0);
 
     @Mock
@@ -99,9 +80,6 @@ class SalesDeliveryServiceTenantBoundaryTest {
     private WarehouseMapper warehouseMapper;
 
     @Mock
-    private ProductMapper productMapper;
-
-    @Mock
     private InventoryReservationMapper inventoryReservationMapper;
 
     @Mock
@@ -114,22 +92,13 @@ class SalesDeliveryServiceTenantBoundaryTest {
     private SalesDeliveryNumberService salesDeliveryNumberService;
 
     @Mock
+    private SalesDeliveryQueryService salesDeliveryQueryService;
+
+    @Mock
     private FinancePostingService financePostingService;
 
     @Mock
     private AuditMetadataFactory auditMetadataFactory;
-
-    @Mock
-    private CurrentUserContext currentUserContext;
-
-    @Mock
-    private DataScopeService dataScopeService;
-
-    @Mock
-    private ScopedUserResolver scopedUserResolver;
-
-    @Mock
-    private UserMapper userMapper;
 
     @Mock
     private AccountPeriodGuard accountPeriodGuard;
@@ -149,23 +118,23 @@ class SalesDeliveryServiceTenantBoundaryTest {
     }
 
     @Test
-    void getByIdScopesDeliveryLineQueryByCompanyAndAccountBook() {
-        stubCurrentUser();
-        when(salesDeliveryMapper.selectById(7001L)).thenReturn(delivery());
-        when(salesDeliveryLineMapper.selectList(any())).thenReturn(List.of(deliveryLine()));
-
+    void getByIdDelegatesToQueryService() {
         service().getById(7001L);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        ArgumentCaptor<LambdaQueryWrapper<SalesDeliveryLineEntity>> wrapperCaptor =
-                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(salesDeliveryLineMapper).selectList(wrapperCaptor.capture());
-        assertTenantScoped(wrapperCaptor.getValue());
+        verify(salesDeliveryQueryService).getById(7001L);
+    }
+
+    @Test
+    void listDelegatesTheOriginalQueryToQueryService() {
+        SalesDeliveryPageQuery query = new SalesDeliveryPageQuery();
+
+        service().list(query);
+
+        verify(salesDeliveryQueryService).list(query);
     }
 
     @Test
     void createScopesReservationAndDraftDeliveryChecksByCompanyAndAccountBook() {
-        stubCurrentUser();
         when(auditMetadataFactory.current()).thenReturn(new AuditMetadata(
                 CURRENT_USER.userId(),
                 CURRENT_USER.companyId(),
@@ -212,11 +181,12 @@ class SalesDeliveryServiceTenantBoundaryTest {
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
         verify(salesOrderLineMapper).selectList(orderLineWrapperCaptor.capture());
         assertTenantScoped(orderLineWrapperCaptor.getValue());
+        verify(salesDeliveryQueryService).assertCanView(any(SalesOrderEntity.class));
+        verify(salesDeliveryQueryService).assertCanView(any(SalesDeliveryEntity.class));
     }
 
     @Test
     void createRejectsWarehouseFromDifferentAccountBookWithinSameCompany() {
-        stubCurrentUser();
         when(auditMetadataFactory.current()).thenReturn(new AuditMetadata(
                 CURRENT_USER.userId(),
                 CURRENT_USER.companyId(),
@@ -233,7 +203,6 @@ class SalesDeliveryServiceTenantBoundaryTest {
 
     @Test
     void createRejectsProductFromDifferentAccountBookWithinSameCompany() {
-        stubCurrentUser();
         stubCreateContext();
         when(warehouseMapper.selectById(3001L)).thenReturn(warehouse(CURRENT_USER.accountBookId()));
         when(productValidator.requireProducts(any(), any(), any()))
@@ -242,11 +211,6 @@ class SalesDeliveryServiceTenantBoundaryTest {
         assertThatThrownBy(() -> service().create(createRequest()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("商品不存在或已停用");
-    }
-
-    private void stubCurrentUser() {
-        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
-        when(currentUserContext.requirePrincipal()).thenReturn(PRINCIPAL);
     }
 
     private void stubCreateContext() {
@@ -359,20 +323,6 @@ class SalesDeliveryServiceTenantBoundaryTest {
         return entity;
     }
 
-    private ProductEntity product() {
-        return product(CURRENT_USER.accountBookId());
-    }
-
-    private ProductEntity product(Long accountBookId) {
-        ProductEntity entity = new ProductEntity();
-        entity.setId(4001L);
-        entity.setCompanyId(CURRENT_USER.companyId());
-        entity.setAccountBookId(accountBookId);
-        entity.setStatus("ACTIVE");
-        entity.setDeletedFlag(0);
-        return entity;
-    }
-
     private InventoryReservationEntity reservation() {
         InventoryReservationEntity entity = new InventoryReservationEntity();
         entity.setId(9001L);
@@ -395,17 +345,13 @@ class SalesDeliveryServiceTenantBoundaryTest {
                 salesOrderMapper,
                 salesOrderLineMapper,
                 warehouseMapper,
-                productMapper,
                 inventoryReservationMapper,
                 inventoryPostingService,
                 inventorySerialNumberService,
                 salesDeliveryNumberService,
+                salesDeliveryQueryService,
                 financePostingService,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
                 accountPeriodGuard,
                 productValidator,
                 qcInspectionGate

@@ -1,17 +1,11 @@
 package com.tuowei.erp.sales.delivery.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.DataScopeService;
-import com.tuowei.erp.common.security.DataScopeSnapshot;
-import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
@@ -20,7 +14,6 @@ import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -32,7 +25,6 @@ import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryLineEntity;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryCreateRequest;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryLineRequest;
-import com.tuowei.erp.sales.delivery.web.SalesDeliveryLineResponse;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryPageQuery;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryResponse;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryUpdateRequest;
@@ -42,18 +34,14 @@ import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
 import com.tuowei.erp.sales.support.SalesAmountCalculator;
-import com.tuowei.erp.system.user.mapper.UserMapper;
-import com.tuowei.erp.system.user.model.UserEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -74,17 +62,13 @@ public class SalesDeliveryService {
     private final SalesOrderMapper salesOrderMapper;
     private final SalesOrderLineMapper salesOrderLineMapper;
     private final WarehouseMapper warehouseMapper;
-    private final ProductMapper productMapper;
     private final InventoryReservationMapper inventoryReservationMapper;
     private final InventoryPostingService inventoryPostingService;
     private final InventorySerialNumberService inventorySerialNumberService;
     private final SalesDeliveryNumberService salesDeliveryNumberService;
+    private final SalesDeliveryQueryService salesDeliveryQueryService;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
-    private final CurrentUserContext currentUserContext;
-    private final DataScopeService dataScopeService;
-    private final ScopedUserResolver scopedUserResolver;
-    private final UserMapper userMapper;
     private final AccountPeriodGuard accountPeriodGuard;
     private final ProductValidator productValidator;
     private final QcInspectionGate qcInspectionGate;
@@ -95,17 +79,13 @@ public class SalesDeliveryService {
             SalesOrderMapper salesOrderMapper,
             SalesOrderLineMapper salesOrderLineMapper,
             WarehouseMapper warehouseMapper,
-            ProductMapper productMapper,
             InventoryReservationMapper inventoryReservationMapper,
             InventoryPostingService inventoryPostingService,
             InventorySerialNumberService inventorySerialNumberService,
             SalesDeliveryNumberService salesDeliveryNumberService,
+            SalesDeliveryQueryService salesDeliveryQueryService,
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
-            CurrentUserContext currentUserContext,
-            DataScopeService dataScopeService,
-            ScopedUserResolver scopedUserResolver,
-            UserMapper userMapper,
             AccountPeriodGuard accountPeriodGuard,
             ProductValidator productValidator,
             QcInspectionGate qcInspectionGate
@@ -115,17 +95,13 @@ public class SalesDeliveryService {
         this.salesOrderMapper = salesOrderMapper;
         this.salesOrderLineMapper = salesOrderLineMapper;
         this.warehouseMapper = warehouseMapper;
-        this.productMapper = productMapper;
         this.inventoryReservationMapper = inventoryReservationMapper;
         this.inventoryPostingService = inventoryPostingService;
         this.inventorySerialNumberService = inventorySerialNumberService;
         this.salesDeliveryNumberService = salesDeliveryNumberService;
+        this.salesDeliveryQueryService = salesDeliveryQueryService;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.scopedUserResolver = scopedUserResolver;
-        this.userMapper = userMapper;
         this.accountPeriodGuard = accountPeriodGuard;
         this.productValidator = productValidator;
         this.qcInspectionGate = qcInspectionGate;
@@ -175,57 +151,18 @@ public class SalesDeliveryService {
         salesDeliveryMapper.insert(delivery);
 
         List<SalesDeliveryLineEntity> lines = saveDeliveryLines(delivery.getId(), request.lines(), orderLines, audit, now);
-        return toResponse(delivery, lines);
+        return salesDeliveryQueryService.toResponse(delivery, lines);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<SalesDeliveryResponse> list(SalesDeliveryPageQuery query) {
         SalesDeliveryPageQuery safeQuery = query == null ? new SalesDeliveryPageQuery() : query;
-        long pageNo = normalizePageNo(safeQuery.getPageNo());
-        long pageSize = normalizePageSize(safeQuery.getPageSize());
-        String keyword = normalizeNullableText(safeQuery.getKeyword());
-        String status = normalizeStatus(safeQuery.getStatus());
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
-
-        LambdaQueryWrapper<SalesDeliveryEntity> wrapper = buildListQuery(
-                keyword,
-                safeQuery.getOrderId(),
-                safeQuery.getWarehouseId(),
-                status,
-                normalizeNullableText(safeQuery.getLogisticsStatus()),
-                normalizeNullableText(safeQuery.getTrackingNo()),
-                safeQuery.getDeliveryDateFrom(),
-                safeQuery.getDeliveryDateTo()
-        );
-        wrapper = dataScopeService.applySalesDeliveryScope(
-                wrapper,
-                currentUser,
-                snapshot,
-                scopedUserIds.deptUserIds(),
-                scopedUserIds.postUserIds()
-        );
-        Page<SalesDeliveryEntity> result = salesDeliveryMapper.selectPage(new Page<>(pageNo, pageSize), wrapper);
-
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toSummaryResponse).toList()
-        );
+        return salesDeliveryQueryService.list(safeQuery);
     }
 
     @Transactional(readOnly = true)
     public SalesDeliveryResponse getById(Long id) {
-        SalesDeliveryEntity delivery = requireDelivery(id);
-        assertCanView(delivery);
-        List<SalesDeliveryLineEntity> lines = salesDeliveryLineMapper.selectList(new LambdaQueryWrapper<SalesDeliveryLineEntity>()
-                .eq(SalesDeliveryLineEntity::getCompanyId, delivery.getCompanyId())
-                .eq(SalesDeliveryLineEntity::getAccountBookId, delivery.getAccountBookId())
-                .eq(SalesDeliveryLineEntity::getDeliveryId, id)
-                .orderByAsc(SalesDeliveryLineEntity::getLineNo));
-        return toResponse(delivery, lines);
+        return salesDeliveryQueryService.getById(id);
     }
 
     @Transactional
@@ -276,7 +213,7 @@ public class SalesDeliveryService {
                 .eq(SalesDeliveryLineEntity::getAccountBookId, delivery.getAccountBookId())
                 .eq(SalesDeliveryLineEntity::getDeliveryId, delivery.getId()));
         List<SalesDeliveryLineEntity> lines = saveDeliveryLines(delivery.getId(), request.lines(), orderLines, audit, now);
-        return toResponse(delivery, lines);
+        return salesDeliveryQueryService.toResponse(delivery, lines);
     }
 
     @Transactional
@@ -633,69 +570,12 @@ public class SalesDeliveryService {
         return deliveryLines;
     }
 
-    private LambdaQueryWrapper<SalesDeliveryEntity> buildListQuery(
-            String keyword,
-            Long orderId,
-            Long warehouseId,
-            String status,
-            String logisticsStatus,
-            String trackingNo,
-            LocalDate deliveryDateFrom,
-            LocalDate deliveryDateTo
-    ) {
-        LambdaQueryWrapper<SalesDeliveryEntity> wrapper = new LambdaQueryWrapper<SalesDeliveryEntity>()
-                .eq(SalesDeliveryEntity::getDeletedFlag, 0);
-        if (StringUtils.hasText(keyword)) {
-            wrapper.like(SalesDeliveryEntity::getDeliveryNo, keyword);
-        }
-        if (orderId != null) {
-            wrapper.eq(SalesDeliveryEntity::getOrderId, orderId);
-        }
-        if (warehouseId != null) {
-            wrapper.eq(SalesDeliveryEntity::getWarehouseId, warehouseId);
-        }
-        if (StringUtils.hasText(status)) {
-            wrapper.eq(SalesDeliveryEntity::getStatus, status);
-        }
-        if (StringUtils.hasText(logisticsStatus)) {
-            wrapper.eq(SalesDeliveryEntity::getLogisticsStatus, logisticsStatus.trim().toUpperCase(java.util.Locale.ROOT));
-        }
-        if (StringUtils.hasText(trackingNo)) {
-            wrapper.like(SalesDeliveryEntity::getTrackingNo, trackingNo.trim());
-        }
-        if (deliveryDateFrom != null) {
-            wrapper.ge(SalesDeliveryEntity::getDeliveryDate, deliveryDateFrom);
-        }
-        if (deliveryDateTo != null) {
-            wrapper.le(SalesDeliveryEntity::getDeliveryDate, deliveryDateTo);
-        }
-        return wrapper.orderByDesc(SalesDeliveryEntity::getId);
-    }
-
     private void assertCanView(SalesDeliveryEntity delivery) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = delivery.getCreatedBy() == null ? null : userMapper.selectById(delivery.getCreatedBy());
-        dataScopeService.assertCanViewSalesDelivery(
-                delivery,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
+        salesDeliveryQueryService.assertCanView(delivery);
     }
 
     private void assertCanView(SalesOrderEntity order) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = order.getCreatedBy() == null ? null : userMapper.selectById(order.getCreatedBy());
-        dataScopeService.assertCanViewSalesOrder(
-                order,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
+        salesDeliveryQueryService.assertCanView(order);
     }
 
     private void refreshDeliveryStatus(Long orderId, AuditMetadata audit, LocalDateTime now) {
@@ -789,99 +669,11 @@ public class SalesDeliveryService {
         }
     }
 
-    private SalesDeliveryResponse toResponse(SalesDeliveryEntity delivery, List<SalesDeliveryLineEntity> lines) {
-        return new SalesDeliveryResponse(
-                delivery.getId(),
-                delivery.getDeliveryNo(),
-                delivery.getOrderId(),
-                delivery.getWarehouseId(),
-                delivery.getDeliveryDate(),
-                delivery.getStatus(),
-                delivery.getTotalQuantity(),
-                delivery.getTotalAmount(),
-                delivery.getTotalTaxAmount(),
-                delivery.getRemark(),
-                delivery.getCarrierName(),
-                delivery.getTrackingNo(),
-                delivery.getLogisticsStatus(),
-                lines.stream().map(this::toLineResponse).toList()
-        );
-    }
-
-    private SalesDeliveryResponse toSummaryResponse(SalesDeliveryEntity delivery) {
-        return new SalesDeliveryResponse(
-                delivery.getId(),
-                delivery.getDeliveryNo(),
-                delivery.getOrderId(),
-                delivery.getWarehouseId(),
-                delivery.getDeliveryDate(),
-                delivery.getStatus(),
-                delivery.getTotalQuantity(),
-                delivery.getTotalAmount(),
-                delivery.getTotalTaxAmount(),
-                delivery.getRemark(),
-                delivery.getCarrierName(),
-                delivery.getTrackingNo(),
-                delivery.getLogisticsStatus(),
-                List.of()
-        );
-    }
-
-    private SalesDeliveryLineResponse toLineResponse(SalesDeliveryLineEntity line) {
-        return new SalesDeliveryLineResponse(
-                line.getId(),
-                line.getLineNo(),
-                line.getOrderLineId(),
-                line.getProductId(),
-                line.getQty(),
-                line.getPrice(),
-                line.getTaxRate(),
-                line.getAmount(),
-                line.getTaxAmount(),
-                line.getReturnedQty(),
-                line.getLotNo(),
-                line.getProductionDate(),
-                line.getExpiryDate(),
-                line.getLocationId(),
-                line.getSerialNos(),
-                line.getRemark()
-        );
-    }
-
     private BigDecimal availableDeliveryQty(SalesOrderLineEntity orderLine) {
         return ScalePrecision.quantity(
                 ScalePrecision.quantity(orderLine.getQty())
                         .subtract(ScalePrecision.quantity(ScalePrecision.zeroDefault(orderLine.getDeliveredQty())))
         );
-    }
-
-    private String normalizeNullableText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        return value.trim();
-    }
-
-    private String normalizeStatus(String value) {
-        String normalized = normalizeNullableText(value);
-        if (normalized == null) {
-            return null;
-        }
-        return normalized.toUpperCase(Locale.ROOT);
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        if (pageNo == null || pageNo < 1) {
-            return 1L;
-        }
-        return pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        if (pageSize == null || pageSize < 1) {
-            return 20L;
-        }
-        return Math.min(pageSize, 200);
     }
 
     private void touch(SalesDeliveryEntity delivery) {
