@@ -241,6 +241,13 @@ const warehouseView = [
   'src/composables/useWarehouseList.ts',
   'src/composables/useWarehouseForm.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+// 仓库库位页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
+const warehouseLocationView = [
+  'src/views/masterdata/locations/index.vue',
+  'src/composables/useWarehouseLocationPresentation.ts',
+  'src/composables/useWarehouseLocationList.ts',
+  'src/composables/useWarehouseLocationForm.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const workflowApi = readFileSync(resolve(root, 'src/api/workflow.ts'), 'utf8')
 // 审批待办页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
 const workflowTaskView = [
@@ -920,6 +927,27 @@ for (const fragment of [
 ]) {
   if (warehouseView.includes(fragment)) {
     errors.push(`仓库页仍保留后端不接收的负责人/联系方式保存片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  "import { useWarehouseLocationPresentation } from '@/composables/useWarehouseLocationPresentation'",
+  "import { useWarehouseLocationList } from '@/composables/useWarehouseLocationList'",
+  "import { useWarehouseLocationForm } from '@/composables/useWarehouseLocationForm'",
+  'useWarehouseLocationPresentation(t)',
+  'useWarehouseLocationList(t, {',
+  'useWarehouseLocationForm(t, {',
+  "status: 'ACTIVE'",
+  'options.getLocations({',
+  'options.enableLocation(row.id)',
+  'options.disableLocation(row.id)',
+  'options.createLocation(buildCreatePayload())',
+  'options.updateLocation(editingId.value, buildUpdatePayload())',
+  '@size-change="handleSizeChange"',
+  '@current-change="handlePageChange"'
+]) {
+  if (!warehouseLocationView.includes(fragment)) {
+    errors.push(`仓库库位页缺少展示/分页/表单真实契约片段: ${fragment}`)
   }
 }
 

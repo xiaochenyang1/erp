@@ -4,11 +4,11 @@
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item :label="t('warehouseLocation.warehouse')">
           <el-select v-model="query.warehouseId" clearable filterable style="width: 220px" :placeholder="t('warehouseLocation.selectWarehouse')">
-            <el-option v-for="w in warehouses" :key="w.id" :label="`${w.warehouseCode || ''} ${w.warehouseName || w.name || ''}`.trim()" :value="String(w.id)" />
+            <el-option v-for="w in warehouses" :key="w.id" :label="warehouseLabel(w)" :value="String(w.id)" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('warehouseLocation.keyword')">
-          <el-input v-model="query.keyword" clearable :placeholder="t('warehouseLocation.keywordPlaceholder')" @keyup.enter="loadData" />
+          <el-input v-model="query.keyword" clearable :placeholder="t('warehouseLocation.keywordPlaceholder')" @keyup.enter="handleQuery" />
         </el-form-item>
         <el-form-item :label="t('warehouseLocation.status')">
           <el-select v-model="query.status" clearable style="width: 140px">
@@ -17,8 +17,9 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadData">{{ t('warehouseLocation.search') }}</el-button>
-          <el-button v-permission="'masterdata:location:manage'" type="success" @click="openCreate">{{ t('warehouseLocation.create') }}</el-button>
+          <el-button type="primary" @click="handleQuery">{{ t('warehouseLocation.search') }}</el-button>
+          <el-button @click="handleReset">{{ t('warehouseLocation.reset') }}</el-button>
+          <el-button v-permission="'masterdata:location:manage'" type="success" @click="handleOpenCreate">{{ t('warehouseLocation.create') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -30,31 +31,42 @@
         <el-table-column prop="locationName" :label="t('warehouseLocation.name')" min-width="160" />
         <el-table-column :label="t('warehouseLocation.default')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.isDefault" type="success">{{ t('warehouseLocation.yes') }}</el-tag>
-            <span v-else>{{ t('warehouseLocation.no') }}</span>
+            <el-tag v-if="isDefaultLocation(row.isDefault)" type="success">{{ defaultLabel(row.isDefault) }}</el-tag>
+            <span v-else>{{ defaultLabel(row.isDefault) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="t('warehouseLocation.status')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status === 'ACTIVE' ? t('warehouseLocation.active') : t('warehouseLocation.inactive') }}</el-tag>
+            <el-tag :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="t('warehouseLocation.remark')" min-width="140" show-overflow-tooltip />
         <el-table-column :label="t('warehouseLocation.actions')" width="220" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'masterdata:location:manage'" link type="primary" @click="openEdit(row)">{{ t('warehouseLocation.edit') }}</el-button>
-            <el-button v-if="row.status === 'ACTIVE'" v-permission="'masterdata:location:manage'" link type="warning" @click="toggle(row, false)">{{ t('warehouseLocation.disable') }}</el-button>
+            <el-button v-if="isActive(row.status)" v-permission="'masterdata:location:manage'" link type="warning" @click="toggle(row, false)">{{ t('warehouseLocation.disable') }}</el-button>
             <el-button v-else v-permission="'masterdata:location:manage'" link type="success" @click="toggle(row, true)">{{ t('warehouseLocation.enable') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
+
+      <el-pagination
+        v-model:current-page="query.pageNo"
+        v-model:page-size="query.pageSize"
+        :total="total"
+        :page-sizes="[20, 50, 100, 200]"
+        layout="total, sizes, prev, pager, next, jumper"
+        class="pagination"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
+      />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? t('warehouseLocation.editTitle') : t('warehouseLocation.createTitle')" width="520px" destroy-on-close>
+    <el-dialog v-model="dialogVisible" :title="isEditing ? t('warehouseLocation.editTitle') : t('warehouseLocation.createTitle')" width="520px" destroy-on-close>
       <el-form label-width="110px">
         <el-form-item :label="t('warehouseLocation.warehouse')">
-          <el-select v-model="form.warehouseId" :disabled="!!editingId" filterable style="width: 100%">
-            <el-option v-for="w in warehouses" :key="w.id" :label="`${w.warehouseCode || ''} ${w.warehouseName || w.name || ''}`.trim()" :value="String(w.id)" />
+          <el-select v-model="form.warehouseId" :disabled="isEditing" filterable style="width: 100%">
+            <el-option v-for="w in warehouses" :key="w.id" :label="warehouseLabel(w)" :value="String(w.id)" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('warehouseLocation.code')">
@@ -79,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import {
@@ -88,99 +100,66 @@ import {
   enableLocation,
   getLocations,
   getWarehouses,
-  updateLocation,
-  type Location,
-  type Warehouse
+  updateLocation
 } from '@/api/masterdata'
+import { useWarehouseLocationForm } from '@/composables/useWarehouseLocationForm'
+import { useWarehouseLocationList } from '@/composables/useWarehouseLocationList'
+import { useWarehouseLocationPresentation } from '@/composables/useWarehouseLocationPresentation'
 
 const { t } = useI18n()
-const loading = ref(false)
-const saving = ref(false)
-const rows = ref<Location[]>([])
-const warehouses = ref<Warehouse[]>([])
-const dialogVisible = ref(false)
-const editingId = ref<string | number | null>(null)
-const query = reactive({ warehouseId: '', status: '', keyword: '', pageNo: 1, pageSize: 50 })
-const form = reactive({ warehouseId: '', locationCode: '', locationName: '', isDefault: false, remark: '' })
 
-const loadOptions = async () => {
-  const page = await getWarehouses({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-  warehouses.value = page.records || []
-}
+const {
+  defaultLabel,
+  isActive,
+  isDefaultLocation,
+  statusLabel,
+  statusTagType,
+  warehouseLabel
+} = useWarehouseLocationPresentation(t)
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const page = await getLocations({
-      pageNo: query.pageNo,
-      pageSize: query.pageSize,
-      warehouseId: query.warehouseId || undefined,
-      status: query.status || undefined,
-      keyword: query.keyword || undefined
-    })
-    rows.value = page.records || []
-  } finally {
-    loading.value = false
-  }
-}
+const {
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loadOptions,
+  loading,
+  query,
+  rows,
+  toggle,
+  total,
+  warehouses
+} = useWarehouseLocationList(t, {
+  getWarehouses,
+  getLocations,
+  enableLocation,
+  disableLocation,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message)
+})
 
-const openCreate = () => {
-  editingId.value = null
-  form.warehouseId = query.warehouseId || (warehouses.value[0] ? String(warehouses.value[0].id) : '')
-  form.locationCode = ''
-  form.locationName = ''
-  form.isDefault = false
-  form.remark = ''
-  dialogVisible.value = true
-}
-
-const openEdit = (row: Location) => {
-  editingId.value = row.id
-  form.warehouseId = String(row.warehouseId)
-  form.locationCode = row.locationCode
-  form.locationName = row.locationName
-  form.isDefault = !!row.isDefault
-  form.remark = row.remark || ''
-  dialogVisible.value = true
-}
-
-const save = async () => {
-  if (!form.warehouseId || !form.locationCode || !form.locationName) {
-    ElMessage.warning(t('warehouseLocation.validation.required'))
-    return
-  }
-  saving.value = true
-  try {
-    if (editingId.value) {
-      await updateLocation(editingId.value, {
-        locationCode: form.locationCode,
-        locationName: form.locationName,
-        isDefault: form.isDefault,
-        remark: form.remark || undefined
-      })
-      ElMessage.success(t('warehouseLocation.message.saved'))
-    } else {
-      await createLocation({
-        warehouseId: form.warehouseId,
-        locationCode: form.locationCode,
-        locationName: form.locationName,
-        isDefault: form.isDefault,
-        remark: form.remark || undefined
-      })
-      ElMessage.success(t('warehouseLocation.message.created'))
-    }
-    dialogVisible.value = false
+const {
+  dialogVisible,
+  form,
+  isEditing,
+  openCreate,
+  openEdit,
+  save,
+  saving
+} = useWarehouseLocationForm(t, {
+  createLocation,
+  updateLocation,
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onError: (message) => ElMessage.error(message),
+  onSubmitted: async () => {
     await loadData()
-  } finally {
-    saving.value = false
   }
-}
+})
 
-const toggle = async (row: Location, enable: boolean) => {
-  if (enable) await enableLocation(row.id)
-  else await disableLocation(row.id)
-  ElMessage.success(enable ? t('warehouseLocation.message.enabled') : t('warehouseLocation.message.disabled'))
-  await loadData()
+const handleOpenCreate = () => {
+  openCreate(query.warehouseId || warehouses.value[0]?.id)
 }
 
 onMounted(async () => {
@@ -191,4 +170,5 @@ onMounted(async () => {
 
 <style scoped>
 .page { display: flex; flex-direction: column; gap: 12px; }
+.pagination { margin-top: 20px; justify-content: flex-end; }
 </style>

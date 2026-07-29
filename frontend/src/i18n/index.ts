@@ -176,11 +176,11 @@ const coreMessages = {
       message: { created: '登记成功', issued: '已出库', scrapped: '已报废', loadFailed: '加载序列号失败', optionsLoadFailed: '加载仓库/库位失败', productsLoadFailed: '加载商品失败', createFailed: '登记失败', issueFailed: '出库失败', scrapFailed: '报废失败' }
     },
     warehouseLocation: {
-      warehouse: '仓库', selectWarehouse: '选择仓库', keyword: '关键字', keywordPlaceholder: '库位编码/名称', status: '状态', search: '查询', create: '新建库位',
+      warehouse: '仓库', selectWarehouse: '选择仓库', keyword: '关键字', keywordPlaceholder: '库位编码/名称', status: '状态', search: '查询', reset: '重置', create: '新建库位',
       code: '库位编码', name: '库位名称', default: '默认', yes: '是', no: '否', active: '启用', inactive: '停用', remark: '备注', actions: '操作', edit: '编辑', enable: '启用', disable: '停用',
       editTitle: '编辑库位', createTitle: '新建库位', cancel: '取消', save: '保存',
       validation: { required: '请完整填写仓库、编码和名称' },
-      message: { saved: '保存成功', created: '创建成功', enabled: '已启用', disabled: '已停用' }
+      message: { saved: '保存成功', created: '创建成功', enabled: '已启用', disabled: '已停用', optionsLoadFailed: '加载仓库选项失败', loadFailed: '加载库位失败', saveFailed: '保存库位失败', toggleFailed: '更新库位状态失败' }
     },
     inventoryMrp: {
       title: '轻量 MRP', history: '刷新历史', historyTitle: 'MRP运行历史', runNo: '运行号', asOfDate: '业务日', status: '状态', purchaseCount: '采购建议数', productionCount: '生产建议数', createdTime: '创建时间', open: '打开', lineStatus: '行状态', convertedDoc: '已转单据', actions: '操作', convertPo: '转采购', convertMo: '转生产', description: '独立需求=销售未发货+安全库存；供应=现存量+在途采购+在制；有 BOM 建议生产并展开材料采购', run: '运行计划',
@@ -388,11 +388,11 @@ const coreMessages = {
       message: { created: 'Created', issued: 'Issued', scrapped: 'Scrapped', loadFailed: 'Failed to load serials', optionsLoadFailed: 'Failed to load warehouses/locations', productsLoadFailed: 'Failed to load products', createFailed: 'Failed to register serial', issueFailed: 'Failed to issue serial', scrapFailed: 'Failed to scrap serial' }
     },
     warehouseLocation: {
-      warehouse: 'Warehouse', selectWarehouse: 'Select warehouse', keyword: 'Keyword', keywordPlaceholder: 'Location code / name', status: 'Status', search: 'Search', create: 'New location',
+      warehouse: 'Warehouse', selectWarehouse: 'Select warehouse', keyword: 'Keyword', keywordPlaceholder: 'Location code / name', status: 'Status', search: 'Search', reset: 'Reset', create: 'New location',
       code: 'Location code', name: 'Location name', default: 'Default', yes: 'Yes', no: 'No', active: 'Active', inactive: 'Inactive', remark: 'Remark', actions: 'Actions', edit: 'Edit', enable: 'Enable', disable: 'Disable',
       editTitle: 'Edit location', createTitle: 'New location', cancel: 'Cancel', save: 'Save',
       validation: { required: 'Warehouse, code and name are required' },
-      message: { saved: 'Saved', created: 'Created', enabled: 'Enabled', disabled: 'Disabled' }
+      message: { saved: 'Saved', created: 'Created', enabled: 'Enabled', disabled: 'Disabled', optionsLoadFailed: 'Failed to load warehouse options', loadFailed: 'Failed to load locations', saveFailed: 'Failed to save the location', toggleFailed: 'Failed to update the location status' }
     },
     inventoryMrp: {
       title: 'MRP Lite', history: 'Refresh history', historyTitle: 'MRP run history', runNo: 'Run no.', asOfDate: 'As-of date', status: 'Status', purchaseCount: 'Purchase lines', productionCount: 'Production lines', createdTime: 'Created', open: 'Open', lineStatus: 'Line status', convertedDoc: 'Converted doc', actions: 'Actions', convertPo: 'To PO', convertMo: 'To MO', description: 'Independent demand = undelivered sales + safety stock; supply = on hand + open purchases + work in progress. Products with a BOM generate production suggestions and expanded material purchases.', run: 'Run plan',
