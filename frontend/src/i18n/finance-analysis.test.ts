@@ -20,17 +20,18 @@ const requiredKeys = {
   ],
   financeStatement: [
     'partnerType', 'customer', 'supplier', 'selectPartner', 'period', 'startDate', 'endDate',
-    'search', 'partnerTypeValue', 'periodValue', 'openingValue', 'increaseValue',
+    'search', 'print', 'partnerTypeValue', 'periodValue', 'openingValue', 'increaseValue',
     'decreaseValue', 'closingValue', 'date', 'docType', 'docNo', 'direction', 'amount',
     'balance', 'remark', 'document.receivable', 'document.receipt', 'document.payable',
     'document.payment', 'directionValue.increase', 'directionValue.decrease',
-    'message.selectPartnerAndRange', 'message.loadFailed', 'message.optionsLoadFailed'
+    'message.selectPartnerAndRange', 'message.loadFailed', 'message.optionsLoadFailed',
+    'message.printLoadFailed'
   ]
 } as const
 
 const components = {
   financeAging: {
-    path: 'src/views/finance/aging/index.vue',
+    paths: ['src/views/finance/aging/index.vue'],
     helpers: [
       'formatLocalizedCurrency',
       'formatLocalizedNumber',
@@ -39,11 +40,15 @@ const components = {
     ]
   },
   financeGrossMargin: {
-    path: 'src/views/finance/gross-margin/index.vue',
+    paths: ['src/views/finance/gross-margin/index.vue'],
     helpers: ['formatLocalizedCurrency', 'formatLocalizedNumber', 'getBusinessMonthDateRange']
   },
   financeStatement: {
-    path: 'src/views/finance/statements/index.vue',
+    paths: [
+      'src/views/finance/statements/index.vue',
+      'src/composables/useFinanceStatementPresentation.ts',
+      'src/composables/useFinanceStatementQuery.ts'
+    ],
     helpers: ['formatLocalizedCurrency', 'formatLocalizedDate', 'getBusinessMonthDateRange']
   }
 } as const
@@ -82,7 +87,9 @@ describe('finance analysis localization', () => {
 
   for (const [namespace, component] of Object.entries(components)) {
     it(`keeps ${namespace} free of hard-coded UI copy and uses locale helpers`, () => {
-      const source = readFileSync(resolve(process.cwd(), component.path), 'utf8')
+      const source = component.paths
+        .map((path) => readFileSync(resolve(process.cwd(), path), 'utf8'))
+        .join('\n')
 
       expect(source).not.toMatch(/[\u3400-\u9fff]/)
       expect(source).not.toMatch(/¥|\.toFixed\(/)

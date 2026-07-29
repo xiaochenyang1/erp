@@ -97,6 +97,12 @@ const financePaymentView = [
   'src/composables/useSettlementForm.ts',
   'src/composables/useSettlementDetail.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+// 往来对账单页已按 E-1 拆分为展示/查询 composable，契约仍按整块特性校验
+const financeStatementView = [
+  'src/views/finance/statements/index.vue',
+  'src/composables/useFinanceStatementPresentation.ts',
+  'src/composables/useFinanceStatementQuery.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // 系统日志页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
 const systemLogView = [
   'src/views/system/logs/index.vue',
@@ -180,6 +186,7 @@ const salesReturnView = [
   'src/composables/useSalesReturnForm.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 const financeApi = readFileSync(resolve(root, 'src/api/finance.ts'), 'utf8')
+const bizPrint = readFileSync(resolve(root, 'src/utils/bizPrint.ts'), 'utf8')
 // 费用页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const expenseView = [
   'src/views/finance/expenses/index.vue',
@@ -1301,6 +1308,133 @@ for (const fragment of [
 ]) {
   if (financeApi.includes(fragment)) {
     errors.push(`凭证 API 仍暴露后端不存在的写操作片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'export interface PartnerStatement {\n  partnerType: string\n  partnerId: string',
+  'export const getPartnerStatement = (params: {',
+  'partnerId: string | number',
+  "request.get<PartnerStatement>('/finance/statements', { params })",
+  'partnerId: String(s.partnerId)',
+  'openingBalance: Number(s.openingBalance ?? 0)',
+  'totalIncrease: Number(s.totalIncrease ?? 0)',
+  'totalDecrease: Number(s.totalDecrease ?? 0)',
+  'closingBalance: Number(s.closingBalance ?? 0)',
+  'lines: (s.lines || []).map((l) => ({',
+  'amount: Number(l.amount ?? 0)',
+  'balance: Number(l.balance ?? 0)'
+]) {
+  if (!financeApi.includes(fragment)) {
+    errors.push(`往来对账 API 缺少 Long ID、金额归一化或真实查询契约片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  "import { useFinanceStatementPresentation } from '@/composables/useFinanceStatementPresentation'",
+  "import { useFinanceStatementQuery } from '@/composables/useFinanceStatementQuery'",
+  'useFinanceStatementPresentation(t)',
+  'useFinanceStatementQuery(t, {',
+  "export type FinanceStatementPartnerType = 'CUSTOMER' | 'SUPPLIER'",
+  "const partnerType = ref<FinanceStatementPartnerType>('CUSTOMER')",
+  "import { getBusinessMonthDateRange } from '@/utils/locale'",
+  'getBusinessMonthDateRange: () => [string, string]',
+  '  getBusinessMonthDateRange,',
+  'options.getCustomers({',
+  'options.getSuppliers({',
+  'name: customer.customerName || customer.name',
+  'name: supplier.supplierName || supplier.name',
+  `const handlePartnerTypeChange = (type: FinanceStatementPartnerType) => {
+    partnerRequestId += 1
+    partnerType.value = type
+    partnerId.value = ''
+    partners.value = []
+    clearStatement()
+    return loadPartners()
+  }`,
+  '@change="clearStatement"',
+  `const clearStatement = () => {
+    statementRequestId += 1
+    statement.value = undefined
+    loading.value = false
+  }`,
+  'partnerRequestId',
+  'statementRequestId',
+  'requestId !== partnerRequestId || partnerType.value !== requestedType',
+  'isCurrentRequest',
+  'requestId === statementRequestId',
+  'partnerType.value === requestedType',
+  'partnerId.value === requestedPartnerId',
+  'dateFrom > dateTo',
+  `const result = await options.getPartnerStatement({
+        partnerType: requestedType,
+        partnerId: requestedPartnerId,
+        dateFrom,
+        dateTo
+      })`,
+  'range.value?.[0] === dateFrom',
+  'range.value?.[1] === dateTo',
+  'if (requestId === statementRequestId) loading.value = false',
+  ':value="String(p.id)"',
+  'formatLocalizedCurrency',
+  'formatLocalizedDate',
+  'partnerTypeLabel: partnerTypeLabel(statement.partnerType)',
+  'docTypeLabel: documentTypeLabel(line.docType)',
+  'directionLabel: directionLabel(line.direction)',
+  'printPartnerStatement(toPrintDto(statement.value))',
+  "financeStatement.message.printLoadFailed"
+]) {
+  if (!financeStatementView.includes(fragment)) {
+    errors.push(`往来对账页缺少双分支查询、清理、防竞态或打印契约片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  "path: 'statements'",
+  "component: () => import('@/views/finance/statements/index.vue')",
+  "permission: 'finance:statement:view'"
+]) {
+  if (!routerConfig.includes(fragment)) {
+    errors.push(`往来对账路由缺少查看权限或真实页面片段: ${fragment}`)
+  }
+}
+
+if ((financeStatementView.match(/pageNo:\s*1,\s*pageSize:\s*200,\s*status:\s*'ACTIVE'/g) || []).length < 2) {
+  errors.push('往来对账页客户/供应商选项未同时保持 200 条 ACTIVE 查询契约')
+}
+
+if ((financeStatementView.match(/@change="clearStatement"/g) || []).length < 2) {
+  errors.push('往来对账页缺少往来单位/日期变更后的旧结果清理契约')
+}
+
+for (const fragment of [
+  'export function printPartnerStatement(doc: any) {',
+  'doc.partnerTypeLabel || doc.partnerType',
+  'line.docTypeLabel || line.docType',
+  'line.directionLabel || line.direction',
+  'doc.openingBalance',
+  'doc.totalIncrease',
+  'doc.totalDecrease',
+  'doc.closingBalance',
+  'printHtml(`往来对账单 ${doc.partnerName || doc.partnerId || \'\'}`'
+]) {
+  if (!bizPrint.includes(fragment)) {
+    errors.push(`往来对账打印工具缺少对账单字段或本地化标签消费片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'Number(partnerId',
+  'Number(statement.partnerId',
+  'Number(p.id',
+  'parseInt(partnerId',
+  'parseInt(statement.partnerId',
+  'v-model.number',
+  'toISOString().slice',
+  'finance:statement:print'
+]) {
+  if (financeStatementView.includes(fragment)) {
+    errors.push(`往来对账页仍保留 Long ID 数字化、UTC 日期或虚构打印权限片段: ${fragment}`)
   }
 }
 

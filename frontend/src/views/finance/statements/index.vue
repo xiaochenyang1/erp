@@ -9,11 +9,11 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="partnerTypeLabel(partnerType)">
-          <el-select v-model="partnerId" filterable clearable style="width: 220px" :placeholder="t('financeStatement.selectPartner')">
+          <el-select v-model="partnerId" filterable clearable style="width: 220px" :placeholder="t('financeStatement.selectPartner')" @change="clearStatement">
             <el-option
               v-for="p in partners"
               :key="p.id"
-              :label="p.name || p.customerName || p.supplierName"
+              :label="partnerLabel(p)"
               :value="String(p.id)"
             />
           </el-select>
@@ -25,6 +25,7 @@
             value-format="YYYY-MM-DD"
             :start-placeholder="t('financeStatement.startDate')"
             :end-placeholder="t('financeStatement.endDate')"
+            @change="clearStatement"
           />
         </el-form-item>
         <el-form-item>
@@ -67,109 +68,66 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { getPartnerStatement, type PartnerStatement } from '@/api/finance'
+import { getPartnerStatement } from '@/api/finance'
 import { getCustomers, getSuppliers } from '@/api/masterdata'
-import {
-  formatLocalizedCurrency,
-  formatLocalizedDate,
-  getBusinessMonthDateRange
-} from '@/utils/locale'
+import { getBusinessMonthDateRange } from '@/utils/locale'
 import { printPartnerStatement } from '@/utils/bizPrint'
+import { useFinanceStatementPresentation } from '@/composables/useFinanceStatementPresentation'
+import { useFinanceStatementQuery } from '@/composables/useFinanceStatementQuery'
 
 const { t } = useI18n()
-type PartnerType = 'CUSTOMER' | 'SUPPLIER'
-const partnerType = ref<PartnerType>('CUSTOMER')
-const partnerId = ref('')
-const range = ref<string[]>([])
-const partners = ref<any[]>([])
-const loading = ref(false)
-const statement = ref<PartnerStatement>()
 
-const money = (value?: number) => formatLocalizedCurrency(Number(value ?? 0))
-const formatDate = (value?: string) => formatLocalizedDate(value) || '-'
-const partnerTypeLabel = (value: string) => {
-  const keyMap: Record<string, string> = {
-    CUSTOMER: 'financeStatement.customer',
-    SUPPLIER: 'financeStatement.supplier'
-  }
-  return keyMap[value] ? t(keyMap[value]) : value
-}
-const documentTypeLabel = (value: string) => {
-  const keyMap: Record<string, string> = {
-    RECEIVABLE: 'financeStatement.document.receivable',
-    RECEIPT: 'financeStatement.document.receipt',
-    PAYABLE: 'financeStatement.document.payable',
-    PAYMENT: 'financeStatement.document.payment'
-  }
-  return keyMap[value] ? t(keyMap[value]) : value
-}
-const directionLabel = (value: string) => {
-  const keyMap: Record<string, string> = {
-    INCREASE: 'financeStatement.directionValue.increase',
-    DECREASE: 'financeStatement.directionValue.decrease'
-  }
-  return keyMap[value] ? t(keyMap[value]) : value
-}
+const {
+  directionLabel,
+  documentTypeLabel,
+  formatDate,
+  money,
+  partnerLabel,
+  partnerTypeLabel,
+  toPrintDto
+} = useFinanceStatementPresentation(t)
 
-const loadPartners = async () => {
-  try {
-    if (partnerType.value === 'CUSTOMER') {
-      const page = await getCustomers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-      partners.value = (page.records || []).map((c: any) => ({ ...c, name: c.customerName || c.name }))
-    } else {
-      const page = await getSuppliers({ pageNo: 1, pageSize: 200, status: 'ACTIVE' })
-      partners.value = (page.records || []).map((s: any) => ({ ...s, name: s.supplierName || s.name }))
-    }
-  } catch {
-    partners.value = []
-    ElMessage.error(t('financeStatement.message.optionsLoadFailed'))
-  }
-  partnerId.value = ''
-  statement.value = undefined
-}
-
-const loadData = async () => {
-  if (!partnerId.value || !range.value || range.value.length !== 2) {
-    ElMessage.warning(t('financeStatement.message.selectPartnerAndRange'))
-    return
-  }
-  loading.value = true
-  try {
-    statement.value = await getPartnerStatement({
-      partnerType: partnerType.value,
-      partnerId: partnerId.value,
-      dateFrom: range.value[0],
-      dateTo: range.value[1]
-    })
-  } catch {
-    ElMessage.error(t('financeStatement.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
+const {
+  clearStatement,
+  handlePartnerTypeChange,
+  loadData,
+  loadPartners,
+  loading,
+  partnerId,
+  partners,
+  partnerType,
+  range,
+  statement
+} = useFinanceStatementQuery(t, {
+  getCustomers,
+  getSuppliers,
+  getPartnerStatement,
+  getBusinessMonthDateRange,
+  onError: (message) => ElMessage.error(message),
+  onWarning: (message) => ElMessage.warning(message)
+})
 
 const handlePrint = () => {
   if (!statement.value) {
     ElMessage.warning(t('financeStatement.message.selectPartnerAndRange'))
-    return
+    return false
   }
-  printPartnerStatement({
-    ...statement.value,
-    partnerTypeLabel: partnerTypeLabel(statement.value.partnerType),
-    lines: (statement.value.lines || []).map((line) => ({
-      ...line,
-      docTypeLabel: documentTypeLabel(line.docType),
-      directionLabel: directionLabel(line.direction)
-    }))
-  })
+  try {
+    printPartnerStatement(toPrintDto(statement.value))
+    return true
+  } catch {
+    ElMessage.error(t('financeStatement.message.printLoadFailed'))
+    return false
+  }
 }
 
-watch(partnerType, loadPartners)
+watch(partnerType, (type) => {
+  void handlePartnerTypeChange(type)
+})
 onMounted(async () => {
-  range.value = getBusinessMonthDateRange()
   await loadPartners()
 })
 </script>

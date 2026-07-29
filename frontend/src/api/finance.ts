@@ -1229,7 +1229,7 @@ export interface PartnerStatementLine {
 
 export interface PartnerStatement {
   partnerType: string
-  partnerId: string | number
+  partnerId: string
   partnerName: string
   dateFrom: string
   dateTo: string
