@@ -180,7 +180,12 @@ const expenseView = [
   'src/composables/useExpenseList.ts',
   'src/composables/useExpenseForm.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
-const voucherView = readFileSync(resolve(root, 'src/views/finance/vouchers/index.vue'), 'utf8')
+// 凭证页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
+const voucherView = [
+  'src/views/finance/vouchers/index.vue',
+  'src/composables/useVoucherList.ts',
+  'src/composables/useVoucherPresentation.ts'
+].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
 // 会计科目页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const subjectView = [
   'src/views/finance/subjects/index.vue',
@@ -1257,14 +1262,24 @@ for (const fragment of [
 
 for (const fragment of [
   "financeReportPages.vouchers.title",
+  "import { useVoucherList } from '@/composables/useVoucherList'",
+  "import { useVoucherPresentation } from '@/composables/useVoucherPresentation'",
+  'useVoucherPresentation(t)',
+  'useVoucherList(t, {',
+  'getVouchers,',
   'getVoucher,',
-  'getVoucherEntries',
-  'const handleView = async',
-  'const [voucher, entries] = await Promise.all([',
-  'getVoucher(row.id)',
-  'getVoucherEntries(row.id)',
-  'currentVoucher.value = voucher',
-  'detailEntries.value = entries',
+  'getVoucherEntries,',
+  'printVoucher,',
+  'sourceTypeLabel,',
+  'statusLabel,',
+  'handlePageChange,',
+  'handleSizeChange,',
+  'options.getVouchers(buildQueryParams())',
+  'options.getVoucher(row.id)',
+  'options.getVoucherEntries(row.id)',
+  'options.printVoucher({',
+  'sourceTypeLabel: options.sourceTypeLabel(voucher.sourceType)',
+  'statusLabel: options.statusLabel(voucher.status)',
   "financeReportPages.vouchers.sourceValue.expense"
 ]) {
   if (!voucherView.includes(fragment)) {

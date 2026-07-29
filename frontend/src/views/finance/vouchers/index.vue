@@ -76,8 +76,8 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadData"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -108,147 +108,57 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
 import { printVoucher } from '@/utils/bizPrint'
 import {
   getVoucher,
   getVoucherEntries,
-  getVouchers,
-  type Voucher,
-  type VoucherEntry,
-  type VoucherQuery
+  getVouchers
 } from '@/api/finance'
+import { useVoucherList } from '@/composables/useVoucherList'
+import { useVoucherPresentation } from '@/composables/useVoucherPresentation'
 
 const { t } = useI18n()
 
-const loading = ref(false)
-const detailLoading = ref(false)
-const tableData = ref<Voucher[]>([])
-const detailEntries = ref<VoucherEntry[]>([])
-const currentVoucher = ref<Voucher | null>(null)
-const total = ref(0)
-const detailVisible = ref(false)
-const dateRange = ref<[string, string] | null>(null)
+const {
+  formatDate,
+  formatMoney,
+  sourceTypeLabel,
+  sourceTypeTag,
+  statusLabel,
+  statusType,
+  toVoucherRow
+} = useVoucherPresentation(t)
 
-const queryParams = reactive<VoucherQuery>({
-  pageNo: 1,
-  pageSize: 10,
-  sourceType: '',
-  status: ''
+const {
+  currentVoucher,
+  dateRange,
+  detailEntries,
+  detailLoading,
+  detailVisible,
+  handlePageChange,
+  handlePrint,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  handleView,
+  loadData,
+  loading,
+  queryParams,
+  tableData,
+  total
+} = useVoucherList(t, {
+  getVouchers,
+  getVoucher,
+  getVoucherEntries,
+  printVoucher,
+  sourceTypeLabel,
+  statusLabel,
+  onError: (message) => ElMessage.error(message)
 })
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await getVouchers({
-      ...queryParams,
-      dateFrom: dateRange.value?.[0],
-      dateTo: dateRange.value?.[1]
-    })
-    tableData.value = response.records
-    total.value = response.total
-  } catch {
-    ElMessage.error(t('financeReportPages.vouchers.message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryParams.sourceType = ''
-  queryParams.status = ''
-  dateRange.value = null
-  handleQuery()
-}
-
-const handleView = async (row: Voucher) => {
-  detailVisible.value = true
-  detailLoading.value = true
-  currentVoucher.value = null
-  detailEntries.value = []
-  try {
-    const [voucher, entries] = await Promise.all([
-      getVoucher(row.id),
-      getVoucherEntries(row.id)
-    ])
-    currentVoucher.value = voucher
-    detailEntries.value = entries
-  } catch {
-    ElMessage.error(t('financeReportPages.vouchers.message.detailLoadFailed'))
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const handlePrint = async (row: Voucher) => {
-  try {
-    const [voucher, entries] = await Promise.all([
-      getVoucher(row.id),
-      getVoucherEntries(row.id)
-    ])
-    printVoucher({
-      ...voucher,
-      sourceTypeLabel: sourceTypeLabel(voucher.sourceType),
-      statusLabel: statusLabel(voucher.status),
-      entries
-    })
-  } catch {
-    ElMessage.error(t('financeReportPages.vouchers.message.printLoadFailed'))
-  }
-}
-
-const toVoucherRow = (row: unknown) => row as Voucher
-
-const formatMoney = (amount?: number) => {
-  return formatLocalizedCurrency(Number(amount || 0))
-}
-
-const formatDate = (value?: string) => formatLocalizedDate(value)
-
-const sourceTypeLabel = (sourceType?: string) => {
-  const map: Record<string, string> = {
-    EXPENSE: t('financeReportPages.vouchers.sourceValue.expense'),
-    EXPENSE_REVERSAL: t('financeReportPages.vouchers.sourceValue.expenseReversal')
-  }
-  return sourceType ? map[sourceType] || sourceType : '-'
-}
-
-const sourceTypeTag = (sourceType?: string) => {
-  const map: Record<string, 'success' | 'warning' | 'info'> = {
-    EXPENSE: 'success',
-    EXPENSE_REVERSAL: 'warning'
-  }
-  return sourceType ? map[sourceType] || 'info' : 'info'
-}
-
-const statusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    DRAFT: t('financeReportPages.vouchers.status.draft'),
-    APPROVED: t('financeReportPages.vouchers.status.approved'),
-    POSTED: t('financeReportPages.vouchers.status.posted'),
-    CANCELLED: t('financeReportPages.vouchers.status.cancelled')
-  }
-  return map[status] || status
-}
-
-const statusType = (status: string) => {
-  const map: Record<string, 'info' | 'warning' | 'success' | 'danger'> = {
-    DRAFT: 'info',
-    APPROVED: 'warning',
-    POSTED: 'success',
-    CANCELLED: 'danger'
-  }
-  return map[status] || 'info'
-}
 
 onMounted(() => {
   loadData()

@@ -9,6 +9,8 @@ const componentPaths = [
   'src/views/finance/invoices/index.vue',
   'src/views/finance/ledger/index.vue',
   'src/views/finance/vouchers/index.vue',
+  'src/composables/useVoucherList.ts',
+  'src/composables/useVoucherPresentation.ts',
   'src/views/finance/periods/index.vue',
   'src/views/finance/funds/index.vue',
   'src/views/finance/expenses/index.vue',
