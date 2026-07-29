@@ -26,13 +26,6 @@ import com.tuowei.erp.qc.inspection.web.QcInspectionPageQuery;
 import com.tuowei.erp.qc.inspection.web.QcInspectionResponse;
 import com.tuowei.erp.qc.inspection.web.QcInspectionUpdateLineRequest;
 import com.tuowei.erp.qc.inspection.web.QcInspectionUpdateRequest;
-import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
-import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
-import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
-import com.tuowei.erp.sales.delivery.model.SalesDeliveryLineEntity;
-import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
-import com.tuowei.erp.production.order.model.ProductionOrderEntity;
-import com.tuowei.erp.production.order.service.ProductionOrderService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -43,7 +36,6 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -83,225 +75,32 @@ public class QcInspectionService {
     private final QcInspectionLineMapper qcInspectionLineMapper;
     private final PurchaseReceiptMapper purchaseReceiptMapper;
     private final PurchaseReceiptLineMapper purchaseReceiptLineMapper;
-    private final SalesDeliveryMapper salesDeliveryMapper;
-    private final SalesDeliveryLineMapper salesDeliveryLineMapper;
-    private final ProductionOrderMapper productionOrderMapper;
-    private final QcInspectionNumberService qcInspectionNumberService;
     private final AuditMetadataFactory auditMetadataFactory;
+    private final QcInspectionCreateService qcInspectionCreateService;
+    private final QcInspectionSourceAccess qcInspectionSourceAccess;
 
     public QcInspectionService(
             QcInspectionOrderMapper qcInspectionOrderMapper,
             QcInspectionLineMapper qcInspectionLineMapper,
             PurchaseReceiptMapper purchaseReceiptMapper,
             PurchaseReceiptLineMapper purchaseReceiptLineMapper,
-            SalesDeliveryMapper salesDeliveryMapper,
-            SalesDeliveryLineMapper salesDeliveryLineMapper,
-            ProductionOrderMapper productionOrderMapper,
-            QcInspectionNumberService qcInspectionNumberService,
-            AuditMetadataFactory auditMetadataFactory
+            AuditMetadataFactory auditMetadataFactory,
+            QcInspectionCreateService qcInspectionCreateService,
+            QcInspectionSourceAccess qcInspectionSourceAccess
     ) {
         this.qcInspectionOrderMapper = qcInspectionOrderMapper;
         this.qcInspectionLineMapper = qcInspectionLineMapper;
         this.purchaseReceiptMapper = purchaseReceiptMapper;
         this.purchaseReceiptLineMapper = purchaseReceiptLineMapper;
-        this.salesDeliveryMapper = salesDeliveryMapper;
-        this.salesDeliveryLineMapper = salesDeliveryLineMapper;
-        this.productionOrderMapper = productionOrderMapper;
-        this.qcInspectionNumberService = qcInspectionNumberService;
         this.auditMetadataFactory = auditMetadataFactory;
+        this.qcInspectionCreateService = qcInspectionCreateService;
+        this.qcInspectionSourceAccess = qcInspectionSourceAccess;
     }
 
     @Transactional
     public QcInspectionResponse create(QcInspectionCreateRequest request) {
-        String inspectionType = normalizeInspectionType(request.inspectionType());
-        if (TYPE_OQC.equals(inspectionType)) {
-            return createOqc(request);
-        }
-        if (TYPE_IPQC.equals(inspectionType)) {
-            return createIpqc(request);
-        }
-        return createIqc(request);
-    }
-
-    private QcInspectionResponse createIqc(QcInspectionCreateRequest request) {
-        if (request.receiptId() == null) {
-            throw new IllegalArgumentException("来料检验必须指定采购入库单");
-        }
-        AuditMetadata audit = auditMetadataFactory.current();
-        PurchaseReceiptEntity receipt = requireDraftReceipt(request.receiptId(), audit);
-        assertNoActiveInspectionForReceipt(receipt, audit);
-
-        List<PurchaseReceiptLineEntity> receiptLines = loadReceiptLines(receipt);
-        if (receiptLines.isEmpty()) {
-            throw new IllegalArgumentException("采购入库单没有明细，无法创建检验单");
-        }
-        LocalDateTime now = audit.now();
-
-        QcInspectionOrderEntity inspection = newBaseInspection(audit, request, TYPE_IQC, now);
-        inspection.setReceiptId(receipt.getId());
-        inspection.setDeliveryId(null);
-        inspection.setOrderId(receipt.getOrderId());
-        inspection.setWarehouseId(receipt.getWarehouseId());
-        inspection.setSupplierId(null);
-        BigDecimal totalQty = receiptLines.stream()
-                .map(line -> ScalePrecision.quantity(line.getQty()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        inspection.setTotalQty(ScalePrecision.quantity(totalQty));
-        qcInspectionOrderMapper.insert(inspection);
-
-        List<QcInspectionLineEntity> lines = new ArrayList<>();
-        int lineNo = 1;
-        for (PurchaseReceiptLineEntity receiptLine : receiptLines) {
-            QcInspectionLineEntity line = newBaseLine(audit, inspection, lineNo++, now);
-            line.setReceiptLineId(receiptLine.getId());
-            line.setDeliveryLineId(null);
-            line.setProductId(receiptLine.getProductId());
-            line.setInspectedQty(ScalePrecision.quantity(receiptLine.getQty()));
-            line.setRemark(receiptLine.getRemark());
-            qcInspectionLineMapper.insert(line);
-            lines.add(line);
-        }
-
-        return toResponse(inspection, lines);
-    }
-
-    private QcInspectionResponse createOqc(QcInspectionCreateRequest request) {
-        if (request.deliveryId() == null) {
-            throw new IllegalArgumentException("出库检验必须指定销售出库单");
-        }
-        AuditMetadata audit = auditMetadataFactory.current();
-        SalesDeliveryEntity delivery = requireDraftDelivery(request.deliveryId(), audit);
-        assertNoActiveInspectionForDelivery(delivery, audit);
-
-        List<SalesDeliveryLineEntity> deliveryLines = loadDeliveryLines(delivery);
-        if (deliveryLines.isEmpty()) {
-            throw new IllegalArgumentException("销售出库单没有明细，无法创建检验单");
-        }
-        LocalDateTime now = audit.now();
-
-        QcInspectionOrderEntity inspection = newBaseInspection(audit, request, TYPE_OQC, now);
-        inspection.setReceiptId(null);
-        inspection.setDeliveryId(delivery.getId());
-        inspection.setOrderId(delivery.getOrderId());
-        inspection.setWarehouseId(delivery.getWarehouseId());
-        inspection.setSupplierId(null);
-        BigDecimal totalQty = deliveryLines.stream()
-                .map(line -> ScalePrecision.quantity(line.getQty()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        inspection.setTotalQty(ScalePrecision.quantity(totalQty));
-        qcInspectionOrderMapper.insert(inspection);
-
-        List<QcInspectionLineEntity> lines = new ArrayList<>();
-        int lineNo = 1;
-        for (SalesDeliveryLineEntity deliveryLine : deliveryLines) {
-            QcInspectionLineEntity line = newBaseLine(audit, inspection, lineNo++, now);
-            line.setReceiptLineId(null);
-            line.setDeliveryLineId(deliveryLine.getId());
-            line.setProductId(deliveryLine.getProductId());
-            line.setInspectedQty(ScalePrecision.quantity(deliveryLine.getQty()));
-            line.setRemark(deliveryLine.getRemark());
-            qcInspectionLineMapper.insert(line);
-            lines.add(line);
-        }
-
-        return toResponse(inspection, lines);
-    }
-
-    private QcInspectionResponse createIpqc(QcInspectionCreateRequest request) {
-        if (request.productionOrderId() == null) {
-            throw new IllegalArgumentException("过程检必须指定生产工单");
-        }
-        AuditMetadata audit = auditMetadataFactory.current();
-        ProductionOrderEntity order = productionOrderMapper.selectById(request.productionOrderId());
-        if (order == null
-                || !Objects.equals(order.getCompanyId(), audit.companyId())
-                || !Objects.equals(order.getAccountBookId(), audit.accountBookId())
-                || Integer.valueOf(1).equals(order.getDeletedFlag())) {
-            throw new IllegalArgumentException("生产工单不存在");
-        }
-        if (ProductionOrderService.STATUS_CANCELLED.equals(order.getStatus())
-                || ProductionOrderService.STATUS_COMPLETED.equals(order.getStatus())
-                || ProductionOrderService.STATUS_DRAFT.equals(order.getStatus())) {
-            throw new IllegalArgumentException("仅已下达/已领料的生产工单可做过程检");
-        }
-        Long active = qcInspectionOrderMapper.selectCount(new LambdaQueryWrapper<QcInspectionOrderEntity>()
-                .eq(QcInspectionOrderEntity::getCompanyId, audit.companyId())
-                .eq(QcInspectionOrderEntity::getAccountBookId, audit.accountBookId())
-                .eq(QcInspectionOrderEntity::getInspectionType, TYPE_IPQC)
-                .eq(QcInspectionOrderEntity::getProductionOrderId, order.getId())
-                .eq(QcInspectionOrderEntity::getDeletedFlag, 0)
-                .in(QcInspectionOrderEntity::getStatus, STATUS_DRAFT, STATUS_SUBMITTED));
-        if (active != null && active > 0) {
-            throw new IllegalArgumentException("该生产工单已有进行中的过程检");
-        }
-        LocalDateTime now = audit.now();
-        QcInspectionOrderEntity inspection = newBaseInspection(audit, request, TYPE_IPQC, now);
-        inspection.setReceiptId(null);
-        inspection.setDeliveryId(null);
-        inspection.setProductionOrderId(order.getId());
-        inspection.setOrderId(order.getId());
-        inspection.setWarehouseId(order.getFinishedWarehouseId());
-        inspection.setSupplierId(null);
-        BigDecimal planned = ScalePrecision.quantity(ScalePrecision.zeroDefault(order.getPlannedQty()));
-        inspection.setTotalQty(planned);
-        qcInspectionOrderMapper.insert(inspection);
-
-        QcInspectionLineEntity line = newBaseLine(audit, inspection, 1, now);
-        line.setReceiptLineId(null);
-        line.setDeliveryLineId(null);
-        line.setProductId(order.getProductId());
-        line.setInspectedQty(planned);
-        line.setRemark("过程检-成品");
-        qcInspectionLineMapper.insert(line);
-        return toResponse(inspection, List.of(line));
-    }
-
-    private QcInspectionOrderEntity newBaseInspection(
-            AuditMetadata audit,
-            QcInspectionCreateRequest request,
-            String inspectionType,
-            LocalDateTime now
-    ) {
-        QcInspectionOrderEntity inspection = new QcInspectionOrderEntity();
-        inspection.setCompanyId(audit.companyId());
-        inspection.setAccountBookId(audit.accountBookId());
-        inspection.setInspectionNo(qcInspectionNumberService.nextInspectionNo(request.inspectionDate()));
-        inspection.setInspectionType(inspectionType);
-        inspection.setInspectionDate(request.inspectionDate());
-        inspection.setStatus(STATUS_DRAFT);
-        inspection.setQualifiedQty(ScalePrecision.quantity(BigDecimal.ZERO));
-        inspection.setUnqualifiedQty(ScalePrecision.quantity(BigDecimal.ZERO));
-        inspection.setDeletedFlag(0);
-        inspection.setRemark(request.remark());
-        inspection.setCreatedBy(audit.userId());
-        inspection.setCreatedTime(now);
-        inspection.setUpdatedBy(audit.userId());
-        inspection.setUpdatedTime(now);
-        inspection.setVersion(0);
-        return inspection;
-    }
-
-    private QcInspectionLineEntity newBaseLine(
-            AuditMetadata audit,
-            QcInspectionOrderEntity inspection,
-            int lineNo,
-            LocalDateTime now
-    ) {
-        QcInspectionLineEntity line = new QcInspectionLineEntity();
-        line.setCompanyId(audit.companyId());
-        line.setAccountBookId(audit.accountBookId());
-        line.setInspectionId(inspection.getId());
-        line.setLineNo(lineNo);
-        line.setQualifiedQty(ScalePrecision.quantity(BigDecimal.ZERO));
-        line.setUnqualifiedQty(ScalePrecision.quantity(BigDecimal.ZERO));
-        line.setDefectReason(null);
-        line.setDeletedFlag(0);
-        line.setCreatedBy(audit.userId());
-        line.setCreatedTime(now);
-        line.setUpdatedBy(audit.userId());
-        line.setUpdatedTime(now);
-        line.setVersion(0);
-        return line;
+        QcInspectionCreateService.CreationResult result = qcInspectionCreateService.create(request);
+        return toResponse(result.inspection(), result.lines());
     }
 
     @Transactional(readOnly = true)
@@ -424,14 +223,14 @@ public class QcInspectionService {
             QcInspectionJudgeRequest request,
             AuditMetadata audit
     ) {
-        PurchaseReceiptEntity receipt = requireDraftReceipt(inspection.getReceiptId(), audit);
+        PurchaseReceiptEntity receipt = qcInspectionSourceAccess.requireDraftReceipt(inspection.getReceiptId(), audit);
         List<QcInspectionLineEntity> lines = loadInspectionLines(inspection);
         Map<Long, QcInspectionLineEntity> lineById = lines.stream()
                 .collect(Collectors.toMap(QcInspectionLineEntity::getId, Function.identity()));
         Map<Long, QcInspectionJudgeLineRequest> judgeByLineId = requireAllLinesJudged(request, lineById);
         LocalDateTime now = audit.now();
 
-        Map<Long, PurchaseReceiptLineEntity> receiptLinesById = loadReceiptLines(receipt).stream()
+        Map<Long, PurchaseReceiptLineEntity> receiptLinesById = qcInspectionSourceAccess.loadReceiptLines(receipt).stream()
                 .collect(Collectors.toMap(PurchaseReceiptLineEntity::getId, Function.identity()));
 
         BigDecimal totalQualified = BigDecimal.ZERO;
@@ -494,7 +293,7 @@ public class QcInspectionService {
             AuditMetadata audit
     ) {
         // 确保引用的出库单仍为草稿，避免对已过账单判定
-        requireDraftDelivery(inspection.getDeliveryId(), audit);
+        qcInspectionSourceAccess.requireDraftDelivery(inspection.getDeliveryId(), audit);
 
         List<QcInspectionLineEntity> lines = loadInspectionLines(inspection);
         Map<Long, QcInspectionLineEntity> lineById = lines.stream()
@@ -591,62 +390,6 @@ public class QcInspectionService {
         return getById(id);
     }
 
-    private PurchaseReceiptEntity requireDraftReceipt(Long receiptId, AuditMetadata audit) {
-        PurchaseReceiptEntity receipt = purchaseReceiptMapper.selectById(receiptId);
-        if (receipt == null || receipt.getDeletedFlag() == null || receipt.getDeletedFlag() != 0
-                || !Objects.equals(receipt.getCompanyId(), audit.companyId())
-                || !Objects.equals(receipt.getAccountBookId(), audit.accountBookId())) {
-            throw new IllegalArgumentException("采购入库单不存在");
-        }
-        if (!STATUS_DRAFT.equals(receipt.getStatus())) {
-            throw new IllegalArgumentException("采购入库单不是草稿状态，不能进行来料检验");
-        }
-        return receipt;
-    }
-
-    private SalesDeliveryEntity requireDraftDelivery(Long deliveryId, AuditMetadata audit) {
-        SalesDeliveryEntity delivery = salesDeliveryMapper.selectById(deliveryId);
-        if (delivery == null || delivery.getDeletedFlag() == null || delivery.getDeletedFlag() != 0
-                || !Objects.equals(delivery.getCompanyId(), audit.companyId())
-                || !Objects.equals(delivery.getAccountBookId(), audit.accountBookId())) {
-            throw new IllegalArgumentException("销售出库单不存在");
-        }
-        if (!STATUS_DRAFT.equals(delivery.getStatus())) {
-            throw new IllegalArgumentException("销售出库单不是草稿状态，不能进行出库检验");
-        }
-        return delivery;
-    }
-
-    private void assertNoActiveInspectionForReceipt(PurchaseReceiptEntity receipt, AuditMetadata audit) {
-        boolean exists = qcInspectionOrderMapper.exists(
-                new LambdaQueryWrapper<QcInspectionOrderEntity>()
-                        .eq(QcInspectionOrderEntity::getCompanyId, audit.companyId())
-                        .eq(QcInspectionOrderEntity::getAccountBookId, audit.accountBookId())
-                        .eq(QcInspectionOrderEntity::getInspectionType, TYPE_IQC)
-                        .eq(QcInspectionOrderEntity::getReceiptId, receipt.getId())
-                        .eq(QcInspectionOrderEntity::getDeletedFlag, 0)
-                        .ne(QcInspectionOrderEntity::getStatus, STATUS_CANCELLED)
-        );
-        if (exists) {
-            throw new IllegalArgumentException("该采购入库单已存在有效的检验单");
-        }
-    }
-
-    private void assertNoActiveInspectionForDelivery(SalesDeliveryEntity delivery, AuditMetadata audit) {
-        boolean exists = qcInspectionOrderMapper.exists(
-                new LambdaQueryWrapper<QcInspectionOrderEntity>()
-                        .eq(QcInspectionOrderEntity::getCompanyId, audit.companyId())
-                        .eq(QcInspectionOrderEntity::getAccountBookId, audit.accountBookId())
-                        .eq(QcInspectionOrderEntity::getInspectionType, TYPE_OQC)
-                        .eq(QcInspectionOrderEntity::getDeliveryId, delivery.getId())
-                        .eq(QcInspectionOrderEntity::getDeletedFlag, 0)
-                        .ne(QcInspectionOrderEntity::getStatus, STATUS_CANCELLED)
-        );
-        if (exists) {
-            throw new IllegalArgumentException("该销售出库单已存在有效的检验单");
-        }
-    }
-
     private QcInspectionOrderEntity requireInspection(Long id, AuditMetadata audit) {
         QcInspectionOrderEntity entity = qcInspectionOrderMapper.selectById(id);
         if (entity == null || entity.getDeletedFlag() == null || entity.getDeletedFlag() != 0
@@ -655,26 +398,6 @@ public class QcInspectionService {
             throw new IllegalArgumentException("检验单不存在");
         }
         return entity;
-    }
-
-    private List<PurchaseReceiptLineEntity> loadReceiptLines(PurchaseReceiptEntity receipt) {
-        return purchaseReceiptLineMapper.selectList(
-                new LambdaQueryWrapper<PurchaseReceiptLineEntity>()
-                        .eq(PurchaseReceiptLineEntity::getCompanyId, receipt.getCompanyId())
-                        .eq(PurchaseReceiptLineEntity::getAccountBookId, receipt.getAccountBookId())
-                        .eq(PurchaseReceiptLineEntity::getReceiptId, receipt.getId())
-                        .orderByAsc(PurchaseReceiptLineEntity::getLineNo)
-        );
-    }
-
-    private List<SalesDeliveryLineEntity> loadDeliveryLines(SalesDeliveryEntity delivery) {
-        return salesDeliveryLineMapper.selectList(
-                new LambdaQueryWrapper<SalesDeliveryLineEntity>()
-                        .eq(SalesDeliveryLineEntity::getCompanyId, delivery.getCompanyId())
-                        .eq(SalesDeliveryLineEntity::getAccountBookId, delivery.getAccountBookId())
-                        .eq(SalesDeliveryLineEntity::getDeliveryId, delivery.getId())
-                        .orderByAsc(SalesDeliveryLineEntity::getLineNo)
-        );
     }
 
     private List<QcInspectionLineEntity> loadInspectionLines(QcInspectionOrderEntity inspection) {
