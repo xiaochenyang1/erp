@@ -455,14 +455,14 @@ class QcInspectionCreateServiceTest {
         return new QcInspectionCreateService(
                 qcInspectionOrderMapper,
                 qcInspectionLineMapper,
-                productionOrderMapper,
                 qcInspectionNumberService,
                 auditMetadataFactory,
                 new QcInspectionSourceAccess(
                         purchaseReceiptMapper,
                         purchaseReceiptLineMapper,
                         salesDeliveryMapper,
-                        salesDeliveryLineMapper
+                        salesDeliveryLineMapper,
+                        productionOrderMapper
                 )
         );
     }

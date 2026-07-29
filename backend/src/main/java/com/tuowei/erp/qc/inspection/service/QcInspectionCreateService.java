@@ -4,9 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
 import com.tuowei.erp.production.order.model.ProductionOrderEntity;
-import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptLineEntity;
 import com.tuowei.erp.qc.inspection.mapper.QcInspectionLineMapper;
@@ -25,7 +23,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 /** Creates draft IQC, OQC and IPQC inspections from tenant-safe source snapshots. */
 @Service
@@ -41,7 +38,6 @@ public class QcInspectionCreateService {
 
     private final QcInspectionOrderMapper qcInspectionOrderMapper;
     private final QcInspectionLineMapper qcInspectionLineMapper;
-    private final ProductionOrderMapper productionOrderMapper;
     private final QcInspectionNumberService qcInspectionNumberService;
     private final AuditMetadataFactory auditMetadataFactory;
     private final QcInspectionSourceAccess sourceAccess;
@@ -49,14 +45,12 @@ public class QcInspectionCreateService {
     public QcInspectionCreateService(
             QcInspectionOrderMapper qcInspectionOrderMapper,
             QcInspectionLineMapper qcInspectionLineMapper,
-            ProductionOrderMapper productionOrderMapper,
             QcInspectionNumberService qcInspectionNumberService,
             AuditMetadataFactory auditMetadataFactory,
             QcInspectionSourceAccess sourceAccess
     ) {
         this.qcInspectionOrderMapper = qcInspectionOrderMapper;
         this.qcInspectionLineMapper = qcInspectionLineMapper;
-        this.productionOrderMapper = productionOrderMapper;
         this.qcInspectionNumberService = qcInspectionNumberService;
         this.auditMetadataFactory = auditMetadataFactory;
         this.sourceAccess = sourceAccess;
@@ -163,18 +157,10 @@ public class QcInspectionCreateService {
             throw new IllegalArgumentException("过程检必须指定生产工单");
         }
         AuditMetadata audit = auditMetadataFactory.current();
-        ProductionOrderEntity order = productionOrderMapper.selectById(request.productionOrderId());
-        if (order == null
-                || !Objects.equals(order.getCompanyId(), audit.companyId())
-                || !Objects.equals(order.getAccountBookId(), audit.accountBookId())
-                || Integer.valueOf(1).equals(order.getDeletedFlag())) {
-            throw new IllegalArgumentException("生产工单不存在");
-        }
-        if (ProductionOrderService.STATUS_CANCELLED.equals(order.getStatus())
-                || ProductionOrderService.STATUS_COMPLETED.equals(order.getStatus())
-                || ProductionOrderService.STATUS_DRAFT.equals(order.getStatus())) {
-            throw new IllegalArgumentException("仅已下达/已领料的生产工单可做过程检");
-        }
+        ProductionOrderEntity order = sourceAccess.requireInspectableProductionOrder(
+                request.productionOrderId(),
+                audit
+        );
         Long active = qcInspectionOrderMapper.selectCount(new LambdaQueryWrapper<QcInspectionOrderEntity>()
                 .eq(QcInspectionOrderEntity::getCompanyId, audit.companyId())
                 .eq(QcInspectionOrderEntity::getAccountBookId, audit.accountBookId())

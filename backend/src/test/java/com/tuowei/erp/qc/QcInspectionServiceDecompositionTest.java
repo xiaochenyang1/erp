@@ -19,9 +19,7 @@ class QcInspectionServiceDecompositionTest {
 
     @Test
     void qcInspectionServiceKeepsCreationAndSourceReadsBehindDedicatedCollaborators() {
-        Set<Class<?>> constructorDependencies = Arrays.stream(QcInspectionService.class.getDeclaredConstructors())
-                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
-                .collect(Collectors.toSet());
+        Set<Class<?>> constructorDependencies = constructorDependencies(QcInspectionService.class);
 
         assertThat(constructorDependencies)
                 .contains(QcInspectionCreateService.class, QcInspectionSourceAccess.class)
@@ -33,4 +31,18 @@ class QcInspectionServiceDecompositionTest {
                 );
     }
 
+    @Test
+    void productionOrderReadsStayInNeutralSourceAccess() {
+        assertThat(constructorDependencies(QcInspectionCreateService.class))
+                .contains(QcInspectionSourceAccess.class)
+                .doesNotContain(ProductionOrderMapper.class);
+        assertThat(constructorDependencies(QcInspectionSourceAccess.class))
+                .contains(ProductionOrderMapper.class);
+    }
+
+    private Set<Class<?>> constructorDependencies(Class<?> type) {
+        return Arrays.stream(type.getDeclaredConstructors())
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
+                .collect(Collectors.toSet());
+    }
 }

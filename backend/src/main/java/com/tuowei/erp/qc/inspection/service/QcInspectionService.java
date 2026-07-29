@@ -215,6 +215,13 @@ public class QcInspectionService {
         if (TYPE_OQC.equals(inspectionType)) {
             return judgeOqc(inspection, request, audit);
         }
+        if (TYPE_IPQC.equals(inspectionType)) {
+            qcInspectionSourceAccess.requireInspectableProductionOrder(
+                    inspection.getProductionOrderId(),
+                    audit
+            );
+            return judgeGateOnly(inspection, request, audit);
+        }
         return judgeIqc(inspection, request, audit);
     }
 
@@ -294,7 +301,15 @@ public class QcInspectionService {
     ) {
         // 确保引用的出库单仍为草稿，避免对已过账单判定
         qcInspectionSourceAccess.requireDraftDelivery(inspection.getDeliveryId(), audit);
+        return judgeGateOnly(inspection, request, audit);
+    }
 
+    /** OQC/IPQC 仅记录判定结果，后续由各自业务闸门校验合格数量。 */
+    private QcInspectionResponse judgeGateOnly(
+            QcInspectionOrderEntity inspection,
+            QcInspectionJudgeRequest request,
+            AuditMetadata audit
+    ) {
         List<QcInspectionLineEntity> lines = loadInspectionLines(inspection);
         Map<Long, QcInspectionLineEntity> lineById = lines.stream()
                 .collect(Collectors.toMap(QcInspectionLineEntity::getId, Function.identity()));

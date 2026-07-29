@@ -91,6 +91,52 @@ class QcInspectionGateTest {
                 .hasMessage("出库质检合格数量与出库数量不一致，不能过账");
     }
 
+    @Test
+    void assertProductionInspectedBlocksWithoutJudgedIpqc() {
+        when(productMapper.selectById(4001L)).thenReturn(product(1));
+        when(qcInspectionOrderMapper.selectOne(any())).thenReturn(null);
+
+        assertThatThrownBy(() -> gate().assertProductionInspected(
+                COMPANY_ID,
+                ACCOUNT_BOOK_ID,
+                9301L,
+                4001L,
+                new BigDecimal("5.0000")
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("成品需过程检，尚未完成 IPQC 判定，不能完工");
+    }
+
+    @Test
+    void assertProductionInspectedBlocksWhenQualifiedQtyIsInsufficient() {
+        when(productMapper.selectById(4001L)).thenReturn(product(1));
+        when(qcInspectionOrderMapper.selectOne(any())).thenReturn(judgedIpqc("4.0000"));
+
+        assertThatThrownBy(() -> gate().assertProductionInspected(
+                COMPANY_ID,
+                ACCOUNT_BOOK_ID,
+                9301L,
+                4001L,
+                new BigDecimal("5.0000")
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("过程检合格数量不足，不能完工");
+    }
+
+    @Test
+    void assertProductionInspectedAllowsWhenJudgedIpqcHasEnoughQualifiedQty() {
+        when(productMapper.selectById(4001L)).thenReturn(product(1));
+        when(qcInspectionOrderMapper.selectOne(any())).thenReturn(judgedIpqc("7.0000"));
+
+        assertThatCode(() -> gate().assertProductionInspected(
+                COMPANY_ID,
+                ACCOUNT_BOOK_ID,
+                9301L,
+                4001L,
+                new BigDecimal("5.0000")
+        )).doesNotThrowAnyException();
+    }
+
     private QcInspectionGate gate() {
         return new QcInspectionGate(qcInspectionOrderMapper, qcInspectionLineMapper, productMapper);
     }
@@ -136,6 +182,19 @@ class QcInspectionGateTest {
         entity.setInspectionId(5101L);
         entity.setDeliveryLineId(9201L);
         entity.setProductId(4001L);
+        entity.setQualifiedQty(new BigDecimal(qualifiedQty));
+        entity.setDeletedFlag(0);
+        return entity;
+    }
+
+    private QcInspectionOrderEntity judgedIpqc(String qualifiedQty) {
+        QcInspectionOrderEntity entity = new QcInspectionOrderEntity();
+        entity.setId(5201L);
+        entity.setCompanyId(COMPANY_ID);
+        entity.setAccountBookId(ACCOUNT_BOOK_ID);
+        entity.setInspectionType(QcInspectionGate.TYPE_IPQC);
+        entity.setProductionOrderId(9301L);
+        entity.setStatus("JUDGED");
         entity.setQualifiedQty(new BigDecimal(qualifiedQty));
         entity.setDeletedFlag(0);
         return entity;

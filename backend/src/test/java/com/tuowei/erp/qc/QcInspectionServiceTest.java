@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
+import com.tuowei.erp.production.order.model.ProductionOrderEntity;
+import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
@@ -22,13 +25,14 @@ import com.tuowei.erp.qc.inspection.web.QcInspectionJudgeLineRequest;
 import com.tuowei.erp.qc.inspection.web.QcInspectionJudgeRequest;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
-import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryLineEntity;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -222,6 +226,99 @@ class QcInspectionServiceTest {
         verify(salesDeliveryMapper, never()).updateById(any(SalesDeliveryEntity.class));
     }
 
+    @Test
+    void judgeIpqcPersistsGateOnlyResultWithoutUpdatingProductionOrder() {
+        stubAudit();
+        QcInspectionOrderEntity inspection = submittedInspectionIpqc();
+        QcInspectionLineEntity line = inspectionLineIpqc();
+        when(qcInspectionOrderMapper.selectById(5201L)).thenReturn(inspection);
+        when(productionOrderMapper.selectById(9301L)).thenReturn(productionOrder(
+                ProductionOrderService.STATUS_MATERIAL_ISSUED,
+                COMPANY_ID,
+                ACCOUNT_BOOK_ID,
+                0
+        ));
+        when(qcInspectionLineMapper.selectList(any())).thenReturn(List.of(line));
+        when(qcInspectionLineMapper.updateById(any(QcInspectionLineEntity.class))).thenReturn(1);
+        when(qcInspectionOrderMapper.updateById(any(QcInspectionOrderEntity.class))).thenReturn(1);
+
+        var response = service().judge(5201L, new QcInspectionJudgeRequest(List.of(
+                new QcInspectionJudgeLineRequest(
+                        6201L,
+                        new BigDecimal("7.0000"),
+                        new BigDecimal("0.5000"),
+                        "过程抽检"
+                )
+        )));
+
+        assertThat(response.status()).isEqualTo("JUDGED");
+        assertThat(response.qualifiedQty()).isEqualByComparingTo("7.0000");
+        assertThat(response.unqualifiedQty()).isEqualByComparingTo("0.5000");
+        assertThat(response.lines()).singleElement().satisfies(mappedLine -> {
+            assertThat(mappedLine.qualifiedQty()).isEqualByComparingTo("7.0000");
+            assertThat(mappedLine.unqualifiedQty()).isEqualByComparingTo("0.5000");
+            assertThat(mappedLine.defectReason()).isEqualTo("过程抽检");
+        });
+        verify(purchaseReceiptMapper, never()).selectById(any());
+        verify(salesDeliveryMapper, never()).selectById(any());
+        verify(productionOrderMapper, never()).updateById(any(ProductionOrderEntity.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DRAFT", "COMPLETED", "CANCELLED"})
+    void judgeIpqcRejectsProductionOrderInInvalidStatus(String status) {
+        stubAudit();
+        when(qcInspectionOrderMapper.selectById(5201L)).thenReturn(submittedInspectionIpqc());
+        when(productionOrderMapper.selectById(9301L)).thenReturn(productionOrder(
+                status,
+                COMPANY_ID,
+                ACCOUNT_BOOK_ID,
+                0
+        ));
+
+        assertThatThrownBy(() -> service().judge(5201L, new QcInspectionJudgeRequest(List.of())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("仅已下达/已领料的生产工单可做过程检");
+
+        verify(qcInspectionLineMapper, never()).selectList(any());
+    }
+
+    @Test
+    void judgeIpqcRejectsProductionOrderOutsideCurrentTenant() {
+        stubAudit();
+        when(qcInspectionOrderMapper.selectById(5201L)).thenReturn(submittedInspectionIpqc());
+        when(productionOrderMapper.selectById(9301L)).thenReturn(productionOrder(
+                ProductionOrderService.STATUS_RELEASED,
+                COMPANY_ID,
+                ACCOUNT_BOOK_ID + 1,
+                0
+        ));
+
+        assertThatThrownBy(() -> service().judge(5201L, new QcInspectionJudgeRequest(List.of())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("生产工单不存在");
+
+        verify(qcInspectionLineMapper, never()).selectList(any());
+    }
+
+    @Test
+    void judgeIpqcRejectsDeletedProductionOrder() {
+        stubAudit();
+        when(qcInspectionOrderMapper.selectById(5201L)).thenReturn(submittedInspectionIpqc());
+        when(productionOrderMapper.selectById(9301L)).thenReturn(productionOrder(
+                ProductionOrderService.STATUS_RELEASED,
+                COMPANY_ID,
+                ACCOUNT_BOOK_ID,
+                1
+        ));
+
+        assertThatThrownBy(() -> service().judge(5201L, new QcInspectionJudgeRequest(List.of())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("生产工单不存在");
+
+        verify(qcInspectionLineMapper, never()).selectList(any());
+    }
+
     private void stubAudit() {
         lenient().when(auditMetadataFactory.current()).thenReturn(new AuditMetadata(USER_ID, COMPANY_ID, ACCOUNT_BOOK_ID, NOW));
     }
@@ -318,6 +415,22 @@ class QcInspectionServiceTest {
         return entity;
     }
 
+    private QcInspectionOrderEntity submittedInspectionIpqc() {
+        QcInspectionOrderEntity entity = new QcInspectionOrderEntity();
+        entity.setId(5201L);
+        entity.setCompanyId(COMPANY_ID);
+        entity.setAccountBookId(ACCOUNT_BOOK_ID);
+        entity.setInspectionNo("QC202607130188");
+        entity.setInspectionType(QcInspectionGate.TYPE_IPQC);
+        entity.setProductionOrderId(9301L);
+        entity.setOrderId(9301L);
+        entity.setWarehouseId(3301L);
+        entity.setTotalQty(new BigDecimal("7.5000"));
+        entity.setStatus("SUBMITTED");
+        entity.setDeletedFlag(0);
+        return entity;
+    }
+
     private QcInspectionLineEntity inspectionLineIqc() {
         QcInspectionLineEntity entity = new QcInspectionLineEntity();
         entity.setId(6001L);
@@ -350,17 +463,51 @@ class QcInspectionServiceTest {
         return entity;
     }
 
+    private QcInspectionLineEntity inspectionLineIpqc() {
+        QcInspectionLineEntity entity = new QcInspectionLineEntity();
+        entity.setId(6201L);
+        entity.setCompanyId(COMPANY_ID);
+        entity.setAccountBookId(ACCOUNT_BOOK_ID);
+        entity.setInspectionId(5201L);
+        entity.setLineNo(1);
+        entity.setProductId(4301L);
+        entity.setInspectedQty(new BigDecimal("7.5000"));
+        entity.setQualifiedQty(BigDecimal.ZERO);
+        entity.setUnqualifiedQty(BigDecimal.ZERO);
+        entity.setDeletedFlag(0);
+        return entity;
+    }
+
+    private ProductionOrderEntity productionOrder(
+            String status,
+            Long companyId,
+            Long accountBookId,
+            Integer deletedFlag
+    ) {
+        ProductionOrderEntity entity = new ProductionOrderEntity();
+        entity.setId(9301L);
+        entity.setCompanyId(companyId);
+        entity.setAccountBookId(accountBookId);
+        entity.setOrderNo("MO-9301");
+        entity.setProductId(4301L);
+        entity.setFinishedWarehouseId(3301L);
+        entity.setPlannedQty(new BigDecimal("7.5000"));
+        entity.setStatus(status);
+        entity.setDeletedFlag(deletedFlag);
+        return entity;
+    }
+
     private QcInspectionService service() {
         QcInspectionSourceAccess sourceAccess = new QcInspectionSourceAccess(
                 purchaseReceiptMapper,
                 purchaseReceiptLineMapper,
                 salesDeliveryMapper,
-                salesDeliveryLineMapper
+                salesDeliveryLineMapper,
+                productionOrderMapper
         );
         QcInspectionCreateService createService = new QcInspectionCreateService(
                 qcInspectionOrderMapper,
                 qcInspectionLineMapper,
-                productionOrderMapper,
                 qcInspectionNumberService,
                 auditMetadataFactory,
                 sourceAccess

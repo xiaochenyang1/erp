@@ -2,6 +2,9 @@ package com.tuowei.erp.qc.inspection.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
+import com.tuowei.erp.production.order.model.ProductionOrderEntity;
+import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
@@ -25,17 +28,20 @@ public class QcInspectionSourceAccess {
     private final PurchaseReceiptLineMapper purchaseReceiptLineMapper;
     private final SalesDeliveryMapper salesDeliveryMapper;
     private final SalesDeliveryLineMapper salesDeliveryLineMapper;
+    private final ProductionOrderMapper productionOrderMapper;
 
     public QcInspectionSourceAccess(
             PurchaseReceiptMapper purchaseReceiptMapper,
             PurchaseReceiptLineMapper purchaseReceiptLineMapper,
             SalesDeliveryMapper salesDeliveryMapper,
-            SalesDeliveryLineMapper salesDeliveryLineMapper
+            SalesDeliveryLineMapper salesDeliveryLineMapper,
+            ProductionOrderMapper productionOrderMapper
     ) {
         this.purchaseReceiptMapper = purchaseReceiptMapper;
         this.purchaseReceiptLineMapper = purchaseReceiptLineMapper;
         this.salesDeliveryMapper = salesDeliveryMapper;
         this.salesDeliveryLineMapper = salesDeliveryLineMapper;
+        this.productionOrderMapper = productionOrderMapper;
     }
 
     public PurchaseReceiptEntity requireDraftReceipt(Long receiptId, AuditMetadata audit) {
@@ -62,6 +68,21 @@ public class QcInspectionSourceAccess {
             throw new IllegalArgumentException("销售出库单不是草稿状态，不能进行出库检验");
         }
         return delivery;
+    }
+
+    public ProductionOrderEntity requireInspectableProductionOrder(Long orderId, AuditMetadata audit) {
+        ProductionOrderEntity order = productionOrderMapper.selectById(orderId);
+        if (order == null
+                || !Objects.equals(order.getCompanyId(), audit.companyId())
+                || !Objects.equals(order.getAccountBookId(), audit.accountBookId())
+                || Integer.valueOf(1).equals(order.getDeletedFlag())) {
+            throw new IllegalArgumentException("生产工单不存在");
+        }
+        if (!ProductionOrderService.STATUS_RELEASED.equals(order.getStatus())
+                && !ProductionOrderService.STATUS_MATERIAL_ISSUED.equals(order.getStatus())) {
+            throw new IllegalArgumentException("仅已下达/已领料的生产工单可做过程检");
+        }
+        return order;
     }
 
     public List<PurchaseReceiptLineEntity> loadReceiptLines(PurchaseReceiptEntity receipt) {
