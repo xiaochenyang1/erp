@@ -12,10 +12,6 @@ import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
-import com.tuowei.erp.finance.payable.mapper.PayableMapper;
-import com.tuowei.erp.finance.payment.mapper.PaymentAllocationMapper;
-import com.tuowei.erp.finance.payment.mapper.PaymentMapper;
-import com.tuowei.erp.finance.voucher.mapper.VoucherMapper;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -28,12 +24,12 @@ import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderNumberService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderInquirySource;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
+import com.tuowei.erp.purchase.order.service.PurchaseOrderTraceService;
 import com.tuowei.erp.purchase.order.service.PurchasePriceEvaluator;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
-import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
-import com.tuowei.erp.purchase.returnorder.mapper.PurchaseReturnMapper;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -105,12 +101,7 @@ class PurchaseOrderServiceTenantBoundaryTest {
     private final DataScopeService dataScopeService = mock(DataScopeService.class);
     private final ScopedUserResolver scopedUserResolver = mock(ScopedUserResolver.class);
     private final UserMapper userMapper = mock(UserMapper.class);
-    private final PurchaseReceiptMapper purchaseReceiptMapper = mock(PurchaseReceiptMapper.class);
-    private final PurchaseReturnMapper purchaseReturnMapper = mock(PurchaseReturnMapper.class);
-    private final PayableMapper payableMapper = mock(PayableMapper.class);
-    private final PaymentAllocationMapper paymentAllocationMapper = mock(PaymentAllocationMapper.class);
-    private final PaymentMapper paymentMapper = mock(PaymentMapper.class);
-    private final VoucherMapper voucherMapper = mock(VoucherMapper.class);
+    private final PurchaseOrderTraceService purchaseOrderTraceService = mock(PurchaseOrderTraceService.class);
     private final WorkflowService workflowService = mock(WorkflowService.class);
 
     @BeforeAll
@@ -132,6 +123,22 @@ class PurchaseOrderServiceTenantBoundaryTest {
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
         verify(purchaseOrderLineMapper).selectList(wrapperCaptor.capture());
         assertTenantScoped(wrapperCaptor.getValue());
+    }
+
+    @Test
+    void traceLoadsTheAuthorizedOrderBeforeDelegatingTheDocumentChain() {
+        stubCurrentUser();
+        when(purchaseOrderMapper.selectById(4301L)).thenReturn(order());
+        when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
+
+        service().trace(4301L);
+
+        ArgumentCaptor<PurchaseOrderResponse> orderCaptor =
+                ArgumentCaptor.forClass(PurchaseOrderResponse.class);
+        verify(purchaseOrderTraceService).trace(orderCaptor.capture());
+        assertThat(orderCaptor.getValue().id()).isEqualTo(4301L);
+        assertThat(orderCaptor.getValue().lines()).singleElement()
+                .satisfies(line -> assertThat(line.id()).isEqualTo(4401L));
     }
 
     @Test
@@ -377,12 +384,7 @@ class PurchaseOrderServiceTenantBoundaryTest {
                 scopeService,
                 scopedUserResolver,
                 userMapper,
-                purchaseReceiptMapper,
-                purchaseReturnMapper,
-                payableMapper,
-                paymentAllocationMapper,
-                paymentMapper,
-                voucherMapper,
+                purchaseOrderTraceService,
                 workflowService,
                 mock(PurchasePriceEvaluator.class)
         );
