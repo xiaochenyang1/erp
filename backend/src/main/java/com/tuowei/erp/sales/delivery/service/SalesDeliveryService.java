@@ -1,24 +1,17 @@
 package com.tuowei.erp.sales.delivery.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
-import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryReservationMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.purchase.support.AccumulatedQuantityValidator;
-import com.tuowei.erp.qc.inspection.service.QcInspectionGate;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
@@ -38,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,11 +43,7 @@ import java.util.stream.Collectors;
 @Service
 public class SalesDeliveryService {
 
-    private static final String OUTBOUND_SHORTAGE_MESSAGE = "库存不足，不能执行销售出库";
     private static final String CREATE_RESERVATION_SHORTAGE_MESSAGE = "销售订单预占数量不足，不能创建销售出库单";
-    private static final String POST_RESERVATION_SHORTAGE_MESSAGE = "销售订单预占数量不足，不能执行销售出库";
-
-    private static final int MAX_STATUS_REFRESH_ATTEMPTS = 8;
 
     private final SalesDeliveryMapper salesDeliveryMapper;
     private final SalesDeliveryLineMapper salesDeliveryLineMapper;
@@ -63,15 +51,11 @@ public class SalesDeliveryService {
     private final SalesOrderLineMapper salesOrderLineMapper;
     private final WarehouseMapper warehouseMapper;
     private final InventoryReservationMapper inventoryReservationMapper;
-    private final InventoryPostingService inventoryPostingService;
-    private final InventorySerialNumberService inventorySerialNumberService;
     private final SalesDeliveryNumberService salesDeliveryNumberService;
     private final SalesDeliveryQueryService salesDeliveryQueryService;
-    private final FinancePostingService financePostingService;
+    private final SalesDeliveryPostingService salesDeliveryPostingService;
     private final AuditMetadataFactory auditMetadataFactory;
-    private final AccountPeriodGuard accountPeriodGuard;
     private final ProductValidator productValidator;
-    private final QcInspectionGate qcInspectionGate;
 
     public SalesDeliveryService(
             SalesDeliveryMapper salesDeliveryMapper,
@@ -80,15 +64,11 @@ public class SalesDeliveryService {
             SalesOrderLineMapper salesOrderLineMapper,
             WarehouseMapper warehouseMapper,
             InventoryReservationMapper inventoryReservationMapper,
-            InventoryPostingService inventoryPostingService,
-            InventorySerialNumberService inventorySerialNumberService,
             SalesDeliveryNumberService salesDeliveryNumberService,
             SalesDeliveryQueryService salesDeliveryQueryService,
-            FinancePostingService financePostingService,
+            SalesDeliveryPostingService salesDeliveryPostingService,
             AuditMetadataFactory auditMetadataFactory,
-            AccountPeriodGuard accountPeriodGuard,
-            ProductValidator productValidator,
-            QcInspectionGate qcInspectionGate
+            ProductValidator productValidator
     ) {
         this.salesDeliveryMapper = salesDeliveryMapper;
         this.salesDeliveryLineMapper = salesDeliveryLineMapper;
@@ -96,15 +76,11 @@ public class SalesDeliveryService {
         this.salesOrderLineMapper = salesOrderLineMapper;
         this.warehouseMapper = warehouseMapper;
         this.inventoryReservationMapper = inventoryReservationMapper;
-        this.inventoryPostingService = inventoryPostingService;
-        this.inventorySerialNumberService = inventorySerialNumberService;
         this.salesDeliveryNumberService = salesDeliveryNumberService;
         this.salesDeliveryQueryService = salesDeliveryQueryService;
-        this.financePostingService = financePostingService;
+        this.salesDeliveryPostingService = salesDeliveryPostingService;
         this.auditMetadataFactory = auditMetadataFactory;
-        this.accountPeriodGuard = accountPeriodGuard;
         this.productValidator = productValidator;
-        this.qcInspectionGate = qcInspectionGate;
     }
 
     @Transactional
@@ -234,111 +210,7 @@ public class SalesDeliveryService {
 
     @Transactional
     public SalesDeliveryResponse post(Long id) {
-        SalesDeliveryEntity delivery = requireDelivery(id);
-        assertCanView(delivery);
-        if (!"DRAFT".equals(delivery.getStatus())) {
-            throw new IllegalArgumentException("当前销售出库单状态不允许过账");
-        }
-        accountPeriodGuard.requireOpen(delivery.getDeliveryDate(), "销售出库过账");
-
-        SalesOrderEntity order = requireApprovedOrder(delivery.getOrderId(), "销售订单未审批通过，不能执行出库过账");
-        assertCanView(order);
-        AuditMetadata audit = auditMetadataFactory.current();
-        requireWarehouse(delivery.getWarehouseId(), audit.companyId(), audit.accountBookId());
-        assertWarehouseMatchesOrder(delivery.getWarehouseId(), order.getWarehouseId());
-        List<SalesDeliveryLineEntity> deliveryLines = salesDeliveryLineMapper.selectList(new LambdaQueryWrapper<SalesDeliveryLineEntity>()
-                .eq(SalesDeliveryLineEntity::getCompanyId, delivery.getCompanyId())
-                .eq(SalesDeliveryLineEntity::getAccountBookId, delivery.getAccountBookId())
-                .eq(SalesDeliveryLineEntity::getDeliveryId, delivery.getId())
-                .orderByAsc(SalesDeliveryLineEntity::getLineNo));
-        Map<Long, SalesOrderLineEntity> orderLines = loadOrderLinesAsMap(order);
-        LocalDateTime now = audit.now();
-        AccumulatedQuantityValidator deliveryQtyValidator = new AccumulatedQuantityValidator("出库数量超过销售订单剩余可出库数量");
-        AccumulatedQuantityValidator inventoryQtyValidator = new AccumulatedQuantityValidator(OUTBOUND_SHORTAGE_MESSAGE);
-        productValidator.requireProducts(
-                deliveryLines.stream().map(SalesDeliveryLineEntity::getProductId).toList(),
-                audit.companyId(), audit.accountBookId());
-
-        for (SalesDeliveryLineEntity deliveryLine : deliveryLines) {
-            SalesOrderLineEntity orderLine = requireOrderLine(orderLines, deliveryLine.getOrderLineId());
-            BigDecimal qty = ScalePrecision.quantity(deliveryLine.getQty());
-            deliveryQtyValidator.ensureWithinLimit(orderLine.getId(), qty, availableDeliveryQty(orderLine));
-            inventoryQtyValidator.ensureWithinLimit(
-                    deliveryLine.getProductId(),
-                    qty,
-                    productId -> inventoryPostingService.getQtyOnHand(
-                            delivery.getWarehouseId(),
-                            productId,
-                            audit.companyId(),
-                            audit.accountBookId()
-                    )
-            );
-        }
-        validateReservationForPosting(deliveryLines, audit.companyId(), audit.accountBookId());
-
-        // 出库质检闸门：需检验商品必须存在已判定 OQC 检验单，且出库数量=合格数量。
-        qcInspectionGate.assertDeliveryInspected(delivery, deliveryLines, audit);
-
-        delivery.setStatus("POSTED");
-        delivery.setUpdatedBy(audit.userId());
-        delivery.setUpdatedTime(now);
-        OptimisticLockGuard.requireUpdated(
-                salesDeliveryMapper.updateById(delivery),
-                "销售出库单已被其他操作修改，请刷新后重试"
-        );
-
-        BigDecimal totalCostAmount = BigDecimal.ZERO;
-        for (SalesDeliveryLineEntity deliveryLine : deliveryLines) {
-            SalesOrderLineEntity orderLine = requireOrderLine(orderLines, deliveryLine.getOrderLineId());
-            orderLine.setDeliveredQty(ScalePrecision.quantity(
-                    ScalePrecision.zeroDefault(orderLine.getDeliveredQty()).add(ScalePrecision.quantity(deliveryLine.getQty()))
-            ));
-            orderLine.setUpdatedBy(audit.userId());
-            orderLine.setUpdatedTime(now);
-            OptimisticLockGuard.requireUpdated(
-                    salesOrderLineMapper.updateById(orderLine),
-                    "销售订单明细已被其他操作修改，请刷新后重试"
-            );
-
-            inventoryPostingService.releaseReservation(
-                    "SALES_ORDER",
-                    deliveryLine.getOrderLineId(),
-                    deliveryLine.getQty(),
-                    audit
-            );
-            BigDecimal lineCostAmount = inventoryPostingService.postOutbound(
-                    new InventoryPostingCommand(
-                            delivery.getWarehouseId(),
-                            deliveryLine.getProductId(),
-                            "SALES_DELIVERY",
-                            delivery.getDeliveryNo(),
-                            deliveryLine.getId(),
-                            deliveryLine.getQty(),
-                            deliveryLine.getAmount(),
-                            deliveryLine.getRemark(),
-                            delivery.getDeliveryDate(),
-                            deliveryLine.getLotNo(),
-                            deliveryLine.getProductionDate(),
-                            deliveryLine.getExpiryDate(),
-                            deliveryLine.getLocationId()
-                    ),
-                    audit,
-                    OUTBOUND_SHORTAGE_MESSAGE
-            );
-            inventorySerialNumberService.issueOutboundSerials(
-                    deliveryLine.getProductId(),
-                    deliveryLine.getSerialNos(),
-                    "SALES_DELIVERY",
-                    delivery.getDeliveryNo(),
-                    deliveryLine.getQty(),
-                    audit
-            );
-            totalCostAmount = ScalePrecision.amount(totalCostAmount.add(lineCostAmount));
-        }
-
-        refreshDeliveryStatus(order.getId(), audit, now);
-        financePostingService.recordSalesDelivery(delivery, order, totalCostAmount, audit);
-        return getById(id);
+        return salesDeliveryPostingService.post(id);
     }
 
     private SalesOrderEntity requireApprovedOrder(Long id, String message) {
@@ -435,17 +307,6 @@ public class SalesDeliveryService {
             totals = totals.add(amounts);
         }
         return new DeliveryTotals(totals.totalQuantity(), totals.totalAmount(), totals.totalTaxAmount());
-    }
-
-    private void validateReservationForPosting(List<SalesDeliveryLineEntity> deliveryLines, Long companyId, Long accountBookId) {
-        AccumulatedQuantityValidator reservationValidator = new AccumulatedQuantityValidator(POST_RESERVATION_SHORTAGE_MESSAGE);
-        for (SalesDeliveryLineEntity deliveryLine : deliveryLines) {
-            reservationValidator.ensureWithinLimit(
-                    deliveryLine.getOrderLineId(),
-                    ScalePrecision.quantity(deliveryLine.getQty()),
-                    orderLineId -> activeReservationRemainingQty(orderLineId, companyId, accountBookId)
-            );
-        }
     }
 
     private BigDecimal availableReservedQty(
@@ -576,42 +437,6 @@ public class SalesDeliveryService {
 
     private void assertCanView(SalesOrderEntity order) {
         salesDeliveryQueryService.assertCanView(order);
-    }
-
-    private void refreshDeliveryStatus(Long orderId, AuditMetadata audit, LocalDateTime now) {
-        for (int attempt = 0; attempt < MAX_STATUS_REFRESH_ATTEMPTS; attempt++) {
-            SalesOrderEntity order = requireOrder(orderId);
-            List<SalesOrderLineEntity> orderLines = loadOrderLinesAsMap(order).values().stream().toList();
-            order.setDeliveryStatus(resolveDeliveryStatus(orderLines));
-            order.setUpdatedBy(audit.userId());
-            order.setUpdatedTime(now);
-            if (salesOrderMapper.updateById(order) == 1) {
-                return;
-            }
-        }
-        throw new BusinessConflictException("销售订单已被其他操作修改，请刷新后重试");
-    }
-
-    private String resolveDeliveryStatus(List<SalesOrderLineEntity> orderLines) {
-        boolean anyDelivered = false;
-        boolean allDelivered = !orderLines.isEmpty();
-        for (SalesOrderLineEntity orderLine : orderLines) {
-            BigDecimal orderedQty = ScalePrecision.quantity(orderLine.getQty());
-            BigDecimal deliveredQty = ScalePrecision.quantity(ScalePrecision.zeroDefault(orderLine.getDeliveredQty()));
-            if (deliveredQty.compareTo(BigDecimal.ZERO) > 0) {
-                anyDelivered = true;
-            }
-            if (deliveredQty.compareTo(orderedQty) < 0) {
-                allDelivered = false;
-            }
-        }
-        if (allDelivered) {
-            return "FULL_DELIVERED";
-        }
-        if (anyDelivered) {
-            return "PARTIAL_DELIVERED";
-        }
-        return "NOT_DELIVERED";
     }
 
 

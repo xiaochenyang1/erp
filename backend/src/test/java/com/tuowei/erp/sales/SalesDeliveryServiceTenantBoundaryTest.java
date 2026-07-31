@@ -6,26 +6,23 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
-import com.tuowei.erp.finance.posting.FinancePostingService;
-import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryReservationMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
-import com.tuowei.erp.qc.inspection.service.QcInspectionGate;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryLineEntity;
 import com.tuowei.erp.sales.delivery.service.SalesDeliveryNumberService;
+import com.tuowei.erp.sales.delivery.service.SalesDeliveryPostingService;
 import com.tuowei.erp.sales.delivery.service.SalesDeliveryQueryService;
 import com.tuowei.erp.sales.delivery.service.SalesDeliveryService;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryCreateRequest;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryLineRequest;
 import com.tuowei.erp.sales.delivery.web.SalesDeliveryPageQuery;
+import com.tuowei.erp.sales.delivery.web.SalesDeliveryResponse;
 import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
@@ -83,31 +80,19 @@ class SalesDeliveryServiceTenantBoundaryTest {
     private InventoryReservationMapper inventoryReservationMapper;
 
     @Mock
-    private InventoryPostingService inventoryPostingService;
-
-    @Mock
-    private InventorySerialNumberService inventorySerialNumberService;
-
-    @Mock
     private SalesDeliveryNumberService salesDeliveryNumberService;
 
     @Mock
     private SalesDeliveryQueryService salesDeliveryQueryService;
 
     @Mock
-    private FinancePostingService financePostingService;
+    private SalesDeliveryPostingService salesDeliveryPostingService;
 
     @Mock
     private AuditMetadataFactory auditMetadataFactory;
 
     @Mock
-    private AccountPeriodGuard accountPeriodGuard;
-
-    @Mock
     private ProductValidator productValidator;
-
-    @Mock
-    private QcInspectionGate qcInspectionGate;
 
     @BeforeAll
     static void initTableInfo() {
@@ -131,6 +116,32 @@ class SalesDeliveryServiceTenantBoundaryTest {
         service().list(query);
 
         verify(salesDeliveryQueryService).list(query);
+    }
+
+    @Test
+    void postDelegatesToPostingService() {
+        SalesDeliveryResponse expected = new SalesDeliveryResponse(
+                7001L,
+                "SD-7001",
+                7101L,
+                3001L,
+                LocalDate.of(2026, 6, 8),
+                "POSTED",
+                new BigDecimal("2.0000"),
+                new BigDecimal("20.00"),
+                BigDecimal.ZERO,
+                null,
+                null,
+                null,
+                "PENDING_SHIP",
+                List.of()
+        );
+        when(salesDeliveryPostingService.post(7001L)).thenReturn(expected);
+
+        SalesDeliveryResponse result = service().post(7001L);
+
+        assertThat(result).isSameAs(expected);
+        verify(salesDeliveryPostingService).post(7001L);
     }
 
     @Test
@@ -346,15 +357,11 @@ class SalesDeliveryServiceTenantBoundaryTest {
                 salesOrderLineMapper,
                 warehouseMapper,
                 inventoryReservationMapper,
-                inventoryPostingService,
-                inventorySerialNumberService,
                 salesDeliveryNumberService,
                 salesDeliveryQueryService,
-                financePostingService,
+                salesDeliveryPostingService,
                 auditMetadataFactory,
-                accountPeriodGuard,
-                productValidator,
-                qcInspectionGate
+                productValidator
         );
     }
 
