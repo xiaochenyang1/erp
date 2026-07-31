@@ -11,11 +11,11 @@ import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
+import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
@@ -34,10 +34,12 @@ import com.tuowei.erp.purchase.returnorder.mapper.PurchaseReturnMapper;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnLineEntity;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnNumberService;
+import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnQueryService;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnService;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnCreateRequest;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnResponse;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnLineRequest;
+import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnPageQuery;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,6 +48,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -58,6 +61,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -109,9 +113,6 @@ class PurchaseReturnServiceTenantBoundaryTest {
     private WarehouseMapper warehouseMapper;
 
     @Mock
-    private ProductMapper productMapper;
-
-    @Mock
     private ProductValidator productValidator;
 
     @Mock
@@ -154,6 +155,59 @@ class PurchaseReturnServiceTenantBoundaryTest {
     static void initTableInfo() {
         initTableInfo(PurchaseReceiptLineEntity.class);
         initTableInfo(PurchaseReturnLineEntity.class);
+    }
+
+    @Test
+    void listDelegatesToQueryService() {
+        PurchaseReturnQueryService queryService = mock(PurchaseReturnQueryService.class);
+        PurchaseReturnPageQuery query = new PurchaseReturnPageQuery();
+        PageResponse<PurchaseReturnResponse> expected = new PageResponse<>(1L, 20L, 0L, List.of());
+        when(queryService.list(query)).thenReturn(expected);
+
+        PageResponse<PurchaseReturnResponse> result = service(queryService).list(query);
+
+        assertThat(result).isSameAs(expected);
+        verify(queryService).list(query);
+    }
+
+    @Test
+    void getByIdDelegatesToQueryService() {
+        PurchaseReturnQueryService queryService = mock(PurchaseReturnQueryService.class);
+        PurchaseReturnResponse expected = new PurchaseReturnResponse(
+                9001L,
+                "PR-9001",
+                7001L,
+                "GR-7001",
+                "PO-6001",
+                3001L,
+                "A仓",
+                LocalDate.of(2026, 6, 8),
+                "DRAFT",
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                List.of()
+        );
+        when(queryService.getById(9001L)).thenReturn(expected);
+
+        PurchaseReturnResponse result = service(queryService).getById(9001L);
+
+        assertThat(result).isSameAs(expected);
+        verify(queryService).getById(9001L);
+    }
+
+    @Test
+    void exportDelegatesToQueryService() {
+        PurchaseReturnQueryService queryService = mock(PurchaseReturnQueryService.class);
+        PurchaseReturnPageQuery query = new PurchaseReturnPageQuery();
+        StreamingResponseBody expected = outputStream -> { };
+        when(queryService.exportReturns(query)).thenReturn(expected);
+
+        StreamingResponseBody result = service(queryService).exportReturns(query);
+
+        assertThat(result).isSameAs(expected);
+        verify(queryService).exportReturns(query);
     }
 
     @Test
@@ -389,15 +443,29 @@ class PurchaseReturnServiceTenantBoundaryTest {
     }
 
     private PurchaseReturnService service() {
-        return new PurchaseReturnService(
+        PurchaseReturnQueryService queryService = new PurchaseReturnQueryService(
                 purchaseReturnMapper,
                 purchaseReturnLineMapper,
                 purchaseReceiptMapper,
                 purchaseReceiptLineMapper,
                 purchaseOrderMapper,
-                purchaseOrderLineMapper,
                 warehouseMapper,
-                productMapper,
+                productValidator,
+                currentUserContext,
+                dataScopeService,
+                scopedUserResolver,
+                userMapper
+        );
+        return service(queryService);
+    }
+
+    private PurchaseReturnService service(PurchaseReturnQueryService queryService) {
+        return new PurchaseReturnService(
+                purchaseReturnMapper,
+                purchaseReturnLineMapper,
+                purchaseReceiptMapper,
+                purchaseReceiptLineMapper,
+                purchaseOrderLineMapper,
                 productValidator,
                 inventoryPostingService,
                 inventorySerialNumberService,
@@ -406,10 +474,7 @@ class PurchaseReturnServiceTenantBoundaryTest {
                 purchaseReturnNumberService,
                 financePostingService,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
+                queryService,
                 accountPeriodGuard
         );
     }

@@ -37,9 +37,12 @@ import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderTraceService;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
+import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptService;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptPageQuery;
+import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnService;
+import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnQueryService;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnPageQuery;
 import com.tuowei.erp.qc.inspection.service.QcInspectionService;
 import com.tuowei.erp.qc.inspection.web.QcInspectionPageQuery;
@@ -104,6 +107,11 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(PurchaseReceiptService.class, "getById", Long.class);
         assertReadOnly(PurchaseReturnService.class, "list", PurchaseReturnPageQuery.class);
         assertReadOnly(PurchaseReturnService.class, "getById", Long.class);
+        assertReadOnly(PurchaseReturnQueryService.class, "list", PurchaseReturnPageQuery.class);
+        assertReadOnly(PurchaseReturnQueryService.class, "getById", Long.class);
+        assertReadOnly(PurchaseReturnQueryService.class, "assertCanView", PurchaseReturnEntity.class);
+        assertReadOnly(PurchaseReturnQueryService.class, "assertCanView", PurchaseReceiptEntity.class);
+        assertReadOnly(PurchaseReturnQueryService.class, "assertCanView", PurchaseOrderEntity.class);
         assertReadOnly(QcInspectionService.class, "list", QcInspectionPageQuery.class);
         assertReadOnly(QcInspectionService.class, "getById", Long.class);
 

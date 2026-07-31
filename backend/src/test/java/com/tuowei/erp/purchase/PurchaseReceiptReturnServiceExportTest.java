@@ -14,7 +14,6 @@ import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
@@ -31,6 +30,7 @@ import com.tuowei.erp.purchase.returnorder.mapper.PurchaseReturnLineMapper;
 import com.tuowei.erp.purchase.returnorder.mapper.PurchaseReturnMapper;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnNumberService;
+import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnQueryService;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnService;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnPageQuery;
 import com.tuowei.erp.system.user.mapper.UserMapper;
@@ -101,9 +101,6 @@ class PurchaseReceiptReturnServiceExportTest {
 
     @Mock
     private PurchaseOrderLineMapper purchaseOrderLineMapper;
-
-    @Mock
-    private ProductMapper productMapper;
 
     @Mock
     private ProductValidator productValidator;
@@ -273,15 +270,25 @@ class PurchaseReceiptReturnServiceExportTest {
     }
 
     private PurchaseReturnService returnService() {
-        return new PurchaseReturnService(
+        PurchaseReturnQueryService queryService = new PurchaseReturnQueryService(
                 purchaseReturnMapper,
                 purchaseReturnLineMapper,
                 returnReceiptMapper,
                 purchaseReceiptLineMapper,
                 purchaseOrderMapper,
-                purchaseOrderLineMapper,
                 warehouseMapper,
-                productMapper,
+                productValidator,
+                currentUserContext,
+                dataScopeService,
+                scopedUserResolver,
+                userMapper
+        );
+        return new PurchaseReturnService(
+                purchaseReturnMapper,
+                purchaseReturnLineMapper,
+                returnReceiptMapper,
+                purchaseReceiptLineMapper,
+                purchaseOrderLineMapper,
                 productValidator,
                 inventoryPostingService,
                 inventorySerialNumberService,
@@ -290,10 +297,7 @@ class PurchaseReceiptReturnServiceExportTest {
                 purchaseReturnNumberService,
                 financePostingService,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
+                queryService,
                 accountPeriodGuard
         );
     }

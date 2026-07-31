@@ -1,30 +1,19 @@
 package com.tuowei.erp.purchase.returnorder.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
-import com.tuowei.erp.common.export.CsvExport;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.DataScopeService;
-import com.tuowei.erp.common.security.DataScopeSnapshot;
-import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
-import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
-import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
-import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderLookupService;
@@ -39,7 +28,6 @@ import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnLineEntity;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnCreateRequest;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnLineRequest;
-import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnLineResponse;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnPageQuery;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnResponse;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnUpdateRequest;
@@ -47,22 +35,13 @@ import com.tuowei.erp.purchase.support.AccumulatedQuantityValidator;
 import com.tuowei.erp.purchase.support.PurchaseAmountCalculator;
 import com.tuowei.erp.purchase.support.PurchaseReturnLineViewData;
 import com.tuowei.erp.purchase.support.PurchaseReturnQuantities;
-import com.tuowei.erp.system.user.mapper.UserMapper;
-import com.tuowei.erp.system.user.model.UserEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -71,26 +50,11 @@ import java.util.stream.Collectors;
 @Service
 public class PurchaseReturnService {
 
-    private static final List<String> RETURN_EXPORT_HEADERS = List.of(
-            "returnNo",
-            "receiptId",
-            "warehouseId",
-            "returnDate",
-            "status",
-            "totalQuantity",
-            "totalAmount",
-            "totalTaxAmount",
-            "remark"
-    );
-
     private final PurchaseReturnMapper purchaseReturnMapper;
     private final PurchaseReturnLineMapper purchaseReturnLineMapper;
     private final PurchaseReceiptMapper purchaseReceiptMapper;
     private final PurchaseReceiptLineMapper purchaseReceiptLineMapper;
-    private final PurchaseOrderMapper purchaseOrderMapper;
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
-    private final WarehouseMapper warehouseMapper;
-    private final ProductMapper productMapper;
     private final ProductValidator productValidator;
     private final InventoryPostingService inventoryPostingService;
     private final InventorySerialNumberService inventorySerialNumberService;
@@ -99,16 +63,12 @@ public class PurchaseReturnService {
     private final PurchaseReturnNumberService purchaseReturnNumberService;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
-    private final CurrentUserContext currentUserContext;
-    private final DataScopeService dataScopeService;
-    private final ScopedUserResolver scopedUserResolver;
-    private final UserMapper userMapper;
+    private final PurchaseReturnQueryService purchaseReturnQueryService;
     private final AccountPeriodGuard accountPeriodGuard;
 
     public PurchaseReturnService(PurchaseReturnMapper purchaseReturnMapper, PurchaseReturnLineMapper purchaseReturnLineMapper,
                                  PurchaseReceiptMapper purchaseReceiptMapper, PurchaseReceiptLineMapper purchaseReceiptLineMapper,
-                                 PurchaseOrderMapper purchaseOrderMapper, PurchaseOrderLineMapper purchaseOrderLineMapper,
-                                 WarehouseMapper warehouseMapper, ProductMapper productMapper,
+                                 PurchaseOrderLineMapper purchaseOrderLineMapper,
                                  ProductValidator productValidator,
                                  InventoryPostingService inventoryPostingService,
                                  InventorySerialNumberService inventorySerialNumberService,
@@ -117,19 +77,13 @@ public class PurchaseReturnService {
                                  PurchaseReturnNumberService purchaseReturnNumberService,
                                  FinancePostingService financePostingService,
                                  AuditMetadataFactory auditMetadataFactory,
-                                 CurrentUserContext currentUserContext,
-                                 DataScopeService dataScopeService,
-                                 ScopedUserResolver scopedUserResolver,
-                                 UserMapper userMapper,
+                                 PurchaseReturnQueryService purchaseReturnQueryService,
                                  AccountPeriodGuard accountPeriodGuard) {
         this.purchaseReturnMapper = purchaseReturnMapper;
         this.purchaseReturnLineMapper = purchaseReturnLineMapper;
         this.purchaseReceiptMapper = purchaseReceiptMapper;
         this.purchaseReceiptLineMapper = purchaseReceiptLineMapper;
-        this.purchaseOrderMapper = purchaseOrderMapper;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
-        this.warehouseMapper = warehouseMapper;
-        this.productMapper = productMapper;
         this.productValidator = productValidator;
         this.inventoryPostingService = inventoryPostingService;
         this.inventorySerialNumberService = inventorySerialNumberService;
@@ -138,10 +92,7 @@ public class PurchaseReturnService {
         this.purchaseReturnNumberService = purchaseReturnNumberService;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.scopedUserResolver = scopedUserResolver;
-        this.userMapper = userMapper;
+        this.purchaseReturnQueryService = purchaseReturnQueryService;
         this.accountPeriodGuard = accountPeriodGuard;
     }
 
@@ -152,7 +103,7 @@ public class PurchaseReturnService {
         Map<Long, PurchaseReceiptLineEntity> receiptLines = loadReceiptLines(receipt);
         AuditMetadata audit = auditMetadataFactory.current();
         LocalDateTime now = audit.now();
-        ReceiptContext context = loadContext(receipt);
+        PurchaseReturnQueryService.ReceiptContext context = purchaseReturnQueryService.loadContext(receipt);
 
         PurchaseReturnEntity entity = new PurchaseReturnEntity();
         entity.setCompanyId(audit.companyId());
@@ -174,70 +125,22 @@ public class PurchaseReturnService {
 
         List<PurchaseReturnLineEntity> lineEntities = saveLines(entity.getId(), request.lines(), receiptLines, audit, now);
         recalculateTotals(entity, lineEntities);
-        return toResponse(entity, context, lineEntities);
+        return purchaseReturnQueryService.toResponse(entity, context, lineEntities);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<PurchaseReturnResponse> list(PurchaseReturnPageQuery query) {
         PurchaseReturnPageQuery safeQuery = query == null ? new PurchaseReturnPageQuery() : query;
-        long pageNo = normalizePageNo(safeQuery.getPageNo());
-        long pageSize = normalizePageSize(safeQuery.getPageSize());
-        String keyword = normalizeNullableText(safeQuery.getKeyword());
-        String status = normalizeStatus(safeQuery.getStatus());
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
-
-        Page<PurchaseReturnEntity> page = new Page<>(pageNo, pageSize);
-        LambdaQueryWrapper<PurchaseReturnEntity> wrapper = buildListQuery(keyword, safeQuery.getReceiptId(), safeQuery.getWarehouseId(), status, safeQuery.getReturnDateFrom(), safeQuery.getReturnDateTo());
-        wrapper = dataScopeService.applyPurchaseReturnScope(
-                wrapper,
-                currentUser,
-                snapshot,
-                scopedUserIds.deptUserIds(),
-                scopedUserIds.postUserIds()
-        );
-        Page<PurchaseReturnEntity> result = purchaseReturnMapper.selectPage(
-                page,
-                wrapper
-        );
-
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toSummaryResponse).toList()
-        );
+        return purchaseReturnQueryService.list(safeQuery);
     }
 
     public StreamingResponseBody exportReturns(PurchaseReturnPageQuery query) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        PurchaseReturnPageQuery safeQuery = query == null ? new PurchaseReturnPageQuery() : query;
-        return outputStream -> withAuthentication(authentication, () -> CsvExport.write(outputStream, RETURN_EXPORT_HEADERS, rowWriter -> {
-            LambdaQueryWrapper<PurchaseReturnEntity> wrapper = scopedListQuery(safeQuery);
-            for (PurchaseReturnEntity entity : purchaseReturnMapper.selectList(wrapper)) {
-                rowWriter.write(returnExportRow(entity));
-            }
-        }));
+        return purchaseReturnQueryService.exportReturns(query);
     }
 
     @Transactional(readOnly = true)
     public PurchaseReturnResponse getById(Long id) {
-        PurchaseReturnEntity entity = requireReturn(id);
-        assertCanView(entity);
-        ReceiptContext context = loadContext(requirePostedReceipt(
-                entity.getReceiptId(),
-                entity.getCompanyId(),
-                entity.getAccountBookId()
-        ));
-        List<PurchaseReturnLineEntity> lines = purchaseReturnLineMapper.selectList(
-                new LambdaQueryWrapper<PurchaseReturnLineEntity>()
-                        .eq(PurchaseReturnLineEntity::getCompanyId, entity.getCompanyId())
-                        .eq(PurchaseReturnLineEntity::getAccountBookId, entity.getAccountBookId())
-                        .eq(PurchaseReturnLineEntity::getReturnId, id)
-                        .orderByAsc(PurchaseReturnLineEntity::getLineNo)
-        ).stream().map(this::enrichLine).toList();
-        return toResponse(entity, context, lines);
+        return purchaseReturnQueryService.getById(id);
     }
 
     @Transactional
@@ -276,7 +179,7 @@ public class PurchaseReturnService {
                 .eq(PurchaseReturnLineEntity::getReturnId, entity.getId()));
         List<PurchaseReturnLineEntity> lineEntities = saveLines(entity.getId(), request.lines(), receiptLines, audit, now);
         recalculateTotals(entity, lineEntities);
-        return toResponse(entity, loadContext(receipt), lineEntities);
+        return purchaseReturnQueryService.toResponse(entity, receipt, lineEntities);
     }
 
     @Transactional
@@ -508,12 +411,6 @@ public class PurchaseReturnService {
         ).stream().collect(Collectors.toMap(PurchaseReceiptLineEntity::getId, Function.identity()));
     }
 
-    private ReceiptContext loadContext(PurchaseReceiptEntity receipt) {
-        PurchaseOrderEntity order = purchaseOrderMapper.selectById(receipt.getOrderId());
-        WarehouseEntity warehouse = warehouseMapper.selectById(receipt.getWarehouseId());
-        return new ReceiptContext(receipt.getReceiptNo(), order == null ? null : order.getOrderNo(), warehouse == null ? null : warehouse.getWarehouseName());
-    }
-
     private PurchaseReceiptLineEntity requireReceiptLine(Map<Long, PurchaseReceiptLineEntity> receiptLines, Long receiptLineId) {
         PurchaseReceiptLineEntity entity = receiptLines.get(receiptLineId);
         if (entity == null) {
@@ -526,221 +423,19 @@ public class PurchaseReturnService {
         return purchaseOrderLookupService.requireOrderLine(orderLines, orderLineId);
     }
 
-    private PurchaseReturnResponse toResponse(PurchaseReturnEntity entity, ReceiptContext context, List<PurchaseReturnLineEntity> lines) {
-        return new PurchaseReturnResponse(entity.getId(), entity.getReturnNo(), entity.getReceiptId(), context.receiptNo(),
-                context.orderNo(), entity.getWarehouseId(), context.warehouseName(), entity.getReturnDate(),
-                entity.getStatus(), entity.getTotalQuantity(), entity.getTotalAmount(), entity.getTotalTaxAmount(),
-                entity.getRemark(), lines.stream().map(this::toLineResponse).toList());
-    }
-
-    private PurchaseReturnResponse toSummaryResponse(PurchaseReturnEntity entity) {
-        ReceiptContext context = loadContext(requirePostedReceipt(
-                entity.getReceiptId(),
-                entity.getCompanyId(),
-                entity.getAccountBookId()
-        ));
-        return new PurchaseReturnResponse(
-                entity.getId(),
-                entity.getReturnNo(),
-                entity.getReceiptId(),
-                context.receiptNo(),
-                context.orderNo(),
-                entity.getWarehouseId(),
-                context.warehouseName(),
-                entity.getReturnDate(),
-                entity.getStatus(),
-                entity.getTotalQuantity(),
-                entity.getTotalAmount(),
-                entity.getTotalTaxAmount(),
-                entity.getRemark(),
-                List.of()
-        );
-    }
-
-    private PurchaseReturnLineResponse toLineResponse(PurchaseReturnLineEntity line) {
-        return new PurchaseReturnLineResponse(line.getId(), line.getLineNo(), line.getReceiptLineId(), line.getOrderLineId(),
-                line.getProductId(), line.getProductName(), line.getQty(), line.getPrice(), line.getTaxRate(), line.getAmount(),
-                line.getTaxAmount(), line.getReceiptQty(), line.getReturnedQty(), line.getAvailableReturnQty(),
-                line.getLotNo(), line.getProductionDate(), line.getExpiryDate(), line.getLocationId(), line.getSerialNos(), line.getRemark());
-    }
-
-    private PurchaseReturnLineEntity enrichLine(PurchaseReturnLineEntity line) {
-        PurchaseReceiptLineEntity receiptLine = purchaseReceiptLineMapper.selectOne(new LambdaQueryWrapper<PurchaseReceiptLineEntity>()
-                .eq(PurchaseReceiptLineEntity::getCompanyId, line.getCompanyId())
-                .eq(PurchaseReceiptLineEntity::getAccountBookId, line.getAccountBookId())
-                .eq(PurchaseReceiptLineEntity::getId, line.getReceiptLineId()));
-        if (receiptLine == null) {
-            return line;
-        }
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        ProductEntity product = productValidator.requireProduct(
-                receiptLine.getProductId(),
-                currentUser.companyId(),
-                currentUser.accountBookId()
-        );
-        PurchaseReturnLineViewData.from(receiptLine, product).applyTo(line);
-        return line;
-    }
-
     private BigDecimal availableQty(PurchaseReceiptLineEntity receiptLine) {
         return PurchaseReturnQuantities.from(receiptLine.getQty(), receiptLine.getReturnedQty()).availableReturnQty();
     }
 
-    private LambdaQueryWrapper<PurchaseReturnEntity> buildListQuery(
-            String keyword,
-            Long receiptId,
-            Long warehouseId,
-            String status,
-            LocalDate returnDateFrom,
-            LocalDate returnDateTo
-    ) {
-        LambdaQueryWrapper<PurchaseReturnEntity> wrapper = new LambdaQueryWrapper<PurchaseReturnEntity>()
-                .eq(PurchaseReturnEntity::getDeletedFlag, 0);
-        if (StringUtils.hasText(keyword)) {
-            wrapper.like(PurchaseReturnEntity::getReturnNo, keyword);
-        }
-        if (receiptId != null) {
-            wrapper.eq(PurchaseReturnEntity::getReceiptId, receiptId);
-        }
-        if (warehouseId != null) {
-            wrapper.eq(PurchaseReturnEntity::getWarehouseId, warehouseId);
-        }
-        if (StringUtils.hasText(status)) {
-            wrapper.eq(PurchaseReturnEntity::getStatus, status);
-        }
-        if (returnDateFrom != null) {
-            wrapper.ge(PurchaseReturnEntity::getReturnDate, returnDateFrom);
-        }
-        if (returnDateTo != null) {
-            wrapper.le(PurchaseReturnEntity::getReturnDate, returnDateTo);
-        }
-        return wrapper.orderByDesc(PurchaseReturnEntity::getId);
-    }
-
-    private LambdaQueryWrapper<PurchaseReturnEntity> scopedListQuery(PurchaseReturnPageQuery safeQuery) {
-        String keyword = normalizeNullableText(safeQuery.getKeyword());
-        String status = normalizeStatus(safeQuery.getStatus());
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
-        LambdaQueryWrapper<PurchaseReturnEntity> wrapper = buildListQuery(
-                keyword,
-                safeQuery.getReceiptId(),
-                safeQuery.getWarehouseId(),
-                status,
-                safeQuery.getReturnDateFrom(),
-                safeQuery.getReturnDateTo()
-        );
-        return dataScopeService.applyPurchaseReturnScope(
-                wrapper,
-                currentUser,
-                snapshot,
-                scopedUserIds.deptUserIds(),
-                scopedUserIds.postUserIds()
-        );
-    }
-
-    private List<?> returnExportRow(PurchaseReturnEntity entity) {
-        return Arrays.asList(
-                entity.getReturnNo(),
-                entity.getReceiptId(),
-                entity.getWarehouseId(),
-                entity.getReturnDate(),
-                entity.getStatus(),
-                entity.getTotalQuantity(),
-                entity.getTotalAmount(),
-                entity.getTotalTaxAmount(),
-                entity.getRemark()
-        );
-    }
-
     private void assertCanView(PurchaseReturnEntity entity) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = entity.getCreatedBy() == null ? null : userMapper.selectById(entity.getCreatedBy());
-        dataScopeService.assertCanViewPurchaseReturn(
-                entity,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
+        purchaseReturnQueryService.assertCanView(entity);
     }
 
     private void assertCanView(PurchaseReceiptEntity entity) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = entity.getCreatedBy() == null ? null : userMapper.selectById(entity.getCreatedBy());
-        dataScopeService.assertCanViewPurchaseReceipt(
-                entity,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
+        purchaseReturnQueryService.assertCanView(entity);
     }
 
     private void assertCanView(PurchaseOrderEntity entity) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = entity.getCreatedBy() == null ? null : userMapper.selectById(entity.getCreatedBy());
-        dataScopeService.assertCanViewPurchaseOrder(
-                entity,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
+        purchaseReturnQueryService.assertCanView(entity);
     }
-
-    private String normalizeNullableText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        return value.trim();
-    }
-
-    private String normalizeStatus(String value) {
-        String normalized = normalizeNullableText(value);
-        if (normalized == null) {
-            return null;
-        }
-        return normalized.toUpperCase(Locale.ROOT);
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        if (pageNo == null || pageNo < 1) {
-            return 1L;
-        }
-        return pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        if (pageSize == null || pageSize < 1) {
-            return 20L;
-        }
-        return Math.min(pageSize, 200);
-    }
-
-    private void withAuthentication(Authentication authentication, ThrowingRunnable action) throws IOException {
-        Authentication previousAuthentication = SecurityContextHolder.getContext().getAuthentication();
-        try {
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            action.run();
-        } finally {
-            if (previousAuthentication == null) {
-                SecurityContextHolder.clearContext();
-            } else {
-                SecurityContextHolder.getContext().setAuthentication(previousAuthentication);
-            }
-        }
-    }
-
-    @FunctionalInterface
-    private interface ThrowingRunnable {
-
-        void run() throws IOException;
-    }
-
-    private record ReceiptContext(String receiptNo, String orderNo, String warehouseName) {}
 }
