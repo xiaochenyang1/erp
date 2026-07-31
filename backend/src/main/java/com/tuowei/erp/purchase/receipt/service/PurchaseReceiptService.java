@@ -2,23 +2,14 @@ package com.tuowei.erp.purchase.receipt.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
-import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
-import com.tuowei.erp.finance.posting.FinancePostingService;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
-import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
-import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderLookupService;
-import com.tuowei.erp.purchase.order.service.PurchaseOrderReceiptStatusService;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
@@ -31,8 +22,8 @@ import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptUpdateRequest;
 import com.tuowei.erp.purchase.support.AccumulatedQuantityValidator;
 import com.tuowei.erp.purchase.support.PurchaseAmountCalculator;
 import com.tuowei.erp.purchase.support.PurchaseReceiptQuantities;
-import com.tuowei.erp.qc.inspection.service.QcInspectionGate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -48,52 +39,31 @@ public class PurchaseReceiptService {
 
     private final PurchaseReceiptMapper purchaseReceiptMapper;
     private final PurchaseReceiptLineMapper purchaseReceiptLineMapper;
-    private final PurchaseOrderLineMapper purchaseOrderLineMapper;
     private final WarehouseMapper warehouseMapper;
-    private final InventoryPostingService inventoryPostingService;
-    private final InventorySerialNumberService inventorySerialNumberService;
     private final PurchaseOrderLookupService purchaseOrderLookupService;
-    private final PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService;
     private final PurchaseReceiptNumberService purchaseReceiptNumberService;
-    private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
-    private final AccountPeriodGuard accountPeriodGuard;
-    private final QcInspectionGate qcInspectionGate;
-    private final ProductValidator productValidator;
     private final PurchaseReceiptQueryService purchaseReceiptQueryService;
+    private final PurchaseReceiptPostingService purchaseReceiptPostingService;
 
     public PurchaseReceiptService(
             PurchaseReceiptMapper purchaseReceiptMapper,
             PurchaseReceiptLineMapper purchaseReceiptLineMapper,
-            PurchaseOrderLineMapper purchaseOrderLineMapper,
             WarehouseMapper warehouseMapper,
-            InventoryPostingService inventoryPostingService,
-            InventorySerialNumberService inventorySerialNumberService,
             PurchaseOrderLookupService purchaseOrderLookupService,
-            PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService,
             PurchaseReceiptNumberService purchaseReceiptNumberService,
-            FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
-            AccountPeriodGuard accountPeriodGuard,
-            QcInspectionGate qcInspectionGate,
-            ProductValidator productValidator,
-            PurchaseReceiptQueryService purchaseReceiptQueryService
+            PurchaseReceiptQueryService purchaseReceiptQueryService,
+            PurchaseReceiptPostingService purchaseReceiptPostingService
     ) {
         this.purchaseReceiptMapper = purchaseReceiptMapper;
         this.purchaseReceiptLineMapper = purchaseReceiptLineMapper;
-        this.purchaseOrderLineMapper = purchaseOrderLineMapper;
         this.warehouseMapper = warehouseMapper;
-        this.inventoryPostingService = inventoryPostingService;
-        this.inventorySerialNumberService = inventorySerialNumberService;
         this.purchaseOrderLookupService = purchaseOrderLookupService;
-        this.purchaseOrderReceiptStatusService = purchaseOrderReceiptStatusService;
         this.purchaseReceiptNumberService = purchaseReceiptNumberService;
-        this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
-        this.accountPeriodGuard = accountPeriodGuard;
-        this.qcInspectionGate = qcInspectionGate;
-        this.productValidator = productValidator;
         this.purchaseReceiptQueryService = purchaseReceiptQueryService;
+        this.purchaseReceiptPostingService = purchaseReceiptPostingService;
     }
 
     @Transactional
@@ -203,113 +173,9 @@ public class PurchaseReceiptService {
         return getById(id);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRED)
     public PurchaseReceiptResponse post(Long id) {
-        PurchaseReceiptEntity receipt = requireReceipt(id);
-        assertCanView(receipt);
-        if (!"DRAFT".equals(receipt.getStatus())) {
-            throw new IllegalArgumentException("当前采购入库单状态不允许过账");
-        }
-        accountPeriodGuard.requireOpen(receipt.getReceiptDate(), "采购入库过账");
-
-        PurchaseOrderEntity order = purchaseOrderLookupService.requireOrder(receipt.getOrderId());
-        assertCanView(order);
-        if (!"APPROVED".equals(order.getStatus())) {
-            throw new IllegalArgumentException("采购订单未审批通过，不能执行入库过账");
-        }
-        AuditMetadata audit = auditMetadataFactory.current();
-        requireWarehouse(receipt.getWarehouseId(), audit.companyId(), audit.accountBookId());
-
-        List<PurchaseReceiptLineEntity> receiptLines = purchaseReceiptLineMapper.selectList(
-                new LambdaQueryWrapper<PurchaseReceiptLineEntity>()
-                        .eq(PurchaseReceiptLineEntity::getCompanyId, receipt.getCompanyId())
-                        .eq(PurchaseReceiptLineEntity::getAccountBookId, receipt.getAccountBookId())
-                        .eq(PurchaseReceiptLineEntity::getReceiptId, receipt.getId())
-                        .orderByAsc(PurchaseReceiptLineEntity::getLineNo)
-        );
-        Map<Long, PurchaseOrderLineEntity> orderLines = purchaseOrderLookupService.loadOrderLinesAsMap(order);
-        LocalDateTime now = audit.now();
-        AccumulatedQuantityValidator quantityValidator = new AccumulatedQuantityValidator("入库数量超过采购订单剩余可入库数量");
-
-        productValidator.requireProducts(
-                receiptLines.stream().map(PurchaseReceiptLineEntity::getProductId).toList(),
-                audit.companyId(), audit.accountBookId());
-
-        for (PurchaseReceiptLineEntity receiptLine : receiptLines) {
-            var product = productValidator.requireProduct(receiptLine.getProductId(), audit.companyId(), audit.accountBookId());
-            if (product.getLotControlled() != null && product.getLotControlled() == 1
-                    && (receiptLine.getLotNo() == null || receiptLine.getLotNo().isBlank())) {
-                throw new IllegalArgumentException("商品启用批次管理，入库行必须填写批号");
-            }
-        }
-
-        for (PurchaseReceiptLineEntity receiptLine : receiptLines) {
-            PurchaseOrderLineEntity orderLine = requireOrderLine(orderLines, receiptLine.getOrderLineId());
-
-            BigDecimal remainingQty = availableReceiptQty(orderLine);
-            BigDecimal requestQty = ScalePrecision.quantity(receiptLine.getQty());
-            quantityValidator.ensureWithinLimit(orderLine.getId(), requestQty, remainingQty);
-        }
-
-        // 来料质检闸门:需检验商品必须存在已判定检验单，且入库数量=合格数量，否则拦截过账。
-        qcInspectionGate.assertReceiptInspected(receipt, receiptLines, audit);
-
-        receipt.setStatus("POSTED");
-        receipt.setUpdatedBy(audit.userId());
-        receipt.setUpdatedTime(now);
-        OptimisticLockGuard.requireUpdated(
-                purchaseReceiptMapper.updateById(receipt),
-                "采购入库单已被其他操作修改，请刷新后重试"
-        );
-
-        for (PurchaseReceiptLineEntity receiptLine : receiptLines) {
-            PurchaseOrderLineEntity orderLine = requireOrderLine(orderLines, receiptLine.getOrderLineId());
-            PurchaseReceiptQuantities.OrderLineQuantities quantities = PurchaseReceiptQuantities.from(
-                    orderLine.getQty(),
-                    orderLine.getReceivedQty()
-            );
-            orderLine.setReceivedQty(quantities.receivedQtyAfter(receiptLine.getQty()));
-            orderLine.setUpdatedBy(audit.userId());
-            orderLine.setUpdatedTime(now);
-            OptimisticLockGuard.requireUpdated(
-                    purchaseOrderLineMapper.updateById(orderLine),
-                    "采购订单明细已被其他操作修改，请刷新后重试"
-            );
-
-            inventoryPostingService.postInbound(
-                    new InventoryPostingCommand(
-                            receipt.getWarehouseId(),
-                            receiptLine.getProductId(),
-                            "PURCHASE_RECEIPT",
-                            receipt.getReceiptNo(),
-                            receiptLine.getId(),
-                            receiptLine.getQty(),
-                            receiptLine.getAmount(),
-                            receiptLine.getRemark(),
-                            receipt.getReceiptDate(),
-                            receiptLine.getLotNo(),
-                            receiptLine.getProductionDate(),
-                            receiptLine.getExpiryDate(),
-                            receiptLine.getLocationId()
-                    ),
-                    audit
-            );
-            inventorySerialNumberService.registerInboundSerials(
-                    receiptLine.getProductId(),
-                    receipt.getWarehouseId(),
-                    receiptLine.getLocationId(),
-                    receiptLine.getSerialNos(),
-                    "PURCHASE_RECEIPT",
-                    receipt.getReceiptNo(),
-                    receiptLine.getQty(),
-                    audit
-            );
-        }
-
-        purchaseOrderReceiptStatusService.refreshReceiptStatus(order.getId(), audit, now);
-        financePostingService.recordPurchaseReceipt(receipt, order, audit);
-
-        return getById(id);
+        return purchaseReceiptPostingService.post(id);
     }
 
     private PurchaseOrderEntity requireApprovedOrder(Long id) {

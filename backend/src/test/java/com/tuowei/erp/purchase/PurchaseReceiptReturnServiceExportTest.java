@@ -10,20 +10,15 @@ import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
-import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
-import com.tuowei.erp.finance.posting.FinancePostingService;
-import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
-import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderLookupService;
-import com.tuowei.erp.purchase.order.service.PurchaseOrderReceiptStatusService;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptNumberService;
+import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptPostingService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptQueryService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptService;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptPageQuery;
@@ -102,34 +97,19 @@ class PurchaseReceiptReturnServiceExportTest {
     private PurchaseOrderMapper purchaseOrderMapper;
 
     @Mock
-    private PurchaseOrderLineMapper purchaseOrderLineMapper;
-
-    @Mock
     private ProductValidator productValidator;
 
     @Mock
     private WarehouseMapper warehouseMapper;
 
     @Mock
-    private InventoryPostingService inventoryPostingService;
-
-    @Mock
-    private InventorySerialNumberService inventorySerialNumberService;
-
-    @Mock
     private PurchaseOrderLookupService purchaseOrderLookupService;
-
-    @Mock
-    private PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService;
 
     @Mock
     private PurchaseReceiptNumberService purchaseReceiptNumberService;
 
     @Mock
     private PurchaseReturnNumberService purchaseReturnNumberService;
-
-    @Mock
-    private FinancePostingService financePostingService;
 
     @Mock
     private AuditMetadataFactory auditMetadataFactory;
@@ -147,13 +127,10 @@ class PurchaseReceiptReturnServiceExportTest {
     private UserMapper userMapper;
 
     @Mock
-    private AccountPeriodGuard accountPeriodGuard;
-
-    @Mock
     private PurchaseReturnPostingService purchaseReturnPostingService;
 
     @Mock
-    private com.tuowei.erp.qc.inspection.service.QcInspectionGate qcInspectionGate;
+    private PurchaseReceiptPostingService purchaseReceiptPostingService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -262,19 +239,12 @@ class PurchaseReceiptReturnServiceExportTest {
         return new PurchaseReceiptService(
                 purchaseReceiptMapper,
                 purchaseReceiptLineMapper,
-                purchaseOrderLineMapper,
                 warehouseMapper,
-                inventoryPostingService,
-                inventorySerialNumberService,
                 purchaseOrderLookupService,
-                purchaseOrderReceiptStatusService,
                 purchaseReceiptNumberService,
-                financePostingService,
                 auditMetadataFactory,
-                accountPeriodGuard,
-                qcInspectionGate,
-                productValidator,
-                queryService
+                queryService,
+                purchaseReceiptPostingService
         );
     }
 

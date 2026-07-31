@@ -12,23 +12,16 @@ import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
-import com.tuowei.erp.finance.posting.FinancePostingService;
-import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
-import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
-import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderLookupService;
-import com.tuowei.erp.purchase.order.service.PurchaseOrderReceiptStatusService;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptLineEntity;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptNumberService;
+import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptPostingService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptQueryService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptService;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptCreateRequest;
@@ -50,7 +43,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -93,31 +85,13 @@ class PurchaseReceiptServiceTenantBoundaryTest {
     private PurchaseReceiptLineMapper purchaseReceiptLineMapper;
 
     @Mock
-    private PurchaseOrderLineMapper purchaseOrderLineMapper;
-
-    @Mock
-    private ProductValidator productValidator;
-
-    @Mock
     private WarehouseMapper warehouseMapper;
-
-    @Mock
-    private InventoryPostingService inventoryPostingService;
-
-    @Mock
-    private InventorySerialNumberService inventorySerialNumberService;
 
     @Mock
     private PurchaseOrderLookupService purchaseOrderLookupService;
 
     @Mock
-    private PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService;
-
-    @Mock
     private PurchaseReceiptNumberService purchaseReceiptNumberService;
-
-    @Mock
-    private FinancePostingService financePostingService;
 
     @Mock
     private AuditMetadataFactory auditMetadataFactory;
@@ -135,10 +109,7 @@ class PurchaseReceiptServiceTenantBoundaryTest {
     private UserMapper userMapper;
 
     @Mock
-    private AccountPeriodGuard accountPeriodGuard;
-
-    @Mock
-    private com.tuowei.erp.qc.inspection.service.QcInspectionGate qcInspectionGate;
+    private PurchaseReceiptPostingService purchaseReceiptPostingService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -211,19 +182,14 @@ class PurchaseReceiptServiceTenantBoundaryTest {
     }
 
     @Test
-    void postRejectsOrderLineProductFromDifferentAccountBookWithinSameCompany() {
-        stubCurrentUser();
-        stubAudit();
-        when(purchaseReceiptMapper.selectById(7001L)).thenReturn(receipt());
-        when(purchaseOrderLookupService.requireOrder(6001L)).thenReturn(order());
-        when(warehouseMapper.selectById(3001L)).thenReturn(warehouse(CURRENT_USER.accountBookId()));
-        when(purchaseReceiptLineMapper.selectList(any())).thenReturn(List.of(receiptLine()));
-        when(purchaseOrderLookupService.loadOrderLinesAsMap(any(PurchaseOrderEntity.class))).thenReturn(Map.of(9001L, orderLine()));
-        when(productValidator.requireProducts(any(), any(), any())).thenThrow(new IllegalArgumentException("商品不存在或已停用"));
+    void postDelegatesToPostingService() {
+        PurchaseReceiptResponse expected = response("POSTED");
+        when(purchaseReceiptPostingService.post(7001L)).thenReturn(expected);
 
-        assertThatThrownBy(() -> service().post(7001L))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("商品不存在或已停用");
+        PurchaseReceiptResponse result = service().post(7001L);
+
+        assertThat(result).isSameAs(expected);
+        verify(purchaseReceiptPostingService).post(7001L);
     }
 
     private void stubCurrentUser() {
@@ -274,20 +240,6 @@ class PurchaseReceiptServiceTenantBoundaryTest {
         entity.setStatus("APPROVED");
         entity.setApprovalStatus("APPROVED");
         entity.setDeletedFlag(0);
-        return entity;
-    }
-
-    private PurchaseOrderLineEntity orderLine() {
-        PurchaseOrderLineEntity entity = new PurchaseOrderLineEntity();
-        entity.setId(9001L);
-        entity.setOrderId(6001L);
-        entity.setProductId(4001L);
-        entity.setQty(new BigDecimal("5.0000"));
-        entity.setPrice(new BigDecimal("10.00"));
-        entity.setTaxRate(BigDecimal.ZERO);
-        entity.setAmount(new BigDecimal("50.00"));
-        entity.setTaxAmount(BigDecimal.ZERO);
-        entity.setReceivedQty(BigDecimal.ZERO);
         return entity;
     }
 
@@ -346,19 +298,12 @@ class PurchaseReceiptServiceTenantBoundaryTest {
         return new PurchaseReceiptService(
                 purchaseReceiptMapper,
                 purchaseReceiptLineMapper,
-                purchaseOrderLineMapper,
                 warehouseMapper,
-                inventoryPostingService,
-                inventorySerialNumberService,
                 purchaseOrderLookupService,
-                purchaseOrderReceiptStatusService,
                 purchaseReceiptNumberService,
-                financePostingService,
                 auditMetadataFactory,
-                accountPeriodGuard,
-                qcInspectionGate,
-                productValidator,
-                queryService
+                queryService,
+                purchaseReceiptPostingService
         );
     }
 
