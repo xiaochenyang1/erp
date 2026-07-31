@@ -6,18 +6,8 @@ import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
-import com.tuowei.erp.finance.posting.FinancePostingService;
-import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
-import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
-import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
-import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
-import com.tuowei.erp.purchase.order.service.PurchaseOrderLookupService;
-import com.tuowei.erp.purchase.order.service.PurchaseOrderReceiptStatusService;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
@@ -36,6 +26,7 @@ import com.tuowei.erp.purchase.support.PurchaseAmountCalculator;
 import com.tuowei.erp.purchase.support.PurchaseReturnLineViewData;
 import com.tuowei.erp.purchase.support.PurchaseReturnQuantities;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -54,46 +45,28 @@ public class PurchaseReturnService {
     private final PurchaseReturnLineMapper purchaseReturnLineMapper;
     private final PurchaseReceiptMapper purchaseReceiptMapper;
     private final PurchaseReceiptLineMapper purchaseReceiptLineMapper;
-    private final PurchaseOrderLineMapper purchaseOrderLineMapper;
     private final ProductValidator productValidator;
-    private final InventoryPostingService inventoryPostingService;
-    private final InventorySerialNumberService inventorySerialNumberService;
-    private final PurchaseOrderLookupService purchaseOrderLookupService;
-    private final PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService;
     private final PurchaseReturnNumberService purchaseReturnNumberService;
-    private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
     private final PurchaseReturnQueryService purchaseReturnQueryService;
-    private final AccountPeriodGuard accountPeriodGuard;
+    private final PurchaseReturnPostingService purchaseReturnPostingService;
 
     public PurchaseReturnService(PurchaseReturnMapper purchaseReturnMapper, PurchaseReturnLineMapper purchaseReturnLineMapper,
                                  PurchaseReceiptMapper purchaseReceiptMapper, PurchaseReceiptLineMapper purchaseReceiptLineMapper,
-                                 PurchaseOrderLineMapper purchaseOrderLineMapper,
                                  ProductValidator productValidator,
-                                 InventoryPostingService inventoryPostingService,
-                                 InventorySerialNumberService inventorySerialNumberService,
-                                 PurchaseOrderLookupService purchaseOrderLookupService,
-                                 PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService,
                                  PurchaseReturnNumberService purchaseReturnNumberService,
-                                 FinancePostingService financePostingService,
                                  AuditMetadataFactory auditMetadataFactory,
                                  PurchaseReturnQueryService purchaseReturnQueryService,
-                                 AccountPeriodGuard accountPeriodGuard) {
+                                 PurchaseReturnPostingService purchaseReturnPostingService) {
         this.purchaseReturnMapper = purchaseReturnMapper;
         this.purchaseReturnLineMapper = purchaseReturnLineMapper;
         this.purchaseReceiptMapper = purchaseReceiptMapper;
         this.purchaseReceiptLineMapper = purchaseReceiptLineMapper;
-        this.purchaseOrderLineMapper = purchaseOrderLineMapper;
         this.productValidator = productValidator;
-        this.inventoryPostingService = inventoryPostingService;
-        this.inventorySerialNumberService = inventorySerialNumberService;
-        this.purchaseOrderLookupService = purchaseOrderLookupService;
-        this.purchaseOrderReceiptStatusService = purchaseOrderReceiptStatusService;
         this.purchaseReturnNumberService = purchaseReturnNumberService;
-        this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
         this.purchaseReturnQueryService = purchaseReturnQueryService;
-        this.accountPeriodGuard = accountPeriodGuard;
+        this.purchaseReturnPostingService = purchaseReturnPostingService;
     }
 
     @Transactional
@@ -200,115 +173,9 @@ public class PurchaseReturnService {
         return getById(id);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRED)
     public PurchaseReturnResponse post(Long id) {
-        PurchaseReturnEntity entity = requireReturn(id);
-        assertCanView(entity);
-        if (!"DRAFT".equals(entity.getStatus())) {
-            throw new IllegalArgumentException("当前采购退货单状态不允许过账");
-        }
-        accountPeriodGuard.requireOpen(entity.getReturnDate(), "采购退货过账");
-
-        PurchaseReceiptEntity receipt = requirePostedReceipt(
-                entity.getReceiptId(),
-                entity.getCompanyId(),
-                entity.getAccountBookId()
-        );
-        assertCanView(receipt);
-        PurchaseOrderEntity order = purchaseOrderLookupService.requireOrder(receipt.getOrderId());
-        assertCanView(order);
-        List<PurchaseReturnLineEntity> returnLines = purchaseReturnLineMapper.selectList(
-                new LambdaQueryWrapper<PurchaseReturnLineEntity>()
-                        .eq(PurchaseReturnLineEntity::getCompanyId, entity.getCompanyId())
-                        .eq(PurchaseReturnLineEntity::getAccountBookId, entity.getAccountBookId())
-                        .eq(PurchaseReturnLineEntity::getReturnId, id)
-                        .orderByAsc(PurchaseReturnLineEntity::getLineNo)
-        );
-        Map<Long, PurchaseReceiptLineEntity> receiptLines = loadReceiptLines(receipt);
-        Map<Long, PurchaseOrderLineEntity> orderLines = purchaseOrderLookupService.loadOrderLinesAsMap(order);
-        AuditMetadata audit = auditMetadataFactory.current();
-        LocalDateTime now = audit.now();
-        AccumulatedQuantityValidator receiptLineQtyValidator = new AccumulatedQuantityValidator("退货数量超过采购入库明细剩余可退数量");
-        AccumulatedQuantityValidator inventoryQtyValidator = new AccumulatedQuantityValidator("库存不足，不能执行采购退货");
-
-        for (PurchaseReturnLineEntity returnLine : returnLines) {
-            PurchaseReceiptLineEntity receiptLine = requireReceiptLine(receiptLines, returnLine.getReceiptLineId());
-            BigDecimal returnQty = ScalePrecision.quantity(returnLine.getQty());
-            receiptLineQtyValidator.ensureWithinLimit(receiptLine.getId(), returnQty, availableQty(receiptLine));
-            inventoryQtyValidator.ensureWithinLimit(
-                    returnLine.getProductId(),
-                    returnQty,
-                    productId -> inventoryPostingService.getQtyAvailable(
-                            entity.getWarehouseId(),
-                            productId,
-                            audit.companyId(),
-                            audit.accountBookId()
-                    )
-            );
-        }
-
-        entity.setStatus("POSTED");
-        entity.setUpdatedBy(audit.userId());
-        entity.setUpdatedTime(now);
-        OptimisticLockGuard.requireUpdated(
-                purchaseReturnMapper.updateById(entity),
-                "采购退货单已被其他操作修改，请刷新后重试"
-        );
-
-        for (PurchaseReturnLineEntity returnLine : returnLines) {
-            PurchaseReceiptLineEntity receiptLine = requireReceiptLine(receiptLines, returnLine.getReceiptLineId());
-            BigDecimal newReturnedQty = ScalePrecision.quantity(ScalePrecision.zeroDefault(receiptLine.getReturnedQty()).add(ScalePrecision.quantity(returnLine.getQty())));
-            receiptLine.setReturnedQty(newReturnedQty);
-            receiptLine.setUpdatedBy(audit.userId());
-            receiptLine.setUpdatedTime(now);
-            OptimisticLockGuard.requireUpdated(
-                    purchaseReceiptLineMapper.updateById(receiptLine),
-                    "采购入库明细已被其他操作修改，请刷新后重试"
-            );
-
-            PurchaseOrderLineEntity orderLine = requireOrderLine(orderLines, returnLine.getOrderLineId());
-            BigDecimal newReceivedQty = ScalePrecision.quantity(ScalePrecision.zeroDefault(orderLine.getReceivedQty()).subtract(ScalePrecision.quantity(returnLine.getQty())));
-            orderLine.setReceivedQty(newReceivedQty);
-            orderLine.setUpdatedBy(audit.userId());
-            orderLine.setUpdatedTime(now);
-            OptimisticLockGuard.requireUpdated(
-                    purchaseOrderLineMapper.updateById(orderLine),
-                    "采购订单明细已被其他操作修改，请刷新后重试"
-            );
-
-            inventoryPostingService.postOutbound(
-                    new InventoryPostingCommand(
-                            entity.getWarehouseId(),
-                            returnLine.getProductId(),
-                            "PURCHASE_RETURN",
-                            entity.getReturnNo(),
-                            returnLine.getId(),
-                            returnLine.getQty(),
-                            returnLine.getAmount(),
-                            returnLine.getRemark(),
-                            entity.getReturnDate(),
-                            returnLine.getLotNo(),
-                            returnLine.getProductionDate(),
-                            returnLine.getExpiryDate(),
-                            returnLine.getLocationId()
-                    ),
-                    audit,
-                    "库存不足，不能执行采购退货"
-            );
-            inventorySerialNumberService.issueOutboundSerials(
-                    returnLine.getProductId(),
-                    returnLine.getSerialNos(),
-                    "PURCHASE_RETURN",
-                    entity.getReturnNo(),
-                    returnLine.getQty(),
-                    audit
-            );
-        }
-
-        purchaseOrderReceiptStatusService.refreshReceiptStatus(receipt.getOrderId(), audit, now);
-        financePostingService.recordPurchaseReturn(entity, order, audit);
-
-        return getById(id);
+        return purchaseReturnPostingService.post(id);
     }
 
     private void recalculateTotals(PurchaseReturnEntity entity, List<PurchaseReturnLineEntity> lineEntities) {
@@ -419,10 +286,6 @@ public class PurchaseReturnService {
         return entity;
     }
 
-    private PurchaseOrderLineEntity requireOrderLine(Map<Long, PurchaseOrderLineEntity> orderLines, Long orderLineId) {
-        return purchaseOrderLookupService.requireOrderLine(orderLines, orderLineId);
-    }
-
     private BigDecimal availableQty(PurchaseReceiptLineEntity receiptLine) {
         return PurchaseReturnQuantities.from(receiptLine.getQty(), receiptLine.getReturnedQty()).availableReturnQty();
     }
@@ -435,7 +298,4 @@ public class PurchaseReturnService {
         purchaseReturnQueryService.assertCanView(entity);
     }
 
-    private void assertCanView(PurchaseOrderEntity entity) {
-        purchaseReturnQueryService.assertCanView(entity);
-    }
 }

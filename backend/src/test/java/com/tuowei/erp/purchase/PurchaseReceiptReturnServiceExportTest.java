@@ -30,6 +30,7 @@ import com.tuowei.erp.purchase.returnorder.mapper.PurchaseReturnLineMapper;
 import com.tuowei.erp.purchase.returnorder.mapper.PurchaseReturnMapper;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnNumberService;
+import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnPostingService;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnQueryService;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnService;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnPageQuery;
@@ -146,6 +147,9 @@ class PurchaseReceiptReturnServiceExportTest {
 
     @Mock
     private AccountPeriodGuard accountPeriodGuard;
+
+    @Mock
+    private PurchaseReturnPostingService purchaseReturnPostingService;
 
     @Mock
     private com.tuowei.erp.qc.inspection.service.QcInspectionGate qcInspectionGate;
@@ -288,17 +292,11 @@ class PurchaseReceiptReturnServiceExportTest {
                 purchaseReturnLineMapper,
                 returnReceiptMapper,
                 purchaseReceiptLineMapper,
-                purchaseOrderLineMapper,
                 productValidator,
-                inventoryPostingService,
-                inventorySerialNumberService,
-                purchaseOrderLookupService,
-                purchaseOrderReceiptStatusService,
                 purchaseReturnNumberService,
-                financePostingService,
                 auditMetadataFactory,
                 queryService,
-                accountPeriodGuard
+                purchaseReturnPostingService
         );
     }
 

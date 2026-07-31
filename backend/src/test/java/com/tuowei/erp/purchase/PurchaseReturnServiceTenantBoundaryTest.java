@@ -12,19 +12,12 @@ import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
-import com.tuowei.erp.finance.posting.FinancePostingService;
-import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
-import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
-import com.tuowei.erp.purchase.order.service.PurchaseOrderLookupService;
-import com.tuowei.erp.purchase.order.service.PurchaseOrderReceiptStatusService;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
@@ -34,6 +27,7 @@ import com.tuowei.erp.purchase.returnorder.mapper.PurchaseReturnMapper;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnLineEntity;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnNumberService;
+import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnPostingService;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnQueryService;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnService;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnCreateRequest;
@@ -55,7 +49,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -107,31 +100,13 @@ class PurchaseReturnServiceTenantBoundaryTest {
     private PurchaseOrderMapper purchaseOrderMapper;
 
     @Mock
-    private PurchaseOrderLineMapper purchaseOrderLineMapper;
-
-    @Mock
     private WarehouseMapper warehouseMapper;
 
     @Mock
     private ProductValidator productValidator;
 
     @Mock
-    private InventoryPostingService inventoryPostingService;
-
-    @Mock
-    private InventorySerialNumberService inventorySerialNumberService;
-
-    @Mock
-    private PurchaseOrderLookupService purchaseOrderLookupService;
-
-    @Mock
-    private PurchaseOrderReceiptStatusService purchaseOrderReceiptStatusService;
-
-    @Mock
     private PurchaseReturnNumberService purchaseReturnNumberService;
-
-    @Mock
-    private FinancePostingService financePostingService;
 
     @Mock
     private AuditMetadataFactory auditMetadataFactory;
@@ -149,7 +124,7 @@ class PurchaseReturnServiceTenantBoundaryTest {
     private UserMapper userMapper;
 
     @Mock
-    private AccountPeriodGuard accountPeriodGuard;
+    private PurchaseReturnPostingService purchaseReturnPostingService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -277,19 +252,29 @@ class PurchaseReturnServiceTenantBoundaryTest {
     }
 
     @Test
-    void postRejectsWhenAvailableStockIsBelowReturnQuantity() {
-        stubCurrentUser();
-        stubPostContext();
-        when(inventoryPostingService.getQtyAvailable(
+    void postDelegatesToPostingService() {
+        PurchaseReturnResponse expected = new PurchaseReturnResponse(
+                9001L,
+                "PR-9001",
+                7001L,
+                "GR-7001",
+                "PO-6001",
                 3001L,
-                4001L,
-                CURRENT_USER.companyId(),
-                CURRENT_USER.accountBookId()
-        )).thenReturn(new BigDecimal("1.0000"));
+                "A仓",
+                LocalDate.of(2026, 6, 8),
+                "POSTED",
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                List.of()
+        );
+        when(purchaseReturnPostingService.post(9001L)).thenReturn(expected);
 
-        assertThatThrownBy(() -> service().post(9001L))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("库存不足，不能执行采购退货");
+        PurchaseReturnResponse result = service().post(9001L);
+
+        assertThat(result).isSameAs(expected);
+        verify(purchaseReturnPostingService).post(9001L);
     }
 
     private void stubCurrentUser() {
@@ -309,21 +294,6 @@ class PurchaseReturnServiceTenantBoundaryTest {
         when(purchaseOrderMapper.selectById(6001L)).thenReturn(order());
         when(warehouseMapper.selectById(3001L)).thenReturn(warehouse());
         when(purchaseReturnNumberService.nextReturnNo(LocalDate.of(2026, 6, 8))).thenReturn("PR-20260608-001");
-    }
-
-    private void stubPostContext() {
-        when(auditMetadataFactory.current()).thenReturn(new AuditMetadata(
-                CURRENT_USER.userId(),
-                CURRENT_USER.companyId(),
-                CURRENT_USER.accountBookId(),
-                NOW
-        ));
-        when(purchaseReturnMapper.selectById(9001L)).thenReturn(returnOrder());
-        when(purchaseReceiptMapper.selectById(7001L)).thenReturn(receipt());
-        when(purchaseReturnLineMapper.selectList(any())).thenReturn(List.of(returnLine()));
-        when(purchaseReceiptLineMapper.selectList(any())).thenReturn(List.of(receiptLine()));
-        when(purchaseOrderLookupService.requireOrder(6001L)).thenReturn(order());
-        when(purchaseOrderLookupService.loadOrderLinesAsMap(any(PurchaseOrderEntity.class))).thenReturn(Map.of());
     }
 
     private PurchaseReturnCreateRequest createRequest() {
@@ -465,17 +435,11 @@ class PurchaseReturnServiceTenantBoundaryTest {
                 purchaseReturnLineMapper,
                 purchaseReceiptMapper,
                 purchaseReceiptLineMapper,
-                purchaseOrderLineMapper,
                 productValidator,
-                inventoryPostingService,
-                inventorySerialNumberService,
-                purchaseOrderLookupService,
-                purchaseOrderReceiptStatusService,
                 purchaseReturnNumberService,
-                financePostingService,
                 auditMetadataFactory,
                 queryService,
-                accountPeriodGuard
+                purchaseReturnPostingService
         );
     }
 
