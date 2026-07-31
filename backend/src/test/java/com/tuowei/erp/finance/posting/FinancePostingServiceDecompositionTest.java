@@ -2,6 +2,9 @@ package com.tuowei.erp.finance.posting;
 
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
+import com.tuowei.erp.finance.subject.mapper.AccountSubjectMapper;
+import com.tuowei.erp.finance.voucher.mapper.VoucherEntryMapper;
+import com.tuowei.erp.finance.voucher.mapper.VoucherMapper;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import org.junit.jupiter.api.Test;
@@ -18,14 +21,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FinancePostingServiceDecompositionTest {
 
     @Test
-    void financePostingFacadeKeepsSubledgerPersistenceBehindDedicatedService() {
+    void financePostingFacadeKeepsSubledgerAndVoucherPersistenceBehindDedicatedServices() {
         assertThat(constructorDependencies(FinancePostingService.class))
-                .contains(FinanceSubledgerPostingService.class)
+                .contains(FinanceSubledgerPostingService.class, FinanceVoucherPostingService.class)
                 .doesNotContain(
                         PayableMapper.class,
                         ReceivableMapper.class,
                         CustomerMapper.class,
-                        SupplierMapper.class
+                        SupplierMapper.class,
+                        VoucherMapper.class,
+                        VoucherEntryMapper.class,
+                        AccountSubjectMapper.class
                 );
         assertThat(constructorDependencies(FinanceSubledgerPostingService.class))
                 .contains(
@@ -34,6 +40,8 @@ class FinancePostingServiceDecompositionTest {
                         CustomerMapper.class,
                         SupplierMapper.class
                 );
+        assertThat(constructorDependencies(FinanceVoucherPostingService.class))
+                .contains(VoucherMapper.class, VoucherEntryMapper.class, AccountSubjectMapper.class);
     }
 
     @Test
@@ -66,6 +74,16 @@ class FinancePostingServiceDecompositionTest {
                         com.tuowei.erp.common.security.AuditMetadata.class
                 )
         );
+    }
+
+    @Test
+    void facadeAndVoucherWritesUseRequiredTransactions() {
+        assertThat(Arrays.stream(FinancePostingService.class.getDeclaredMethods())
+                .filter(method -> java.lang.reflect.Modifier.isPublic(method.getModifiers())))
+                .allSatisfy(this::assertRequiredWriteTransaction);
+        assertThat(Arrays.stream(FinanceVoucherPostingService.class.getDeclaredMethods())
+                .filter(method -> java.lang.reflect.Modifier.isPublic(method.getModifiers())))
+                .allSatisfy(this::assertRequiredWriteTransaction);
     }
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {

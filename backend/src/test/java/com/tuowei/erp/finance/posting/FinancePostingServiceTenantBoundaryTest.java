@@ -112,9 +112,11 @@ class FinancePostingServiceTenantBoundaryTest {
                         customerMapper,
                         supplierMapper
                 ),
-                voucherMapper,
-                voucherEntryMapper,
-                accountSubjectMapper
+                new FinanceVoucherPostingService(
+                        voucherMapper,
+                        voucherEntryMapper,
+                        accountSubjectMapper
+                )
         );
     }
 
