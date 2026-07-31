@@ -1,17 +1,10 @@
 package com.tuowei.erp.purchase.receipt.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
-import com.tuowei.erp.common.export.CsvExport;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.DataScopeService;
-import com.tuowei.erp.common.security.DataScopeSnapshot;
-import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
@@ -22,7 +15,6 @@ import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
-import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderLookupService;
@@ -33,7 +25,6 @@ import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptLineEntity;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptCreateRequest;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptLineRequest;
-import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptLineResponse;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptPageQuery;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptResponse;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptUpdateRequest;
@@ -41,44 +32,22 @@ import com.tuowei.erp.purchase.support.AccumulatedQuantityValidator;
 import com.tuowei.erp.purchase.support.PurchaseAmountCalculator;
 import com.tuowei.erp.purchase.support.PurchaseReceiptQuantities;
 import com.tuowei.erp.qc.inspection.service.QcInspectionGate;
-import com.tuowei.erp.system.user.mapper.UserMapper;
-import com.tuowei.erp.system.user.model.UserEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 @Service
 public class PurchaseReceiptService {
 
-    private static final List<String> RECEIPT_EXPORT_HEADERS = List.of(
-            "receiptNo",
-            "orderId",
-            "warehouseId",
-            "receiptDate",
-            "status",
-            "totalQuantity",
-            "totalAmount",
-            "totalTaxAmount",
-            "remark"
-    );
-
     private final PurchaseReceiptMapper purchaseReceiptMapper;
     private final PurchaseReceiptLineMapper purchaseReceiptLineMapper;
-    private final PurchaseOrderMapper purchaseOrderMapper;
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
     private final WarehouseMapper warehouseMapper;
     private final InventoryPostingService inventoryPostingService;
@@ -88,18 +57,14 @@ public class PurchaseReceiptService {
     private final PurchaseReceiptNumberService purchaseReceiptNumberService;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
-    private final CurrentUserContext currentUserContext;
-    private final DataScopeService dataScopeService;
-    private final ScopedUserResolver scopedUserResolver;
-    private final UserMapper userMapper;
     private final AccountPeriodGuard accountPeriodGuard;
     private final QcInspectionGate qcInspectionGate;
     private final ProductValidator productValidator;
+    private final PurchaseReceiptQueryService purchaseReceiptQueryService;
 
     public PurchaseReceiptService(
             PurchaseReceiptMapper purchaseReceiptMapper,
             PurchaseReceiptLineMapper purchaseReceiptLineMapper,
-            PurchaseOrderMapper purchaseOrderMapper,
             PurchaseOrderLineMapper purchaseOrderLineMapper,
             WarehouseMapper warehouseMapper,
             InventoryPostingService inventoryPostingService,
@@ -109,17 +74,13 @@ public class PurchaseReceiptService {
             PurchaseReceiptNumberService purchaseReceiptNumberService,
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
-            CurrentUserContext currentUserContext,
-            DataScopeService dataScopeService,
-            ScopedUserResolver scopedUserResolver,
-            UserMapper userMapper,
             AccountPeriodGuard accountPeriodGuard,
             QcInspectionGate qcInspectionGate,
-            ProductValidator productValidator
+            ProductValidator productValidator,
+            PurchaseReceiptQueryService purchaseReceiptQueryService
     ) {
         this.purchaseReceiptMapper = purchaseReceiptMapper;
         this.purchaseReceiptLineMapper = purchaseReceiptLineMapper;
-        this.purchaseOrderMapper = purchaseOrderMapper;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
         this.warehouseMapper = warehouseMapper;
         this.inventoryPostingService = inventoryPostingService;
@@ -129,13 +90,10 @@ public class PurchaseReceiptService {
         this.purchaseReceiptNumberService = purchaseReceiptNumberService;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.scopedUserResolver = scopedUserResolver;
-        this.userMapper = userMapper;
         this.accountPeriodGuard = accountPeriodGuard;
         this.qcInspectionGate = qcInspectionGate;
         this.productValidator = productValidator;
+        this.purchaseReceiptQueryService = purchaseReceiptQueryService;
     }
 
     @Transactional
@@ -172,65 +130,22 @@ public class PurchaseReceiptService {
 
         List<PurchaseReceiptLineEntity> receiptLines = saveReceiptLines(receipt.getId(), request.lines(), orderLines, audit, now);
 
-        return toResponse(receipt, receiptLines);
+        return purchaseReceiptQueryService.toResponse(receipt, receiptLines);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<PurchaseReceiptResponse> list(PurchaseReceiptPageQuery query) {
         PurchaseReceiptPageQuery safeQuery = query == null ? new PurchaseReceiptPageQuery() : query;
-        long pageNo = normalizePageNo(safeQuery.getPageNo());
-        long pageSize = normalizePageSize(safeQuery.getPageSize());
-        String keyword = normalizeNullableText(safeQuery.getKeyword());
-        String status = normalizeStatus(safeQuery.getStatus());
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
-
-        Page<PurchaseReceiptEntity> page = new Page<>(pageNo, pageSize);
-        LambdaQueryWrapper<PurchaseReceiptEntity> wrapper = buildListQuery(keyword, safeQuery.getOrderId(), safeQuery.getWarehouseId(), status, safeQuery.getReceiptDateFrom(), safeQuery.getReceiptDateTo());
-        wrapper = dataScopeService.applyPurchaseReceiptScope(
-                wrapper,
-                currentUser,
-                snapshot,
-                scopedUserIds.deptUserIds(),
-                scopedUserIds.postUserIds()
-        );
-        Page<PurchaseReceiptEntity> result = purchaseReceiptMapper.selectPage(
-                page,
-                wrapper
-        );
-
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toSummaryResponse).toList()
-        );
+        return purchaseReceiptQueryService.list(safeQuery);
     }
 
     public StreamingResponseBody exportReceipts(PurchaseReceiptPageQuery query) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        PurchaseReceiptPageQuery safeQuery = query == null ? new PurchaseReceiptPageQuery() : query;
-        return outputStream -> withAuthentication(authentication, () -> CsvExport.write(outputStream, RECEIPT_EXPORT_HEADERS, rowWriter -> {
-            LambdaQueryWrapper<PurchaseReceiptEntity> wrapper = scopedListQuery(safeQuery);
-            for (PurchaseReceiptEntity entity : purchaseReceiptMapper.selectList(wrapper)) {
-                rowWriter.write(receiptExportRow(entity));
-            }
-        }));
+        return purchaseReceiptQueryService.exportReceipts(query);
     }
 
     @Transactional(readOnly = true)
     public PurchaseReceiptResponse getById(Long id) {
-        PurchaseReceiptEntity receipt = requireReceipt(id);
-        assertCanView(receipt);
-        List<PurchaseReceiptLineEntity> lines = purchaseReceiptLineMapper.selectList(
-                new LambdaQueryWrapper<PurchaseReceiptLineEntity>()
-                        .eq(PurchaseReceiptLineEntity::getCompanyId, receipt.getCompanyId())
-                        .eq(PurchaseReceiptLineEntity::getAccountBookId, receipt.getAccountBookId())
-                        .eq(PurchaseReceiptLineEntity::getReceiptId, id)
-                        .orderByAsc(PurchaseReceiptLineEntity::getLineNo)
-        );
-        return toResponse(receipt, lines);
+        return purchaseReceiptQueryService.getById(id);
     }
 
     @Transactional
@@ -269,7 +184,7 @@ public class PurchaseReceiptService {
                 .eq(PurchaseReceiptLineEntity::getAccountBookId, receipt.getAccountBookId())
                 .eq(PurchaseReceiptLineEntity::getReceiptId, receipt.getId()));
         List<PurchaseReceiptLineEntity> receiptLines = saveReceiptLines(receipt.getId(), request.lines(), orderLines, audit, now);
-        return toResponse(receipt, receiptLines);
+        return purchaseReceiptQueryService.toResponse(receipt, receiptLines);
     }
 
     @Transactional
@@ -500,209 +415,22 @@ public class PurchaseReceiptService {
         );
     }
 
-    private LambdaQueryWrapper<PurchaseReceiptEntity> buildListQuery(
-            String keyword,
-            Long orderId,
-            Long warehouseId,
-            String status,
-            LocalDate receiptDateFrom,
-            LocalDate receiptDateTo
-    ) {
-        LambdaQueryWrapper<PurchaseReceiptEntity> wrapper = new LambdaQueryWrapper<PurchaseReceiptEntity>()
-                .eq(PurchaseReceiptEntity::getDeletedFlag, 0);
-        if (StringUtils.hasText(keyword)) {
-            wrapper.like(PurchaseReceiptEntity::getReceiptNo, keyword);
-        }
-        if (orderId != null) {
-            wrapper.eq(PurchaseReceiptEntity::getOrderId, orderId);
-        }
-        if (warehouseId != null) {
-            wrapper.eq(PurchaseReceiptEntity::getWarehouseId, warehouseId);
-        }
-        if (StringUtils.hasText(status)) {
-            wrapper.eq(PurchaseReceiptEntity::getStatus, status);
-        }
-        if (receiptDateFrom != null) {
-            wrapper.ge(PurchaseReceiptEntity::getReceiptDate, receiptDateFrom);
-        }
-        if (receiptDateTo != null) {
-            wrapper.le(PurchaseReceiptEntity::getReceiptDate, receiptDateTo);
-        }
-        return wrapper.orderByDesc(PurchaseReceiptEntity::getId);
-    }
-
-    private LambdaQueryWrapper<PurchaseReceiptEntity> scopedListQuery(PurchaseReceiptPageQuery safeQuery) {
-        String keyword = normalizeNullableText(safeQuery.getKeyword());
-        String status = normalizeStatus(safeQuery.getStatus());
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
-        LambdaQueryWrapper<PurchaseReceiptEntity> wrapper = buildListQuery(
-                keyword,
-                safeQuery.getOrderId(),
-                safeQuery.getWarehouseId(),
-                status,
-                safeQuery.getReceiptDateFrom(),
-                safeQuery.getReceiptDateTo()
-        );
-        return dataScopeService.applyPurchaseReceiptScope(
-                wrapper,
-                currentUser,
-                snapshot,
-                scopedUserIds.deptUserIds(),
-                scopedUserIds.postUserIds()
-        );
-    }
-
-    private List<?> receiptExportRow(PurchaseReceiptEntity entity) {
-        return Arrays.asList(
-                entity.getReceiptNo(),
-                entity.getOrderId(),
-                entity.getWarehouseId(),
-                entity.getReceiptDate(),
-                entity.getStatus(),
-                entity.getTotalQuantity(),
-                entity.getTotalAmount(),
-                entity.getTotalTaxAmount(),
-                entity.getRemark()
-        );
-    }
-
     private void assertCanView(PurchaseReceiptEntity receipt) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = receipt.getCreatedBy() == null ? null : userMapper.selectById(receipt.getCreatedBy());
-        dataScopeService.assertCanViewPurchaseReceipt(
-                receipt,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
+        purchaseReceiptQueryService.assertCanView(receipt);
     }
 
     private void assertCanView(PurchaseOrderEntity order) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = order.getCreatedBy() == null ? null : userMapper.selectById(order.getCreatedBy());
-        dataScopeService.assertCanViewPurchaseOrder(
-                order,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
-    }
-
-    private PurchaseReceiptResponse toResponse(PurchaseReceiptEntity receipt, List<PurchaseReceiptLineEntity> lines) {
-        return new PurchaseReceiptResponse(
-                receipt.getId(),
-                receipt.getReceiptNo(),
-                receipt.getOrderId(),
-                receipt.getWarehouseId(),
-                receipt.getReceiptDate(),
-                receipt.getStatus(),
-                receipt.getTotalQuantity(),
-                receipt.getTotalAmount(),
-                receipt.getTotalTaxAmount(),
-                receipt.getRemark(),
-                lines.stream().map(this::toLineResponse).toList()
-        );
-    }
-
-    private PurchaseReceiptResponse toSummaryResponse(PurchaseReceiptEntity receipt) {
-        return new PurchaseReceiptResponse(
-                receipt.getId(),
-                receipt.getReceiptNo(),
-                receipt.getOrderId(),
-                receipt.getWarehouseId(),
-                receipt.getReceiptDate(),
-                receipt.getStatus(),
-                receipt.getTotalQuantity(),
-                receipt.getTotalAmount(),
-                receipt.getTotalTaxAmount(),
-                receipt.getRemark(),
-                List.of()
-        );
-    }
-
-    private PurchaseReceiptLineResponse toLineResponse(PurchaseReceiptLineEntity line) {
-        return new PurchaseReceiptLineResponse(
-                line.getId(),
-                line.getLineNo(),
-                line.getOrderLineId(),
-                line.getProductId(),
-                line.getQty(),
-                line.getPrice(),
-                line.getTaxRate(),
-                line.getAmount(),
-                line.getTaxAmount(),
-                line.getLotNo(),
-                line.getProductionDate(),
-                line.getExpiryDate(),
-                line.getLocationId(),
-                line.getSerialNos(),
-                line.getRemark()
-        );
+        purchaseReceiptQueryService.assertCanView(order);
     }
 
     private BigDecimal availableReceiptQty(PurchaseOrderLineEntity orderLine) {
         return PurchaseReceiptQuantities.from(orderLine.getQty(), orderLine.getReceivedQty()).availableReceiptQty();
     }
 
-    private String normalizeNullableText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        return value.trim();
-    }
-
-    private String normalizeStatus(String value) {
-        String normalized = normalizeNullableText(value);
-        if (normalized == null) {
-            return null;
-        }
-        return normalized.toUpperCase(Locale.ROOT);
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        if (pageNo == null || pageNo < 1) {
-            return 1L;
-        }
-        return pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        if (pageSize == null || pageSize < 1) {
-            return 20L;
-        }
-        return Math.min(pageSize, 200);
-    }
-
     private void touch(PurchaseReceiptEntity receipt) {
         AuditMetadata audit = auditMetadataFactory.current();
         receipt.setUpdatedBy(audit.userId());
         receipt.setUpdatedTime(audit.now());
-    }
-
-    private void withAuthentication(Authentication authentication, ThrowingRunnable action) throws IOException {
-        Authentication previousAuthentication = SecurityContextHolder.getContext().getAuthentication();
-        try {
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            action.run();
-        } finally {
-            if (previousAuthentication == null) {
-                SecurityContextHolder.clearContext();
-            } else {
-                SecurityContextHolder.getContext().setAuthentication(previousAuthentication);
-            }
-        }
-    }
-
-    @FunctionalInterface
-    private interface ThrowingRunnable {
-
-        void run() throws IOException;
     }
 
     private record ReceiptTotals(BigDecimal totalQuantity, BigDecimal totalAmount, BigDecimal totalTaxAmount) {

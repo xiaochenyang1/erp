@@ -41,7 +41,7 @@ class ScopedUserResolverUsageConfigurationTest {
                 "src/main/java/com/tuowei/erp/finance/settlement/service/FinanceSettlementScopeSupport.java",
                 "src/main/java/com/tuowei/erp/production/order/service/ProductionOrderService.java",
                 "src/main/java/com/tuowei/erp/purchase/order/service/PurchaseOrderQueryService.java",
-                "src/main/java/com/tuowei/erp/purchase/receipt/service/PurchaseReceiptService.java",
+                "src/main/java/com/tuowei/erp/purchase/receipt/service/PurchaseReceiptQueryService.java",
                 "src/main/java/com/tuowei/erp/purchase/returnorder/service/PurchaseReturnQueryService.java",
                 "src/main/java/com/tuowei/erp/report/service/ReportQueryService.java",
                 "src/main/java/com/tuowei/erp/sales/delivery/service/SalesDeliveryQueryService.java",

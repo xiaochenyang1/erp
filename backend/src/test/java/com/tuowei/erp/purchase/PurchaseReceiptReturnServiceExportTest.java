@@ -24,6 +24,7 @@ import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptNumberService;
+import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptQueryService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptService;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptPageQuery;
 import com.tuowei.erp.purchase.returnorder.mapper.PurchaseReturnLineMapper;
@@ -250,10 +251,17 @@ class PurchaseReceiptReturnServiceExportTest {
     }
 
     private PurchaseReceiptService receiptService() {
+        PurchaseReceiptQueryService queryService = new PurchaseReceiptQueryService(
+                purchaseReceiptMapper,
+                purchaseReceiptLineMapper,
+                currentUserContext,
+                dataScopeService,
+                scopedUserResolver,
+                userMapper
+        );
         return new PurchaseReceiptService(
                 purchaseReceiptMapper,
                 purchaseReceiptLineMapper,
-                purchaseOrderMapper,
                 purchaseOrderLineMapper,
                 warehouseMapper,
                 inventoryPostingService,
@@ -263,13 +271,10 @@ class PurchaseReceiptReturnServiceExportTest {
                 purchaseReceiptNumberService,
                 financePostingService,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
                 accountPeriodGuard,
                 qcInspectionGate,
-                productValidator
+                productValidator,
+                queryService
         );
     }
 

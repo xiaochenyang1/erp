@@ -11,16 +11,15 @@ import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
+import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
-import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderLookupService;
@@ -30,9 +29,12 @@ import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptLineEntity;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptNumberService;
+import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptQueryService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptService;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptCreateRequest;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptLineRequest;
+import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptPageQuery;
+import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptResponse;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,6 +43,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -53,6 +56,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,9 +91,6 @@ class PurchaseReceiptServiceTenantBoundaryTest {
 
     @Mock
     private PurchaseReceiptLineMapper purchaseReceiptLineMapper;
-
-    @Mock
-    private PurchaseOrderMapper purchaseOrderMapper;
 
     @Mock
     private PurchaseOrderLineMapper purchaseOrderLineMapper;
@@ -142,6 +143,44 @@ class PurchaseReceiptServiceTenantBoundaryTest {
     @BeforeAll
     static void initTableInfo() {
         initTableInfo(PurchaseReceiptLineEntity.class);
+    }
+
+    @Test
+    void listDelegatesToQueryService() {
+        PurchaseReceiptQueryService queryService = mock(PurchaseReceiptQueryService.class);
+        PurchaseReceiptPageQuery query = new PurchaseReceiptPageQuery();
+        PageResponse<PurchaseReceiptResponse> expected = new PageResponse<>(1L, 20L, 0L, List.of());
+        when(queryService.list(query)).thenReturn(expected);
+
+        PageResponse<PurchaseReceiptResponse> result = service(queryService).list(query);
+
+        assertThat(result).isSameAs(expected);
+        verify(queryService).list(query);
+    }
+
+    @Test
+    void getByIdDelegatesToQueryService() {
+        PurchaseReceiptQueryService queryService = mock(PurchaseReceiptQueryService.class);
+        PurchaseReceiptResponse expected = response("DRAFT");
+        when(queryService.getById(7001L)).thenReturn(expected);
+
+        PurchaseReceiptResponse result = service(queryService).getById(7001L);
+
+        assertThat(result).isSameAs(expected);
+        verify(queryService).getById(7001L);
+    }
+
+    @Test
+    void exportDelegatesToQueryService() {
+        PurchaseReceiptQueryService queryService = mock(PurchaseReceiptQueryService.class);
+        PurchaseReceiptPageQuery query = new PurchaseReceiptPageQuery();
+        StreamingResponseBody expected = outputStream -> { };
+        when(queryService.exportReceipts(query)).thenReturn(expected);
+
+        StreamingResponseBody result = service(queryService).exportReceipts(query);
+
+        assertThat(result).isSameAs(expected);
+        verify(queryService).exportReceipts(query);
     }
 
     @Test
@@ -199,18 +238,6 @@ class PurchaseReceiptServiceTenantBoundaryTest {
                 CURRENT_USER.accountBookId(),
                 NOW
         ));
-    }
-
-    private void stubOrderLineLookup() {
-        when(purchaseOrderLookupService.requireOrderLine(any(), any())).thenAnswer(invocation -> {
-            Map<Long, PurchaseOrderLineEntity> orderLines = invocation.getArgument(0);
-            Long orderLineId = invocation.getArgument(1);
-            PurchaseOrderLineEntity orderLine = orderLines.get(orderLineId);
-            if (orderLine == null) {
-                throw new IllegalArgumentException("采购订单明细不存在");
-            }
-            return orderLine;
-        });
     }
 
     private void assertTenantScoped(LambdaQueryWrapper<?> wrapper) {
@@ -303,21 +330,22 @@ class PurchaseReceiptServiceTenantBoundaryTest {
         return entity;
     }
 
-    private ProductEntity product(Long accountBookId) {
-        ProductEntity entity = new ProductEntity();
-        entity.setId(4001L);
-        entity.setCompanyId(CURRENT_USER.companyId());
-        entity.setAccountBookId(accountBookId);
-        entity.setStatus("ACTIVE");
-        entity.setDeletedFlag(0);
-        return entity;
+    private PurchaseReceiptService service() {
+        PurchaseReceiptQueryService queryService = new PurchaseReceiptQueryService(
+                purchaseReceiptMapper,
+                purchaseReceiptLineMapper,
+                currentUserContext,
+                dataScopeService,
+                scopedUserResolver,
+                userMapper
+        );
+        return service(queryService);
     }
 
-    private PurchaseReceiptService service() {
+    private PurchaseReceiptService service(PurchaseReceiptQueryService queryService) {
         return new PurchaseReceiptService(
                 purchaseReceiptMapper,
                 purchaseReceiptLineMapper,
-                purchaseOrderMapper,
                 purchaseOrderLineMapper,
                 warehouseMapper,
                 inventoryPostingService,
@@ -327,13 +355,26 @@ class PurchaseReceiptServiceTenantBoundaryTest {
                 purchaseReceiptNumberService,
                 financePostingService,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
                 accountPeriodGuard,
                 qcInspectionGate,
-                productValidator
+                productValidator,
+                queryService
+        );
+    }
+
+    private PurchaseReceiptResponse response(String status) {
+        return new PurchaseReceiptResponse(
+                7001L,
+                "GR-7001",
+                6001L,
+                3001L,
+                LocalDate.of(2026, 6, 8),
+                status,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                List.of()
         );
     }
 
