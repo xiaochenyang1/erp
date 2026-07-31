@@ -1,17 +1,11 @@
 package com.tuowei.erp.sales.returnorder.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.DataScopeService;
-import com.tuowei.erp.common.security.DataScopeSnapshot;
-import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
@@ -20,8 +14,6 @@ import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.purchase.support.AccumulatedQuantityValidator;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
@@ -38,13 +30,10 @@ import com.tuowei.erp.sales.returnorder.model.SalesReturnEntity;
 import com.tuowei.erp.sales.returnorder.model.SalesReturnLineEntity;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnCreateRequest;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnLineRequest;
-import com.tuowei.erp.sales.returnorder.web.SalesReturnLineResponse;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnPageQuery;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnResponse;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnUpdateRequest;
 import com.tuowei.erp.sales.support.SalesAmountCalculator;
-import com.tuowei.erp.system.user.mapper.UserMapper;
-import com.tuowei.erp.system.user.model.UserEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -55,7 +44,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -73,7 +61,6 @@ public class SalesReturnService {
     private final SalesDeliveryLineMapper salesDeliveryLineMapper;
     private final SalesOrderMapper salesOrderMapper;
     private final SalesOrderLineMapper salesOrderLineMapper;
-    private final ProductMapper productMapper;
     private final ProductValidator productValidator;
     private final InventoryTransactionMapper inventoryTransactionMapper;
     private final InventoryPostingService inventoryPostingService;
@@ -81,10 +68,7 @@ public class SalesReturnService {
     private final SalesReturnNumberService salesReturnNumberService;
     private final FinancePostingService financePostingService;
     private final AuditMetadataFactory auditMetadataFactory;
-    private final CurrentUserContext currentUserContext;
-    private final DataScopeService dataScopeService;
-    private final ScopedUserResolver scopedUserResolver;
-    private final UserMapper userMapper;
+    private final SalesReturnQueryService salesReturnQueryService;
     private final AccountPeriodGuard accountPeriodGuard;
 
     public SalesReturnService(
@@ -94,7 +78,6 @@ public class SalesReturnService {
             SalesDeliveryLineMapper salesDeliveryLineMapper,
             SalesOrderMapper salesOrderMapper,
             SalesOrderLineMapper salesOrderLineMapper,
-            ProductMapper productMapper,
             ProductValidator productValidator,
             InventoryTransactionMapper inventoryTransactionMapper,
             InventoryPostingService inventoryPostingService,
@@ -102,10 +85,7 @@ public class SalesReturnService {
             SalesReturnNumberService salesReturnNumberService,
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
-            CurrentUserContext currentUserContext,
-            DataScopeService dataScopeService,
-            ScopedUserResolver scopedUserResolver,
-            UserMapper userMapper,
+            SalesReturnQueryService salesReturnQueryService,
             AccountPeriodGuard accountPeriodGuard
     ) {
         this.salesReturnMapper = salesReturnMapper;
@@ -114,7 +94,6 @@ public class SalesReturnService {
         this.salesDeliveryLineMapper = salesDeliveryLineMapper;
         this.salesOrderMapper = salesOrderMapper;
         this.salesOrderLineMapper = salesOrderLineMapper;
-        this.productMapper = productMapper;
         this.productValidator = productValidator;
         this.inventoryTransactionMapper = inventoryTransactionMapper;
         this.inventoryPostingService = inventoryPostingService;
@@ -122,10 +101,7 @@ public class SalesReturnService {
         this.salesReturnNumberService = salesReturnNumberService;
         this.financePostingService = financePostingService;
         this.auditMetadataFactory = auditMetadataFactory;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.scopedUserResolver = scopedUserResolver;
-        this.userMapper = userMapper;
+        this.salesReturnQueryService = salesReturnQueryService;
         this.accountPeriodGuard = accountPeriodGuard;
     }
 
@@ -160,55 +136,18 @@ public class SalesReturnService {
         salesReturnMapper.insert(entity);
 
         List<SalesReturnLineEntity> lines = saveReturnLines(entity.getId(), request.lines(), deliveryLines, audit, now);
-        return toResponse(entity, lines);
+        return salesReturnQueryService.toResponse(entity, lines);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<SalesReturnResponse> list(SalesReturnPageQuery query) {
         SalesReturnPageQuery safeQuery = query == null ? new SalesReturnPageQuery() : query;
-        long pageNo = normalizePageNo(safeQuery.getPageNo());
-        long pageSize = normalizePageSize(safeQuery.getPageSize());
-        String keyword = normalizeNullableText(safeQuery.getKeyword());
-        String status = normalizeStatus(safeQuery.getStatus());
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
-
-        LambdaQueryWrapper<SalesReturnEntity> wrapper = buildListQuery(
-                keyword,
-                safeQuery.getDeliveryId(),
-                safeQuery.getWarehouseId(),
-                status,
-                safeQuery.getReturnDateFrom(),
-                safeQuery.getReturnDateTo()
-        );
-        wrapper = dataScopeService.applySalesReturnScope(
-                wrapper,
-                currentUser,
-                snapshot,
-                scopedUserIds.deptUserIds(),
-                scopedUserIds.postUserIds()
-        );
-        Page<SalesReturnEntity> result = salesReturnMapper.selectPage(new Page<>(pageNo, pageSize), wrapper);
-
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toSummaryResponse).toList()
-        );
+        return salesReturnQueryService.list(safeQuery);
     }
 
     @Transactional(readOnly = true)
     public SalesReturnResponse getById(Long id) {
-        SalesReturnEntity entity = requireReturn(id);
-        assertCanView(entity);
-        List<SalesReturnLineEntity> lines = salesReturnLineMapper.selectList(new LambdaQueryWrapper<SalesReturnLineEntity>()
-                .eq(SalesReturnLineEntity::getCompanyId, entity.getCompanyId())
-                .eq(SalesReturnLineEntity::getAccountBookId, entity.getAccountBookId())
-                .eq(SalesReturnLineEntity::getReturnId, id)
-                .orderByAsc(SalesReturnLineEntity::getLineNo));
-        return toResponse(entity, lines);
+        return salesReturnQueryService.getById(id);
     }
 
     @Transactional
@@ -246,7 +185,7 @@ public class SalesReturnService {
                 .eq(SalesReturnLineEntity::getAccountBookId, entity.getAccountBookId())
                 .eq(SalesReturnLineEntity::getReturnId, entity.getId()));
         List<SalesReturnLineEntity> lines = saveReturnLines(entity.getId(), request.lines(), deliveryLines, audit, now);
-        return toResponse(entity, lines);
+        return salesReturnQueryService.toResponse(entity, lines);
     }
 
     @Transactional
@@ -503,74 +442,16 @@ public class SalesReturnService {
         return returnLines;
     }
 
-    private LambdaQueryWrapper<SalesReturnEntity> buildListQuery(
-            String keyword,
-            Long deliveryId,
-            Long warehouseId,
-            String status,
-            LocalDate returnDateFrom,
-            LocalDate returnDateTo
-    ) {
-        LambdaQueryWrapper<SalesReturnEntity> wrapper = new LambdaQueryWrapper<SalesReturnEntity>()
-                .eq(SalesReturnEntity::getDeletedFlag, 0);
-        if (StringUtils.hasText(keyword)) {
-            wrapper.like(SalesReturnEntity::getReturnNo, keyword);
-        }
-        if (deliveryId != null) {
-            wrapper.eq(SalesReturnEntity::getDeliveryId, deliveryId);
-        }
-        if (warehouseId != null) {
-            wrapper.eq(SalesReturnEntity::getWarehouseId, warehouseId);
-        }
-        if (StringUtils.hasText(status)) {
-            wrapper.eq(SalesReturnEntity::getStatus, status);
-        }
-        if (returnDateFrom != null) {
-            wrapper.ge(SalesReturnEntity::getReturnDate, returnDateFrom);
-        }
-        if (returnDateTo != null) {
-            wrapper.le(SalesReturnEntity::getReturnDate, returnDateTo);
-        }
-        return wrapper.orderByDesc(SalesReturnEntity::getId);
-    }
-
     private void assertCanView(SalesReturnEntity entity) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = entity.getCreatedBy() == null ? null : userMapper.selectById(entity.getCreatedBy());
-        dataScopeService.assertCanViewSalesReturn(
-                entity,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
+        salesReturnQueryService.assertCanView(entity);
     }
 
     private void assertCanView(SalesDeliveryEntity entity) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = entity.getCreatedBy() == null ? null : userMapper.selectById(entity.getCreatedBy());
-        dataScopeService.assertCanViewSalesDelivery(
-                entity,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
+        salesReturnQueryService.assertCanView(entity);
     }
 
     private void assertCanView(SalesOrderEntity entity) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = entity.getCreatedBy() == null ? null : userMapper.selectById(entity.getCreatedBy());
-        dataScopeService.assertCanViewSalesOrder(
-                entity,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
+        salesReturnQueryService.assertCanView(entity);
     }
 
     private void refreshDeliveryStatus(Long orderId, AuditMetadata audit, LocalDateTime now) {
@@ -610,59 +491,6 @@ public class SalesReturnService {
             return "PARTIAL_DELIVERED";
         }
         return "NOT_DELIVERED";
-    }
-
-    private SalesReturnResponse toResponse(SalesReturnEntity entity, List<SalesReturnLineEntity> lines) {
-        return new SalesReturnResponse(
-                entity.getId(),
-                entity.getReturnNo(),
-                entity.getDeliveryId(),
-                entity.getWarehouseId(),
-                entity.getReturnDate(),
-                entity.getStatus(),
-                entity.getTotalQuantity(),
-                entity.getTotalAmount(),
-                entity.getTotalTaxAmount(),
-                entity.getRemark(),
-                lines.stream().map(this::toLineResponse).toList()
-        );
-    }
-
-    private SalesReturnResponse toSummaryResponse(SalesReturnEntity entity) {
-        return new SalesReturnResponse(
-                entity.getId(),
-                entity.getReturnNo(),
-                entity.getDeliveryId(),
-                entity.getWarehouseId(),
-                entity.getReturnDate(),
-                entity.getStatus(),
-                entity.getTotalQuantity(),
-                entity.getTotalAmount(),
-                entity.getTotalTaxAmount(),
-                entity.getRemark(),
-                List.of()
-        );
-    }
-
-    private SalesReturnLineResponse toLineResponse(SalesReturnLineEntity line) {
-        return new SalesReturnLineResponse(
-                line.getId(),
-                line.getLineNo(),
-                line.getDeliveryLineId(),
-                line.getOrderLineId(),
-                line.getProductId(),
-                line.getQty(),
-                line.getPrice(),
-                line.getTaxRate(),
-                line.getAmount(),
-                line.getTaxAmount(),
-                line.getLotNo(),
-                line.getProductionDate(),
-                line.getExpiryDate(),
-                line.getLocationId(),
-                line.getSerialNos(),
-                line.getRemark()
-        );
     }
 
     private ReturnLotIntent resolveReturnLotIntent(SalesReturnLineRequest request, SalesDeliveryLineEntity deliveryLine) {
@@ -772,28 +600,6 @@ public class SalesReturnService {
             return null;
         }
         return value.trim();
-    }
-
-    private String normalizeStatus(String value) {
-        String normalized = normalizeNullableText(value);
-        if (normalized == null) {
-            return null;
-        }
-        return normalized.toUpperCase(Locale.ROOT);
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        if (pageNo == null || pageNo < 1) {
-            return 1L;
-        }
-        return pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        if (pageSize == null || pageSize < 1) {
-            return 20L;
-        }
-        return Math.min(pageSize, 200);
     }
 
     private void touch(SalesReturnEntity entity) {

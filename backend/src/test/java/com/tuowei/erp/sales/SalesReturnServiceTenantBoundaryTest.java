@@ -18,8 +18,6 @@ import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
@@ -34,6 +32,7 @@ import com.tuowei.erp.sales.returnorder.mapper.SalesReturnMapper;
 import com.tuowei.erp.sales.returnorder.model.SalesReturnEntity;
 import com.tuowei.erp.sales.returnorder.model.SalesReturnLineEntity;
 import com.tuowei.erp.sales.returnorder.service.SalesReturnNumberService;
+import com.tuowei.erp.sales.returnorder.service.SalesReturnQueryService;
 import com.tuowei.erp.sales.returnorder.service.SalesReturnService;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnCreateRequest;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnLineRequest;
@@ -103,9 +102,6 @@ class SalesReturnServiceTenantBoundaryTest {
 
     @Mock
     private SalesOrderLineMapper salesOrderLineMapper;
-
-    @Mock
-    private ProductMapper productMapper;
 
     @Mock
     private ProductValidator productValidator;
@@ -382,17 +378,6 @@ class SalesReturnServiceTenantBoundaryTest {
         return entity;
     }
 
-    private ProductEntity product(Long accountBookId) {
-        ProductEntity entity = new ProductEntity();
-        entity.setId(4001L);
-        entity.setCompanyId(CURRENT_USER.companyId());
-        entity.setAccountBookId(accountBookId);
-        entity.setProductName("P-4001");
-        entity.setStatus("ACTIVE");
-        entity.setDeletedFlag(0);
-        return entity;
-    }
-
     private InventoryTransactionEntity deliveryTxn(String lotNo, String qty, String amount) {
         InventoryTransactionEntity entity = new InventoryTransactionEntity();
         entity.setId(7201L);
@@ -418,7 +403,6 @@ class SalesReturnServiceTenantBoundaryTest {
                 salesDeliveryLineMapper,
                 salesOrderMapper,
                 salesOrderLineMapper,
-                productMapper,
                 productValidator,
                 inventoryTransactionMapper,
                 inventoryPostingService,
@@ -426,10 +410,14 @@ class SalesReturnServiceTenantBoundaryTest {
                 salesReturnNumberService,
                 financePostingService,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
+                new SalesReturnQueryService(
+                        salesReturnMapper,
+                        salesReturnLineMapper,
+                        currentUserContext,
+                        dataScopeService,
+                        scopedUserResolver,
+                        userMapper
+                ),
                 accountPeriodGuard
         );
     }

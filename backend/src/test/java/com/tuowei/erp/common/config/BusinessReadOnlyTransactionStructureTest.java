@@ -51,6 +51,8 @@ import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
 import com.tuowei.erp.sales.order.web.SalesOrderPageQuery;
 import com.tuowei.erp.sales.returnorder.service.SalesReturnService;
+import com.tuowei.erp.sales.returnorder.service.SalesReturnQueryService;
+import com.tuowei.erp.sales.returnorder.model.SalesReturnEntity;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnPageQuery;
 import com.tuowei.erp.workflow.service.WorkflowApprovalConfigService;
 import com.tuowei.erp.workflow.service.WorkflowService;
@@ -115,6 +117,11 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(SalesDeliveryQueryService.class, "assertCanView", SalesOrderEntity.class);
         assertReadOnly(SalesReturnService.class, "list", SalesReturnPageQuery.class);
         assertReadOnly(SalesReturnService.class, "getById", Long.class);
+        assertReadOnly(SalesReturnQueryService.class, "list", SalesReturnPageQuery.class);
+        assertReadOnly(SalesReturnQueryService.class, "getById", Long.class);
+        assertReadOnly(SalesReturnQueryService.class, "assertCanView", SalesReturnEntity.class);
+        assertReadOnly(SalesReturnQueryService.class, "assertCanView", SalesDeliveryEntity.class);
+        assertReadOnly(SalesReturnQueryService.class, "assertCanView", SalesOrderEntity.class);
 
         assertReadOnly(InventoryTransferService.class, "getById", Long.class);
         assertReadOnly(InventoryAdjustmentService.class, "getById", Long.class);
