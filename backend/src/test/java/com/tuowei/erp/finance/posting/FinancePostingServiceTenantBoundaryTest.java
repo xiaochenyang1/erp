@@ -106,13 +106,15 @@ class FinancePostingServiceTenantBoundaryTest {
 
     private FinancePostingService service() {
         return new FinancePostingService(
-                payableMapper,
-                receivableMapper,
+                new FinanceSubledgerPostingService(
+                        payableMapper,
+                        receivableMapper,
+                        customerMapper,
+                        supplierMapper
+                ),
                 voucherMapper,
                 voucherEntryMapper,
-                accountSubjectMapper,
-                customerMapper,
-                supplierMapper
+                accountSubjectMapper
         );
     }
 

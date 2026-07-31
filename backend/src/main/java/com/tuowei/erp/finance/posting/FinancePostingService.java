@@ -4,10 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
-import com.tuowei.erp.finance.payable.mapper.PayableMapper;
-import com.tuowei.erp.finance.payable.model.PayableEntity;
-import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
-import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import com.tuowei.erp.finance.subject.mapper.AccountSubjectMapper;
 import com.tuowei.erp.finance.subject.model.AccountSubjectEntity;
 import com.tuowei.erp.finance.voucher.mapper.VoucherEntryMapper;
@@ -16,10 +12,6 @@ import com.tuowei.erp.finance.voucher.model.VoucherEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntryEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentLineEntity;
-import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
-import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
-import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
-import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
@@ -45,30 +37,21 @@ public class FinancePostingService {
     private static final String PAYABLE_SUBJECT_CODE = "2202";
     private static final String PURCHASE_INPUT_TAX_SUBJECT_CODE = "222101";
 
-    private final PayableMapper payableMapper;
-    private final ReceivableMapper receivableMapper;
+    private final FinanceSubledgerPostingService subledgerPostingService;
     private final VoucherMapper voucherMapper;
     private final VoucherEntryMapper voucherEntryMapper;
     private final AccountSubjectMapper accountSubjectMapper;
-    private final CustomerMapper customerMapper;
-    private final SupplierMapper supplierMapper;
 
     public FinancePostingService(
-            PayableMapper payableMapper,
-            ReceivableMapper receivableMapper,
+            FinanceSubledgerPostingService subledgerPostingService,
             VoucherMapper voucherMapper,
             VoucherEntryMapper voucherEntryMapper,
-            AccountSubjectMapper accountSubjectMapper,
-            CustomerMapper customerMapper,
-            SupplierMapper supplierMapper
+            AccountSubjectMapper accountSubjectMapper
     ) {
-        this.payableMapper = payableMapper;
-        this.receivableMapper = receivableMapper;
+        this.subledgerPostingService = subledgerPostingService;
         this.voucherMapper = voucherMapper;
         this.voucherEntryMapper = voucherEntryMapper;
         this.accountSubjectMapper = accountSubjectMapper;
-        this.customerMapper = customerMapper;
-        this.supplierMapper = supplierMapper;
     }
 
     @Transactional
@@ -77,7 +60,7 @@ public class FinancePostingService {
         BigDecimal inventoryAmount = inventoryAmount(receipt.getTotalAmount());
         BigDecimal taxAmount = taxAmount(receipt.getTotalTaxAmount());
         BigDecimal amount = documentAmount(receipt.getTotalAmount(), receipt.getTotalTaxAmount());
-        insertPayableIfAbsent(sourceType, receipt.getId(), receipt.getReceiptNo(), "INCREASE",
+        subledgerPostingService.recordPayableIfAbsent(sourceType, receipt.getId(), receipt.getReceiptNo(), "INCREASE",
                 order.getSupplierId(), receipt.getReceiptDate(), amount, "采购入库形成应付", audit);
         VoucherEntity voucher = insertVoucherIfAbsent(sourceType, receipt.getId(), receipt.getReceiptNo(), receipt.getReceiptDate(), amount, "采购入库凭证", audit);
         insertPurchaseReceiptEntriesIfAbsent(voucher, inventoryAmount, taxAmount, audit);
@@ -89,7 +72,7 @@ public class FinancePostingService {
         BigDecimal inventoryAmount = inventoryAmount(purchaseReturn.getTotalAmount());
         BigDecimal taxAmount = taxAmount(purchaseReturn.getTotalTaxAmount());
         BigDecimal amount = documentAmount(purchaseReturn.getTotalAmount(), purchaseReturn.getTotalTaxAmount());
-        insertPayableIfAbsent(sourceType, purchaseReturn.getId(), purchaseReturn.getReturnNo(), "DECREASE",
+        subledgerPostingService.recordPayableIfAbsent(sourceType, purchaseReturn.getId(), purchaseReturn.getReturnNo(), "DECREASE",
                 order.getSupplierId(), purchaseReturn.getReturnDate(), amount, "采购退货冲减应付", audit);
         VoucherEntity voucher = insertVoucherIfAbsent(sourceType, purchaseReturn.getId(), purchaseReturn.getReturnNo(), purchaseReturn.getReturnDate(), amount, "采购退货凭证", audit);
         insertPurchaseReturnEntriesIfAbsent(voucher, inventoryAmount, taxAmount, audit);
@@ -121,7 +104,7 @@ public class FinancePostingService {
     public void recordSalesDelivery(SalesDeliveryEntity delivery, SalesOrderEntity order, BigDecimal costAmount, AuditMetadata audit) {
         String sourceType = "SALES_DELIVERY";
         BigDecimal amount = documentAmount(delivery.getTotalAmount(), delivery.getTotalTaxAmount());
-        insertReceivableIfAbsent(sourceType, delivery.getId(), delivery.getDeliveryNo(), "INCREASE",
+        subledgerPostingService.recordReceivableIfAbsent(sourceType, delivery.getId(), delivery.getDeliveryNo(), "INCREASE",
                 order.getCustomerId(), delivery.getDeliveryDate(), amount, "销售出库形成应收", audit);
         VoucherEntity voucher = insertVoucherIfAbsent(sourceType, delivery.getId(), delivery.getDeliveryNo(), delivery.getDeliveryDate(), amount, "销售出库凭证", audit);
         insertVoucherEntriesIfAbsent(voucher, "1122", "6001", amount, "销售出库凭证", audit);
@@ -132,7 +115,7 @@ public class FinancePostingService {
     public void recordSalesReturn(SalesReturnEntity salesReturn, SalesOrderEntity order, BigDecimal costAmount, AuditMetadata audit) {
         String sourceType = "SALES_RETURN";
         BigDecimal amount = documentAmount(salesReturn.getTotalAmount(), salesReturn.getTotalTaxAmount());
-        insertReceivableIfAbsent(sourceType, salesReturn.getId(), salesReturn.getReturnNo(), "DECREASE",
+        subledgerPostingService.recordReceivableIfAbsent(sourceType, salesReturn.getId(), salesReturn.getReturnNo(), "DECREASE",
                 order.getCustomerId(), salesReturn.getReturnDate(), amount, "销售退货冲减应收", audit);
         VoucherEntity voucher = insertVoucherIfAbsent(sourceType, salesReturn.getId(), salesReturn.getReturnNo(), salesReturn.getReturnDate(), amount, "销售退货凭证", audit);
         insertVoucherEntriesIfAbsent(voucher, "6401", "1122", amount, "销售退货凭证", audit);
@@ -241,125 +224,6 @@ public class FinancePostingService {
                 audit
         );
         insertVoucherEntriesIfAbsent(voucher, "1001", "5001", amount, "生产退料冲回生产成本", audit);
-    }
-
-    private void insertPayableIfAbsent(
-            String sourceType,
-            Long sourceId,
-            String sourceNo,
-            String direction,
-            Long supplierId,
-            LocalDate bizDate,
-            BigDecimal amount,
-            String remark,
-            AuditMetadata audit
-    ) {
-        if (payableMapper.selectCount(sourceWrapper(
-                audit,
-                sourceType,
-                sourceId,
-                PayableEntity::getCompanyId,
-                PayableEntity::getAccountBookId,
-                PayableEntity::getSourceType,
-                PayableEntity::getSourceId
-        )) > 0) {
-            return;
-        }
-        LocalDateTime now = audit.now();
-        PayableEntity entity = new PayableEntity();
-        entity.setCompanyId(audit.companyId());
-        entity.setAccountBookId(audit.accountBookId());
-        entity.setPayableNo("AP-" + sourceType + "-" + sourceId);
-        entity.setSourceType(sourceType);
-        entity.setSourceId(sourceId);
-        entity.setSourceNo(sourceNo);
-        entity.setDirection(direction);
-        entity.setSupplierId(supplierId);
-        entity.setBizDate(bizDate);
-        entity.setDueDate(resolveSupplierDueDate(supplierId, bizDate, audit));
-        entity.setOriginalAmount(amount);
-        entity.setSettledAmount(ZERO_AMOUNT);
-        entity.setStatus("INCREASE".equals(direction) ? "UNSETTLED" : "OFFSET");
-        setAudit(entity, remark, audit, now);
-        payableMapper.insert(entity);
-    }
-
-    private void insertReceivableIfAbsent(
-            String sourceType,
-            Long sourceId,
-            String sourceNo,
-            String direction,
-            Long customerId,
-            LocalDate bizDate,
-            BigDecimal amount,
-            String remark,
-            AuditMetadata audit
-    ) {
-        if (receivableMapper.selectCount(sourceWrapper(
-                audit,
-                sourceType,
-                sourceId,
-                ReceivableEntity::getCompanyId,
-                ReceivableEntity::getAccountBookId,
-                ReceivableEntity::getSourceType,
-                ReceivableEntity::getSourceId
-        )) > 0) {
-            return;
-        }
-        LocalDateTime now = audit.now();
-        ReceivableEntity entity = new ReceivableEntity();
-        entity.setCompanyId(audit.companyId());
-        entity.setAccountBookId(audit.accountBookId());
-        entity.setReceivableNo("AR-" + sourceType + "-" + sourceId);
-        entity.setSourceType(sourceType);
-        entity.setSourceId(sourceId);
-        entity.setSourceNo(sourceNo);
-        entity.setDirection(direction);
-        entity.setCustomerId(customerId);
-        entity.setBizDate(bizDate);
-        entity.setDueDate(resolveCustomerDueDate(customerId, bizDate, audit));
-        entity.setOriginalAmount(amount);
-        entity.setSettledAmount(ZERO_AMOUNT);
-        entity.setStatus("INCREASE".equals(direction) ? "UNSETTLED" : "OFFSET");
-        setAudit(entity, remark, audit, now);
-        receivableMapper.insert(entity);
-    }
-
-    private LocalDate resolveCustomerDueDate(Long customerId, LocalDate bizDate, AuditMetadata audit) {
-        if (bizDate == null) {
-            return null;
-        }
-        if (customerId == null) {
-            return bizDate;
-        }
-        CustomerEntity customer = customerMapper.selectById(customerId);
-        if (customer == null
-                || !java.util.Objects.equals(customer.getCompanyId(), audit.companyId())
-                || !java.util.Objects.equals(customer.getAccountBookId(), audit.accountBookId())) {
-            return bizDate;
-        }
-        return addCreditPeriod(bizDate, customer.getCreditPeriod());
-    }
-
-    private LocalDate resolveSupplierDueDate(Long supplierId, LocalDate bizDate, AuditMetadata audit) {
-        if (bizDate == null) {
-            return null;
-        }
-        if (supplierId == null) {
-            return bizDate;
-        }
-        SupplierEntity supplier = supplierMapper.selectById(supplierId);
-        if (supplier == null
-                || !java.util.Objects.equals(supplier.getCompanyId(), audit.companyId())
-                || !java.util.Objects.equals(supplier.getAccountBookId(), audit.accountBookId())) {
-            return bizDate;
-        }
-        return addCreditPeriod(bizDate, supplier.getCreditPeriod());
-    }
-
-    private LocalDate addCreditPeriod(LocalDate bizDate, Integer creditPeriod) {
-        int days = creditPeriod == null ? 0 : Math.max(creditPeriod, 0);
-        return bizDate.plusDays(days);
     }
 
     private VoucherEntity insertVoucherIfAbsent(
@@ -699,26 +563,6 @@ public class FinancePostingService {
                 .eq(accountBookIdColumn, audit.accountBookId())
                 .eq(sourceTypeColumn, sourceType)
                 .eq(sourceIdColumn, sourceId);
-    }
-
-    private void setAudit(PayableEntity entity, String remark, AuditMetadata audit, LocalDateTime now) {
-        entity.setDeletedFlag(0);
-        entity.setRemark(remark);
-        entity.setCreatedBy(audit.userId());
-        entity.setCreatedTime(now);
-        entity.setUpdatedBy(audit.userId());
-        entity.setUpdatedTime(now);
-        entity.setVersion(0);
-    }
-
-    private void setAudit(ReceivableEntity entity, String remark, AuditMetadata audit, LocalDateTime now) {
-        entity.setDeletedFlag(0);
-        entity.setRemark(remark);
-        entity.setCreatedBy(audit.userId());
-        entity.setCreatedTime(now);
-        entity.setUpdatedBy(audit.userId());
-        entity.setUpdatedTime(now);
-        entity.setVersion(0);
     }
 
     private void setAudit(VoucherEntity entity, String remark, AuditMetadata audit, LocalDateTime now) {
