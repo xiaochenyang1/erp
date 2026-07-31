@@ -18,6 +18,7 @@ import com.tuowei.erp.issue.rule.mapper.ExceptionRuleHitMapper;
 import com.tuowei.erp.issue.rule.mapper.ExceptionRuleMapper;
 import com.tuowei.erp.issue.rule.model.ExceptionRuleEntity;
 import com.tuowei.erp.issue.rule.model.ExceptionRuleHitEntity;
+import com.tuowei.erp.issue.rule.service.ExceptionRuleScanService;
 import com.tuowei.erp.issue.rule.service.ExceptionRuleService;
 import com.tuowei.erp.issue.rule.web.ExceptionRulePageQuery;
 import com.tuowei.erp.issue.rule.web.ExceptionRuleUpdateRequest;
@@ -47,6 +48,7 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -199,6 +201,37 @@ class ExceptionRuleServiceTest {
         assertThatThrownBy(() -> service().update(1001L, request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("扫描间隔");
+    }
+
+    @Test
+    void scanAllDelegatesEnabledTenantRulesAndAuditToScanService() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(ruleMapper.selectCount(any())).thenReturn(1L);
+        List<ExceptionRuleEntity> rules = List.of(
+                rule("LOW_STOCK", 1),
+                rule("PAYABLE_OVERDUE", 1)
+        );
+        when(ruleMapper.selectList(any())).thenReturn(rules);
+        ExceptionRuleScanService scanService = mock(ExceptionRuleScanService.class);
+        when(scanService.scanRules(rules, AUDIT)).thenReturn(List.of());
+        ExceptionRuleService facade = new ExceptionRuleService(
+                auditMetadataFactory,
+                ruleMapper,
+                hitMapper,
+                scanService
+        );
+
+        assertThat(facade.scanAll()).isEmpty();
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<ExceptionRuleEntity>> queryCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(ruleMapper).selectList(queryCaptor.capture());
+        assertThat(queryCaptor.getValue().getSqlSegment().toLowerCase(Locale.ROOT))
+                .contains("company_id", "account_book_id", "deleted_flag", "enabled");
+        assertThat(queryCaptor.getValue().getParamNameValuePairs().values())
+                .contains(AUDIT.companyId(), AUDIT.accountBookId(), 0, 1);
+        verify(scanService).scanRules(rules, AUDIT);
     }
 
     @Test
@@ -357,8 +390,7 @@ class ExceptionRuleServiceTest {
     }
 
     private ExceptionRuleService service() {
-        return new ExceptionRuleService(
-                auditMetadataFactory,
+        ExceptionRuleScanService scanService = new ExceptionRuleScanService(
                 ruleMapper,
                 hitMapper,
                 ticketMapper,
@@ -369,6 +401,12 @@ class ExceptionRuleServiceTest {
                 payableMapper,
                 operationLogMapper,
                 Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"))
+        );
+        return new ExceptionRuleService(
+                auditMetadataFactory,
+                ruleMapper,
+                hitMapper,
+                scanService
         );
     }
 
