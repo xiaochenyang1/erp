@@ -11,11 +11,10 @@ import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
+import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -26,9 +25,12 @@ import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
 import com.tuowei.erp.sales.order.service.SalesCreditEvaluator;
 import com.tuowei.erp.sales.order.service.SalesPriceEvaluator;
 import com.tuowei.erp.sales.order.service.SalesOrderNumberService;
+import com.tuowei.erp.sales.order.service.SalesOrderQueryService;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
 import com.tuowei.erp.sales.order.web.SalesOrderCreateRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderLineRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderPageQuery;
+import com.tuowei.erp.sales.order.web.SalesOrderResponse;
 import com.tuowei.erp.sales.order.web.SalesOrderSubmitRequest;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.workflow.service.WorkflowService;
@@ -88,7 +90,6 @@ class SalesOrderServiceTenantBoundaryTest {
     private final SalesOrderMapper salesOrderMapper = mock(SalesOrderMapper.class);
     private final SalesOrderLineMapper salesOrderLineMapper = mock(SalesOrderLineMapper.class);
     private final CustomerMapper customerMapper = mock(CustomerMapper.class);
-    private final ProductMapper productMapper = mock(ProductMapper.class);
     private final ProductValidator productValidator = mock(ProductValidator.class);
     private final WarehouseMapper warehouseMapper = mock(WarehouseMapper.class);
     private final InventoryPostingService inventoryPostingService = mock(InventoryPostingService.class);
@@ -101,10 +102,37 @@ class SalesOrderServiceTenantBoundaryTest {
     private final WorkflowService workflowService = mock(WorkflowService.class);
     private final SalesCreditEvaluator salesCreditEvaluator = mock(SalesCreditEvaluator.class);
     private final SalesPriceEvaluator salesPriceEvaluator = mock(SalesPriceEvaluator.class);
+    private final com.tuowei.erp.sales.order.service.SalesOrderPostingService salesOrderPostingService =
+            mock(com.tuowei.erp.sales.order.service.SalesOrderPostingService.class);
 
     @BeforeAll
     static void initTableInfo() {
         initTableInfo(SalesOrderLineEntity.class);
+    }
+
+    @Test
+    void listDelegatesToQueryService() {
+        SalesOrderQueryService queryService = mock(SalesOrderQueryService.class);
+        SalesOrderPageQuery query = new SalesOrderPageQuery();
+        PageResponse<SalesOrderResponse> expected = new PageResponse<>(1L, 20L, 0L, List.of());
+        when(queryService.list(query)).thenReturn(expected);
+
+        PageResponse<SalesOrderResponse> result = service(queryService).list(query);
+
+        assertThat(result).isSameAs(expected);
+        verify(queryService).list(query);
+    }
+
+    @Test
+    void getByIdDelegatesToQueryService() {
+        SalesOrderQueryService queryService = mock(SalesOrderQueryService.class);
+        SalesOrderResponse expected = mock(SalesOrderResponse.class);
+        when(queryService.getById(3401L)).thenReturn(expected);
+
+        SalesOrderResponse result = service(queryService).getById(3401L);
+
+        assertThat(result).isSameAs(expected);
+        verify(queryService).getById(3401L);
     }
 
     @Test
@@ -127,7 +155,7 @@ class SalesOrderServiceTenantBoundaryTest {
         stubAudit();
         when(customerMapper.selectById(CUSTOMER_ID))
                 .thenReturn(activeCustomer(CUSTOMER_ID, AUDIT.companyId(), 999L));
-        stubValidWarehouseAndProduct();
+        stubValidWarehouse();
         stubOrderInsert();
 
         assertThatThrownBy(() -> service().create(createRequest()))
@@ -142,8 +170,6 @@ class SalesOrderServiceTenantBoundaryTest {
                 .thenReturn(activeCustomer(CUSTOMER_ID, AUDIT.companyId(), AUDIT.accountBookId()));
         when(warehouseMapper.selectById(WAREHOUSE_ID))
                 .thenReturn(activeWarehouse(WAREHOUSE_ID, AUDIT.companyId(), 999L));
-        when(productMapper.selectById(PRODUCT_ID))
-                .thenReturn(activeProduct(PRODUCT_ID, AUDIT.companyId(), AUDIT.accountBookId()));
         stubOrderInsert();
 
         assertThatThrownBy(() -> service().create(createRequest()))
@@ -181,10 +207,7 @@ class SalesOrderServiceTenantBoundaryTest {
 
         service().unapprove(3401L);
 
-        verify(inventoryPostingService).releaseAllReservations("SALES_ORDER", 3401L, AUDIT);
-        assertThat(approved.getStatus()).isEqualTo("DRAFT");
-        assertThat(approved.getApprovalStatus()).isEqualTo("NOT_SUBMITTED");
-        verify(salesOrderMapper).updateById(approved);
+        verify(salesOrderPostingService).unapprove(3401L);
     }
 
     @Test
@@ -195,6 +218,8 @@ class SalesOrderServiceTenantBoundaryTest {
         delivered.setApprovalStatus("APPROVED");
         delivered.setDeliveryStatus("PARTIAL_DELIVERED");
         when(salesOrderMapper.selectById(3401L)).thenReturn(delivered);
+        when(salesOrderPostingService.unapprove(3401L))
+                .thenThrow(new IllegalArgumentException("已出库销售订单不允许反审核"));
 
         assertThatThrownBy(() -> service().unapprove(3401L))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -228,11 +253,9 @@ class SalesOrderServiceTenantBoundaryTest {
         when(currentUserContext.requirePrincipal()).thenReturn(PRINCIPAL);
     }
 
-    private void stubValidWarehouseAndProduct() {
+    private void stubValidWarehouse() {
         when(warehouseMapper.selectById(WAREHOUSE_ID))
                 .thenReturn(activeWarehouse(WAREHOUSE_ID, AUDIT.companyId(), AUDIT.accountBookId()));
-        when(productMapper.selectById(PRODUCT_ID))
-                .thenReturn(activeProduct(PRODUCT_ID, AUDIT.companyId(), AUDIT.accountBookId()));
     }
 
     private void stubOrderInsert() {
@@ -244,23 +267,32 @@ class SalesOrderServiceTenantBoundaryTest {
     }
 
     private SalesOrderService service() {
+        SalesOrderQueryService queryService = new SalesOrderQueryService(
+                salesOrderMapper,
+                salesOrderLineMapper,
+                customerMapper,
+                currentUserContext,
+                dataScopeService,
+                scopedUserResolver,
+                userMapper
+        );
+        return service(queryService);
+    }
+
+    private SalesOrderService service(SalesOrderQueryService queryService) {
         return new SalesOrderService(
                 salesOrderMapper,
                 salesOrderLineMapper,
                 customerMapper,
-                productMapper,
                 productValidator,
                 warehouseMapper,
-                inventoryPostingService,
                 salesOrderNumberService,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
                 workflowService,
                 salesCreditEvaluator,
-                salesPriceEvaluator
+                salesPriceEvaluator,
+                queryService,
+                salesOrderPostingService
         );
     }
 
@@ -337,16 +369,6 @@ class SalesOrderServiceTenantBoundaryTest {
         warehouse.setStatus("ACTIVE");
         warehouse.setDeletedFlag(0);
         return warehouse;
-    }
-
-    private ProductEntity activeProduct(Long id, Long companyId, Long accountBookId) {
-        ProductEntity product = new ProductEntity();
-        product.setId(id);
-        product.setCompanyId(companyId);
-        product.setAccountBookId(accountBookId);
-        product.setStatus("ACTIVE");
-        product.setDeletedFlag(0);
-        return product;
     }
 
     private static void initTableInfo(Class<?> entityClass) {
