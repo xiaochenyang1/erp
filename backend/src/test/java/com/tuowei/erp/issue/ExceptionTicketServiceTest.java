@@ -11,6 +11,8 @@ import com.tuowei.erp.issue.model.ExceptionTicketEntity;
 import com.tuowei.erp.issue.model.ExceptionTicketEventEntity;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaEscalationPolicy;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyService;
+import com.tuowei.erp.issue.service.ExceptionTicketPostingService;
+import com.tuowei.erp.issue.service.ExceptionTicketQueryService;
 import com.tuowei.erp.issue.service.ExceptionTicketService;
 import com.tuowei.erp.issue.web.ExceptionTicketActionRequest;
 import com.tuowei.erp.issue.web.ExceptionTicketAssignRequest;
@@ -285,14 +287,23 @@ class ExceptionTicketServiceTest {
     }
 
     private ExceptionTicketService service() {
-        return new ExceptionTicketService(
+        Clock clock = Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"));
+        ExceptionTicketQueryService queryService = new ExceptionTicketQueryService(
+                auditMetadataFactory,
+                ticketMapper,
+                eventMapper,
+                clock
+        );
+        ExceptionTicketPostingService postingService = new ExceptionTicketPostingService(
                 auditMetadataFactory,
                 ticketMapper,
                 eventMapper,
                 notificationService,
                 slaPolicyService,
-                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"))
+                clock,
+                queryService
         );
+        return new ExceptionTicketService(queryService, postingService);
     }
 
     private static ExceptionTicketCreateRequest createRequest() {
