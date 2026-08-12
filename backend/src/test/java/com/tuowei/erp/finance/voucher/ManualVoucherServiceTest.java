@@ -16,6 +16,8 @@ import com.tuowei.erp.finance.voucher.model.ManualVoucherEntity;
 import com.tuowei.erp.finance.voucher.model.ManualVoucherLineEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntryEntity;
+import com.tuowei.erp.finance.voucher.service.ManualVoucherPostingService;
+import com.tuowei.erp.finance.voucher.service.ManualVoucherQueryService;
 import com.tuowei.erp.finance.voucher.service.ManualVoucherService;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherLineRequest;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherSaveRequest;
@@ -416,7 +418,12 @@ class ManualVoucherServiceTest {
     }
 
     private ManualVoucherService service() {
-        return new ManualVoucherService(
+        ManualVoucherQueryService queryService = new ManualVoucherQueryService(
+                manualVoucherMapper,
+                manualVoucherLineMapper,
+                auditMetadataFactory
+        );
+        ManualVoucherPostingService postingService = new ManualVoucherPostingService(
                 manualVoucherMapper,
                 manualVoucherLineMapper,
                 voucherMapper,
@@ -424,8 +431,10 @@ class ManualVoucherServiceTest {
                 accountSubjectMapper,
                 accountPeriodGuard,
                 sequenceNumberGenerator,
-                auditMetadataFactory
+                auditMetadataFactory,
+                queryService
         );
+        return new ManualVoucherService(queryService, postingService);
     }
 
     private ManualVoucherEntity manualVoucher(Long id, String status, Long companyId, Long accountBookId) {
