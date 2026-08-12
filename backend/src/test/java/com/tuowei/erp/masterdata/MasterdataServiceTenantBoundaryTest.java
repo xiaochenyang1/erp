@@ -13,21 +13,29 @@ import com.tuowei.erp.inventory.stock.model.InventoryLotBalanceEntity;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.customer.service.CustomerService;
+import com.tuowei.erp.masterdata.customer.service.CustomerPostingService;
+import com.tuowei.erp.masterdata.customer.service.CustomerQueryService;
 import com.tuowei.erp.masterdata.customer.web.CustomerCreateRequest;
 import com.tuowei.erp.masterdata.customer.web.CustomerPageQuery;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductService;
+import com.tuowei.erp.masterdata.product.service.ProductPostingService;
+import com.tuowei.erp.masterdata.product.service.ProductQueryService;
 import com.tuowei.erp.masterdata.product.web.ProductPageQuery;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
 import com.tuowei.erp.masterdata.supplier.service.SupplierService;
+import com.tuowei.erp.masterdata.supplier.service.SupplierPostingService;
+import com.tuowei.erp.masterdata.supplier.service.SupplierQueryService;
 import com.tuowei.erp.masterdata.supplier.web.SupplierCreateRequest;
 import com.tuowei.erp.masterdata.supplier.web.SupplierPageQuery;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.masterdata.location.service.LocationService;
 import com.tuowei.erp.masterdata.warehouse.service.WarehouseService;
+import com.tuowei.erp.masterdata.warehouse.service.WarehousePostingService;
+import com.tuowei.erp.masterdata.warehouse.service.WarehouseQueryService;
 import com.tuowei.erp.masterdata.warehouse.web.WarehouseCreateRequest;
 import com.tuowei.erp.masterdata.warehouse.web.WarehousePageQuery;
 import com.tuowei.erp.system.dept.mapper.DeptMapper;
@@ -290,25 +298,41 @@ class MasterdataServiceTenantBoundaryTest {
     }
 
     private ProductService productService(ProductMapper mapper) {
-        return new ProductService(
+        ProductQueryService queryService = new ProductQueryService(mapper, auditMetadataFactory);
+        ProductPostingService postingService = new ProductPostingService(
                 mapper,
                 mock(InventoryBalanceMapper.class),
                 mock(InventoryLotBalanceMapper.class),
                 auditMetadataFactory,
-                mock(SystemDictService.class)
+                mock(SystemDictService.class),
+                queryService
         );
+        return new ProductService(queryService, postingService);
     }
 
     private CustomerService customerService(CustomerMapper mapper) {
-        return new CustomerService(mapper, auditMetadataFactory);
+        CustomerQueryService queryService = new CustomerQueryService(mapper, auditMetadataFactory);
+        CustomerPostingService postingService = new CustomerPostingService(mapper, auditMetadataFactory, queryService);
+        return new CustomerService(queryService, postingService);
     }
 
     private SupplierService supplierService(SupplierMapper mapper) {
-        return new SupplierService(mapper, auditMetadataFactory);
+        SupplierQueryService queryService = new SupplierQueryService(mapper, auditMetadataFactory);
+        SupplierPostingService postingService = new SupplierPostingService(mapper, auditMetadataFactory, queryService);
+        return new SupplierService(queryService, postingService);
     }
 
     private WarehouseService warehouseService(WarehouseMapper mapper, DeptMapper deptMapper, UserMapper userMapper) {
-        return new WarehouseService(mapper, deptMapper, userMapper, auditMetadataFactory, org.mockito.Mockito.mock(LocationService.class));
+        WarehouseQueryService queryService = new WarehouseQueryService(mapper, auditMetadataFactory);
+        WarehousePostingService postingService = new WarehousePostingService(
+                mapper,
+                deptMapper,
+                userMapper,
+                auditMetadataFactory,
+                org.mockito.Mockito.mock(LocationService.class),
+                queryService
+        );
+        return new WarehouseService(queryService, postingService);
     }
 
     private <T> Page<T> page() {
