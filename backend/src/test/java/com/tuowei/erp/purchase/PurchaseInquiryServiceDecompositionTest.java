@@ -5,6 +5,7 @@ import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryQuoteLineMapper;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryQuoteMapper;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryEntity;
+import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryPostingService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQuoteService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryService;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteRequest;
@@ -24,7 +25,7 @@ class PurchaseInquiryServiceDecompositionTest {
 
     @Test
     void purchaseInquiryServiceKeepsQuotePersistenceBehindDedicatedService() {
-        assertThat(constructorDependencies(PurchaseInquiryService.class))
+        assertThat(constructorDependencies(PurchaseInquiryPostingService.class))
                 .contains(PurchaseInquiryQuoteService.class)
                 .doesNotContain(
                         PurchaseInquiryQuoteMapper.class,
