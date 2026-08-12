@@ -8,6 +8,8 @@ import com.tuowei.erp.inventory.alert.model.InventoryAlertRuleEntity;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.replenishment.mapper.InventoryReplenishmentSuggestionMapper;
 import com.tuowei.erp.inventory.replenishment.model.InventoryReplenishmentSuggestionEntity;
+import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionPostingService;
+import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionQueryService;
 import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionService;
 import com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionCancelRequest;
 import com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionCreateRequest;
@@ -293,7 +295,15 @@ class InventoryReplenishmentSuggestionServiceTest {
     }
 
     private InventoryReplenishmentSuggestionService service() {
-        return new InventoryReplenishmentSuggestionService(
+        InventoryReplenishmentSuggestionQueryService queryService = new InventoryReplenishmentSuggestionQueryService(
+                suggestionMapper,
+                auditMetadataFactory,
+                warehouseMapper,
+                productMapper,
+                supplierMapper,
+                purchaseOrderMapper
+        );
+        InventoryReplenishmentSuggestionPostingService postingService = new InventoryReplenishmentSuggestionPostingService(
                 suggestionMapper,
                 alertRuleMapper,
                 inventoryPostingService,
@@ -303,8 +313,9 @@ class InventoryReplenishmentSuggestionServiceTest {
                 productMapper,
                 supplierMapper,
                 purchaseOrderService,
-                purchaseOrderMapper
+                queryService
         );
+        return new InventoryReplenishmentSuggestionService(queryService, postingService);
     }
 
     private InventoryReplenishmentSuggestionCreateRequest createRequest(BigDecimal suggestedQty) {
