@@ -619,7 +619,7 @@ const {
   enableCustomer,
   deleteCustomer,
   exportCustomers,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   cancelLabel: () => (appStore.locale === 'en-US' ? 'Cancel' : '取消'),
   interpolate,
   onError: (message) => ElMessage.error(message),

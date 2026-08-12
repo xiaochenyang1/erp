@@ -708,6 +708,8 @@ export interface PurchaseInquiryLine {
   id?: string | number
   lineNo?: number
   productId: string | number
+  productCode?: string
+  productName?: string
   qty: number
   remark?: string
 }

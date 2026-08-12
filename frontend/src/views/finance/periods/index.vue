@@ -631,7 +631,7 @@ const {
   getReconciliation: getInventoryFinanceReconciliation,
   getDifferences: getInventoryFinanceDifferences,
   getDifferenceDetail: getInventoryFinanceDifferenceDetail,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message)

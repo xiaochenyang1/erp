@@ -344,7 +344,7 @@ const {
   getWarehouses,
   getProducts,
   printOrder: printSalesOrder,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   prompt: (message, title, opts) => ElMessageBox.prompt(message, title, opts) as any,
   initialKeyword: readQueryString('keyword'),
   onError: (message) => ElMessage.error(message),

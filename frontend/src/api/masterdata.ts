@@ -4,9 +4,15 @@ import type { components as ProductApiComponents } from '@/api/generated/product
 
 // ==================== 产品管理 ====================
 
-type ProductContract = ProductApiComponents['schemas']['ProductResponse']
-export type ProductCreateContract = ProductApiComponents['schemas']['ProductCreateRequest']
-export type ProductUpdateContract = ProductApiComponents['schemas']['ProductUpdateRequest']
+type ProductContract = ProductApiComponents['schemas']['ProductResponse'] & {
+  serialControlled?: boolean
+}
+export type ProductCreateContract = ProductApiComponents['schemas']['ProductCreateRequest'] & {
+  serialControlled?: boolean
+}
+export type ProductUpdateContract = ProductApiComponents['schemas']['ProductUpdateRequest'] & {
+  serialControlled?: boolean
+}
 type ProductQueryContract = ProductApiComponents['schemas']['ProductPageQuery']
 
 export interface Product extends Omit<ProductContract, 'id' | 'status'> {

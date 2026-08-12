@@ -191,7 +191,7 @@ export const useBusinessTracePresentation = (
   ]
 
   const documentTitle = (doc: BusinessTraceDocument) =>
-    doc.bizNo || doc.documentNo || doc.documentId || '-'
+    doc.bizNo || doc.documentId || '-'
 
   return {
     buildSummaryItems,

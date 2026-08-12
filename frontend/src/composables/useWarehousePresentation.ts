@@ -5,7 +5,8 @@ import type { Warehouse } from '@/api/masterdata'
 import {
   formatLocalizedCurrency,
   formatLocalizedDateTime,
-  formatLocalizedNumber
+  formatLocalizedNumber,
+  type DisplayPreferences
 } from '@/utils/locale'
 
 export type WarehousePageTexts = {
@@ -13,7 +14,7 @@ export type WarehousePageTexts = {
 }
 
 export const useWarehousePresentation = (
-  displayPreferences: ComputedRef<{ locale: string; timeZone?: string }> | Ref<{ locale: string; timeZone?: string }>
+  displayPreferences: ComputedRef<DisplayPreferences> | Ref<DisplayPreferences>
 ) => {
   const interpolate = (template: string, params: Record<string, string | number>) =>
     template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))

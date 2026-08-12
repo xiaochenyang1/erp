@@ -1,19 +1,11 @@
 package com.tuowei.erp.production.order.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.DataScopeSnapshot;
-import com.tuowei.erp.common.security.DataScopeService;
-import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.inventory.stock.service.InventoryReservationCommand;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -25,25 +17,17 @@ import com.tuowei.erp.production.order.mapper.ProductionOrderMaterialMapper;
 import com.tuowei.erp.production.order.model.ProductionOrderEntity;
 import com.tuowei.erp.production.order.model.ProductionOrderMaterialEntity;
 import com.tuowei.erp.production.order.web.ProductionOrderCreateRequest;
-import com.tuowei.erp.production.order.web.ProductionOrderMaterialResponse;
 import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
 import com.tuowei.erp.production.order.web.ProductionOrderResponse;
 import com.tuowei.erp.production.order.web.ProductionOrderUpdateRequest;
-import com.tuowei.erp.production.operation.service.ProductionOperationService;
-import com.tuowei.erp.system.user.mapper.UserMapper;
-import com.tuowei.erp.system.user.model.UserEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 
 @Service
 public class ProductionOrderService {
@@ -59,44 +43,32 @@ public class ProductionOrderService {
     private final ProductionOrderMaterialMapper materialMapper;
     private final ProductionOrderNumberService numberService;
     private final ProductionBomService bomService;
-    private final InventoryPostingService inventoryPostingService;
     private final ProductValidator productValidator;
     private final WarehouseMapper warehouseMapper;
     private final AuditMetadataFactory auditMetadataFactory;
-    private final CurrentUserContext currentUserContext;
-    private final DataScopeService dataScopeService;
-    private final ScopedUserResolver scopedUserResolver;
-    private final UserMapper userMapper;
-    private final ProductionOperationService productionOperationService;
+    private final ProductionOrderQueryService queryService;
+    private final ProductionOrderPostingService postingService;
 
     public ProductionOrderService(
             ProductionOrderMapper orderMapper,
             ProductionOrderMaterialMapper materialMapper,
             ProductionOrderNumberService numberService,
             ProductionBomService bomService,
-            InventoryPostingService inventoryPostingService,
             ProductValidator productValidator,
             WarehouseMapper warehouseMapper,
             AuditMetadataFactory auditMetadataFactory,
-            CurrentUserContext currentUserContext,
-            DataScopeService dataScopeService,
-            ScopedUserResolver scopedUserResolver,
-            UserMapper userMapper,
-            ProductionOperationService productionOperationService
+            ProductionOrderQueryService queryService,
+            ProductionOrderPostingService postingService
     ) {
         this.orderMapper = orderMapper;
         this.materialMapper = materialMapper;
         this.numberService = numberService;
         this.bomService = bomService;
-        this.inventoryPostingService = inventoryPostingService;
         this.productValidator = productValidator;
         this.warehouseMapper = warehouseMapper;
         this.auditMetadataFactory = auditMetadataFactory;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.scopedUserResolver = scopedUserResolver;
-        this.userMapper = userMapper;
-        this.productionOperationService = productionOperationService;
+        this.queryService = queryService;
+        this.postingService = postingService;
     }
 
     @Transactional
@@ -130,17 +102,16 @@ public class ProductionOrderService {
         order.setDeletedFlag(0);
         order.setRemark(request.remark());
         fillCreateAudit(order, audit, now);
-        assertCanView(order);
         orderMapper.insert(order);
         insertMaterials(order, bom, plannedQty, audit, now);
-        return toResponse(order);
+        return queryService.toResponse(order);
     }
 
     @Transactional
     public ProductionOrderResponse update(Long id, ProductionOrderUpdateRequest request) {
         AuditMetadata audit = auditMetadataFactory.current();
         LocalDateTime now = audit.now();
-        ProductionOrderEntity order = requireOrder(id);
+        ProductionOrderEntity order = queryService.requireOrder(id);
         if (!STATUS_DRAFT.equals(order.getStatus())) {
             throw new IllegalArgumentException("只有草稿状态的生产工单可以修改");
         }
@@ -167,141 +138,45 @@ public class ProductionOrderService {
                 .eq(ProductionOrderMaterialEntity::getAccountBookId, order.getAccountBookId())
                 .eq(ProductionOrderMaterialEntity::getOrderId, id));
         insertMaterials(order, bom, plannedQty, audit, now);
-        return toResponse(orderMapper.selectById(id));
+        return queryService.toResponse(orderMapper.selectById(id));
     }
 
     @Transactional(readOnly = true)
     public ProductionOrderResponse getById(Long id) {
-        return toResponse(requireOrder(id));
+        return queryService.getById(id);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<ProductionOrderResponse> list(ProductionOrderPageQuery query) {
-        ProductionOrderPageQuery safeQuery = query == null ? new ProductionOrderPageQuery() : query;
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
-
-        Page<ProductionOrderEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
-        LambdaQueryWrapper<ProductionOrderEntity> wrapper = buildListQuery(safeQuery, currentUser.companyId(), currentUser.accountBookId());
-        wrapper = applyProductionOrderScope(
-                wrapper,
-                currentUser,
-                snapshot,
-                scopedUserIds.deptUserIds(),
-                scopedUserIds.postUserIds()
-        );
-        Page<ProductionOrderEntity> result = orderMapper.selectPage(page, wrapper);
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toResponse).toList()
-        );
+        return queryService.list(query);
     }
 
     @Transactional
     public ProductionOrderResponse release(Long id) {
         AuditMetadata audit = auditMetadataFactory.current();
-        ProductionOrderEntity order = requireOrder(id);
-        if (!STATUS_DRAFT.equals(order.getStatus())) {
-            throw new IllegalArgumentException("只有草稿状态的生产工单可以释放");
-        }
-        List<ProductionOrderMaterialEntity> materials = selectMaterials(order);
-        for (ProductionOrderMaterialEntity material : materials) {
-            inventoryPostingService.reserve(
-                    new InventoryReservationCommand(
-                            order.getMaterialWarehouseId(),
-                            material.getMaterialProductId(),
-                            SOURCE_TYPE,
-                            order.getId(),
-                            order.getOrderNo(),
-                            material.getId(),
-                            material.getRequiredQty(),
-                            material.getRemark()
-                    ),
-                    audit,
-                    "材料可用量不足，不能释放生产工单"
-            );
-        }
-        order.setStatus(STATUS_RELEASED);
-        order.setUpdatedBy(audit.userId());
-        order.setUpdatedTime(audit.now());
-        if (orderMapper.updateById(order) != 1) {
-            throw new BusinessConflictException("生产工单已被其他操作修改，请重试");
-        }
-        productionOperationService.generateForReleasedOrder(order, audit);
-        return toResponse(order);
+        return postingService.release(id, audit);
     }
 
     @Transactional
     public ProductionOrderResponse cancel(Long id) {
         AuditMetadata audit = auditMetadataFactory.current();
-        ProductionOrderEntity order = requireOrder(id);
-        if (STATUS_COMPLETED.equals(order.getStatus()) || STATUS_MATERIAL_ISSUED.equals(order.getStatus())) {
-            throw new IllegalArgumentException("已领料或已完工的生产工单不能取消");
-        }
-        if (STATUS_RELEASED.equals(order.getStatus())) {
-            inventoryPostingService.releaseAllReservations(SOURCE_TYPE, order.getId(), audit);
-        }
-        order.setStatus(STATUS_CANCELLED);
-        order.setUpdatedBy(audit.userId());
-        order.setUpdatedTime(audit.now());
-        if (orderMapper.updateById(order) != 1) {
-            throw new BusinessConflictException("生产工单已被其他操作修改，请重试");
-        }
-        return toResponse(order);
+        return postingService.cancel(id, audit);
     }
 
     public ProductionOrderEntity requireOrder(Long id) {
-        ProductionOrderEntity order = orderMapper.selectById(id);
-        if (order == null || Integer.valueOf(1).equals(order.getDeletedFlag())) {
-            throw new IllegalArgumentException("生产工单不存在");
-        }
-        assertCanView(order);
-        return order;
+        return queryService.requireOrder(id);
     }
 
     public List<ProductionOrderMaterialEntity> selectMaterials(Long orderId) {
-        return selectMaterials(requireOrder(orderId));
+        return queryService.selectMaterials(orderId);
     }
 
     public List<ProductionOrderMaterialEntity> selectMaterials(ProductionOrderEntity order) {
-        return materialMapper.selectList(new LambdaQueryWrapper<ProductionOrderMaterialEntity>()
-                .eq(ProductionOrderMaterialEntity::getCompanyId, order.getCompanyId())
-                .eq(ProductionOrderMaterialEntity::getAccountBookId, order.getAccountBookId())
-                .eq(ProductionOrderMaterialEntity::getOrderId, order.getId())
-                .orderByAsc(ProductionOrderMaterialEntity::getLineNo));
+        return queryService.selectMaterials(order);
     }
 
     public ProductionOrderResponse toResponse(ProductionOrderEntity order) {
-        return new ProductionOrderResponse(
-                order.getId(),
-                order.getOrderNo(),
-                order.getBomId(),
-                order.getProductId(),
-                order.getFinishedWarehouseId(),
-                order.getMaterialWarehouseId(),
-                order.getPlannedQty(),
-                order.getCompletedQty(),
-                order.getPlannedStartDate(),
-                order.getPlannedFinishDate(),
-                order.getStatus(),
-                order.getIssuedAmount(),
-                order.getFinishedAmount(),
-                order.getRemark(),
-                selectMaterials(order).stream()
-                        .map(material -> new ProductionOrderMaterialResponse(
-                                material.getId(),
-                                material.getLineNo(),
-                                material.getMaterialProductId(),
-                                material.getRequiredQty(),
-                                material.getIssuedQty(),
-                                material.getIssuedAmount(),
-                                material.getRemark()
-                        ))
-                        .toList()
-        );
+        return queryService.toResponse(order);
     }
 
     private void insertMaterials(
@@ -355,112 +230,6 @@ public class ProductionOrderService {
             throw new IllegalArgumentException("仓库不存在或已停用");
         }
         return warehouse;
-    }
-
-    private void assertCanView(ProductionOrderEntity order) {
-        CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = order.getCreatedBy() == null ? null : userMapper.selectById(order.getCreatedBy());
-        dataScopeService.assertCanViewProductionOrder(
-                order,
-                currentUser,
-                snapshot,
-                creator == null ? null : creator.getDeptId(),
-                creator == null ? null : creator.getPostId()
-        );
-    }
-
-    private LambdaQueryWrapper<ProductionOrderEntity> buildListQuery(ProductionOrderPageQuery query, Long companyId, Long accountBookId) {
-        LambdaQueryWrapper<ProductionOrderEntity> wrapper = new LambdaQueryWrapper<ProductionOrderEntity>()
-                .eq(ProductionOrderEntity::getCompanyId, companyId)
-                .eq(ProductionOrderEntity::getAccountBookId, accountBookId)
-                .eq(ProductionOrderEntity::getDeletedFlag, 0);
-        String keyword = normalizeNullableText(query.getKeyword());
-        if (StringUtils.hasText(keyword)) {
-            wrapper.like(ProductionOrderEntity::getOrderNo, keyword);
-        }
-        String status = normalizeStatus(query.getStatus());
-        if (StringUtils.hasText(status)) {
-            wrapper.eq(ProductionOrderEntity::getStatus, status);
-        }
-        if (query.getBomId() != null) {
-            wrapper.eq(ProductionOrderEntity::getBomId, query.getBomId());
-        }
-        if (query.getProductId() != null) {
-            wrapper.eq(ProductionOrderEntity::getProductId, query.getProductId());
-        }
-        if (query.getMaterialWarehouseId() != null) {
-            wrapper.eq(ProductionOrderEntity::getMaterialWarehouseId, query.getMaterialWarehouseId());
-        }
-        if (query.getFinishedWarehouseId() != null) {
-            wrapper.eq(ProductionOrderEntity::getFinishedWarehouseId, query.getFinishedWarehouseId());
-        }
-        return wrapper.orderByDesc(ProductionOrderEntity::getId);
-    }
-
-    private LambdaQueryWrapper<ProductionOrderEntity> applyProductionOrderScope(
-            LambdaQueryWrapper<ProductionOrderEntity> wrapper,
-            CurrentUser currentUser,
-            DataScopeSnapshot snapshot,
-            Set<Long> deptUserIds,
-            Set<Long> postUserIds
-    ) {
-        if (snapshot.hasAllScope()) {
-            return wrapper;
-        }
-        Set<Long> visibleCreatorIds = visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds);
-        Set<Long> warehouseIds = snapshot.warehouseIds();
-        if (visibleCreatorIds.isEmpty() && warehouseIds.isEmpty()) {
-            return wrapper.apply("1 = 0");
-        }
-        if (visibleCreatorIds.isEmpty()) {
-            return wrapper.in(ProductionOrderEntity::getMaterialWarehouseId, warehouseIds)
-                    .in(ProductionOrderEntity::getFinishedWarehouseId, warehouseIds);
-        }
-        if (warehouseIds.isEmpty()) {
-            return wrapper.in(ProductionOrderEntity::getCreatedBy, visibleCreatorIds);
-        }
-        return wrapper.and(query -> query
-                .in(ProductionOrderEntity::getCreatedBy, visibleCreatorIds)
-                .or(scope -> scope
-                        .in(ProductionOrderEntity::getMaterialWarehouseId, warehouseIds)
-                        .in(ProductionOrderEntity::getFinishedWarehouseId, warehouseIds)));
-    }
-
-    private Set<Long> visibleCreatorIds(
-            CurrentUser currentUser,
-            DataScopeSnapshot snapshot,
-            Set<Long> deptUserIds,
-            Set<Long> postUserIds
-    ) {
-        Set<Long> visibleCreatorIds = new LinkedHashSet<>();
-        if (snapshot.selfScoped()) {
-            visibleCreatorIds.add(currentUser.userId());
-        }
-        if (snapshot.deptScoped()) {
-            visibleCreatorIds.addAll(deptUserIds);
-        }
-        if (snapshot.postScoped()) {
-            visibleCreatorIds.addAll(postUserIds);
-        }
-        return visibleCreatorIds;
-    }
-
-    private String normalizeNullableText(String value) {
-        return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
-    private String normalizeStatus(String value) {
-        String normalized = normalizeNullableText(value);
-        return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        return pageNo == null || pageNo < 1 ? 1L : pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        return pageSize == null || pageSize < 1 ? 20L : Math.min(pageSize, 200);
     }
 
     private void fillCreateAudit(ProductionOrderEntity entity, AuditMetadata audit, LocalDateTime now) {

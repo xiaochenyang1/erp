@@ -9,6 +9,8 @@ import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.expense.mapper.ExpenseMapper;
 import com.tuowei.erp.finance.expense.model.ExpenseEntity;
 import com.tuowei.erp.finance.expense.service.ExpenseNumberService;
+import com.tuowei.erp.finance.expense.service.ExpensePostingService;
+import com.tuowei.erp.finance.expense.service.ExpenseQueryService;
 import com.tuowei.erp.finance.expense.service.ExpenseService;
 import com.tuowei.erp.finance.expense.web.ExpenseCreateRequest;
 import com.tuowei.erp.finance.expense.web.ExpensePageQuery;
@@ -156,17 +158,24 @@ class ExpenseServiceTenantBoundaryTest {
             VoucherEntryMapper voucherEntryMapper,
             AccountSubjectService accountSubjectService
     ) {
-        return new ExpenseService(
+        VoucherQueryService voucherQueryService = mock(VoucherQueryService.class);
+        ExpenseQueryService expenseQueryService = new ExpenseQueryService(
                 expenseMapper,
                 voucherMapper,
                 voucherEntryMapper,
+                auditMetadataFactory,
+                voucherQueryService
+        );
+        return new ExpenseService(
+                expenseMapper,
                 mock(ExpenseNumberService.class),
                 accountSubjectService,
                 auditMetadataFactory,
-                mock(VoucherQueryService.class),
                 mock(AccountPeriodGuard.class),
                 mock(AttachmentService.class),
-                mock(WorkflowService.class)
+                mock(WorkflowService.class),
+                mock(ExpensePostingService.class),
+                expenseQueryService
         );
     }
 

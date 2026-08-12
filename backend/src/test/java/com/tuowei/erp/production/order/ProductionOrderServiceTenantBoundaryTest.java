@@ -24,6 +24,8 @@ import com.tuowei.erp.production.order.mapper.ProductionOrderMaterialMapper;
 import com.tuowei.erp.production.order.model.ProductionOrderEntity;
 import com.tuowei.erp.production.order.model.ProductionOrderMaterialEntity;
 import com.tuowei.erp.production.order.service.ProductionOrderNumberService;
+import com.tuowei.erp.production.order.service.ProductionOrderPostingService;
+import com.tuowei.erp.production.order.service.ProductionOrderQueryService;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.production.operation.service.ProductionOperationService;
 import com.tuowei.erp.production.order.web.ProductionOrderCreateRequest;
@@ -235,20 +237,30 @@ class ProductionOrderServiceTenantBoundaryTest {
     }
 
     private ProductionOrderService service() {
+        ProductionOrderQueryService queryService = new ProductionOrderQueryService(
+                orderMapper,
+                materialMapper,
+                currentUserContext,
+                dataScopeService,
+                scopedUserResolver,
+                userMapper
+        );
+        ProductionOrderPostingService postingService = new ProductionOrderPostingService(
+                orderMapper,
+                queryService,
+                inventoryPostingService,
+                productionOperationService
+        );
         return new ProductionOrderService(
                 orderMapper,
                 materialMapper,
                 numberService,
                 bomService,
-                inventoryPostingService,
                 productValidator,
                 warehouseMapper,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
-                productionOperationService
+                queryService,
+                postingService
         );
     }
 

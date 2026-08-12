@@ -703,7 +703,7 @@ const {
   enableProduct,
   deleteProduct,
   exportProducts,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message),
@@ -716,16 +716,7 @@ const {
 
 const activeCount = computed(() => countActive(tableData.value))
 
-// 列自定义 + 查询条件记忆（localStorage 持久化）。code/name/操作 为固定列，其余可显隐。
-const productColumns = [
-  { prop: 'categoryName', labelKey: 'productCategory' },
-  { prop: 'specifications', labelKey: 'specification' },
-  { prop: 'unit', labelKey: 'unit' },
-  { prop: 'auxUnitName', labelKey: 'auxUnit' },
-  { prop: 'unitPrice', labelKey: 'salePrice' },
-  { prop: 'costPrice', labelKey: 'costPrice' },
-  { prop: 'status', labelKey: 'status' }
-]
+// 列自定义 + 查询条件记忆（localStorage 持久化）。code/name/操作为固定列，其余可显隐。
 const productColumnOptions = computed(() => ([
   { prop: 'categoryName', label: texts.value.productCategory },
   { prop: 'specifications', label: texts.value.specification },
@@ -737,11 +728,14 @@ const productColumnOptions = computed(() => ([
 ]))
 const {
   columnVisible,
+  isColumnVisible,
+  resetColumns,
   setColumnVisible,
   searchForm: preferredSearchForm
 } = useTablePreference('masterdata.products', {
-  defaultColumnVisible: Object.fromEntries(productColumns.map((column) => [column.prop, true])),
-  defaultSearchForm: searchForm
+  defaultSearchForm: searchForm,
+  persistentSearchKeys: ['keyword', 'status'],
+  columns: productColumnOptions.value
 })
 Object.assign(searchForm, preferredSearchForm)
 

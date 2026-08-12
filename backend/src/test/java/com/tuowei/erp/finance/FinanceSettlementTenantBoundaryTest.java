@@ -15,6 +15,8 @@ import com.tuowei.erp.finance.payment.mapper.PaymentMapper;
 import com.tuowei.erp.finance.payment.model.PaymentAllocationEntity;
 import com.tuowei.erp.finance.payment.model.PaymentEntity;
 import com.tuowei.erp.finance.payment.service.PaymentNumberService;
+import com.tuowei.erp.finance.payment.service.PaymentPostingService;
+import com.tuowei.erp.finance.payment.service.PaymentQueryService;
 import com.tuowei.erp.finance.payment.service.PaymentService;
 import com.tuowei.erp.finance.payment.web.PaymentAllocationRequest;
 import com.tuowei.erp.finance.payment.web.PaymentCancelRequest;
@@ -26,6 +28,8 @@ import com.tuowei.erp.finance.receipt.mapper.ReceiptMapper;
 import com.tuowei.erp.finance.receipt.model.ReceiptAllocationEntity;
 import com.tuowei.erp.finance.receipt.model.ReceiptEntity;
 import com.tuowei.erp.finance.receipt.service.ReceiptNumberService;
+import com.tuowei.erp.finance.receipt.service.ReceiptPostingService;
+import com.tuowei.erp.finance.receipt.service.ReceiptQueryService;
 import com.tuowei.erp.finance.receipt.service.ReceiptService;
 import com.tuowei.erp.finance.receipt.web.ReceiptAllocationRequest;
 import com.tuowei.erp.finance.receipt.web.ReceiptCancelRequest;
@@ -526,24 +530,50 @@ class FinanceSettlementTenantBoundaryTest {
     }
 
     private PaymentService paymentService() {
-        return new PaymentService(
+        PaymentQueryService queryService = new PaymentQueryService(
+                paymentMapper,
+                paymentAllocationMapper,
+                auditMetadataFactory
+        );
+        PaymentPostingService postingService = new PaymentPostingService(
                 paymentMapper,
                 paymentAllocationMapper,
                 payableMapper,
+                auditMetadataFactory,
+                accountPeriodGuard,
+                queryService
+        );
+        return new PaymentService(
+                paymentMapper,
                 paymentNumberService,
                 auditMetadataFactory,
-                accountPeriodGuard
+                accountPeriodGuard,
+                queryService,
+                postingService
         );
     }
 
     private ReceiptService receiptService() {
-        return new ReceiptService(
+        ReceiptQueryService queryService = new ReceiptQueryService(
+                receiptMapper,
+                receiptAllocationMapper,
+                auditMetadataFactory
+        );
+        ReceiptPostingService postingService = new ReceiptPostingService(
                 receiptMapper,
                 receiptAllocationMapper,
                 receivableMapper,
+                auditMetadataFactory,
+                accountPeriodGuard,
+                queryService
+        );
+        return new ReceiptService(
+                receiptMapper,
                 receiptNumberService,
                 auditMetadataFactory,
-                accountPeriodGuard
+                accountPeriodGuard,
+                queryService,
+                postingService
         );
     }
 

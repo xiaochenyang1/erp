@@ -1,21 +1,15 @@
 package com.tuowei.erp.finance.payment.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.finance.payable.mapper.PayableMapper;
-import com.tuowei.erp.finance.payable.model.PayableEntity;
-import com.tuowei.erp.finance.payment.mapper.PaymentAllocationMapper;
 import com.tuowei.erp.finance.payment.mapper.PaymentMapper;
 import com.tuowei.erp.finance.payment.model.PaymentAllocationEntity;
 import com.tuowei.erp.finance.payment.model.PaymentEntity;
 import com.tuowei.erp.finance.payment.web.PaymentAllocationRequest;
-import com.tuowei.erp.finance.payment.web.PaymentAllocationResponse;
 import com.tuowei.erp.finance.payment.web.PaymentCancelRequest;
 import com.tuowei.erp.finance.payment.web.PaymentCreateRequest;
 import com.tuowei.erp.finance.payment.web.PaymentPageQuery;
@@ -23,12 +17,9 @@ import com.tuowei.erp.finance.payment.web.PaymentResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 @Service
@@ -37,26 +28,26 @@ public class PaymentService {
     private static final BigDecimal ZERO_AMOUNT = ScalePrecision.amount(BigDecimal.ZERO);
 
     private final PaymentMapper paymentMapper;
-    private final PaymentAllocationMapper paymentAllocationMapper;
-    private final PayableMapper payableMapper;
     private final PaymentNumberService paymentNumberService;
     private final AuditMetadataFactory auditMetadataFactory;
     private final AccountPeriodGuard accountPeriodGuard;
+    private final PaymentQueryService paymentQueryService;
+    private final PaymentPostingService paymentPostingService;
 
     public PaymentService(
             PaymentMapper paymentMapper,
-            PaymentAllocationMapper paymentAllocationMapper,
-            PayableMapper payableMapper,
             PaymentNumberService paymentNumberService,
             AuditMetadataFactory auditMetadataFactory,
-            AccountPeriodGuard accountPeriodGuard
+            AccountPeriodGuard accountPeriodGuard,
+            PaymentQueryService paymentQueryService,
+            PaymentPostingService paymentPostingService
     ) {
         this.paymentMapper = paymentMapper;
-        this.paymentAllocationMapper = paymentAllocationMapper;
-        this.payableMapper = payableMapper;
         this.paymentNumberService = paymentNumberService;
         this.auditMetadataFactory = auditMetadataFactory;
         this.accountPeriodGuard = accountPeriodGuard;
+        this.paymentQueryService = paymentQueryService;
+        this.paymentPostingService = paymentPostingService;
     }
 
     @Transactional
@@ -66,7 +57,7 @@ public class PaymentService {
         AuditMetadata audit = auditMetadataFactory.current();
         LocalDateTime now = audit.now();
         BigDecimal amount = ScalePrecision.amount(request.amount());
-        BigDecimal allocatedAmount = allocationTotal(request.allocations());
+        BigDecimal allocatedAmount = paymentPostingService.allocationTotal(request.allocations());
         if (allocatedAmount.compareTo(ZERO_AMOUNT) <= 0) {
             throw new IllegalArgumentException("付款核销金额必须大于0");
         }
@@ -91,24 +82,23 @@ public class PaymentService {
         }
 
         for (PaymentAllocationRequest allocation : request.allocations()) {
-            allocatePayable(payment, allocation, audit, now);
+            paymentPostingService.allocatePayable(payment, allocation, audit, now);
         }
-        return detail(payment.getId());
+        return paymentQueryService.detail(payment.getId());
     }
 
     @Transactional(readOnly = true)
     public PaymentResponse detail(Long id) {
-        PaymentEntity payment = requirePayment(id);
-        return toResponse(payment, allocations(payment));
+        return paymentQueryService.detail(id);
     }
 
     @Transactional
     public PaymentResponse cancel(Long id, PaymentCancelRequest request) {
         AuditMetadata audit = auditMetadataFactory.current();
         LocalDateTime now = audit.now();
-        PaymentEntity payment = requirePayment(id);
+        PaymentEntity payment = paymentQueryService.requirePayment(id);
         if ("CANCELLED".equals(payment.getStatus())) {
-            return toResponse(payment, allocations(payment));
+            return paymentQueryService.detail(id);
         }
         accountPeriodGuard.requireOpen(payment.getPaymentDate(), "付款单作废");
         if (!"POSTED".equals(payment.getStatus())) {
@@ -123,126 +113,15 @@ public class PaymentService {
         payment.setUpdatedTime(now);
         OptimisticLockGuard.requireUpdated(paymentMapper.updateById(payment), "付款单已被其他操作修改，请刷新后重试");
 
-        for (PaymentAllocationEntity allocation : paymentAllocations(payment)) {
-            revertPayableSettlement(payment, allocation, audit, now);
+        for (PaymentAllocationEntity allocation : paymentQueryService.paymentAllocations(payment)) {
+            paymentPostingService.revertPayableSettlement(payment, allocation, audit, now);
         }
-        return detail(id);
+        return paymentQueryService.detail(id);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<PaymentResponse> list(PaymentPageQuery query) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        PaymentPageQuery safeQuery = query == null ? new PaymentPageQuery() : query;
-        Page<PaymentEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
-        LambdaQueryWrapper<PaymentEntity> wrapper = new LambdaQueryWrapper<PaymentEntity>()
-                .eq(PaymentEntity::getCompanyId, audit.companyId())
-                .eq(PaymentEntity::getAccountBookId, audit.accountBookId())
-                .eq(PaymentEntity::getDeletedFlag, 0);
-        if (safeQuery.getSupplierId() != null) {
-            wrapper.eq(PaymentEntity::getSupplierId, safeQuery.getSupplierId());
-        }
-        if (StringUtils.hasText(safeQuery.getStatus())) {
-            wrapper.eq(PaymentEntity::getStatus, safeQuery.getStatus().trim().toUpperCase(Locale.ROOT));
-        }
-        wrapper.orderByDesc(PaymentEntity::getPaymentDate).orderByDesc(PaymentEntity::getId);
-        Page<PaymentEntity> result = paymentMapper.selectPage(page, wrapper);
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(entity -> toResponse(entity, allocations(entity))).toList()
-        );
-    }
-
-    private void allocatePayable(PaymentEntity payment, PaymentAllocationRequest request, AuditMetadata audit, LocalDateTime now) {
-        PayableEntity payable = payableMapper.selectById(request.payableId());
-        if (payable == null || payable.getDeletedFlag() == null || payable.getDeletedFlag() != 0) {
-            throw new IllegalArgumentException("应付记录不存在");
-        }
-        if (!Objects.equals(payment.getCompanyId(), payable.getCompanyId())
-                || !Objects.equals(payment.getAccountBookId(), payable.getAccountBookId())) {
-            throw new IllegalArgumentException("应付记录不存在");
-        }
-        if (!"INCREASE".equals(payable.getDirection())) {
-            throw new IllegalArgumentException("只能核销增加方向的应付记录");
-        }
-        if (!payment.getSupplierId().equals(payable.getSupplierId())) {
-            throw new IllegalArgumentException("付款供应商与应付供应商不一致");
-        }
-        BigDecimal allocationAmount = ScalePrecision.amount(request.amount());
-        BigDecimal remaining = remaining(payable.getOriginalAmount(), payable.getSettledAmount());
-        if (allocationAmount.compareTo(remaining) > 0) {
-            throw new IllegalArgumentException("付款核销金额不能超过应付剩余金额");
-        }
-
-        PaymentAllocationEntity allocation = new PaymentAllocationEntity();
-        allocation.setCompanyId(payment.getCompanyId());
-        allocation.setAccountBookId(payment.getAccountBookId());
-        allocation.setPaymentId(payment.getId());
-        allocation.setPayableId(payable.getId());
-        allocation.setAmount(allocationAmount);
-        setAudit(allocation, audit, now);
-        if (paymentAllocationMapper.insert(allocation) != 1) {
-            throw new IllegalStateException("保存付款核销明细失败");
-        }
-
-        payable.setSettledAmount(ScalePrecision.amount(ScalePrecision.zeroDefault(payable.getSettledAmount()).add(allocationAmount)));
-        payable.setStatus(settlementStatus(payable.getOriginalAmount(), payable.getSettledAmount()));
-        payable.setUpdatedBy(audit.userId());
-        payable.setUpdatedTime(now);
-        OptimisticLockGuard.requireUpdated(payableMapper.updateById(payable), "应付记录已被其他操作修改，请刷新后重试");
-    }
-
-    private void revertPayableSettlement(PaymentEntity payment, PaymentAllocationEntity allocation, AuditMetadata audit, LocalDateTime now) {
-        PayableEntity payable = payableMapper.selectById(allocation.getPayableId());
-        if (payable == null || payable.getDeletedFlag() == null || payable.getDeletedFlag() != 0
-                || !Objects.equals(payment.getCompanyId(), payable.getCompanyId())
-                || !Objects.equals(payment.getAccountBookId(), payable.getAccountBookId())) {
-            throw new BusinessConflictException("付款核销的应付记录不存在，不能作废付款单");
-        }
-        BigDecimal allocationAmount = ScalePrecision.amount(allocation.getAmount());
-        BigDecimal settledAmount = ScalePrecision.amount(ScalePrecision.zeroDefault(payable.getSettledAmount()));
-        if (settledAmount.compareTo(allocationAmount) < 0) {
-            throw new BusinessConflictException("应付已核销金额小于付款核销金额，不能作废付款单");
-        }
-        payable.setSettledAmount(ScalePrecision.amount(settledAmount.subtract(allocationAmount)));
-        payable.setStatus(settlementStatus(payable.getOriginalAmount(), payable.getSettledAmount()));
-        payable.setUpdatedBy(audit.userId());
-        payable.setUpdatedTime(now);
-        OptimisticLockGuard.requireUpdated(payableMapper.updateById(payable), "应付记录已被其他操作修改，请刷新后重试");
-    }
-
-    private PaymentEntity requirePayment(Long id) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        PaymentEntity payment = paymentMapper.selectById(id);
-        if (payment == null || payment.getDeletedFlag() == null || payment.getDeletedFlag() != 0
-                || !Objects.equals(payment.getCompanyId(), audit.companyId())
-                || !Objects.equals(payment.getAccountBookId(), audit.accountBookId())) {
-            throw new IllegalArgumentException("付款单不存在");
-        }
-        return payment;
-    }
-
-    private List<PaymentAllocationResponse> allocations(PaymentEntity payment) {
-        return paymentAllocations(payment)
-                .stream()
-                .map(entity -> new PaymentAllocationResponse(entity.getId(), entity.getPayableId(), entity.getAmount()))
-                .toList();
-    }
-
-    private List<PaymentAllocationEntity> paymentAllocations(PaymentEntity payment) {
-        return paymentAllocationMapper.selectList(new LambdaQueryWrapper<PaymentAllocationEntity>()
-                .eq(PaymentAllocationEntity::getCompanyId, payment.getCompanyId())
-                .eq(PaymentAllocationEntity::getAccountBookId, payment.getAccountBookId())
-                .eq(PaymentAllocationEntity::getPaymentId, payment.getId())
-                .orderByAsc(PaymentAllocationEntity::getId));
-    }
-
-    private BigDecimal allocationTotal(List<PaymentAllocationRequest> allocations) {
-        return ScalePrecision.amount(allocations.stream()
-                .map(PaymentAllocationRequest::amount)
-                .map(ScalePrecision::zeroDefault)
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        return paymentQueryService.list(query);
     }
 
     private void validateCreateRequest(PaymentCreateRequest request) {
@@ -257,55 +136,7 @@ public class PaymentService {
         }
     }
 
-    private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) {
-        return ScalePrecision.amount(ScalePrecision.zeroDefault(originalAmount).subtract(ScalePrecision.zeroDefault(settledAmount)));
-    }
-
-    private String settlementStatus(BigDecimal originalAmount, BigDecimal settledAmount) {
-        BigDecimal settled = ScalePrecision.zeroDefault(settledAmount);
-        if (settled.compareTo(ZERO_AMOUNT) <= 0) {
-            return "UNSETTLED";
-        }
-        if (settled.compareTo(ScalePrecision.zeroDefault(originalAmount)) >= 0) {
-            return "SETTLED";
-        }
-        return "PARTIALLY_SETTLED";
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        return pageNo == null || pageNo < 1 ? 1L : pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        return pageSize == null || pageSize < 1 ? 20L : Math.min(pageSize, 200);
-    }
-
-    private PaymentResponse toResponse(PaymentEntity payment, List<PaymentAllocationResponse> allocations) {
-        return new PaymentResponse(
-                payment.getId(),
-                payment.getPaymentNo(),
-                payment.getSupplierId(),
-                payment.getPaymentDate(),
-                payment.getAmount(),
-                payment.getAllocatedAmount(),
-                payment.getStatus(),
-                payment.getRemark(),
-                payment.getCancelReason(),
-                payment.getCancelledBy(),
-                payment.getCancelledTime(),
-                allocations
-        );
-    }
-
     private void setAudit(PaymentEntity entity, AuditMetadata audit, LocalDateTime now) {
-        entity.setCreatedBy(audit.userId());
-        entity.setCreatedTime(now);
-        entity.setUpdatedBy(audit.userId());
-        entity.setUpdatedTime(now);
-        entity.setVersion(0);
-    }
-
-    private void setAudit(PaymentAllocationEntity entity, AuditMetadata audit, LocalDateTime now) {
         entity.setCreatedBy(audit.userId());
         entity.setCreatedTime(now);
         entity.setUpdatedBy(audit.userId());

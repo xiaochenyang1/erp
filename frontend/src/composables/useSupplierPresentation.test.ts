@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { describe, expect, it } from 'vitest'
 
 import type { Supplier } from '@/api/masterdata'
+import type { DisplayPreferences } from '@/utils/locale'
 import { useSupplierPresentation } from './useSupplierPresentation'
 
 describe('supplier presentation', () => {
@@ -13,7 +14,7 @@ describe('supplier presentation', () => {
     monthly: 'Monthly',
     cod: 'COD'
   })
-  const displayPreferences = ref({
+  const displayPreferences = ref<DisplayPreferences>({
     locale: 'en-US',
     timeZone: 'UTC'
   })

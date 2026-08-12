@@ -3,10 +3,11 @@ import { describe, expect, it } from 'vitest'
 
 import type { Dept, User } from '@/api/system'
 import type { Warehouse } from '@/api/masterdata'
+import type { DisplayPreferences } from '@/utils/locale'
 import { useWarehousePresentation } from './useWarehousePresentation'
 
 describe('warehouse presentation', () => {
-  const displayPreferences = ref({
+  const displayPreferences = ref<DisplayPreferences>({
     locale: 'en-US',
     timeZone: 'UTC'
   })

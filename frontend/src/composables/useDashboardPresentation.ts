@@ -1,9 +1,16 @@
 import type { OperationsDashboardTodo } from '@/api/dashboard'
-import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import { DEFAULT_LOCALE } from '@/i18n'
+import {
+  DEFAULT_TIME_ZONE,
+  formatLocalizedCurrency,
+  formatLocalizedDateTime,
+  formatLocalizedNumber,
+  type DisplayPreferences
+} from '@/utils/locale'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
 type TagType = 'danger' | 'warning' | 'info' | 'success' | 'primary'
-type DisplayPreferences = {
+type DashboardPreferences = {
   locale?: string
   timeZone?: string
 }
@@ -11,16 +18,26 @@ type DisplayPreferences = {
 /** Labels, formatters and todo visual helpers for the operations dashboard. */
 export const useDashboardPresentation = (
   t: Translate,
-  getPreferences: () => DisplayPreferences = () => ({})
+  getPreferences: () => DashboardPreferences = () => ({})
 ) => {
+  const preferences = (): DisplayPreferences => {
+    const value = getPreferences()
+    return {
+      locale: value.locale === 'en-US' ? 'en-US' : DEFAULT_LOCALE,
+      timeZone: value.timeZone === 'UTC' || value.timeZone === 'America/New_York' || value.timeZone === 'Europe/London'
+        ? value.timeZone
+        : DEFAULT_TIME_ZONE
+    }
+  }
+
   const formatNumber = (num?: number) =>
-    formatLocalizedNumber(Number(num || 0), {}, getPreferences())
+    formatLocalizedNumber(Number(num || 0), {}, preferences())
 
   const formatCurrency = (num?: number) =>
-    formatLocalizedCurrency(Number(num || 0), {}, getPreferences())
+    formatLocalizedCurrency(Number(num || 0), {}, preferences())
 
   const formatDateTime = (value?: string) =>
-    formatLocalizedDateTime(value, {}, getPreferences()) || '-'
+    formatLocalizedDateTime(value, {}, preferences()) || '-'
 
   const formatPriority = (priority?: string) => {
     const labels: Record<string, string> = {
@@ -72,7 +89,7 @@ export const useDashboardPresentation = (
   ]
 
   const formatCurrentDate = (date = new Date()) => {
-    const { locale, timeZone } = getPreferences()
+    const { locale, timeZone } = preferences()
     return new Intl.DateTimeFormat(locale, {
       timeZone,
       year: 'numeric',

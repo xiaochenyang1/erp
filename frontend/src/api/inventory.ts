@@ -106,6 +106,7 @@ export interface InventoryLotTrace {
 
 export interface InventoryLotExpiryAlert {
   id: string
+  locationId?: string
   warehouseId: string
   productId: string
   lotNo: string

@@ -1,7 +1,11 @@
 import { type ComputedRef, type Ref } from 'vue'
 
 import type { Customer } from '@/api/masterdata'
-import { formatLocalizedCurrency, formatLocalizedDateTime } from '@/utils/locale'
+import {
+  formatLocalizedCurrency,
+  formatLocalizedDateTime,
+  type DisplayPreferences
+} from '@/utils/locale'
 
 export type CustomerPageTexts = {
   creditPeriodValue: string
@@ -12,7 +16,7 @@ export type CustomerPageTexts = {
 
 export const useCustomerPresentation = (
   texts: ComputedRef<CustomerPageTexts> | Ref<CustomerPageTexts>,
-  displayPreferences: ComputedRef<{ locale: string; timeZone?: string }> | Ref<{ locale: string; timeZone?: string }>
+  displayPreferences: ComputedRef<DisplayPreferences> | Ref<DisplayPreferences>
 ) => {
   const interpolate = (template: string, params: Record<string, string | number>) =>
     template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
