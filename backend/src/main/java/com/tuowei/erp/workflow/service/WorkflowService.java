@@ -1,7 +1,6 @@
 package com.tuowei.erp.workflow.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
@@ -19,7 +18,6 @@ import com.tuowei.erp.workflow.model.WorkflowInstanceEntity;
 import com.tuowei.erp.workflow.model.WorkflowRecordEntity;
 import com.tuowei.erp.workflow.model.WorkflowTaskEntity;
 import com.tuowei.erp.workflow.web.WorkflowApprovalInfoResponse;
-import com.tuowei.erp.workflow.web.WorkflowApprovalRecordResponse;
 import com.tuowei.erp.workflow.web.WorkflowRecordPageQuery;
 import com.tuowei.erp.workflow.web.WorkflowRecordResponse;
 import com.tuowei.erp.workflow.web.WorkflowTaskPageQuery;
@@ -31,7 +29,6 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 @Service
@@ -51,6 +48,7 @@ public class WorkflowService {
     private final NotificationService notificationService;
     private final WorkflowApprovalConfigService approvalConfigService;
     private final UserMapper userMapper;
+    private final WorkflowQueryService queryService;
 
     @Value("${erp.workflow.task-timeout-hours:24}")
     private long taskTimeoutHours;
@@ -64,7 +62,8 @@ public class WorkflowService {
             CurrentUserContext currentUserContext,
             NotificationService notificationService,
             WorkflowApprovalConfigService approvalConfigService,
-            UserMapper userMapper
+            UserMapper userMapper,
+            WorkflowQueryService queryService
     ) {
         this.instanceMapper = instanceMapper;
         this.taskMapper = taskMapper;
@@ -75,6 +74,7 @@ public class WorkflowService {
         this.notificationService = notificationService;
         this.approvalConfigService = approvalConfigService;
         this.userMapper = userMapper;
+        this.queryService = queryService;
     }
 
     @Transactional
@@ -161,22 +161,12 @@ public class WorkflowService {
 
     @Transactional(readOnly = true)
     public PageResponse<WorkflowTaskResponse> listTasks(WorkflowTaskPageQuery query) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        WorkflowTaskPageQuery safeQuery = safeQuery(query);
-        Page<WorkflowTaskEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
-        Page<WorkflowTaskEntity> result = taskMapper.selectPage(page, buildTaskQuery(safeQuery, audit));
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(task -> toTaskResponse(task, audit.now())).toList()
-        );
+        return queryService.listTasks(query);
     }
 
     @Transactional(readOnly = true)
     public WorkflowTaskResponse taskDetail(Long id) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        return toTaskResponse(requireScopedTask(id), audit.now());
+        return queryService.taskDetail(id);
     }
 
     /**
@@ -214,7 +204,7 @@ public class WorkflowService {
                 // 通知失败不阻断转签
             }
         }
-        return toTaskResponse(requireScopedTask(taskId), audit.now());
+        return queryService.toTaskResponse(queryService.requireScopedTask(taskId), audit.now());
     }
 
     /**
@@ -264,50 +254,17 @@ public class WorkflowService {
             insertRecord(instance, "ESCALATE", task.getApprovalNodeId(), message, audit, now);
             notificationService.createWorkflowPending(instance, List.of(targetUserId), audit, now);
         }
-        return toTaskResponse(requireScopedTask(taskId), audit.now());
+        return queryService.toTaskResponse(queryService.requireScopedTask(taskId), audit.now());
     }
 
     @Transactional(readOnly = true)
     public PageResponse<WorkflowRecordResponse> listRecords(WorkflowRecordPageQuery query) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        WorkflowRecordPageQuery safeQuery = safeQuery(query);
-        Page<WorkflowRecordEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
-        Page<WorkflowRecordEntity> result = recordMapper.selectPage(page, buildRecordQuery(safeQuery, audit));
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toRecordResponse).toList()
-        );
+        return queryService.listRecords(query);
     }
 
     @Transactional(readOnly = true)
     public WorkflowApprovalInfoResponse approvalInfo(String businessType, Long businessId) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        WorkflowInstanceEntity instance = instanceMapper.selectOne(buildScopedInstanceQuery(audit)
-                .eq(WorkflowInstanceEntity::getBusinessType, businessType)
-                .eq(WorkflowInstanceEntity::getBusinessId, businessId)
-                .orderByDesc(WorkflowInstanceEntity::getSubmitTime)
-                .orderByDesc(WorkflowInstanceEntity::getId)
-                .last("limit 1"));
-        if (instance == null) {
-            return new WorkflowApprovalInfoResponse(null, "NOT_SUBMITTED", null, null, null, List.of());
-        }
-        List<WorkflowApprovalRecordResponse> records = recordMapper.selectList(new LambdaQueryWrapper<WorkflowRecordEntity>()
-                        .eq(WorkflowRecordEntity::getInstanceId, instance.getId())
-                        .orderByAsc(WorkflowRecordEntity::getActionTime)
-                        .orderByAsc(WorkflowRecordEntity::getId))
-                .stream()
-                .map(this::toApprovalRecordResponse)
-                .toList();
-        return new WorkflowApprovalInfoResponse(
-                instance.getId(),
-                instance.getStatus(),
-                instance.getSubmitUserId(),
-                instance.getSubmitTime(),
-                instance.getCompletedTime(),
-                records
-        );
+        return queryService.approvalInfo(businessType, businessId);
     }
 
     private void complete(String businessType, Long businessId, String status, String action, String comment, Long expectedTaskId) {
@@ -420,7 +377,7 @@ public class WorkflowService {
     }
 
     private WorkflowInstanceEntity findActiveInstance(String businessType, Long businessId, AuditMetadata audit) {
-        return instanceMapper.selectOne(buildScopedInstanceQuery(audit)
+        return instanceMapper.selectOne(queryService.buildScopedInstanceQuery(audit)
                 .eq(WorkflowInstanceEntity::getBusinessType, businessType)
                 .eq(WorkflowInstanceEntity::getBusinessId, businessId)
                 .eq(WorkflowInstanceEntity::getStatus, STATUS_IN_APPROVAL)
@@ -507,20 +464,8 @@ public class WorkflowService {
         return task;
     }
 
-    private WorkflowTaskEntity requireScopedTask(Long id) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        WorkflowTaskEntity task = taskMapper.selectOne(new LambdaQueryWrapper<WorkflowTaskEntity>()
-                .eq(WorkflowTaskEntity::getId, id)
-                .inSql(WorkflowTaskEntity::getInstanceId, scopedInstanceIdSubQuery(audit))
-                .last("limit 1"));
-        if (task == null) {
-            throw new IllegalArgumentException("审批任务不存在");
-        }
-        return task;
-    }
-
     private WorkflowTaskEntity requireCurrentPendingTask(Long id) {
-        WorkflowTaskEntity task = requireScopedTask(id);
+        WorkflowTaskEntity task = queryService.requireScopedTask(id);
         if (!TASK_PENDING.equals(task.getStatus())) {
             throw new IllegalArgumentException("审批任务不存在或已完成");
         }
@@ -599,131 +544,8 @@ public class WorkflowService {
         );
     }
 
-    private LambdaQueryWrapper<WorkflowTaskEntity> buildTaskQuery(WorkflowTaskPageQuery query, AuditMetadata audit) {
-        LambdaQueryWrapper<WorkflowTaskEntity> wrapper = new LambdaQueryWrapper<WorkflowTaskEntity>()
-                .inSql(WorkflowTaskEntity::getInstanceId, scopedInstanceIdSubQuery(audit));
-        String businessType = normalizeNullable(query.getBusinessType());
-        if (StringUtils.hasText(businessType)) {
-            wrapper.eq(WorkflowTaskEntity::getBusinessType, businessType.toUpperCase(Locale.ROOT));
-        }
-        if (query.getBusinessId() != null) {
-            wrapper.eq(WorkflowTaskEntity::getBusinessId, query.getBusinessId());
-        }
-        String businessNo = normalizeNullable(query.getBusinessNo());
-        if (StringUtils.hasText(businessNo)) {
-            wrapper.eq(WorkflowTaskEntity::getBusinessNo, businessNo);
-        }
-        String status = normalizeNullable(query.getStatus());
-        if (StringUtils.hasText(status)) {
-            wrapper.eq(WorkflowTaskEntity::getStatus, status.toUpperCase(Locale.ROOT));
-        }
-        if (Boolean.TRUE.equals(query.getOverdueOnly())) {
-            wrapper.eq(WorkflowTaskEntity::getStatus, TASK_PENDING)
-                    .isNotNull(WorkflowTaskEntity::getDueTime)
-                    .lt(WorkflowTaskEntity::getDueTime, audit.now());
-        }
-        return wrapper.orderByDesc(WorkflowTaskEntity::getCreatedTime).orderByDesc(WorkflowTaskEntity::getId);
-    }
-
-    private LambdaQueryWrapper<WorkflowRecordEntity> buildRecordQuery(WorkflowRecordPageQuery query, AuditMetadata audit) {
-        LambdaQueryWrapper<WorkflowRecordEntity> wrapper = new LambdaQueryWrapper<WorkflowRecordEntity>()
-                .inSql(WorkflowRecordEntity::getInstanceId, scopedInstanceIdSubQuery(audit));
-        String businessType = normalizeNullable(query.getBusinessType());
-        if (StringUtils.hasText(businessType)) {
-            wrapper.eq(WorkflowRecordEntity::getBusinessType, businessType.toUpperCase(Locale.ROOT));
-        }
-        if (query.getBusinessId() != null) {
-            wrapper.eq(WorkflowRecordEntity::getBusinessId, query.getBusinessId());
-        }
-        String businessNo = normalizeNullable(query.getBusinessNo());
-        if (StringUtils.hasText(businessNo)) {
-            wrapper.eq(WorkflowRecordEntity::getBusinessNo, businessNo);
-        }
-        String action = normalizeNullable(query.getAction());
-        if (StringUtils.hasText(action)) {
-            wrapper.eq(WorkflowRecordEntity::getAction, action.toUpperCase(Locale.ROOT));
-        }
-        return wrapper.orderByDesc(WorkflowRecordEntity::getActionTime).orderByDesc(WorkflowRecordEntity::getId);
-    }
-
-    private LambdaQueryWrapper<WorkflowInstanceEntity> buildScopedInstanceQuery(AuditMetadata audit) {
-        return new LambdaQueryWrapper<WorkflowInstanceEntity>()
-                .eq(WorkflowInstanceEntity::getDeletedFlag, 0)
-                .eq(WorkflowInstanceEntity::getCompanyId, audit.companyId())
-                .eq(WorkflowInstanceEntity::getAccountBookId, audit.accountBookId());
-    }
-
-    private String scopedInstanceIdSubQuery(AuditMetadata audit) {
-        return "select id from wf_approval_instance where deleted_flag = 0"
-                + " and company_id = " + audit.companyId()
-                + " and account_book_id = " + audit.accountBookId();
-    }
-
-    private WorkflowTaskPageQuery safeQuery(WorkflowTaskPageQuery query) {
-        return query == null ? new WorkflowTaskPageQuery() : query;
-    }
-
-    private WorkflowRecordPageQuery safeQuery(WorkflowRecordPageQuery query) {
-        return query == null ? new WorkflowRecordPageQuery() : query;
-    }
-
-    private String normalizeNullable(String value) {
-        return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
     private String currentOperatorName() {
         return currentUserContext.requireCurrentUser().username();
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        return pageNo == null || pageNo < 1 ? 1L : pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        return pageSize == null || pageSize < 1 ? 20L : Math.min(pageSize, 200);
-    }
-
-    private WorkflowTaskResponse toTaskResponse(WorkflowTaskEntity entity, LocalDateTime now) {
-        return new WorkflowTaskResponse(
-                entity.getId(),
-                entity.getInstanceId(),
-                entity.getBusinessType(),
-                entity.getBusinessId(),
-                entity.getBusinessNo(),
-                entity.getTitle(),
-                entity.getApproverUserId(),
-                entity.getStatus(),
-                entity.getDueTime(),
-                TASK_PENDING.equals(entity.getStatus()) && entity.getDueTime() != null && entity.getDueTime().isBefore(now),
-                entity.getEscalatedTime(),
-                entity.getEscalationCount(),
-                entity.getCreatedTime(),
-                entity.getUpdatedTime()
-        );
-    }
-
-    private WorkflowRecordResponse toRecordResponse(WorkflowRecordEntity entity) {
-        return new WorkflowRecordResponse(
-                entity.getId(),
-                entity.getInstanceId(),
-                entity.getBusinessType(),
-                entity.getBusinessId(),
-                entity.getBusinessNo(),
-                entity.getAction(),
-                entity.getOperatorUserId(),
-                entity.getComment(),
-                entity.getActionTime()
-        );
-    }
-
-    private WorkflowApprovalRecordResponse toApprovalRecordResponse(WorkflowRecordEntity entity) {
-        return new WorkflowApprovalRecordResponse(
-                entity.getId(),
-                entity.getAction(),
-                entity.getOperatorUserId(),
-                entity.getComment(),
-                entity.getActionTime()
-        );
     }
 
     private void fillAudit(WorkflowInstanceEntity entity, AuditMetadata audit, LocalDateTime now) {
