@@ -107,6 +107,7 @@ export interface InventoryLotTrace {
 export interface InventoryLotExpiryAlert {
   id: string
   warehouseId: string
+  locationId?: string
   productId: string
   lotNo: string
   productionDate?: string
@@ -497,7 +498,7 @@ export interface InventoryAdjustmentItem {
   remark?: string
 }
 
-interface InventoryAdjustmentLineResponse {
+export interface InventoryAdjustmentLineResponse {
   id?: string | number
   productId: string | number
   productCode?: string
@@ -810,7 +811,7 @@ export interface InventoryTransferItem {
   remark?: string
 }
 
-interface InventoryTransferLineResponse {
+export interface InventoryTransferLineResponse {
   id?: string | number
   lineNo?: number
   productId: string | number

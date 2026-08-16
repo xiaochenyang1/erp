@@ -65,6 +65,9 @@ export interface SalesOrderSaveRequest {
   deliveryDate?: string
   items: SalesOrderItem[]
   remark?: string
+  carrierName?: string
+  trackingNo?: string
+  logisticsStatus?: string
 }
 
 export interface SalesOrderCreditPreview {
@@ -417,6 +420,9 @@ export interface SalesReturnCreateRequest {
   returnDate: string
   items: SalesReturnItem[]
   remark?: string
+  carrierName?: string
+  trackingNo?: string
+  logisticsStatus?: string
 }
 
 // 销售退货API

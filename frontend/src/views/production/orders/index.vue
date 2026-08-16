@@ -906,7 +906,6 @@ const {
   operations,
   opsDialogVisible,
   opsLoading,
-  opsOrderId,
   opsOrderNo,
   reportDialogVisible,
   reportForm,
@@ -956,7 +955,7 @@ const {
   submitLoading: materialsSubmitLoading
 } = useProductionOrderMaterials(t, {
   loadOrder: getProductionOrder,
-  issueOrder: issueProductionOrder,
+  issueOrder: (id, payload) => issueProductionOrder(id, payload as Parameters<typeof issueProductionOrder>[1]),
   returnMaterials: returnProductionMaterials,
   hydrateMaterialControls,
   loadMaterialLocations: (warehouseId) => loadMaterialLocations(warehouseId),
@@ -990,7 +989,7 @@ const {
   updateOrder: updateProductionOrder,
   releaseOrder: releaseProductionOrder,
   cancelOrder: cancelProductionOrder,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onCompleted: () => loadData()

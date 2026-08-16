@@ -3,7 +3,9 @@ import { computed, type Ref } from 'vue'
 import type { PurchaseOrder } from '@/api/purchase'
 import { formatLocalizedNumber } from '@/utils/locale'
 
-export type PurchaseOrderLike = Pick<PurchaseOrder, 'status' | 'approvalStatus' | 'receiptStatus'>
+export type PurchaseOrderLike = Pick<PurchaseOrder, 'approvalStatus' | 'receiptStatus'> & {
+  status: string
+}
 
 export const usePurchaseOrderPresentation = () => {
   const formatMoney = (value?: number) => formatLocalizedNumber(Number(value ?? 0), {

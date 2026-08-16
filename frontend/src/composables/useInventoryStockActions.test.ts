@@ -24,7 +24,7 @@ describe('inventory stock actions', () => {
       loadTransactions: vi.fn(async () => undefined)
     }
     const checkReservations = vi.fn(async () => ([{ id: 'issue-1' }] as unknown as InventoryReservationCheckIssue[]))
-    const manualRelease = vi.fn(async () => ({ id: 'detail-1' } as InventoryReservationDetail))
+    const manualRelease = vi.fn(async () => ({ id: 'detail-1' } as unknown as InventoryReservationDetail))
     const reservationDetail = ref<InventoryReservationDetail | undefined>()
     const onError = vi.fn()
     const onSuccess = vi.fn()

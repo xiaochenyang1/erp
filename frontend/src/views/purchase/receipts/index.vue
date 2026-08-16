@@ -96,7 +96,6 @@
       @page-change="handlePageChange"
       class="receipt-table"
     >
-      <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="receiptNo" :label="t('purchaseReceipt.receiptNo')" width="160" fixed>
         <template #default="{ row }">
           <span class="receipt-no">{{ row.receiptNo }}</span>
@@ -628,7 +627,7 @@ const {
   getLocations,
   printReceipt: printPurchaseReceipt,
   downloadBlob,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   initialReceiptNo: readQueryString('keyword'),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
@@ -660,10 +659,10 @@ const {
   getReceipt: getPurchaseReceipt,
   createReceipt: createPurchaseReceipt,
   updateReceipt: updatePurchaseReceipt,
-  loadProduct: getProduct,
+  loadProduct: (id) => getProduct(id) as any,
   loadProductByBarcode: getProductByBarcode,
   loadLocations,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message),

@@ -226,10 +226,8 @@ import {
   getDictType,
   getDictTypes,
   updateDictItem,
-  updateDictType,
-  type DictType
+  updateDictType
 } from '@/api/system'
-import { useSystemDictPresentation } from '@/composables/useSystemDictPresentation'
 import { useSystemDictList } from '@/composables/useSystemDictList'
 import { useSystemDictForm } from '@/composables/useSystemDictForm'
 

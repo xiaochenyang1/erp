@@ -711,10 +711,7 @@ import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search, Warning } from '@element-plus/icons-vue'
-import {
-  exportInventoryStocks,
-  type InventoryStock,
-} from '@/api/inventory'
+import { exportInventoryStocks } from '@/api/inventory'
 import { getLocations, getProducts, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
 import { useInventoryStockActions } from '@/composables/useInventoryStockActions'
 import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails'

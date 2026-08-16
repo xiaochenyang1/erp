@@ -5,6 +5,7 @@ import {
   usePurchaseOrderPresentation,
   usePurchaseOrderSummary
 } from './usePurchaseOrderPresentation'
+import type { PurchaseOrderLike } from './usePurchaseOrderPresentation'
 
 describe('purchase order presentation', () => {
   it('formats money and detects order action eligibility', () => {
@@ -35,7 +36,7 @@ describe('purchase order presentation', () => {
 
   it('counts pending and approved rows', () => {
     const presentation = usePurchaseOrderPresentation()
-    const rows = [
+    const rows: PurchaseOrderLike[] = [
       { status: 'SUBMITTED' },
       { status: 'PENDING' },
       { status: 'DRAFT', approvalStatus: 'IN_APPROVAL' },
@@ -48,7 +49,7 @@ describe('purchase order presentation', () => {
   })
 
   it('exposes reactive summary counts', () => {
-    const tableData = ref([
+    const tableData = ref<PurchaseOrderLike[]>([
       { status: 'SUBMITTED' },
       { status: 'APPROVED' },
       { status: 'APPROVED' }

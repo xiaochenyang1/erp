@@ -1,5 +1,5 @@
 type Translate = (key: string, params?: Record<string, unknown>) => string
-type TagType = 'success' | 'info' | 'warning' | 'danger' | 'primary' | ''
+type TagType = 'success' | 'info' | 'warning' | 'danger' | 'primary'
 
 /** Default balance side for a newly created chart-of-accounts node. */
 export const defaultBalanceDirection = (subjectType?: string) =>
@@ -26,7 +26,7 @@ export const useAccountSubjectPresentation = (t: Translate) => {
       REVENUE: 'success',
       EXPENSE: 'danger'
     }
-    return category ? map[category] || '' : ''
+    return category ? map[category] || 'info' : 'info'
   }
 
   const statusLabel = (status?: string) =>

@@ -287,6 +287,7 @@ import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Edit, Plus, Refresh, Search, View } from '@element-plus/icons-vue'
 import {
   getSalesOrders,
   getSalesOrder,
@@ -344,7 +345,7 @@ const {
   getWarehouses,
   getProducts,
   printOrder: printSalesOrder,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   prompt: (message, title, opts) => ElMessageBox.prompt(message, title, opts) as any,
   initialKeyword: readQueryString('keyword'),
   onError: (message) => ElMessage.error(message),
@@ -386,6 +387,7 @@ const {
   onCustomerOrDateChange,
   onProductChange,
   removeLine,
+  resetForm,
   submitLoading
 } = useSalesOrderForm(t, {
   products,

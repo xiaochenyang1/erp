@@ -91,7 +91,6 @@
       @page-change="handlePageChange"
       class="purchase-table"
     >
-      <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="orderNo" :label="t('purchaseOrder.orderNo')" width="160" fixed>
         <template #default="{ row }">
           <span class="order-no">{{ row.orderNo }}</span>
@@ -532,7 +531,7 @@ const {
   getProducts,
   printOrder: printPurchaseOrder,
   downloadBlob,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   prompt: (message, title, opts) => ElMessageBox.prompt(message, title, opts) as any,
   initialOrderNo: readQueryString('keyword'),
   onError: (message) => ElMessage.error(message),
@@ -551,10 +550,10 @@ const {
 const {
   dialogTitle,
   dialogVisible,
-  editId,
   form,
   formRef,
   formRules,
+  calculateAmount,
   handleAdd,
   handleAddItem,
   handleAuxQtyChange,

@@ -85,7 +85,6 @@
       @page-change="handlePageChange"
       class="return-table"
     >
-      <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="returnNo" :label="t('purchaseReturn.returnNo')" width="160" fixed>
         <template #default="{ row }">
           <span class="return-no">{{ row.returnNo }}</span>
@@ -475,7 +474,6 @@ import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Box,
   View,
   Edit,
   CircleCheck,
@@ -551,7 +549,7 @@ const {
   getLocations,
   printReturn: printPurchaseReturn,
   downloadBlob,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message)
