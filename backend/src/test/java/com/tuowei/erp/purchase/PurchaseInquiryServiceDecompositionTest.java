@@ -1,12 +1,17 @@
 package com.tuowei.erp.purchase;
 
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
+import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryLineMapper;
+import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryMapper;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryQuoteLineMapper;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryQuoteMapper;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryEntity;
+import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQueryService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQuoteService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryService;
+import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryPageQuery;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquirySelectQuoteRequest;
 import org.junit.jupiter.api.Test;
@@ -23,14 +28,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PurchaseInquiryServiceDecompositionTest {
 
     @Test
-    void purchaseInquiryServiceKeepsQuotePersistenceBehindDedicatedService() {
+    void purchaseInquiryServiceKeepsReadAndQuoteResponsibilitiesBehindDedicatedServices() {
         assertThat(constructorDependencies(PurchaseInquiryService.class))
-                .contains(PurchaseInquiryQuoteService.class)
+                .contains(PurchaseInquiryQuoteService.class, PurchaseInquiryQueryService.class)
                 .doesNotContain(
                         PurchaseInquiryQuoteMapper.class,
                         PurchaseInquiryQuoteLineMapper.class,
                         SupplierMapper.class
                 );
+        assertThat(constructorDependencies(PurchaseInquiryQueryService.class))
+                .containsExactlyInAnyOrder(
+                        PurchaseInquiryMapper.class,
+                        PurchaseInquiryLineMapper.class,
+                        AuditMetadataFactory.class,
+                        PurchaseInquiryQuoteService.class
+                )
+                .doesNotContain(PurchaseInquiryService.class);
+    }
+
+    @Test
+    void facadeAndQueryServiceKeepReadOnlyQueries() throws NoSuchMethodException {
+        assertReadOnly(PurchaseInquiryService.class.getDeclaredMethod(
+                "list", PurchaseInquiryPageQuery.class));
+        assertReadOnly(PurchaseInquiryService.class.getDeclaredMethod("getById", Long.class));
+        assertReadOnly(PurchaseInquiryService.class.getDeclaredMethod("poPrefill", Long.class));
+
+        assertReadOnly(PurchaseInquiryQueryService.class.getDeclaredMethod(
+                "list", PurchaseInquiryPageQuery.class));
+        assertReadOnly(PurchaseInquiryQueryService.class.getDeclaredMethod("getById", Long.class));
+        assertReadOnly(PurchaseInquiryQueryService.class.getDeclaredMethod("poPrefill", Long.class));
     }
 
     @Test
@@ -72,5 +98,11 @@ class PurchaseInquiryServiceDecompositionTest {
         assertThat(transactional).isNotNull();
         assertThat(transactional.readOnly()).isFalse();
         assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRED);
+    }
+
+    private void assertReadOnly(Method method) {
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.readOnly()).isTrue();
     }
 }

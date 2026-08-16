@@ -6,15 +6,13 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
-import com.tuowei.erp.common.web.ClientIpResolver;
 import com.tuowei.erp.system.log.mapper.AuditLogMapper;
 import com.tuowei.erp.system.log.mapper.LoginLogMapper;
 import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
-import com.tuowei.erp.system.log.service.SystemLogService;
+import com.tuowei.erp.system.log.service.SystemLogQueryService;
 import com.tuowei.erp.system.log.web.OperationLogPageQuery;
 import com.tuowei.erp.system.log.web.OperationLogResponse;
-import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -22,7 +20,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -114,15 +111,12 @@ class SystemOperationLogExportServiceTest {
                 .contains("operation_time");
     }
 
-    private SystemLogService service() {
-        return new SystemLogService(
+    private SystemLogQueryService service() {
+        return new SystemLogQueryService(
                 mock(LoginLogMapper.class),
                 operationLogMapper,
                 mock(AuditLogMapper.class),
-                currentUserContext,
-                mock(UserMapper.class),
-                mock(ClientIpResolver.class),
-                Clock.systemUTC()
+                currentUserContext
         );
     }
 

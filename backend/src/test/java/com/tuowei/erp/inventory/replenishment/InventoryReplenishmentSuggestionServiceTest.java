@@ -9,6 +9,7 @@ import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.replenishment.mapper.InventoryReplenishmentSuggestionMapper;
 import com.tuowei.erp.inventory.replenishment.model.InventoryReplenishmentSuggestionEntity;
 import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionService;
+import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionQueryService;
 import com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionCancelRequest;
 import com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionCreateRequest;
 import com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionResponse;
@@ -293,6 +294,15 @@ class InventoryReplenishmentSuggestionServiceTest {
     }
 
     private InventoryReplenishmentSuggestionService service() {
+        InventoryReplenishmentSuggestionQueryService queryService =
+                new InventoryReplenishmentSuggestionQueryService(
+                        suggestionMapper,
+                        auditMetadataFactory,
+                        warehouseMapper,
+                        productMapper,
+                        supplierMapper,
+                        purchaseOrderMapper
+                );
         return new InventoryReplenishmentSuggestionService(
                 suggestionMapper,
                 alertRuleMapper,
@@ -303,7 +313,7 @@ class InventoryReplenishmentSuggestionServiceTest {
                 productMapper,
                 supplierMapper,
                 purchaseOrderService,
-                purchaseOrderMapper
+                queryService
         );
     }
 

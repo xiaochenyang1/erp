@@ -4,12 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.system.log.service.SystemLogService;
 import com.tuowei.erp.system.notification.service.NotificationService;
-import com.tuowei.erp.system.user.mapper.UserMapper;
-import com.tuowei.erp.system.user.model.UserEntity;
 import com.tuowei.erp.workflow.mapper.WorkflowInstanceMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowRecordMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
@@ -25,7 +21,6 @@ import com.tuowei.erp.workflow.web.WorkflowTaskResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,12 +38,11 @@ public class WorkflowService {
     private final WorkflowTaskMapper taskMapper;
     private final WorkflowRecordMapper recordMapper;
     private final AuditMetadataFactory auditMetadataFactory;
-    private final SystemLogService systemLogService;
-    private final CurrentUserContext currentUserContext;
     private final NotificationService notificationService;
     private final WorkflowApprovalConfigService approvalConfigService;
-    private final UserMapper userMapper;
     private final WorkflowQueryService queryService;
+    private final WorkflowTaskTransitionService taskTransitionService;
+    private final WorkflowRecordCommandService recordCommandService;
 
     @Value("${erp.workflow.task-timeout-hours:24}")
     private long taskTimeoutHours;
@@ -58,23 +52,21 @@ public class WorkflowService {
             WorkflowTaskMapper taskMapper,
             WorkflowRecordMapper recordMapper,
             AuditMetadataFactory auditMetadataFactory,
-            SystemLogService systemLogService,
-            CurrentUserContext currentUserContext,
             NotificationService notificationService,
             WorkflowApprovalConfigService approvalConfigService,
-            UserMapper userMapper,
-            WorkflowQueryService queryService
+            WorkflowQueryService queryService,
+            WorkflowTaskTransitionService taskTransitionService,
+            WorkflowRecordCommandService recordCommandService
     ) {
         this.instanceMapper = instanceMapper;
         this.taskMapper = taskMapper;
         this.recordMapper = recordMapper;
         this.auditMetadataFactory = auditMetadataFactory;
-        this.systemLogService = systemLogService;
-        this.currentUserContext = currentUserContext;
         this.notificationService = notificationService;
         this.approvalConfigService = approvalConfigService;
-        this.userMapper = userMapper;
         this.queryService = queryService;
+        this.taskTransitionService = taskTransitionService;
+        this.recordCommandService = recordCommandService;
     }
 
     @Transactional
@@ -99,10 +91,10 @@ public class WorkflowService {
 
         WorkflowApprovalNodeEntity firstNode = approvalConfigService.resolveFirstActiveNode(instance, audit);
         Long firstNodeId = firstNode == null ? null : firstNode.getId();
-        createPendingTask(instance, firstNodeId, audit, now);
-
-        insertRecord(instance, "SUBMIT", comment, audit, now);
         List<Long> pendingApproverUserIds = approvalConfigService.resolvePendingApproverUserIds(instance, firstNodeId, audit);
+        createPendingTask(instance, firstNodeId, pendingApproverUserIds, audit, now);
+
+        recordCommandService.record(instance, "SUBMIT", comment, audit, now);
         notificationService.createWorkflowPending(instance, pendingApproverUserIds, audit, now);
     }
 
@@ -139,7 +131,7 @@ public class WorkflowService {
         updateInstanceStatus(instance, "CANCELLED", audit, now);
         closePendingTaskIfPresent(instance, "CANCELLED", audit, now);
         notificationService.closeWorkflowPending(instance, audit, now);
-        insertRecord(instance, "CANCEL", comment, audit, now);
+        recordCommandService.record(instance, "CANCEL", comment, audit, now);
     }
 
     @Transactional
@@ -156,7 +148,7 @@ public class WorkflowService {
         updateInstanceStatus(instance, STATUS_WITHDRAWN, audit, now);
         closePendingTaskIfPresent(instance, TASK_CANCELLED, audit, now);
         notificationService.closeWorkflowPending(instance, audit, now);
-        insertRecord(instance, "WITHDRAW", comment, audit, now);
+        recordCommandService.record(instance, "WITHDRAW", comment, audit, now);
     }
 
     @Transactional(readOnly = true)
@@ -174,37 +166,7 @@ public class WorkflowService {
      */
     @Transactional
     public WorkflowTaskResponse transfer(Long taskId, Long targetUserId, String comment) {
-        if (targetUserId == null) {
-            throw new IllegalArgumentException("targetUserId不能为空");
-        }
-        AuditMetadata audit = auditMetadataFactory.current();
-        WorkflowTaskEntity task = requireCurrentPendingTask(taskId);
-        if (!Objects.equals(task.getApproverUserId(), audit.userId())) {
-            throw new IllegalArgumentException("只能转签自己的待办任务");
-        }
-        if (Objects.equals(targetUserId, audit.userId())) {
-            throw new IllegalArgumentException("不能转签给自己");
-        }
-        LocalDateTime now = audit.now();
-        Long fromUserId = task.getApproverUserId();
-        task.setApproverUserId(targetUserId);
-        task.setUpdatedBy(audit.userId());
-        task.setUpdatedTime(now);
-        if (taskMapper.updateById(task) != 1) {
-            throw new BusinessConflictException("审批任务已被其他操作修改，请刷新后重试");
-        }
-        WorkflowInstanceEntity instance = instanceMapper.selectById(task.getInstanceId());
-        if (instance != null) {
-            String msg = "转签: " + fromUserId + " -> " + targetUserId
-                    + (StringUtils.hasText(comment) ? "；" + comment.trim() : "");
-            insertRecord(instance, "TRANSFER", task.getApprovalNodeId(), msg, audit, now);
-            try {
-                notificationService.createWorkflowPending(instance, List.of(targetUserId), audit, now);
-            } catch (Exception ignored) {
-                // 通知失败不阻断转签
-            }
-        }
-        return queryService.toTaskResponse(queryService.requireScopedTask(taskId), audit.now());
+        return taskTransitionService.transfer(taskId, targetUserId, comment);
     }
 
     /**
@@ -212,49 +174,7 @@ public class WorkflowService {
      */
     @Transactional
     public WorkflowTaskResponse escalate(Long taskId, Long targetUserId, String comment) {
-        if (targetUserId == null) {
-            throw new IllegalArgumentException("targetUserId不能为空");
-        }
-        AuditMetadata audit = auditMetadataFactory.current();
-        WorkflowTaskEntity task = requireCurrentPendingTask(taskId);
-        LocalDateTime now = audit.now();
-        if (task.getDueTime() == null || !task.getDueTime().isBefore(now)) {
-            throw new IllegalArgumentException("审批任务尚未超时");
-        }
-        if (Objects.equals(task.getApproverUserId(), targetUserId)) {
-            throw new IllegalArgumentException("升级目标不能是当前处理人");
-        }
-        UserEntity target = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getId, targetUserId)
-                .eq(UserEntity::getCompanyId, audit.companyId())
-                .eq(UserEntity::getAccountBookId, audit.accountBookId())
-                .eq(UserEntity::getStatus, "ACTIVE")
-                .eq(UserEntity::getDeletedFlag, 0)
-                .last("limit 1"));
-        if (target == null) {
-            throw new IllegalArgumentException("升级目标用户不存在或已停用");
-        }
-        Long fromUserId = task.getApproverUserId();
-        task.setApproverUserId(targetUserId);
-        task.setEscalatedTime(now);
-        task.setEscalationCount((task.getEscalationCount() == null ? 0 : task.getEscalationCount()) + 1);
-        WorkflowInstanceEntity instance = instanceMapper.selectById(task.getInstanceId());
-        long timeoutHours = instance == null
-                ? Math.max(taskTimeoutHours, 1)
-                : approvalConfigService.resolveTaskTimeoutHours(instance, audit, taskTimeoutHours);
-        task.setDueTime(now.plusHours(timeoutHours));
-        task.setUpdatedBy(audit.userId());
-        task.setUpdatedTime(now);
-        if (taskMapper.updateById(task) != 1) {
-            throw new BusinessConflictException("审批任务已被其他操作修改，请刷新后重试");
-        }
-        if (instance != null) {
-            String message = "超时升级: " + fromUserId + " -> " + targetUserId
-                    + (StringUtils.hasText(comment) ? "；" + comment.trim() : "");
-            insertRecord(instance, "ESCALATE", task.getApprovalNodeId(), message, audit, now);
-            notificationService.createWorkflowPending(instance, List.of(targetUserId), audit, now);
-        }
-        return queryService.toTaskResponse(queryService.requireScopedTask(taskId), audit.now());
+        return taskTransitionService.escalate(taskId, targetUserId, comment);
     }
 
     @Transactional(readOnly = true)
@@ -278,10 +198,10 @@ public class WorkflowService {
         if (expectedTaskId != null && !Objects.equals(currentTask.getId(), expectedTaskId)) {
             throw new IllegalArgumentException("审批任务不存在或已完成");
         }
-        approvalConfigService.assertCurrentUserCanApprove(instance, currentTask.getApprovalNodeId(), audit);
+        assertCurrentUserCanApprove(instance, currentTask, audit);
         assertCurrentUserHasNotActedOnNode(instance, currentTask, audit);
 
-        insertRecord(instance, action, currentTask.getApprovalNodeId(), comment, audit, now);
+        recordCommandService.record(instance, action, currentTask.getApprovalNodeId(), comment, audit, now);
 
         if ("REJECT".equals(action)) {
             closePendingTask(currentTask, status, audit, now);
@@ -291,16 +211,22 @@ public class WorkflowService {
             return;
         }
 
-        List<Long> configuredApproverUserIds = approvalConfigService.resolveConfiguredNodeApproverUserIds(
-                instance,
-                currentTask.getApprovalNodeId(),
-                audit
-        );
-        if (approvalConfigService.isAllApprovalMode(instance, currentTask.getApprovalNodeId(), audit)
-                && !configuredApproverUserIds.isEmpty()
-                && !allConfiguredApproversApproved(instance, currentTask.getApprovalNodeId(), configuredApproverUserIds)) {
-            notificationService.closeWorkflowPendingForUser(instance, audit.userId(), audit, now);
-            return;
+        if (currentTask.getApproverUserId() == null
+                && approvalConfigService.isAllApprovalMode(instance, currentTask.getApprovalNodeId(), audit)) {
+            List<Long> configuredApproverUserIds = approvalConfigService.resolveConfiguredNodeApproverUserIds(
+                    instance,
+                    currentTask.getApprovalNodeId(),
+                    audit
+            );
+            if (!configuredApproverUserIds.isEmpty()
+                    && !allConfiguredApproversApproved(
+                    instance,
+                    currentTask.getApprovalNodeId(),
+                    configuredApproverUserIds
+            )) {
+                notificationService.closeWorkflowPendingForUser(instance, audit.userId(), audit, now);
+                return;
+            }
         }
 
         closePendingTask(currentTask, status, audit, now);
@@ -312,12 +238,12 @@ public class WorkflowService {
                     audit
             );
             if (nextNode != null) {
-                createPendingTask(instance, nextNode.getId(), audit, now);
                 List<Long> pendingApproverUserIds = approvalConfigService.resolvePendingApproverUserIds(
                         instance,
                         nextNode.getId(),
                         audit
                 );
+                createPendingTask(instance, nextNode.getId(), pendingApproverUserIds, audit, now);
                 notificationService.createWorkflowPending(instance, pendingApproverUserIds, audit, now);
                 return;
             }
@@ -325,6 +251,20 @@ public class WorkflowService {
 
         updateInstanceStatus(instance, status, audit, now);
         notificationService.notifyWorkflowResult(instance, action, comment, audit, now);
+    }
+
+    private void assertCurrentUserCanApprove(
+            WorkflowInstanceEntity instance,
+            WorkflowTaskEntity currentTask,
+            AuditMetadata audit
+    ) {
+        if (currentTask.getApproverUserId() == null) {
+            approvalConfigService.assertCurrentUserCanApprove(instance, currentTask.getApprovalNodeId(), audit);
+            return;
+        }
+        if (!Objects.equals(currentTask.getApproverUserId(), audit.userId())) {
+            throw new IllegalArgumentException("当前用户不是该单据审批人");
+        }
     }
 
     private void assertCurrentUserHasNotActedOnNode(
@@ -409,6 +349,7 @@ public class WorkflowService {
     private void createPendingTask(
             WorkflowInstanceEntity instance,
             Long approvalNodeId,
+            List<Long> pendingApproverUserIds,
             AuditMetadata audit,
             LocalDateTime now
     ) {
@@ -421,6 +362,9 @@ public class WorkflowService {
         task.setBusinessNo(instance.getBusinessNo());
         task.setTitle(instance.getTitle());
         task.setApprovalNodeId(approvalNodeId);
+        if (pendingApproverUserIds.size() == 1) {
+            task.setApproverUserId(pendingApproverUserIds.get(0));
+        }
         task.setStatus(TASK_PENDING);
         task.setDueTime(now.plusHours(approvalConfigService.resolveTaskTimeoutHours(instance, audit, taskTimeoutHours)));
         task.setEscalationCount(0);
@@ -504,50 +448,6 @@ public class WorkflowService {
         }
     }
 
-    private void insertRecord(WorkflowInstanceEntity instance, String action, String comment, AuditMetadata audit, LocalDateTime now) {
-        insertRecord(instance, action, null, comment, audit, now);
-    }
-
-    private void insertRecord(
-            WorkflowInstanceEntity instance,
-            String action,
-            Long approvalNodeId,
-            String comment,
-            AuditMetadata audit,
-            LocalDateTime now
-    ) {
-        WorkflowRecordEntity record = new WorkflowRecordEntity();
-        record.setCompanyId(audit.companyId());
-        record.setAccountBookId(audit.accountBookId());
-        record.setInstanceId(instance.getId());
-        record.setBusinessType(instance.getBusinessType());
-        record.setBusinessId(instance.getBusinessId());
-        record.setBusinessNo(instance.getBusinessNo());
-        record.setAction(action);
-        record.setApprovalNodeId(approvalNodeId);
-        record.setOperatorUserId(audit.userId());
-        record.setComment(comment);
-        record.setActionTime(now);
-        fillAudit(record, audit, now);
-        recordMapper.insert(record);
-        systemLogService.recordAudit(
-                "WORKFLOW",
-                instance.getBusinessType(),
-                instance.getBusinessId(),
-                instance.getBusinessNo(),
-                action,
-                audit.userId(),
-                currentOperatorName(),
-                null,
-                comment,
-                now
-        );
-    }
-
-    private String currentOperatorName() {
-        return currentUserContext.requireCurrentUser().username();
-    }
-
     private void fillAudit(WorkflowInstanceEntity entity, AuditMetadata audit, LocalDateTime now) {
         entity.setCreatedBy(audit.userId());
         entity.setCreatedTime(now);
@@ -564,11 +464,4 @@ public class WorkflowService {
         entity.setVersion(0);
     }
 
-    private void fillAudit(WorkflowRecordEntity entity, AuditMetadata audit, LocalDateTime now) {
-        entity.setCreatedBy(audit.userId());
-        entity.setCreatedTime(now);
-        entity.setUpdatedBy(audit.userId());
-        entity.setUpdatedTime(now);
-        entity.setVersion(0);
-    }
 }

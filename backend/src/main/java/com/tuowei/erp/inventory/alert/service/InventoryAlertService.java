@@ -14,8 +14,6 @@ import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleResponse;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleUpdateRequest;
 import com.tuowei.erp.inventory.alert.web.InventoryLowStockResponse;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
-import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
@@ -26,17 +24,12 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Service
 public class InventoryAlertService {
 
-    private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_IGNORED = "IGNORED";
     private static final String STATUS_RESOLVED = "RESOLVED";
 
@@ -46,7 +39,7 @@ public class InventoryAlertService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final WarehouseMapper warehouseMapper;
     private final ProductMapper productMapper;
-    private final InventoryBalanceMapper inventoryBalanceMapper;
+    private final InventoryAlertQueryService alertQueryService;
 
     public InventoryAlertService(
             InventoryAlertRuleMapper alertRuleMapper,
@@ -55,7 +48,7 @@ public class InventoryAlertService {
             AuditMetadataFactory auditMetadataFactory,
             WarehouseMapper warehouseMapper,
             ProductMapper productMapper,
-            InventoryBalanceMapper inventoryBalanceMapper
+            InventoryAlertQueryService alertQueryService
     ) {
         this.alertRuleMapper = alertRuleMapper;
         this.dispositionMapper = dispositionMapper;
@@ -63,7 +56,7 @@ public class InventoryAlertService {
         this.auditMetadataFactory = auditMetadataFactory;
         this.warehouseMapper = warehouseMapper;
         this.productMapper = productMapper;
-        this.inventoryBalanceMapper = inventoryBalanceMapper;
+        this.alertQueryService = alertQueryService;
     }
 
     @Transactional
@@ -88,36 +81,12 @@ public class InventoryAlertService {
         rule.setUpdatedTime(now);
         rule.setVersion(0);
         alertRuleMapper.insert(rule);
-        return toRuleResponse(rule, warehouse, product);
+        return alertQueryService.toRuleResponse(rule, warehouse, product);
     }
 
     @Transactional(readOnly = true)
     public List<InventoryAlertRuleResponse> listRules(Long warehouseId, Long productId, Boolean enabled) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        LambdaQueryWrapper<InventoryAlertRuleEntity> wrapper = new LambdaQueryWrapper<InventoryAlertRuleEntity>()
-                .eq(InventoryAlertRuleEntity::getCompanyId, audit.companyId())
-                .eq(InventoryAlertRuleEntity::getAccountBookId, audit.accountBookId())
-                .eq(InventoryAlertRuleEntity::getDeletedFlag, 0)
-                .orderByDesc(InventoryAlertRuleEntity::getUpdatedTime)
-                .orderByDesc(InventoryAlertRuleEntity::getId);
-        if (warehouseId != null) {
-            wrapper.eq(InventoryAlertRuleEntity::getWarehouseId, warehouseId);
-        }
-        if (productId != null) {
-            wrapper.eq(InventoryAlertRuleEntity::getProductId, productId);
-        }
-        if (enabled != null) {
-            wrapper.eq(InventoryAlertRuleEntity::getEnabled, Boolean.TRUE.equals(enabled) ? 1 : 0);
-        }
-        List<InventoryAlertRuleEntity> rules = alertRuleMapper.selectList(wrapper);
-        if (rules.isEmpty()) {
-            return List.of();
-        }
-        Map<Long, WarehouseEntity> warehouses = loadWarehouses(rules, audit);
-        Map<Long, ProductEntity> products = loadProducts(rules, audit);
-        return rules.stream()
-                .map(rule -> toRuleResponse(rule, warehouses.get(rule.getWarehouseId()), products.get(rule.getProductId())))
-                .toList();
+        return alertQueryService.listRules(warehouseId, productId, enabled);
     }
 
     @Transactional
@@ -129,7 +98,7 @@ public class InventoryAlertService {
         rule.setUpdatedBy(audit.userId());
         rule.setUpdatedTime(audit.now());
         OptimisticLockGuard.requireUpdated(alertRuleMapper.updateById(rule), "低库存规则已被其他操作修改，请刷新后重试");
-        return toRuleResponse(
+        return alertQueryService.toRuleResponse(
                 rule,
                 requireWarehouse(rule.getWarehouseId(), audit.companyId(), audit.accountBookId()),
                 requireProduct(rule.getProductId(), audit.companyId(), audit.accountBookId())
@@ -156,7 +125,7 @@ public class InventoryAlertService {
         rule.setUpdatedBy(audit.userId());
         rule.setUpdatedTime(audit.now());
         OptimisticLockGuard.requireUpdated(alertRuleMapper.updateById(rule), "低库存规则已被其他操作修改，请刷新后重试");
-        return toRuleResponse(
+        return alertQueryService.toRuleResponse(
                 rule,
                 requireWarehouse(rule.getWarehouseId(), audit.companyId(), audit.accountBookId()),
                 requireProduct(rule.getProductId(), audit.companyId(), audit.accountBookId())
@@ -165,136 +134,12 @@ public class InventoryAlertService {
 
     @Transactional(readOnly = true)
     public List<InventoryLowStockResponse> listLowStock(Long warehouseId, Long productId) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        return listLowStock(warehouseId, productId, audit);
+        return alertQueryService.listLowStock(warehouseId, productId);
     }
 
     @Transactional(readOnly = true)
     public List<InventoryLowStockResponse> listLowStock(Long warehouseId, Long productId, AuditMetadata audit) {
-        LambdaQueryWrapper<InventoryAlertRuleEntity> wrapper = new LambdaQueryWrapper<InventoryAlertRuleEntity>()
-                .eq(InventoryAlertRuleEntity::getCompanyId, audit.companyId())
-                .eq(InventoryAlertRuleEntity::getAccountBookId, audit.accountBookId())
-                .eq(InventoryAlertRuleEntity::getDeletedFlag, 0)
-                .eq(InventoryAlertRuleEntity::getEnabled, 1);
-        if (warehouseId != null) {
-            wrapper.eq(InventoryAlertRuleEntity::getWarehouseId, warehouseId);
-        }
-        if (productId != null) {
-            wrapper.eq(InventoryAlertRuleEntity::getProductId, productId);
-        }
-
-        Map<String, InventoryAlertDispositionEntity> dispositions = loadDispositions(audit);
-
-        List<InventoryAlertRuleEntity> rules = alertRuleMapper.selectList(wrapper);
-        if (rules.isEmpty()) {
-            return List.of();
-        }
-
-        // 批量预取规则涉及的库存余额、仓库、商品，避免循环内逐行查询造成的 N+1
-        Map<String, BigDecimal> qtyOnHandByKey = loadQtyOnHand(rules, audit);
-        Map<Long, WarehouseEntity> warehouses = loadWarehouses(rules, audit);
-        Map<Long, ProductEntity> products = loadProducts(rules, audit);
-
-        return rules.stream()
-                .map(rule -> {
-                    BigDecimal qtyOnHand = qtyOnHandByKey.getOrDefault(
-                            balanceKey(rule.getWarehouseId(), rule.getProductId()),
-                            ScalePrecision.quantity(BigDecimal.ZERO));
-                    if (qtyOnHand.compareTo(rule.getMinQty()) >= 0) {
-                        return null;
-                    }
-                    BigDecimal shortageQty = ScalePrecision.quantity(rule.getMinQty().subtract(qtyOnHand));
-                    String status = resolveStatus(
-                            dispositions.get(dispositionKey(rule.getWarehouseId(), rule.getProductId())),
-                            shortageQty
-                    );
-                    WarehouseEntity warehouse = warehouses.get(rule.getWarehouseId());
-                    ProductEntity product = products.get(rule.getProductId());
-                    return new InventoryLowStockResponse(
-                            rule.getId(),
-                            rule.getId(),
-                            rule.getWarehouseId(),
-                            warehouse == null ? null : warehouse.getWarehouseName(),
-                            rule.getProductId(),
-                            product == null ? null : product.getProductCode(),
-                            product == null ? null : product.getProductName(),
-                            qtyOnHand,
-                            qtyOnHand,
-                            rule.getMinQty(),
-                            rule.getMinQty(),
-                            shortageQty,
-                            null,
-                            "LOW_STOCK",
-                            rule.getUpdatedTime() == null ? rule.getCreatedTime() : rule.getUpdatedTime(),
-                            status,
-                            rule.getRemark()
-                    );
-                })
-                .filter(java.util.Objects::nonNull)
-                .toList();
-    }
-
-    private String balanceKey(Long warehouseId, Long productId) {
-        return warehouseId + ":" + productId;
-    }
-
-    /**
-     * 批量预取规则涉及的库存余额，按“仓库:商品”键返回现存量；缺行按 0 处理，语义与逐条 getQtyOnHand 一致。
-     */
-    private Map<String, BigDecimal> loadQtyOnHand(List<InventoryAlertRuleEntity> rules, AuditMetadata audit) {
-        List<Long> warehouseIds = rules.stream()
-                .map(InventoryAlertRuleEntity::getWarehouseId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        List<Long> productIds = rules.stream()
-                .map(InventoryAlertRuleEntity::getProductId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        if (warehouseIds.isEmpty() || productIds.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, BigDecimal> map = new HashMap<>();
-        inventoryBalanceMapper.selectList(new LambdaQueryWrapper<InventoryBalanceEntity>()
-                        .eq(InventoryBalanceEntity::getCompanyId, audit.companyId())
-                        .eq(InventoryBalanceEntity::getAccountBookId, audit.accountBookId())
-                        .in(InventoryBalanceEntity::getWarehouseId, warehouseIds)
-                        .in(InventoryBalanceEntity::getProductId, productIds))
-                .forEach(balance -> map.put(
-                        balanceKey(balance.getWarehouseId(), balance.getProductId()),
-                        ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyOnHand()))));
-        return map;
-    }
-
-    private Map<Long, WarehouseEntity> loadWarehouses(List<InventoryAlertRuleEntity> rules, AuditMetadata audit) {
-        List<Long> ids = rules.stream()
-                .map(InventoryAlertRuleEntity::getWarehouseId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        if (ids.isEmpty()) {
-            return Map.of();
-        }
-        return warehouseMapper.selectBatchIds(ids).stream()
-                .filter(w -> Objects.equals(w.getCompanyId(), audit.companyId())
-                        && Objects.equals(w.getAccountBookId(), audit.accountBookId()))
-                .collect(Collectors.toMap(WarehouseEntity::getId, w -> w, (a, b) -> a));
-    }
-
-    private Map<Long, ProductEntity> loadProducts(List<InventoryAlertRuleEntity> rules, AuditMetadata audit) {
-        List<Long> ids = rules.stream()
-                .map(InventoryAlertRuleEntity::getProductId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        if (ids.isEmpty()) {
-            return Map.of();
-        }
-        return productMapper.selectBatchIds(ids).stream()
-                .filter(p -> Objects.equals(p.getCompanyId(), audit.companyId())
-                        && Objects.equals(p.getAccountBookId(), audit.accountBookId()))
-                .collect(Collectors.toMap(ProductEntity::getId, p -> p, (a, b) -> a));
+        return alertQueryService.listLowStock(warehouseId, productId, audit);
     }
 
     /**
@@ -386,54 +231,6 @@ public class InventoryAlertService {
         existing.setUpdatedBy(audit.userId());
         existing.setUpdatedTime(audit.now());
         dispositionMapper.updateById(existing);
-    }
-
-    private Map<String, InventoryAlertDispositionEntity> loadDispositions(AuditMetadata audit) {
-        Map<String, InventoryAlertDispositionEntity> map = new HashMap<>();
-        dispositionMapper.selectList(new LambdaQueryWrapper<InventoryAlertDispositionEntity>()
-                        .eq(InventoryAlertDispositionEntity::getCompanyId, audit.companyId())
-                        .eq(InventoryAlertDispositionEntity::getAccountBookId, audit.accountBookId())
-                        .eq(InventoryAlertDispositionEntity::getDeletedFlag, 0))
-                .forEach(d -> map.put(dispositionKey(d.getWarehouseId(), d.getProductId()), d));
-        return map;
-    }
-
-    private String dispositionKey(Long warehouseId, Long productId) {
-        return warehouseId + ":" + productId;
-    }
-
-    /**
-     * 叠加处置状态：若缺口比处置时快照更严重（当前缺口 &gt; 快照缺口），处置自动失效回到 ACTIVE，
-     * 避免忽略一次后即使持续恶化也永久静默。
-     */
-    private String resolveStatus(InventoryAlertDispositionEntity disposition, BigDecimal currentShortageQty) {
-        if (disposition == null) {
-            return STATUS_ACTIVE;
-        }
-        BigDecimal snapshot = disposition.getSnapshotShortageQty();
-        if (snapshot != null && currentShortageQty.compareTo(snapshot) > 0) {
-            return STATUS_ACTIVE;
-        }
-        return disposition.getStatus();
-    }
-
-    private InventoryAlertRuleResponse toRuleResponse(
-            InventoryAlertRuleEntity rule,
-            WarehouseEntity warehouse,
-            ProductEntity product
-    ) {
-        return new InventoryAlertRuleResponse(
-                rule.getId(),
-                rule.getWarehouseId(),
-                warehouse == null ? null : warehouse.getWarehouseName(),
-                rule.getProductId(),
-                product == null ? null : product.getProductCode(),
-                product == null ? null : product.getProductName(),
-                rule.getMinQty(),
-                Integer.valueOf(1).equals(rule.getEnabled()),
-                rule.getRemark(),
-                rule.getUpdatedTime()
-        );
     }
 
     private InventoryAlertRuleEntity requireRule(Long id, AuditMetadata audit) {

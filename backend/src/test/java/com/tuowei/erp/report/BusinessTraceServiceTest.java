@@ -18,6 +18,7 @@ import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.report.service.BusinessTraceService;
+import com.tuowei.erp.report.service.BusinessTraceAssemblyService;
 import com.tuowei.erp.report.web.BusinessTraceQuery;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
@@ -201,7 +202,8 @@ class BusinessTraceServiceTest {
                 workflowTaskMapper,
                 operationLogMapper,
                 exceptionTicketMapper,
-                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"))
+                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai")),
+                new BusinessTraceAssemblyService()
         );
     }
 

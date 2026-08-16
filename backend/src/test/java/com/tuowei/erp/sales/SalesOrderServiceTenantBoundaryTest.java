@@ -1,21 +1,15 @@
 package com.tuowei.erp.sales;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
-import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -24,24 +18,23 @@ import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
 import com.tuowei.erp.sales.order.service.SalesCreditEvaluator;
-import com.tuowei.erp.sales.order.service.SalesPriceEvaluator;
 import com.tuowei.erp.sales.order.service.SalesOrderNumberService;
+import com.tuowei.erp.sales.order.service.SalesOrderQueryService;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
+import com.tuowei.erp.sales.order.service.SalesPriceEvaluator;
 import com.tuowei.erp.sales.order.web.SalesOrderCreateRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderLineRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderPageQuery;
 import com.tuowei.erp.sales.order.web.SalesOrderSubmitRequest;
-import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,16 +81,12 @@ class SalesOrderServiceTenantBoundaryTest {
     private final SalesOrderMapper salesOrderMapper = mock(SalesOrderMapper.class);
     private final SalesOrderLineMapper salesOrderLineMapper = mock(SalesOrderLineMapper.class);
     private final CustomerMapper customerMapper = mock(CustomerMapper.class);
-    private final ProductMapper productMapper = mock(ProductMapper.class);
     private final ProductValidator productValidator = mock(ProductValidator.class);
     private final WarehouseMapper warehouseMapper = mock(WarehouseMapper.class);
     private final InventoryPostingService inventoryPostingService = mock(InventoryPostingService.class);
     private final SalesOrderNumberService salesOrderNumberService = mock(SalesOrderNumberService.class);
     private final AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
-    private final CurrentUserContext currentUserContext = mock(CurrentUserContext.class);
-    private final DataScopeService dataScopeService = mock(DataScopeService.class);
-    private final ScopedUserResolver scopedUserResolver = mock(ScopedUserResolver.class);
-    private final UserMapper userMapper = mock(UserMapper.class);
+    private final SalesOrderQueryService salesOrderQueryService = mock(SalesOrderQueryService.class);
     private final WorkflowService workflowService = mock(WorkflowService.class);
     private final SalesCreditEvaluator salesCreditEvaluator = mock(SalesCreditEvaluator.class);
     private final SalesPriceEvaluator salesPriceEvaluator = mock(SalesPriceEvaluator.class);
@@ -108,18 +97,20 @@ class SalesOrderServiceTenantBoundaryTest {
     }
 
     @Test
-    void getByIdScopesLineQueryByCompanyAndAccountBook() {
-        stubCurrentUser();
-        when(salesOrderMapper.selectById(3401L)).thenReturn(order());
-        when(salesOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
-
+    void getByIdDelegatesToQueryService() {
         service().getById(3401L);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        ArgumentCaptor<LambdaQueryWrapper<SalesOrderLineEntity>> wrapperCaptor =
-                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(salesOrderLineMapper).selectList(wrapperCaptor.capture());
-        assertTenantScoped(wrapperCaptor.getValue());
+        verify(salesOrderQueryService).getById(3401L);
+    }
+
+    @Test
+    void listDelegatesTheOriginalQueryToQueryService() {
+        SalesOrderPageQuery query = new SalesOrderPageQuery();
+        query.setKeyword("original");
+
+        service().list(query);
+
+        verify(salesOrderQueryService).list(query);
     }
 
     @Test
@@ -142,8 +133,6 @@ class SalesOrderServiceTenantBoundaryTest {
                 .thenReturn(activeCustomer(CUSTOMER_ID, AUDIT.companyId(), AUDIT.accountBookId()));
         when(warehouseMapper.selectById(WAREHOUSE_ID))
                 .thenReturn(activeWarehouse(WAREHOUSE_ID, AUDIT.companyId(), 999L));
-        when(productMapper.selectById(PRODUCT_ID))
-                .thenReturn(activeProduct(PRODUCT_ID, AUDIT.companyId(), AUDIT.accountBookId()));
         stubOrderInsert();
 
         assertThatThrownBy(() -> service().create(createRequest()))
@@ -169,7 +158,6 @@ class SalesOrderServiceTenantBoundaryTest {
 
     @Test
     void unapproveApprovedOrderReleasesReservationsAndReturnsToDraft() {
-        stubCurrentUser();
         stubAudit();
         SalesOrderEntity approved = order();
         approved.setStatus("APPROVED");
@@ -189,7 +177,6 @@ class SalesOrderServiceTenantBoundaryTest {
 
     @Test
     void unapproveRejectsDeliveredOrderWithoutReleasingReservation() {
-        stubCurrentUser();
         SalesOrderEntity delivered = order();
         delivered.setStatus("APPROVED");
         delivered.setApprovalStatus("APPROVED");
@@ -203,7 +190,6 @@ class SalesOrderServiceTenantBoundaryTest {
 
     @Test
     void submitValidatesCreditLimitBeforeWorkflowSubmission() {
-        stubCurrentUser();
         stubAudit();
         SalesOrderEntity draft = order();
         draft.setApprovalStatus("NOT_SUBMITTED");
@@ -223,16 +209,9 @@ class SalesOrderServiceTenantBoundaryTest {
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
     }
 
-    private void stubCurrentUser() {
-        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
-        when(currentUserContext.requirePrincipal()).thenReturn(PRINCIPAL);
-    }
-
     private void stubValidWarehouseAndProduct() {
         when(warehouseMapper.selectById(WAREHOUSE_ID))
                 .thenReturn(activeWarehouse(WAREHOUSE_ID, AUDIT.companyId(), AUDIT.accountBookId()));
-        when(productMapper.selectById(PRODUCT_ID))
-                .thenReturn(activeProduct(PRODUCT_ID, AUDIT.companyId(), AUDIT.accountBookId()));
     }
 
     private void stubOrderInsert() {
@@ -248,16 +227,12 @@ class SalesOrderServiceTenantBoundaryTest {
                 salesOrderMapper,
                 salesOrderLineMapper,
                 customerMapper,
-                productMapper,
                 productValidator,
                 warehouseMapper,
                 inventoryPostingService,
                 salesOrderNumberService,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
+                salesOrderQueryService,
                 workflowService,
                 salesCreditEvaluator,
                 salesPriceEvaluator
@@ -279,12 +254,6 @@ class SalesOrderServiceTenantBoundaryTest {
                         "line"
                 ))
         );
-    }
-
-    private void assertTenantScoped(LambdaQueryWrapper<?> wrapper) {
-        assertThat(wrapper.getSqlSegment().toLowerCase(Locale.ROOT))
-                .contains("company_id")
-                .contains("account_book_id");
     }
 
     private SalesOrderEntity order() {
@@ -337,16 +306,6 @@ class SalesOrderServiceTenantBoundaryTest {
         warehouse.setStatus("ACTIVE");
         warehouse.setDeletedFlag(0);
         return warehouse;
-    }
-
-    private ProductEntity activeProduct(Long id, Long companyId, Long accountBookId) {
-        ProductEntity product = new ProductEntity();
-        product.setId(id);
-        product.setCompanyId(companyId);
-        product.setAccountBookId(accountBookId);
-        product.setStatus("ACTIVE");
-        product.setDeletedFlag(0);
-        return product;
     }
 
     private static void initTableInfo(Class<?> entityClass) {

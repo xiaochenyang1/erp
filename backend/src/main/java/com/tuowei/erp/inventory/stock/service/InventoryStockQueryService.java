@@ -10,10 +10,8 @@ import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
-import com.tuowei.erp.inventory.stock.mapper.InventoryLotBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
-import com.tuowei.erp.inventory.stock.model.InventoryLotBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.stock.web.InventoryBalancePageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryBalanceResponse;
@@ -36,17 +34,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
-import java.time.Clock;
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.Objects;
 
 @Service
 public class InventoryStockQueryService {
 
-    private static final int DEFAULT_EXPIRY_WARNING_DAYS = 30;
-    private static final int MAX_EXPIRY_WARNING_DAYS = 365;
     private static final int EXPORT_PAGE_SIZE = 5000;
     private static final List<String> BALANCE_EXPORT_HEADERS = List.of(
             "warehouseId",
@@ -59,26 +52,23 @@ public class InventoryStockQueryService {
     );
 
     private final InventoryBalanceMapper inventoryBalanceMapper;
-    private final InventoryLotBalanceMapper inventoryLotBalanceMapper;
     private final InventoryTransactionMapper inventoryTransactionMapper;
     private final CurrentUserContext currentUserContext;
     private final DataScopeService dataScopeService;
-    private final Clock clock;
+    private final InventoryLotQueryService inventoryLotQueryService;
 
     public InventoryStockQueryService(
             InventoryBalanceMapper inventoryBalanceMapper,
-            InventoryLotBalanceMapper inventoryLotBalanceMapper,
             InventoryTransactionMapper inventoryTransactionMapper,
             CurrentUserContext currentUserContext,
             DataScopeService dataScopeService,
-            Clock clock
+            InventoryLotQueryService inventoryLotQueryService
     ) {
         this.inventoryBalanceMapper = inventoryBalanceMapper;
-        this.inventoryLotBalanceMapper = inventoryLotBalanceMapper;
         this.inventoryTransactionMapper = inventoryTransactionMapper;
         this.currentUserContext = currentUserContext;
         this.dataScopeService = dataScopeService;
-        this.clock = clock;
+        this.inventoryLotQueryService = inventoryLotQueryService;
     }
 
     @Transactional(readOnly = true)
@@ -131,35 +121,12 @@ public class InventoryStockQueryService {
 
     @Transactional(readOnly = true)
     public PageResponse<InventoryLotBalanceResponse> listLotBalances(InventoryLotBalancePageQuery query) {
-        InventoryLotBalancePageQuery safeQuery = query == null ? new InventoryLotBalancePageQuery() : query;
-        CurrentUser user = currentUser();
-        Page<InventoryLotBalanceEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
-        LambdaQueryWrapper<InventoryLotBalanceEntity> wrapper = buildLotBalanceQuery(user.companyId(), user.accountBookId(), safeQuery);
-        wrapper = dataScopeService.applyInventoryLotBalanceScope(wrapper, currentSnapshot());
-        Page<InventoryLotBalanceEntity> result = inventoryLotBalanceMapper.selectPage(page, wrapper);
-
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toLotBalanceResponse).toList()
-        );
+        return inventoryLotQueryService.listLotBalances(query);
     }
 
     @Transactional(readOnly = true)
     public InventoryLotBalanceResponse getLotBalanceById(Long id) {
-        InventoryLotBalanceEntity entity = inventoryLotBalanceMapper.selectById(id);
-        if (entity == null) {
-            throw new IllegalArgumentException("批次库存余额不存在");
-        }
-        if (!Objects.equals(entity.getCompanyId(), currentUser().companyId())) {
-            throw new IllegalArgumentException("批次库存余额不存在");
-        }
-        if (!Objects.equals(entity.getAccountBookId(), currentUser().accountBookId())) {
-            throw new IllegalArgumentException("批次库存余额不存在");
-        }
-        dataScopeService.assertCanViewInventoryLotBalance(entity, currentSnapshot());
-        return toLotBalanceResponse(entity);
+        return inventoryLotQueryService.getLotBalanceById(id);
     }
 
     @Transactional(readOnly = true)
@@ -196,48 +163,12 @@ public class InventoryStockQueryService {
 
     @Transactional(readOnly = true)
     public PageResponse<InventoryLotTraceResponse> traceLot(InventoryLotTraceQuery query) {
-        InventoryLotTraceQuery safeQuery = query == null ? new InventoryLotTraceQuery() : query;
-        if (safeQuery.getProductId() == null) {
-            throw new IllegalArgumentException("批次追溯必须指定商品");
-        }
-        String lotNo = normalizeNullableText(safeQuery.getLotNo());
-        if (!StringUtils.hasText(lotNo)) {
-            throw new IllegalArgumentException("批次追溯必须指定批次号");
-        }
-        CurrentUser user = currentUser();
-        Page<InventoryTransactionEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
-        LambdaQueryWrapper<InventoryTransactionEntity> wrapper = buildLotTraceQuery(user.companyId(), user.accountBookId(), safeQuery, lotNo);
-        wrapper = dataScopeService.applyInventoryTransactionScope(wrapper, currentSnapshot());
-        Page<InventoryTransactionEntity> result = inventoryTransactionMapper.selectPage(page, wrapper);
-
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toLotTraceResponse).toList()
-        );
+        return inventoryLotQueryService.traceLot(query);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<InventoryLotExpiryAlertResponse> listLotExpiryAlerts(InventoryLotExpiryAlertQuery query) {
-        InventoryLotExpiryAlertQuery safeQuery = query == null ? new InventoryLotExpiryAlertQuery() : query;
-        CurrentUser user = currentUser();
-        LocalDate referenceDate = LocalDate.now(clock);
-        int warningDays = normalizeWarningDays(safeQuery.getWarningDays());
-        String status = normalizeAlertStatus(safeQuery.getStatus());
-        Page<InventoryLotBalanceEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
-        LambdaQueryWrapper<InventoryLotBalanceEntity> wrapper = buildLotExpiryAlertQuery(user.companyId(), user.accountBookId(), safeQuery, referenceDate, warningDays, status);
-        wrapper = dataScopeService.applyInventoryLotBalanceScope(wrapper, currentSnapshot());
-        Page<InventoryLotBalanceEntity> result = inventoryLotBalanceMapper.selectPage(page, wrapper);
-
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream()
-                        .map(entity -> toLotExpiryAlertResponse(entity, referenceDate))
-                        .toList()
-        );
+        return inventoryLotQueryService.listLotExpiryAlerts(query);
     }
 
     private LambdaQueryWrapper<InventoryBalanceEntity> buildBalanceQuery(Long companyId, Long accountBookId, InventoryBalancePageQuery query) {
@@ -258,41 +189,6 @@ public class InventoryStockQueryService {
                 .orderByAsc(InventoryBalanceEntity::getLocationId)
                 .orderByAsc(InventoryBalanceEntity::getProductId)
                 .orderByDesc(InventoryBalanceEntity::getId);
-    }
-
-    private LambdaQueryWrapper<InventoryLotBalanceEntity> buildLotBalanceQuery(Long companyId, Long accountBookId, InventoryLotBalancePageQuery query) {
-        LambdaQueryWrapper<InventoryLotBalanceEntity> wrapper = new LambdaQueryWrapper<InventoryLotBalanceEntity>()
-                .eq(InventoryLotBalanceEntity::getCompanyId, companyId)
-                .eq(InventoryLotBalanceEntity::getAccountBookId, accountBookId);
-        if (query.getWarehouseId() != null) {
-            wrapper.eq(InventoryLotBalanceEntity::getWarehouseId, query.getWarehouseId());
-        }
-        if (query.getProductId() != null) {
-            wrapper.eq(InventoryLotBalanceEntity::getProductId, query.getProductId());
-        }
-        String lotNo = normalizeNullableText(query.getLotNo());
-        if (StringUtils.hasText(lotNo)) {
-            // 使用包含匹配（anywhere），MyBatis-Plus会自动添加%前后缀
-            // 但不会转义SQL通配符，所以我们需要手动转义
-            String escaped = lotNo.replace("\\", "\\\\")
-                                   .replace("%", "\\%")
-                                   .replace("_", "\\_");
-            wrapper.like(InventoryLotBalanceEntity::getLotNo, escaped);
-        }
-        if (query.getExpiryDateFrom() != null) {
-            wrapper.ge(InventoryLotBalanceEntity::getExpiryDate, query.getExpiryDateFrom());
-        }
-        if (query.getExpiryDateTo() != null) {
-            wrapper.le(InventoryLotBalanceEntity::getExpiryDate, query.getExpiryDateTo());
-        }
-        if (query.getExpiringWithinDays() != null) {
-            int days = Math.max(query.getExpiringWithinDays(), 0);
-            wrapper.le(InventoryLotBalanceEntity::getExpiryDate, LocalDate.now(clock).plusDays(days));
-        }
-        return wrapper
-                .orderByAsc(InventoryLotBalanceEntity::getExpiryDate)
-                .orderByAsc(InventoryLotBalanceEntity::getFirstInboundTime)
-                .orderByAsc(InventoryLotBalanceEntity::getId);
     }
 
     private LambdaQueryWrapper<InventoryTransactionEntity> buildTransactionQuery(Long companyId, Long accountBookId, InventoryTransactionPageQuery query) {
@@ -326,78 +222,6 @@ public class InventoryStockQueryService {
         return wrapper
                 .orderByDesc(InventoryTransactionEntity::getOccurredTime)
                 .orderByDesc(InventoryTransactionEntity::getId);
-    }
-
-    private LambdaQueryWrapper<InventoryTransactionEntity> buildLotTraceQuery(
-            Long companyId,
-            Long accountBookId,
-            InventoryLotTraceQuery query,
-            String lotNo
-    ) {
-        LambdaQueryWrapper<InventoryTransactionEntity> wrapper = new LambdaQueryWrapper<InventoryTransactionEntity>()
-                .eq(InventoryTransactionEntity::getCompanyId, companyId)
-                .eq(InventoryTransactionEntity::getAccountBookId, accountBookId)
-                .eq(InventoryTransactionEntity::getProductId, query.getProductId())
-                .eq(InventoryTransactionEntity::getLotNo, lotNo);
-        if (query.getWarehouseId() != null) {
-            wrapper.eq(InventoryTransactionEntity::getWarehouseId, query.getWarehouseId());
-        }
-        String direction = normalizeUpper(query.getDirection());
-        if (StringUtils.hasText(direction)) {
-            wrapper.eq(InventoryTransactionEntity::getDirection, direction);
-        }
-        if (query.getOccurredTimeFrom() != null) {
-            wrapper.ge(InventoryTransactionEntity::getOccurredTime, query.getOccurredTimeFrom());
-        }
-        if (query.getOccurredTimeTo() != null) {
-            wrapper.le(InventoryTransactionEntity::getOccurredTime, query.getOccurredTimeTo());
-        }
-        return wrapper
-                .orderByDesc(InventoryTransactionEntity::getOccurredTime)
-                .orderByDesc(InventoryTransactionEntity::getId);
-    }
-
-    private LambdaQueryWrapper<InventoryLotBalanceEntity> buildLotExpiryAlertQuery(
-            Long companyId,
-            Long accountBookId,
-            InventoryLotExpiryAlertQuery query,
-            LocalDate referenceDate,
-            int warningDays,
-            String status
-    ) {
-        LocalDate warningDate = referenceDate.plusDays(warningDays);
-        LambdaQueryWrapper<InventoryLotBalanceEntity> wrapper = new LambdaQueryWrapper<InventoryLotBalanceEntity>()
-                .eq(InventoryLotBalanceEntity::getCompanyId, companyId)
-                .eq(InventoryLotBalanceEntity::getAccountBookId, accountBookId)
-                .isNotNull(InventoryLotBalanceEntity::getExpiryDate)
-                .apply("qty_on_hand - qty_reserved > 0");
-        if (query.getWarehouseId() != null) {
-            wrapper.eq(InventoryLotBalanceEntity::getWarehouseId, query.getWarehouseId());
-        }
-        if (query.getProductId() != null) {
-            wrapper.eq(InventoryLotBalanceEntity::getProductId, query.getProductId());
-        }
-        String lotNo = normalizeNullableText(query.getLotNo());
-        if (StringUtils.hasText(lotNo)) {
-            // 使用包含匹配（anywhere），MyBatis-Plus会自动添加%前后缀
-            // 但不会转义SQL通配符，所以我们需要手动转义
-            String escaped = lotNo.replace("\\", "\\\\")
-                                   .replace("%", "\\%")
-                                   .replace("_", "\\_");
-            wrapper.like(InventoryLotBalanceEntity::getLotNo, escaped);
-        }
-        if ("EXPIRED".equals(status)) {
-            wrapper.lt(InventoryLotBalanceEntity::getExpiryDate, referenceDate);
-        } else if ("EXPIRING".equals(status)) {
-            wrapper.ge(InventoryLotBalanceEntity::getExpiryDate, referenceDate)
-                    .le(InventoryLotBalanceEntity::getExpiryDate, warningDate);
-        } else {
-            wrapper.le(InventoryLotBalanceEntity::getExpiryDate, warningDate);
-        }
-        return wrapper
-                .orderByAsc(InventoryLotBalanceEntity::getExpiryDate)
-                .orderByAsc(InventoryLotBalanceEntity::getFirstInboundTime)
-                .orderByAsc(InventoryLotBalanceEntity::getId);
     }
 
     private DataScopeSnapshot currentSnapshot() {
@@ -464,31 +288,6 @@ public class InventoryStockQueryService {
         return Math.min(pageSize, 200);
     }
 
-    private int normalizeWarningDays(Integer warningDays) {
-        if (warningDays == null) {
-            return DEFAULT_EXPIRY_WARNING_DAYS;
-        }
-        return Math.min(Math.max(warningDays, 0), MAX_EXPIRY_WARNING_DAYS);
-    }
-
-    private String normalizeAlertStatus(String status) {
-        String normalized = normalizeUpper(status);
-        if (normalized == null) {
-            return null;
-        }
-        if (!"EXPIRED".equals(normalized) && !"EXPIRING".equals(normalized)) {
-            throw new IllegalArgumentException("预警状态不正确");
-        }
-        return normalized;
-    }
-
-    private String expiryStatus(LocalDate expiryDate, LocalDate referenceDate) {
-        if (expiryDate.isBefore(referenceDate)) {
-            return "EXPIRED";
-        }
-        return "EXPIRING";
-    }
-
     private InventoryBalanceResponse toBalanceResponse(InventoryBalanceEntity entity) {
         return new InventoryBalanceResponse(
                 entity.getId(),
@@ -515,37 +314,11 @@ public class InventoryStockQueryService {
         );
     }
 
-    private InventoryLotBalanceResponse toLotBalanceResponse(InventoryLotBalanceEntity entity) {
-        return new InventoryLotBalanceResponse(
-                entity.getId(),
-                entity.getWarehouseId(),
-                entity.getLocationId(),
-                entity.getProductId(),
-                entity.getLotNo(),
-                entity.getProductionDate(),
-                entity.getExpiryDate(),
-                entity.getFirstInboundTime(),
-                ScalePrecision.quantity(ScalePrecision.zeroDefault(entity.getQtyOnHand())),
-                qtyReserved(entity),
-                qtyAvailable(entity),
-                entity.getAmountOnHand(),
-                entity.getUpdatedTime()
-        );
-    }
-
     private java.math.BigDecimal qtyReserved(InventoryBalanceEntity entity) {
         return ScalePrecision.quantity(ScalePrecision.zeroDefault(entity.getQtyReserved()));
     }
 
     private java.math.BigDecimal qtyAvailable(InventoryBalanceEntity entity) {
-        return ScalePrecision.quantity(ScalePrecision.zeroDefault(entity.getQtyOnHand()).subtract(qtyReserved(entity)));
-    }
-
-    private java.math.BigDecimal qtyReserved(InventoryLotBalanceEntity entity) {
-        return ScalePrecision.quantity(ScalePrecision.zeroDefault(entity.getQtyReserved()));
-    }
-
-    private java.math.BigDecimal qtyAvailable(InventoryLotBalanceEntity entity) {
         return ScalePrecision.quantity(ScalePrecision.zeroDefault(entity.getQtyOnHand()).subtract(qtyReserved(entity)));
     }
 
@@ -564,97 +337,6 @@ public class InventoryStockQueryService {
                 entity.getUnitCost(),
                 entity.getOccurredTime(),
                 entity.getRemark()
-        );
-    }
-
-    private InventoryLotTraceResponse toLotTraceResponse(InventoryTransactionEntity entity) {
-        String bizType = entity.getBizType();
-        return new InventoryLotTraceResponse(
-                entity.getId(),
-                entity.getWarehouseId(),
-                entity.getLocationId(),
-                entity.getProductId(),
-                entity.getLotNo(),
-                entity.getProductionDate(),
-                entity.getExpiryDate(),
-                bizType,
-                entity.getBizNo(),
-                entity.getBizLineId(),
-                entity.getDirection(),
-                ScalePrecision.quantity(ScalePrecision.zeroDefault(entity.getQty())),
-                ScalePrecision.amount(ScalePrecision.zeroDefault(entity.getAmount())),
-                ScalePrecision.unitCost(
-                        ScalePrecision.amount(ScalePrecision.zeroDefault(entity.getAmount())),
-                        ScalePrecision.quantity(ScalePrecision.zeroDefault(entity.getQty()))
-                ),
-                entity.getOccurredTime(),
-                entity.getRemark(),
-                resolveDocumentRoute(bizType, entity.getBizNo()),
-                resolveDocumentLabel(bizType)
-        );
-    }
-
-    private String resolveDocumentRoute(String bizType, String bizNo) {
-        if (!StringUtils.hasText(bizType) || !StringUtils.hasText(bizNo)) {
-            return null;
-        }
-        String type = bizType.trim().toUpperCase(Locale.ROOT);
-        String encoded = java.net.URLEncoder.encode(bizNo.trim(), java.nio.charset.StandardCharsets.UTF_8);
-        return switch (type) {
-            case "PURCHASE_RECEIPT" -> "/purchase/receipts?keyword=" + encoded;
-            case "PURCHASE_RETURN" -> "/purchase/returns?keyword=" + encoded;
-            case "SALES_DELIVERY" -> "/sales/deliveries?keyword=" + encoded;
-            case "SALES_RETURN" -> "/sales/returns?keyword=" + encoded;
-            case "PRODUCTION_ISSUE", "PRODUCTION_COMPLETION", "PRODUCTION_COMPLETION_REVERSAL", "PRODUCTION_RETURN" ->
-                    "/production/orders?keyword=" + encoded;
-            case "INVENTORY_ADJUSTMENT" -> "/inventory/adjustments?keyword=" + encoded;
-            case "INVENTORY_TRANSFER" -> "/inventory/transfers?keyword=" + encoded;
-            case "INVENTORY_CHECK" -> "/inventory/checks?keyword=" + encoded;
-            case "OPENING_INVENTORY", "OPENING_BALANCE" -> "/system/imports?importType=OPENING_INVENTORY&keyword=" + encoded;
-            default -> null;
-        };
-    }
-
-    private String resolveDocumentLabel(String bizType) {
-        if (!StringUtils.hasText(bizType)) {
-            return null;
-        }
-        return switch (bizType.trim().toUpperCase(Locale.ROOT)) {
-            case "PURCHASE_RECEIPT" -> "采购收货";
-            case "PURCHASE_RETURN" -> "采购退货";
-            case "SALES_DELIVERY" -> "销售发货";
-            case "SALES_RETURN" -> "销售退货";
-            case "PRODUCTION_ISSUE" -> "生产领料";
-            case "PRODUCTION_COMPLETION" -> "生产完工";
-            case "PRODUCTION_COMPLETION_REVERSAL" -> "完工红冲";
-            case "PRODUCTION_RETURN" -> "生产退料";
-            case "INVENTORY_ADJUSTMENT" -> "库存调整";
-            case "INVENTORY_TRANSFER" -> "库存调拨";
-            case "INVENTORY_CHECK" -> "库存盘点";
-            case "OPENING_INVENTORY", "OPENING_BALANCE" -> "期初库存";
-            default -> bizType;
-        };
-    }
-
-    private InventoryLotExpiryAlertResponse toLotExpiryAlertResponse(InventoryLotBalanceEntity entity, LocalDate referenceDate) {
-        java.math.BigDecimal qtyOnHand = ScalePrecision.quantity(ScalePrecision.zeroDefault(entity.getQtyOnHand()));
-        java.math.BigDecimal reserved = qtyReserved(entity);
-        java.math.BigDecimal available = ScalePrecision.quantity(qtyOnHand.subtract(reserved));
-        return new InventoryLotExpiryAlertResponse(
-                entity.getId(),
-                entity.getWarehouseId(),
-                entity.getProductId(),
-                entity.getLotNo(),
-                entity.getProductionDate(),
-                entity.getExpiryDate(),
-                entity.getFirstInboundTime(),
-                qtyOnHand,
-                reserved,
-                available,
-                ScalePrecision.amount(ScalePrecision.zeroDefault(entity.getAmountOnHand())),
-                expiryStatus(entity.getExpiryDate(), referenceDate),
-                ChronoUnit.DAYS.between(referenceDate, entity.getExpiryDate()),
-                entity.getUpdatedTime()
         );
     }
 

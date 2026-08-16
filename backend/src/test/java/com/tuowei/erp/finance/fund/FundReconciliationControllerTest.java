@@ -282,8 +282,8 @@ class FundReconciliationControllerTest {
                 select count(*) > 0
                 from information_schema.tables
                 where table_schema = database()
-                  and table_name = ?
-                """, Boolean.class, tableName.toUpperCase());
+                  and lower(table_name) = lower(?)
+                """, Boolean.class, tableName);
         if (Boolean.TRUE.equals(exists)) {
             jdbcTemplate.update("delete from " + tableName + " where " + condition);
         }

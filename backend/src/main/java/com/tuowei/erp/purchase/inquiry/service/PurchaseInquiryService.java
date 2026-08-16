@@ -1,12 +1,9 @@
 package com.tuowei.erp.purchase.inquiry.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.web.PageQueryNormalizer;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryLineMapper;
@@ -17,11 +14,9 @@ import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryQuoteEntity;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQuoteService.QuoteLinePrice;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryCreateRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryLineRequest;
-import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryLineResponse;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryPageQuery;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryPoPrefillResponse;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteRequest;
-import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteResponse;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryResponse;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquirySelectQuoteRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryUpdateRequest;
@@ -37,10 +32,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Service
 public class PurchaseInquiryService {
@@ -58,6 +50,7 @@ public class PurchaseInquiryService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final PurchaseOrderService purchaseOrderService;
     private final PurchaseInquiryQuoteService purchaseInquiryQuoteService;
+    private final PurchaseInquiryQueryService purchaseInquiryQueryService;
 
     public PurchaseInquiryService(
             PurchaseInquiryMapper purchaseInquiryMapper,
@@ -66,7 +59,8 @@ public class PurchaseInquiryService {
             ProductValidator productValidator,
             AuditMetadataFactory auditMetadataFactory,
             PurchaseOrderService purchaseOrderService,
-            PurchaseInquiryQuoteService purchaseInquiryQuoteService
+            PurchaseInquiryQuoteService purchaseInquiryQuoteService,
+            PurchaseInquiryQueryService purchaseInquiryQueryService
     ) {
         this.purchaseInquiryMapper = purchaseInquiryMapper;
         this.purchaseInquiryLineMapper = purchaseInquiryLineMapper;
@@ -75,6 +69,7 @@ public class PurchaseInquiryService {
         this.auditMetadataFactory = auditMetadataFactory;
         this.purchaseOrderService = purchaseOrderService;
         this.purchaseInquiryQuoteService = purchaseInquiryQuoteService;
+        this.purchaseInquiryQueryService = purchaseInquiryQueryService;
     }
 
     @Transactional
@@ -102,37 +97,24 @@ public class PurchaseInquiryService {
         purchaseInquiryMapper.insert(inquiry);
 
         List<PurchaseInquiryLineEntity> lines = insertLines(inquiry, request.lines(), audit, now);
-        return toResponse(inquiry, lines, List.of());
+        return purchaseInquiryQueryService.toResponse(inquiry, lines, List.of());
     }
 
     @Transactional(readOnly = true)
     public PageResponse<PurchaseInquiryResponse> list(PurchaseInquiryPageQuery query) {
         PurchaseInquiryPageQuery safeQuery = query == null ? new PurchaseInquiryPageQuery() : query;
-        long pageNo = PageQueryNormalizer.normalizePageNo(safeQuery.getPageNo());
-        long pageSize = PageQueryNormalizer.normalizePageSize(safeQuery.getPageSize());
-        AuditMetadata audit = auditMetadataFactory.current();
-
-        Page<PurchaseInquiryEntity> page = new Page<>(pageNo, pageSize);
-        Page<PurchaseInquiryEntity> result = purchaseInquiryMapper.selectPage(page, buildListQuery(audit, safeQuery));
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toSummaryResponse).toList()
-        );
+        return purchaseInquiryQueryService.list(safeQuery);
     }
 
     @Transactional(readOnly = true)
     public PurchaseInquiryResponse getById(Long id) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        PurchaseInquiryEntity inquiry = requireInquiry(id, audit);
-        return toResponse(inquiry, loadLines(inquiry), purchaseInquiryQuoteService.loadQuoteResponses(inquiry));
+        return purchaseInquiryQueryService.getById(id);
     }
 
     @Transactional
     public PurchaseInquiryResponse update(Long id, PurchaseInquiryUpdateRequest request) {
         AuditMetadata audit = auditMetadataFactory.current();
-        PurchaseInquiryEntity inquiry = requireInquiry(id, audit);
+        PurchaseInquiryEntity inquiry = purchaseInquiryQueryService.requireInquiry(id, audit);
         if (!STATUS_DRAFT.equals(inquiry.getStatus())) {
             throw new IllegalArgumentException("当前询价单状态不允许编辑");
         }
@@ -152,17 +134,21 @@ public class PurchaseInquiryService {
         );
 
         List<PurchaseInquiryLineEntity> lines = insertLines(inquiry, request.lines(), audit, now);
-        return toResponse(inquiry, lines, purchaseInquiryQuoteService.loadQuoteResponses(inquiry));
+        return purchaseInquiryQueryService.toResponse(
+                inquiry,
+                lines,
+                purchaseInquiryQuoteService.loadQuoteResponses(inquiry)
+        );
     }
 
     @Transactional
     public PurchaseInquiryResponse submit(Long id) {
         AuditMetadata audit = auditMetadataFactory.current();
-        PurchaseInquiryEntity inquiry = requireInquiry(id, audit);
+        PurchaseInquiryEntity inquiry = purchaseInquiryQueryService.requireInquiry(id, audit);
         if (!STATUS_DRAFT.equals(inquiry.getStatus())) {
             throw new IllegalArgumentException("当前询价单状态不允许提交");
         }
-        if (loadLines(inquiry).isEmpty()) {
+        if (purchaseInquiryQueryService.loadLines(inquiry).isEmpty()) {
             throw new IllegalArgumentException("询价单没有明细，无法提交");
         }
         inquiry.setStatus(STATUS_SUBMITTED);
@@ -177,7 +163,7 @@ public class PurchaseInquiryService {
     @Transactional
     public PurchaseInquiryResponse addQuote(Long id, PurchaseInquiryQuoteRequest request) {
         AuditMetadata audit = auditMetadataFactory.current();
-        PurchaseInquiryEntity inquiry = requireInquiry(id, audit);
+        PurchaseInquiryEntity inquiry = purchaseInquiryQueryService.requireInquiry(id, audit);
         if (!STATUS_SUBMITTED.equals(inquiry.getStatus())) {
             throw new IllegalArgumentException("仅已提交的询价单可录入报价");
         }
@@ -194,7 +180,7 @@ public class PurchaseInquiryService {
     @Transactional
     public PurchaseInquiryResponse selectQuote(Long id, PurchaseInquirySelectQuoteRequest request) {
         AuditMetadata audit = auditMetadataFactory.current();
-        PurchaseInquiryEntity inquiry = requireInquiry(id, audit);
+        PurchaseInquiryEntity inquiry = purchaseInquiryQueryService.requireInquiry(id, audit);
         if (!STATUS_SUBMITTED.equals(inquiry.getStatus())) {
             throw new IllegalArgumentException("仅已提交的询价单可选定中标报价");
         }
@@ -219,52 +205,7 @@ public class PurchaseInquiryService {
 
     @Transactional(readOnly = true)
     public PurchaseInquiryPoPrefillResponse poPrefill(Long id) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        PurchaseInquiryEntity inquiry = requireInquiry(id, audit);
-        if ((!STATUS_CLOSED.equals(inquiry.getStatus()) && !STATUS_CONVERTED.equals(inquiry.getStatus()))
-                || inquiry.getSelectedQuoteId() == null) {
-            throw new IllegalArgumentException("仅已选定中标报价的询价单可生成采购订单预填数据");
-        }
-        PurchaseInquiryQuoteEntity quote = purchaseInquiryQuoteService.requireQuote(
-                inquiry.getSelectedQuoteId(),
-                inquiry,
-                audit
-        );
-        List<PurchaseInquiryLineEntity> lines = loadLines(inquiry);
-        if (lines.isEmpty()) {
-            throw new IllegalArgumentException("询价单没有明细，无法生成采购订单预填数据");
-        }
-        Map<Long, QuoteLinePrice> quotePrices = purchaseInquiryQuoteService.resolveQuotePrices(
-                inquiry,
-                quote,
-                lines,
-                "中标报价缺少单价，无法生成采购订单预填数据",
-                "中标报价明细不完整，无法生成采购订单预填数据"
-        );
-        String remark = "来源询价单 " + inquiry.getInquiryNo();
-        if (StringUtils.hasText(inquiry.getRemark())) {
-            remark = remark + "；" + inquiry.getRemark();
-        }
-        List<PurchaseInquiryPoPrefillResponse.PurchaseInquiryPoPrefillLine> prefillLines = lines.stream()
-                .map(line -> {
-                    QuoteLinePrice linePrice = quotePrices.get(line.getId());
-                    return new PurchaseInquiryPoPrefillResponse.PurchaseInquiryPoPrefillLine(
-                            line.getProductId(),
-                            ScalePrecision.quantity(line.getQty()),
-                            linePrice.unitPrice(),
-                            linePrice.taxRate(),
-                            line.getRemark()
-                    );
-                })
-                .toList();
-        return new PurchaseInquiryPoPrefillResponse(
-                inquiry.getId(),
-                inquiry.getInquiryNo(),
-                quote.getSupplierId(),
-                inquiry.getInquiryDate(),
-                remark,
-                prefillLines
-        );
+        return purchaseInquiryQueryService.poPrefill(id);
     }
 
     @Transactional
@@ -282,7 +223,7 @@ public class PurchaseInquiryService {
 
         PurchaseInquiryQuoteEntity quote = purchaseInquiryQuoteService.requireSelectedQuote(inquiry, audit);
 
-        List<PurchaseInquiryLineEntity> inquiryLines = loadLines(inquiry);
+        List<PurchaseInquiryLineEntity> inquiryLines = purchaseInquiryQueryService.loadLines(inquiry);
         if (inquiryLines.isEmpty()) {
             throw new IllegalArgumentException("询价单没有明细，无法转换为采购订单");
         }
@@ -346,7 +287,7 @@ public class PurchaseInquiryService {
     @Transactional
     public PurchaseInquiryResponse cancel(Long id) {
         AuditMetadata audit = auditMetadataFactory.current();
-        PurchaseInquiryEntity inquiry = requireInquiry(id, audit);
+        PurchaseInquiryEntity inquiry = purchaseInquiryQueryService.requireInquiry(id, audit);
         if (!STATUS_DRAFT.equals(inquiry.getStatus()) && !STATUS_SUBMITTED.equals(inquiry.getStatus())) {
             throw new IllegalArgumentException("当前询价单状态不允许作废");
         }
@@ -401,7 +342,7 @@ public class PurchaseInquiryService {
     }
 
     private void softDeleteLines(PurchaseInquiryEntity inquiry, AuditMetadata audit, LocalDateTime now) {
-        List<PurchaseInquiryLineEntity> existing = loadLines(inquiry);
+        List<PurchaseInquiryLineEntity> existing = purchaseInquiryQueryService.loadLines(inquiry);
         for (PurchaseInquiryLineEntity line : existing) {
             line.setDeletedFlag(1);
             line.setUpdatedBy(audit.userId());
@@ -411,16 +352,6 @@ public class PurchaseInquiryService {
                     "询价单明细已被其他操作修改，请刷新后重试"
             );
         }
-    }
-
-    private PurchaseInquiryEntity requireInquiry(Long id, AuditMetadata audit) {
-        PurchaseInquiryEntity entity = purchaseInquiryMapper.selectById(id);
-        if (entity == null || entity.getDeletedFlag() == null || entity.getDeletedFlag() != 0
-                || !Objects.equals(entity.getCompanyId(), audit.companyId())
-                || !Objects.equals(entity.getAccountBookId(), audit.accountBookId())) {
-            throw new IllegalArgumentException("询价单不存在");
-        }
-        return entity;
     }
 
     private PurchaseInquiryEntity requireInquiryForUpdate(Long id, AuditMetadata audit) {
@@ -435,105 +366,9 @@ public class PurchaseInquiryService {
         return entity;
     }
 
-    private List<PurchaseInquiryLineEntity> loadLines(PurchaseInquiryEntity inquiry) {
-        return purchaseInquiryLineMapper.selectList(
-                new LambdaQueryWrapper<PurchaseInquiryLineEntity>()
-                        .eq(PurchaseInquiryLineEntity::getCompanyId, inquiry.getCompanyId())
-                        .eq(PurchaseInquiryLineEntity::getAccountBookId, inquiry.getAccountBookId())
-                        .eq(PurchaseInquiryLineEntity::getInquiryId, inquiry.getId())
-                        .eq(PurchaseInquiryLineEntity::getDeletedFlag, 0)
-                        .orderByAsc(PurchaseInquiryLineEntity::getLineNo)
-        );
-    }
-
-    private LambdaQueryWrapper<PurchaseInquiryEntity> buildListQuery(AuditMetadata audit, PurchaseInquiryPageQuery query) {
-        LambdaQueryWrapper<PurchaseInquiryEntity> wrapper = new LambdaQueryWrapper<PurchaseInquiryEntity>()
-                .eq(PurchaseInquiryEntity::getCompanyId, audit.companyId())
-                .eq(PurchaseInquiryEntity::getAccountBookId, audit.accountBookId())
-                .eq(PurchaseInquiryEntity::getDeletedFlag, 0)
-                .orderByDesc(PurchaseInquiryEntity::getInquiryDate)
-                .orderByDesc(PurchaseInquiryEntity::getId);
-        String keyword = trimToNull(query.getKeyword());
-        if (StringUtils.hasText(keyword)) {
-            wrapper.and(w -> w.like(PurchaseInquiryEntity::getInquiryNo, keyword)
-                    .or()
-                    .like(PurchaseInquiryEntity::getTitle, keyword));
-        }
-        String status = normalizeStatus(query.getStatus());
-        if (StringUtils.hasText(status)) {
-            wrapper.eq(PurchaseInquiryEntity::getStatus, status);
-        }
-        if (query.getInquiryDateFrom() != null) {
-            wrapper.ge(PurchaseInquiryEntity::getInquiryDate, query.getInquiryDateFrom());
-        }
-        if (query.getInquiryDateTo() != null) {
-            wrapper.le(PurchaseInquiryEntity::getInquiryDate, query.getInquiryDateTo());
-        }
-        return wrapper;
-    }
-
     private void touch(PurchaseInquiryEntity inquiry, AuditMetadata audit) {
         inquiry.setUpdatedBy(audit.userId());
         inquiry.setUpdatedTime(audit.now());
-    }
-
-    private PurchaseInquiryResponse toSummaryResponse(PurchaseInquiryEntity entity) {
-        return new PurchaseInquiryResponse(
-                entity.getId(),
-                entity.getInquiryNo(),
-                entity.getInquiryDate(),
-                entity.getStatus(),
-                entity.getSelectedSupplierId(),
-                entity.getSelectedQuoteId(),
-                entity.getConvertedOrderId(),
-                entity.getConvertedOrderNo(),
-                entity.getConvertedBy(),
-                entity.getConvertedTime(),
-                entity.getTitle(),
-                entity.getRemark(),
-                List.of(),
-                List.of()
-        );
-    }
-
-    private PurchaseInquiryResponse toResponse(
-            PurchaseInquiryEntity entity,
-            List<PurchaseInquiryLineEntity> lines,
-            List<PurchaseInquiryQuoteResponse> quotes
-    ) {
-        return new PurchaseInquiryResponse(
-                entity.getId(),
-                entity.getInquiryNo(),
-                entity.getInquiryDate(),
-                entity.getStatus(),
-                entity.getSelectedSupplierId(),
-                entity.getSelectedQuoteId(),
-                entity.getConvertedOrderId(),
-                entity.getConvertedOrderNo(),
-                entity.getConvertedBy(),
-                entity.getConvertedTime(),
-                entity.getTitle(),
-                entity.getRemark(),
-                lines.stream().map(this::toLineResponse).collect(Collectors.toList()),
-                quotes
-        );
-    }
-
-    private PurchaseInquiryLineResponse toLineResponse(PurchaseInquiryLineEntity line) {
-        return new PurchaseInquiryLineResponse(
-                line.getId(),
-                line.getLineNo(),
-                line.getProductId(),
-                line.getQty(),
-                line.getRemark()
-        );
-    }
-
-    private String normalizeStatus(String status) {
-        if (!StringUtils.hasText(status)) {
-            return null;
-        }
-        return status.trim().toUpperCase(Locale.ROOT);
     }
 
     private String trimToNull(String value) {

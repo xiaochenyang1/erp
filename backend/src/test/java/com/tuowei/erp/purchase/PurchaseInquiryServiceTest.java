@@ -18,6 +18,7 @@ import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryLineEntity;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryQuoteEntity;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryQuoteLineEntity;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryNumberService;
+import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQueryService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQuoteService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryService;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryCreateRequest;
@@ -700,6 +701,12 @@ class PurchaseInquiryServiceTest {
                 purchaseInquiryQuoteLineMapper,
                 supplierMapper
         );
+        PurchaseInquiryQueryService queryService = new PurchaseInquiryQueryService(
+                purchaseInquiryMapper,
+                purchaseInquiryLineMapper,
+                auditMetadataFactory,
+                quoteService
+        );
         return new PurchaseInquiryService(
                 purchaseInquiryMapper,
                 purchaseInquiryLineMapper,
@@ -707,7 +714,8 @@ class PurchaseInquiryServiceTest {
                 productValidator,
                 auditMetadataFactory,
                 purchaseOrderService,
-                quoteService
+                quoteService,
+                queryService
         );
     }
 

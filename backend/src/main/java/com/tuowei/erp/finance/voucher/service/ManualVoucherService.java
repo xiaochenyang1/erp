@@ -1,7 +1,6 @@
 package com.tuowei.erp.finance.voucher.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
@@ -20,7 +19,6 @@ import com.tuowei.erp.finance.voucher.model.ManualVoucherLineEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntryEntity;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherLineRequest;
-import com.tuowei.erp.finance.voucher.web.ManualVoucherLineResponse;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherPageQuery;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherResponse;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherSaveRequest;
@@ -66,6 +64,7 @@ public class ManualVoucherService {
     private final AccountPeriodGuard accountPeriodGuard;
     private final SequenceNumberGenerator sequenceNumberGenerator;
     private final AuditMetadataFactory auditMetadataFactory;
+    private final ManualVoucherQueryService manualVoucherQueryService;
 
     public ManualVoucherService(
             ManualVoucherMapper manualVoucherMapper,
@@ -75,7 +74,8 @@ public class ManualVoucherService {
             AccountSubjectMapper accountSubjectMapper,
             AccountPeriodGuard accountPeriodGuard,
             SequenceNumberGenerator sequenceNumberGenerator,
-            AuditMetadataFactory auditMetadataFactory
+            AuditMetadataFactory auditMetadataFactory,
+            ManualVoucherQueryService manualVoucherQueryService
     ) {
         this.manualVoucherMapper = manualVoucherMapper;
         this.manualVoucherLineMapper = manualVoucherLineMapper;
@@ -85,6 +85,7 @@ public class ManualVoucherService {
         this.accountPeriodGuard = accountPeriodGuard;
         this.sequenceNumberGenerator = sequenceNumberGenerator;
         this.auditMetadataFactory = auditMetadataFactory;
+        this.manualVoucherQueryService = manualVoucherQueryService;
     }
 
     @Transactional
@@ -114,7 +115,7 @@ public class ManualVoucherService {
         manualVoucherMapper.insert(voucher);
 
         insertLines(voucher, lines, audit, now);
-        return toResponse(voucher, audit);
+        return manualVoucherQueryService.toResponse(voucher, audit);
     }
 
     @Transactional
@@ -139,7 +140,7 @@ public class ManualVoucherService {
 
         deleteLines(voucher, audit);
         insertLines(voucher, lines, audit, now);
-        return toResponse(voucher, audit);
+        return manualVoucherQueryService.toResponse(voucher, audit);
     }
 
     @Transactional
@@ -315,39 +316,12 @@ public class ManualVoucherService {
     @Transactional(readOnly = true)
     public PageResponse<ManualVoucherResponse> list(ManualVoucherPageQuery query) {
         ManualVoucherPageQuery safeQuery = query == null ? new ManualVoucherPageQuery() : query;
-        AuditMetadata audit = auditMetadataFactory.current();
-        Page<ManualVoucherEntity> page = new Page<>(safeQuery.getPageNo(), safeQuery.getPageSize());
-        LambdaQueryWrapper<ManualVoucherEntity> wrapper = new LambdaQueryWrapper<ManualVoucherEntity>()
-                .eq(ManualVoucherEntity::getCompanyId, audit.companyId())
-                .eq(ManualVoucherEntity::getAccountBookId, audit.accountBookId())
-                .eq(ManualVoucherEntity::getDeletedFlag, 0);
-        if (StringUtils.hasText(safeQuery.getVoucherNo())) {
-            wrapper.like(ManualVoucherEntity::getVoucherNo, safeQuery.getVoucherNo().trim());
-        }
-        if (StringUtils.hasText(safeQuery.getStatus())) {
-            wrapper.eq(ManualVoucherEntity::getStatus, safeQuery.getStatus().trim());
-        }
-        if (safeQuery.getDateFrom() != null) {
-            wrapper.ge(ManualVoucherEntity::getBizDate, safeQuery.getDateFrom());
-        }
-        if (safeQuery.getDateTo() != null) {
-            wrapper.le(ManualVoucherEntity::getBizDate, safeQuery.getDateTo());
-        }
-        wrapper.orderByDesc(ManualVoucherEntity::getBizDate).orderByDesc(ManualVoucherEntity::getId);
-        Page<ManualVoucherEntity> result = manualVoucherMapper.selectPage(page, wrapper);
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(v -> toResponse(v, audit)).toList()
-        );
+        return manualVoucherQueryService.list(safeQuery);
     }
 
     @Transactional(readOnly = true)
     public ManualVoucherResponse detail(Long id) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        ManualVoucherEntity voucher = requireVoucher(id, audit);
-        return toResponse(voucher, audit);
+        return manualVoucherQueryService.detail(id);
     }
 
     // ---- 内部辅助 ----
@@ -575,11 +549,7 @@ public class ManualVoucherService {
     }
 
     private List<ManualVoucherLineEntity> loadLines(ManualVoucherEntity voucher, AuditMetadata audit) {
-        return manualVoucherLineMapper.selectList(new LambdaQueryWrapper<ManualVoucherLineEntity>()
-                .eq(ManualVoucherLineEntity::getCompanyId, audit.companyId())
-                .eq(ManualVoucherLineEntity::getAccountBookId, audit.accountBookId())
-                .eq(ManualVoucherLineEntity::getVoucherId, voucher.getId())
-                .orderByAsc(ManualVoucherLineEntity::getLineNo));
+        return manualVoucherQueryService.loadLines(voucher, audit);
     }
 
     private AccountSubjectEntity requireSubject(Long subjectId, AuditMetadata audit) {
@@ -597,46 +567,6 @@ public class ManualVoucherService {
     }
 
     private ManualVoucherEntity requireVoucher(Long id, AuditMetadata audit) {
-        ManualVoucherEntity voucher = manualVoucherMapper.selectById(id);
-        if (voucher == null
-                || !Objects.equals(voucher.getCompanyId(), audit.companyId())
-                || !Objects.equals(voucher.getAccountBookId(), audit.accountBookId())
-                || voucher.getDeletedFlag() == null || voucher.getDeletedFlag() != 0) {
-            throw new IllegalArgumentException("手工凭证不存在");
-        }
-        return voucher;
-    }
-
-    private ManualVoucherResponse toResponse(ManualVoucherEntity voucher, AuditMetadata audit) {
-        List<ManualVoucherLineResponse> lines = loadLines(voucher, audit).stream()
-                .map(line -> new ManualVoucherLineResponse(
-                        line.getId(),
-                        line.getLineNo(),
-                        line.getSubjectId(),
-                        line.getSubjectCode(),
-                        line.getSubjectName(),
-                        line.getDebitAmount(),
-                        line.getCreditAmount(),
-                        line.getSummary()
-                ))
-                .toList();
-        return new ManualVoucherResponse(
-                voucher.getId(),
-                voucher.getVoucherNo(),
-                voucher.getBizDate(),
-                voucher.getAmount(),
-                voucher.getStatus(),
-                voucher.getRemark(),
-                voucher.getPostedVoucherId(),
-                voucher.getReversalVoucherId(),
-                voucher.getRejectReason(),
-                voucher.getCancelReason(),
-                voucher.getSubmittedTime(),
-                voucher.getApprovedTime(),
-                voucher.getPostedTime(),
-                voucher.getCancelledTime(),
-                voucher.getCreatedTime(),
-                lines
-        );
+        return manualVoucherQueryService.requireVoucher(id, audit);
     }
 }

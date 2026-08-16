@@ -1,7 +1,6 @@
 package com.tuowei.erp.issue.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
@@ -14,7 +13,6 @@ import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyService;
 import com.tuowei.erp.issue.web.ExceptionTicketActionRequest;
 import com.tuowei.erp.issue.web.ExceptionTicketAssignRequest;
 import com.tuowei.erp.issue.web.ExceptionTicketCreateRequest;
-import com.tuowei.erp.issue.web.ExceptionTicketEventResponse;
 import com.tuowei.erp.issue.web.ExceptionTicketPageQuery;
 import com.tuowei.erp.issue.web.ExceptionTicketResponse;
 import com.tuowei.erp.system.notification.service.NotificationService;
@@ -26,14 +24,10 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -56,6 +50,7 @@ public class ExceptionTicketService {
     private final ExceptionTicketEventMapper eventMapper;
     private final NotificationService notificationService;
     private final ExceptionSlaPolicyService slaPolicyService;
+    private final ExceptionTicketQueryService exceptionTicketQueryService;
     private final Clock clock;
     private final AtomicLong ticketNoCounter = new AtomicLong();
 
@@ -65,6 +60,7 @@ public class ExceptionTicketService {
             ExceptionTicketEventMapper eventMapper,
             NotificationService notificationService,
             ExceptionSlaPolicyService slaPolicyService,
+            ExceptionTicketQueryService exceptionTicketQueryService,
             Clock clock
     ) {
         this.auditMetadataFactory = auditMetadataFactory;
@@ -72,23 +68,14 @@ public class ExceptionTicketService {
         this.eventMapper = eventMapper;
         this.notificationService = notificationService;
         this.slaPolicyService = slaPolicyService;
+        this.exceptionTicketQueryService = exceptionTicketQueryService;
         this.clock = clock;
     }
 
     @Transactional(readOnly = true)
     public PageResponse<ExceptionTicketResponse> list(ExceptionTicketPageQuery query) {
-        AuditMetadata audit = auditMetadataFactory.current();
         ExceptionTicketPageQuery safeQuery = query == null ? new ExceptionTicketPageQuery() : query;
-        Page<ExceptionTicketEntity> page = new Page<>(
-                normalizePageNo(safeQuery.getPageNo()),
-                normalizePageSize(safeQuery.getPageSize())
-        );
-        Page<ExceptionTicketEntity> result = ticketMapper.selectPage(page, buildTicketQuery(audit, safeQuery));
-        Map<Long, List<ExceptionTicketEventEntity>> events = loadEvents(result.getRecords(), audit);
-        List<ExceptionTicketResponse> records = result.getRecords().stream()
-                .map(ticket -> toResponse(ticket, events.getOrDefault(ticket.getId(), List.of())))
-                .toList();
-        return new PageResponse<>(result.getCurrent(), result.getSize(), result.getTotal(), records);
+        return exceptionTicketQueryService.list(safeQuery);
     }
 
     @Transactional
@@ -287,76 +274,8 @@ public class ExceptionTicketService {
         return count;
     }
 
-    private LambdaQueryWrapper<ExceptionTicketEntity> buildTicketQuery(AuditMetadata audit, ExceptionTicketPageQuery query) {
-        LambdaQueryWrapper<ExceptionTicketEntity> wrapper = new LambdaQueryWrapper<ExceptionTicketEntity>()
-                .eq(ExceptionTicketEntity::getCompanyId, audit.companyId())
-                .eq(ExceptionTicketEntity::getAccountBookId, audit.accountBookId())
-                .eq(ExceptionTicketEntity::getDeletedFlag, 0);
-        String keyword = trimToNull(query.getKeyword());
-        if (keyword != null) {
-            wrapper.and(nested -> nested
-                    .like(ExceptionTicketEntity::getTicketNo, keyword)
-                    .or()
-                    .like(ExceptionTicketEntity::getTitle, keyword)
-                    .or()
-                    .like(ExceptionTicketEntity::getDescription, keyword));
-        }
-        eqIfText(wrapper, ExceptionTicketEntity::getStatus, normalizeCode(query.getStatus()));
-        eqIfText(wrapper, ExceptionTicketEntity::getPriority, normalizeCode(query.getPriority()));
-        eqIfText(wrapper, ExceptionTicketEntity::getCategory, normalizeCode(query.getCategory()));
-        if (query.getAssigneeUserId() != null) {
-            wrapper.eq(ExceptionTicketEntity::getAssigneeUserId, query.getAssigneeUserId());
-        }
-        String sourceNo = trimToNull(query.getSourceNo());
-        if (sourceNo != null) {
-            wrapper.like(ExceptionTicketEntity::getSourceNo, sourceNo);
-        }
-        if (Boolean.TRUE.equals(query.getOverdueOnly())) {
-            wrapper.le(ExceptionTicketEntity::getDueTime, LocalDateTime.now(clock))
-                    .in(ExceptionTicketEntity::getStatus, List.of(STATUS_OPEN, STATUS_PROCESSING));
-        }
-        return wrapper.orderByDesc(ExceptionTicketEntity::getUpdatedTime).orderByDesc(ExceptionTicketEntity::getId);
-    }
-
-    private void eqIfText(
-            LambdaQueryWrapper<ExceptionTicketEntity> wrapper,
-            com.baomidou.mybatisplus.core.toolkit.support.SFunction<ExceptionTicketEntity, ?> column,
-            String value
-    ) {
-        if (StringUtils.hasText(value)) {
-            wrapper.eq(column, value);
-        }
-    }
-
-    private Map<Long, List<ExceptionTicketEventEntity>> loadEvents(List<ExceptionTicketEntity> tickets, AuditMetadata audit) {
-        List<Long> ticketIds = tickets.stream()
-                .map(ExceptionTicketEntity::getId)
-                .filter(java.util.Objects::nonNull)
-                .distinct()
-                .toList();
-        if (ticketIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return eventMapper.selectList(new LambdaQueryWrapper<ExceptionTicketEventEntity>()
-                        .eq(ExceptionTicketEventEntity::getCompanyId, audit.companyId())
-                        .eq(ExceptionTicketEventEntity::getAccountBookId, audit.accountBookId())
-                        .in(ExceptionTicketEventEntity::getTicketId, ticketIds)
-                        .orderByAsc(ExceptionTicketEventEntity::getCreatedTime)
-                        .orderByAsc(ExceptionTicketEventEntity::getId))
-                .stream()
-                .collect(Collectors.groupingBy(ExceptionTicketEventEntity::getTicketId));
-    }
-
     private ExceptionTicketEntity requireTicket(Long id, AuditMetadata audit) {
-        ExceptionTicketEntity ticket = ticketMapper.selectOne(new LambdaQueryWrapper<ExceptionTicketEntity>()
-                .eq(ExceptionTicketEntity::getCompanyId, audit.companyId())
-                .eq(ExceptionTicketEntity::getAccountBookId, audit.accountBookId())
-                .eq(ExceptionTicketEntity::getDeletedFlag, 0)
-                .eq(ExceptionTicketEntity::getId, id));
-        if (ticket == null) {
-            throw new IllegalArgumentException("异常工单不存在");
-        }
-        return ticket;
+        return exceptionTicketQueryService.requireTicket(id, audit);
     }
 
     private ExceptionTicketEventEntity createEvent(
@@ -494,60 +413,7 @@ public class ExceptionTicketService {
     }
 
     private ExceptionTicketResponse toResponse(ExceptionTicketEntity ticket, List<ExceptionTicketEventEntity> events) {
-        return new ExceptionTicketResponse(
-                ticket.getId(),
-                ticket.getTicketNo(),
-                ticket.getCategory(),
-                ticket.getPriority(),
-                ticket.getTitle(),
-                ticket.getDescription(),
-                ticket.getSourceType(),
-                ticket.getSourceId(),
-                ticket.getSourceNo(),
-                ticket.getSourceRoute(),
-                isTraceable(ticket),
-                traceKeyword(ticket),
-                traceRoute(ticket),
-                ticket.getStatus(),
-                ticket.getAssigneeUserId(),
-                ticket.getDueTime(),
-                ticket.getResolvedBy(),
-                ticket.getResolvedTime(),
-                ticket.getResolution(),
-                ticket.getCreatedBy(),
-                ticket.getCreatedTime(),
-                ticket.getUpdatedTime(),
-                events.stream().map(this::toEventResponse).toList()
-        );
-    }
-
-    private boolean isTraceable(ExceptionTicketEntity ticket) {
-        return traceKeyword(ticket) != null;
-    }
-
-    private String traceKeyword(ExceptionTicketEntity ticket) {
-        return trimToNull(ticket.getSourceNo());
-    }
-
-    private String traceRoute(ExceptionTicketEntity ticket) {
-        String keyword = traceKeyword(ticket);
-        if (keyword == null) {
-            return null;
-        }
-        return "/reports/traces?keyword=" + URLEncoder.encode(keyword, StandardCharsets.UTF_8);
-    }
-
-    private ExceptionTicketEventResponse toEventResponse(ExceptionTicketEventEntity event) {
-        return new ExceptionTicketEventResponse(
-                event.getId(),
-                event.getTicketId(),
-                event.getAction(),
-                event.getFromStatus(),
-                event.getToStatus(),
-                event.getComment(),
-                event.getOperatorUserId(),
-                event.getCreatedTime()
-        );
+        return exceptionTicketQueryService.toResponse(ticket, events);
     }
 
     private void touch(ExceptionTicketEntity ticket, AuditMetadata audit, LocalDateTime now) {
@@ -627,11 +493,4 @@ public class ExceptionTicketService {
         return value.substring(0, maxLength);
     }
 
-    private long normalizePageNo(Integer pageNo) {
-        return pageNo == null || pageNo < 1 ? 1L : pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        return pageSize == null || pageSize < 1 ? 20L : Math.min(pageSize, 200);
-    }
 }

@@ -9,7 +9,9 @@ import com.tuowei.erp.workflow.mapper.WorkflowRecordMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
 import com.tuowei.erp.workflow.service.WorkflowApprovalConfigService;
 import com.tuowei.erp.workflow.service.WorkflowQueryService;
+import com.tuowei.erp.workflow.service.WorkflowRecordCommandService;
 import com.tuowei.erp.workflow.service.WorkflowService;
+import com.tuowei.erp.workflow.service.WorkflowTaskTransitionService;
 import com.tuowei.erp.workflow.web.WorkflowApprovalInfoResponse;
 import com.tuowei.erp.workflow.web.WorkflowRecordPageQuery;
 import com.tuowei.erp.workflow.web.WorkflowRecordResponse;
@@ -41,8 +43,13 @@ class WorkflowServiceDecompositionTest {
         // writes. The invariant that must hold: reads are delegated to WorkflowQueryService, which
         // owns the mappers and audit factory and never reaches back into write-side collaborators.
         assertThat(constructorDependencies(WorkflowService.class))
-                .hasSize(10)
-                .contains(WorkflowQueryService.class);
+                .hasSize(9)
+                .contains(
+                        WorkflowQueryService.class,
+                        WorkflowTaskTransitionService.class,
+                        WorkflowRecordCommandService.class
+                )
+                .doesNotContain(UserMapper.class, CurrentUserContext.class, SystemLogService.class);
         assertThat(constructorDependencies(WorkflowQueryService.class))
                 .hasSize(4)
                 .contains(
@@ -58,6 +65,23 @@ class WorkflowServiceDecompositionTest {
                         WorkflowApprovalConfigService.class,
                         UserMapper.class
                 );
+        assertThat(constructorDependencies(WorkflowTaskTransitionService.class))
+                .hasSize(8)
+                .contains(
+                        WorkflowInstanceMapper.class,
+                        WorkflowTaskMapper.class,
+                        WorkflowQueryService.class,
+                        UserMapper.class,
+                        WorkflowRecordCommandService.class
+                )
+                .doesNotContain(WorkflowService.class);
+        assertThat(constructorDependencies(WorkflowRecordCommandService.class))
+                .containsExactlyInAnyOrder(
+                        WorkflowRecordMapper.class,
+                        CurrentUserContext.class,
+                        SystemLogService.class
+                )
+                .doesNotContain(WorkflowService.class, WorkflowTaskTransitionService.class);
     }
 
     @Test
@@ -83,6 +107,10 @@ class WorkflowServiceDecompositionTest {
                 "escalate", Long.class, Long.class, String.class));
         assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
                 "withdraw", String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowTaskTransitionService.class.getDeclaredMethod(
+                "transfer", Long.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowTaskTransitionService.class.getDeclaredMethod(
+                "escalate", Long.class, Long.class, String.class));
     }
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {

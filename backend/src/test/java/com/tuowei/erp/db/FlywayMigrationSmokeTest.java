@@ -276,22 +276,22 @@ class FlywayMigrationSmokeTest {
 
         jdbcTemplate.update("""
                 insert into inv_lot_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id, lot_no)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no)
                 values
-                    (900001, 910001, 920001, 930001, 940001, 'LOT-A')
+                    (900001, 910001, 920001, 930001, 935001, 940001, 'LOT-A')
                 """);
         Assertions.assertThatThrownBy(() -> jdbcTemplate.update("""
                 insert into inv_lot_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id, lot_no)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no)
                 values
-                    (900002, 910001, 920001, 930001, 940001, 'LOT-A')
+                    (900002, 910001, 920001, 930001, 935001, 940001, 'LOT-A')
                 """)).isInstanceOf(Exception.class);
 
         jdbcTemplate.update("""
                 insert into inv_lot_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id, lot_no)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no)
                 values
-                    (900003, 910001, 920002, 930001, 940001, 'LOT-A')
+                    (900003, 910001, 920002, 930001, 935001, 940001, 'LOT-A')
                 """);
 
         jdbcTemplate.update("""
@@ -317,8 +317,8 @@ class FlywayMigrationSmokeTest {
 
     @Test
     void scopesInventoryStockAndReservationIndexesByCompanyAndAccountBook() {
-        assertIndexColumns("inv_balance", "uk_inv_balance_company_book_warehouse_product",
-                "company_id", "account_book_id", "warehouse_id", "product_id");
+        assertIndexColumns("inv_balance", "uk_inv_balance_company_book_warehouse_location_product",
+                "company_id", "account_book_id", "warehouse_id", "location_id", "product_id");
         assertIndexColumns("inv_balance", "idx_inv_balance_company_book_product",
                 "company_id", "account_book_id", "product_id");
         assertIndexColumns("inv_txn", "idx_inv_txn_company_book_biz_no",
@@ -351,21 +351,21 @@ class FlywayMigrationSmokeTest {
 
         jdbcTemplate.update("""
                 insert into inv_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id)
                 values
-                    (993001, 993001, 1, 993101, 993201)
+                    (993001, 993001, 1, 993101, 993151, 993201)
                 """);
         jdbcTemplate.update("""
                 insert into inv_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id)
                 values
-                    (993002, 993001, 2, 993101, 993201)
+                    (993002, 993001, 2, 993101, 993151, 993201)
                 """);
         Assertions.assertThatThrownBy(() -> jdbcTemplate.update("""
                 insert into inv_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id)
                 values
-                    (993003, 993001, 1, 993101, 993201)
+                    (993003, 993001, 1, 993101, 993151, 993201)
                 """)).isInstanceOf(Exception.class);
 
         jdbcTemplate.update("""

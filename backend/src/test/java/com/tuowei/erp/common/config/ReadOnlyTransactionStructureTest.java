@@ -1,6 +1,7 @@
 package com.tuowei.erp.common.config;
 
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
+import com.tuowei.erp.inventory.alert.service.InventoryAlertQueryService;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
 import com.tuowei.erp.system.auth.service.UserSessionService;
@@ -14,16 +15,19 @@ import com.tuowei.erp.system.dept.web.DeptPageQuery;
 import com.tuowei.erp.system.dict.service.SystemDictService;
 import com.tuowei.erp.system.dict.web.DictTypePageQuery;
 import com.tuowei.erp.system.log.service.SystemLogService;
+import com.tuowei.erp.system.log.service.SystemLogQueryService;
 import com.tuowei.erp.system.log.web.AuditLogPageQuery;
 import com.tuowei.erp.system.log.web.LoginLogPageQuery;
 import com.tuowei.erp.system.log.web.OperationLogPageQuery;
 import com.tuowei.erp.system.menu.service.MenuService;
 import com.tuowei.erp.system.menu.web.MenuPageQuery;
 import com.tuowei.erp.system.notification.service.NotificationService;
+import com.tuowei.erp.system.notification.service.NotificationQueryService;
 import com.tuowei.erp.system.notification.web.NotificationPageQuery;
 import com.tuowei.erp.system.post.service.PostService;
 import com.tuowei.erp.system.post.web.PostPageQuery;
 import com.tuowei.erp.system.readiness.service.ReadinessService;
+import com.tuowei.erp.system.readiness.service.ReadinessQueryService;
 import com.tuowei.erp.system.readiness.web.ReadinessRunPageQuery;
 import com.tuowei.erp.system.role.service.RoleService;
 import com.tuowei.erp.system.role.web.RolePageQuery;
@@ -42,12 +46,18 @@ class ReadOnlyTransactionStructureTest {
     void systemLogQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
         assertReadOnly(SystemLogService.class.getMethod("listLoginLogs", LoginLogPageQuery.class));
         assertReadOnly(SystemLogService.class.getMethod("listOperationLogs", OperationLogPageQuery.class));
+        assertReadOnly(SystemLogService.class.getMethod("getOperationLog", Long.class));
         assertReadOnly(SystemLogService.class.getMethod("listAuditLogs", AuditLogPageQuery.class));
+        assertReadOnly(SystemLogQueryService.class.getMethod("listLoginLogs", LoginLogPageQuery.class));
+        assertReadOnly(SystemLogQueryService.class.getMethod("listOperationLogs", OperationLogPageQuery.class));
+        assertReadOnly(SystemLogQueryService.class.getMethod("getOperationLog", Long.class));
+        assertReadOnly(SystemLogQueryService.class.getMethod("listAuditLogs", AuditLogPageQuery.class));
     }
 
     @Test
     void inventoryAlertLowStockQueryUsesReadOnlyTransaction() throws NoSuchMethodException {
         assertReadOnly(InventoryAlertService.class.getMethod("listLowStock", Long.class, Long.class));
+        assertReadOnly(InventoryAlertQueryService.class.getMethod("listLowStock", Long.class, Long.class));
     }
 
     @Test
@@ -60,6 +70,8 @@ class ReadOnlyTransactionStructureTest {
     void readinessQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
         assertReadOnly(ReadinessService.class, "listRuns", ReadinessRunPageQuery.class);
         assertReadOnly(ReadinessService.class, "detail", Long.class);
+        assertReadOnly(ReadinessQueryService.class, "listRuns", ReadinessRunPageQuery.class);
+        assertReadOnly(ReadinessQueryService.class, "detail", Long.class);
     }
 
     @Test
@@ -98,6 +110,8 @@ class ReadOnlyTransactionStructureTest {
 
         assertReadOnly(NotificationService.class, "listMine", NotificationPageQuery.class);
         assertReadOnly(NotificationService.class, "countUnreadMine");
+        assertReadOnly(NotificationQueryService.class, "listMine", NotificationPageQuery.class);
+        assertReadOnly(NotificationQueryService.class, "countUnreadMine");
     }
 
     private static void assertReadOnly(Class<?> serviceClass, String methodName, Class<?>... parameterTypes)

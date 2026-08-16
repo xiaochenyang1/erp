@@ -17,6 +17,9 @@ import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.report.mapper.FinanceSettlementReportMapper;
+import com.tuowei.erp.report.service.FinanceSettlementReportQueryService;
+import com.tuowei.erp.report.service.InventoryReportQueryService;
+import com.tuowei.erp.report.service.OrderReportQueryService;
 import com.tuowei.erp.report.service.ReportQueryService;
 import com.tuowei.erp.report.web.OrderReportResponse;
 import com.tuowei.erp.report.web.PurchaseOrderReportQuery;
@@ -46,18 +49,22 @@ class ReportQueryServiceExportBatchingTest {
         DataScopeService dataScopeService = mock(DataScopeService.class);
         ScopedUserResolver scopedUserResolver = mock(ScopedUserResolver.class);
         ReportQueryService service = new ReportQueryService(
-                purchaseOrderMapper,
-                mock(SalesOrderMapper.class),
-                mock(InventoryBalanceMapper.class),
-                mock(InventoryTransactionMapper.class),
-                mock(PayableMapper.class),
-                mock(ReceivableMapper.class),
-                mock(FinanceSettlementReportMapper.class),
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                mock(FinanceSettlementScopeSupport.class),
-                new ReportProperties(5_000, 2)
+                new OrderReportQueryService(
+                        purchaseOrderMapper,
+                        mock(SalesOrderMapper.class),
+                        currentUserContext,
+                        dataScopeService,
+                        scopedUserResolver,
+                        new ReportProperties(5_000, 2)
+                ),
+                new InventoryReportQueryService(
+                        mock(InventoryBalanceMapper.class),
+                        mock(InventoryTransactionMapper.class),
+                        currentUserContext,
+                        dataScopeService,
+                        new ReportProperties(5_000, 2)
+                ),
+                mock(FinanceSettlementReportQueryService.class)
         );
         CurrentUser currentUser = new CurrentUser(91L, 1L, 1L, 11L, 12L, "report_user", "报表用户");
         ErpPrincipal principal = new ErpPrincipal(

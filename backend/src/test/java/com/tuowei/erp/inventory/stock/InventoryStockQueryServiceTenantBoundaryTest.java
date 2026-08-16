@@ -10,12 +10,15 @@ import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
-import com.tuowei.erp.inventory.stock.mapper.InventoryLotBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryStockQueryService;
+import com.tuowei.erp.inventory.stock.service.InventoryLotQueryService;
 import com.tuowei.erp.inventory.stock.web.InventoryBalancePageQuery;
+import com.tuowei.erp.inventory.stock.web.InventoryLotBalancePageQuery;
+import com.tuowei.erp.inventory.stock.web.InventoryLotExpiryAlertQuery;
+import com.tuowei.erp.inventory.stock.web.InventoryLotTraceQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryTransactionPageQuery;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,7 +31,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -71,9 +73,6 @@ class InventoryStockQueryServiceTenantBoundaryTest {
     private InventoryBalanceMapper inventoryBalanceMapper;
 
     @Mock
-    private InventoryLotBalanceMapper inventoryLotBalanceMapper;
-
-    @Mock
     private InventoryTransactionMapper inventoryTransactionMapper;
 
     @Mock
@@ -81,6 +80,9 @@ class InventoryStockQueryServiceTenantBoundaryTest {
 
     @Mock
     private DataScopeService dataScopeService;
+
+    @Mock
+    private InventoryLotQueryService inventoryLotQueryService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -184,6 +186,23 @@ class InventoryStockQueryServiceTenantBoundaryTest {
                 .hasMessage("库存流水不存在");
     }
 
+    @Test
+    void lotQueryEntrypointsDelegateOriginalArguments() {
+        InventoryLotBalancePageQuery balanceQuery = new InventoryLotBalancePageQuery();
+        InventoryLotTraceQuery traceQuery = new InventoryLotTraceQuery();
+        InventoryLotExpiryAlertQuery alertQuery = new InventoryLotExpiryAlertQuery();
+
+        service().listLotBalances(balanceQuery);
+        service().getLotBalanceById(6001L);
+        service().traceLot(traceQuery);
+        service().listLotExpiryAlerts(alertQuery);
+
+        verify(inventoryLotQueryService).listLotBalances(balanceQuery);
+        verify(inventoryLotQueryService).getLotBalanceById(6001L);
+        verify(inventoryLotQueryService).traceLot(traceQuery);
+        verify(inventoryLotQueryService).listLotExpiryAlerts(alertQuery);
+    }
+
     private void stubCurrentUser() {
         when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
         when(currentUserContext.requirePrincipal()).thenReturn(PRINCIPAL);
@@ -235,11 +254,10 @@ class InventoryStockQueryServiceTenantBoundaryTest {
     private InventoryStockQueryService service() {
         return new InventoryStockQueryService(
                 inventoryBalanceMapper,
-                inventoryLotBalanceMapper,
                 inventoryTransactionMapper,
                 currentUserContext,
                 dataScopeService,
-                Clock.systemUTC()
+                inventoryLotQueryService
         );
     }
 

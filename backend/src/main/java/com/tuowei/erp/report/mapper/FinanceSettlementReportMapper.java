@@ -16,7 +16,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Mapper
-@NativeSqlTenantScoped("The UNION query receives MyBatis-Plus wrappers built by ReportQueryService and FinanceSettlementScopeSupport; those wrappers inject tenant and data-scope filters before customSqlSegment is expanded.")
+@NativeSqlTenantScoped("The UNION query receives MyBatis-Plus wrappers built by FinanceSettlementReportQueryService and FinanceSettlementScopeSupport; those wrappers inject tenant and data-scope filters before customSqlSegment is expanded.")
 public interface FinanceSettlementReportMapper {
 
     @ConstructorArgs({
