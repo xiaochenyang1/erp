@@ -67,7 +67,38 @@
       @export="handleExport"
       @refresh="loadData"
       @page-change="handlePageChange"
+      @selection-change="handleSelectionChange"
     >
+      <template #toolbar-left>
+        <el-button v-permission="'masterdata:supplier:create'" type="primary" :icon="Plus" @click="handleCreate">
+          {{ texts.createSupplier }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:supplier:enable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="CircleCheck"
+          @click="handleBatchEnable"
+        >
+          {{ labelWithCount(texts.batchEnable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:supplier:disable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="Delete"
+          @click="handleBatchDisable"
+        >
+          {{ labelWithCount(texts.batchDisable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          :disabled="selectedRows.length === 0"
+          :icon="Download"
+          @click="handleExportSelected"
+        >
+          {{ labelWithCount(texts.exportSelected, selectedRows.length) }}
+        </el-button>
+      </template>
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="code" :label="texts.supplierCode" width="140" fixed>
         <template #default="{ row }">
@@ -334,7 +365,9 @@ import {
   Phone,
   Calendar,
   Clock,
-  DocumentCopy
+  DocumentCopy,
+  Plus,
+  Download
 } from '@element-plus/icons-vue'
 import {
   getSuppliers,
@@ -378,6 +411,7 @@ const SUPPLIER_TEXTS = {
     enable: '启用',
     delete: '删除',
     cancel: '取消',
+    confirm: '确定',
     enterSupplierCode: '请输入供应商编码',
     enterSupplierName: '请输入供应商名称',
     selectStatus: '请选择状态',
@@ -426,6 +460,18 @@ const SUPPLIER_TEXTS = {
     exportSuccess: '导出成功',
     exportFailed: '导出失败',
     exportFilename: '供应商列表',
+    batchEnable: '批量启用',
+    batchDisable: '批量删除',
+    exportSelected: '导出选中',
+    selectedExportFilename: '供应商-{count}',
+    batchEnableTitle: '批量启用供应商',
+    batchDisableTitle: '批量删除供应商',
+    batchEnableConfirm: '确认批量启用 {count} 个供应商吗？',
+    batchDisableConfirm: '确认批量删除 {count} 个供应商吗？',
+    batchEnableSuccess: '成功启用 {count} 个供应商',
+    batchDisableSuccess: '成功删除 {count} 个供应商',
+    batchEnablePartial: '成功启用 {success} 个，失败 {failedCount} 个：{failed}',
+    batchDisablePartial: '成功删除 {success} 个，失败 {failedCount} 个：{failed}',
     validationEnterCode: '请输入供应商编码',
     validationCodeLength: '长度在 2 到 50 个字符',
     validationEnterName: '请输入供应商名称',
@@ -455,6 +501,7 @@ const SUPPLIER_TEXTS = {
     enable: 'Enable',
     delete: 'Delete',
     cancel: 'Cancel',
+    confirm: 'Confirm',
     enterSupplierCode: 'Enter supplier code',
     enterSupplierName: 'Enter supplier name',
     selectStatus: 'Select status',
@@ -503,6 +550,18 @@ const SUPPLIER_TEXTS = {
     exportSuccess: 'Export completed',
     exportFailed: 'Failed to export suppliers',
     exportFilename: 'supplier-list',
+    batchEnable: 'Batch enable',
+    batchDisable: 'Batch delete',
+    exportSelected: 'Export selected',
+    selectedExportFilename: 'suppliers-{count}',
+    batchEnableTitle: 'Batch enable suppliers',
+    batchDisableTitle: 'Batch delete suppliers',
+    batchEnableConfirm: 'Enable {count} suppliers?',
+    batchDisableConfirm: 'Delete {count} suppliers?',
+    batchEnableSuccess: 'Enabled {count} suppliers',
+    batchDisableSuccess: 'Deleted {count} suppliers',
+    batchEnablePartial: 'Enabled {success}, failed {failedCount}: {failed}',
+    batchDisablePartial: 'Deleted {success}, failed {failedCount}: {failed}',
     validationEnterCode: 'Enter supplier code',
     validationCodeLength: 'Length must be between 2 and 50 characters',
     validationEnterName: 'Enter supplier name',
@@ -525,24 +584,32 @@ const {
   formatDateTime,
   hasCreditPeriod,
   interpolate,
+  joinNames,
+  labelWithCount,
   settlementMethodLabel,
   settlementMethodOptions
 } = useSupplierPresentation(texts, displayPreferences)
 
 const {
+  batchRunning,
   currentRow,
   detailVisible,
+  handleBatchDisable,
+  handleBatchEnable,
   handleDelete,
   handleEnable,
   handleExport,
+  handleExportSelected,
   handlePageChange,
   handleReset,
   handleSearch,
+  handleSelectionChange,
   handleView,
   loadData,
   loading,
   payableExposure,
   searchForm,
+  selectedRows,
   tableData,
   total
 } = useSupplierList(texts, {
@@ -552,10 +619,13 @@ const {
   enableSupplier,
   deleteSupplier,
   exportSuppliers,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   interpolate,
+  joinNames: (items, locale) => joinNames(items, locale),
+  locale: computed(() => appStore.locale),
   onError: (message) => ElMessage.error(message),
-  onSuccess: (message) => ElMessage.success(message)
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
 const activeCount = computed(() => countActive(tableData.value))

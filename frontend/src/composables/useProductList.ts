@@ -271,7 +271,7 @@ export const useProductList = (
   ) => {
     const escapeCell = (value: string | number) => `"${String(value ?? '').replace(/"/g, '""')}"`
     const csv = [headers, ...rows].map((row) => row.map(escapeCell).join(',')).join('\r\n')
-    downloadBlob(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }), `${filename}.csv`)
+    downloadBlob(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }), `${filename}.csv`)
   }
 
   const handleExportSelected = () => {

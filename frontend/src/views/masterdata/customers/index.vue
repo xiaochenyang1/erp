@@ -76,8 +76,39 @@
       @export="handleExport"
       @refresh="loadData"
       @page-change="handlePageChange"
+      @selection-change="handleSelectionChange"
       class="customer-table"
     >
+      <template #toolbar-left>
+        <el-button v-permission="'masterdata:customer:create'" type="primary" :icon="Plus" @click="handleCreate">
+          {{ texts.createCustomer }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:customer:enable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="CircleCheck"
+          @click="handleBatchEnable"
+        >
+          {{ labelWithCount(texts.batchEnable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:customer:disable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="Delete"
+          @click="handleBatchDisable"
+        >
+          {{ labelWithCount(texts.batchDisable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          :disabled="selectedRows.length === 0"
+          :icon="Download"
+          @click="handleExportSelected"
+        >
+          {{ labelWithCount(texts.exportSelected, selectedRows.length) }}
+        </el-button>
+      </template>
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="code" :label="texts.customerCode" width="140" fixed>
         <template #default="{ row }">
@@ -381,7 +412,9 @@ import {
   Phone,
   Wallet,
   Clock,
-  Notebook
+  Notebook,
+  Plus,
+  Download
 } from '@element-plus/icons-vue'
 import {
   getCustomers,
@@ -482,6 +515,22 @@ const CUSTOMER_TEXTS = {
     exportSuccess: '导出成功',
     exportFailed: '导出失败',
     exportFilename: '客户列表',
+    export: '导出',
+    refresh: '刷新',
+    confirm: '确定',
+    cancel: '取消',
+    batchEnable: '批量启用',
+    batchDisable: '批量停用',
+    exportSelected: '导出选中',
+    selectedExportFilename: '客户_选中{count}条',
+    batchEnableTitle: '批量启用',
+    batchDisableTitle: '批量停用',
+    batchEnableConfirm: '确认启用选中的 {count} 条客户吗？',
+    batchDisableConfirm: '确认停用选中的 {count} 个客户吗？',
+    batchEnableSuccess: '已启用 {count} 条',
+    batchDisableSuccess: '已停用 {count} 条',
+    batchEnablePartial: '已启用 {success} 条，失败 {failedCount} 条：{failed}',
+    batchDisablePartial: '已停用 {success} 条，失败 {failedCount} 条：{failed}',
     validationEnterCode: '请输入客户编码',
     validationCodeLength: '长度在 2 到 50 个字符',
     validationEnterName: '请输入客户名称',
@@ -569,6 +618,22 @@ const CUSTOMER_TEXTS = {
     exportSuccess: 'Export completed',
     exportFailed: 'Failed to export customers',
     exportFilename: 'customer-list',
+    export: 'Export',
+    refresh: 'Refresh',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    batchEnable: 'Enable selected',
+    batchDisable: 'Disable selected',
+    exportSelected: 'Export selected',
+    selectedExportFilename: 'customers-selected-{count}',
+    batchEnableTitle: 'Enable Selected',
+    batchDisableTitle: 'Disable Selected',
+    batchEnableConfirm: 'Enable {count} selected customers?',
+    batchDisableConfirm: 'Disable {count} selected customers?',
+    batchEnableSuccess: 'Enabled {count} customers',
+    batchDisableSuccess: 'Disabled {count} customers',
+    batchEnablePartial: 'Enabled {success} customers, failed {failedCount}: {failed}',
+    batchDisablePartial: 'Disabled {success} customers, failed {failedCount}: {failed}',
     validationEnterCode: 'Enter customer code',
     validationCodeLength: 'Length must be between 2 and 50 characters',
     validationEnterName: 'Enter customer name',
@@ -593,23 +658,31 @@ const {
   formatDateTime,
   hasCreditPeriod,
   individualCount: countIndividual,
-  interpolate
+  interpolate,
+  joinNames,
+  labelWithCount
 } = useCustomerPresentation(texts, displayPreferences)
 
 const {
+  batchRunning,
   creditExposure,
   currentRow,
   detailVisible,
+  handleBatchDisable,
+  handleBatchEnable,
   handleDelete,
   handleEnable,
   handleExport,
+  handleExportSelected,
   handlePageChange,
   handleReset,
   handleSearch,
+  handleSelectionChange,
   handleView,
   loadData,
   loading,
   searchForm,
+  selectedRows,
   tableData,
   total
 } = useCustomerList(texts, {
@@ -619,11 +692,15 @@ const {
   enableCustomer,
   deleteCustomer,
   exportCustomers,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   cancelLabel: () => (appStore.locale === 'en-US' ? 'Cancel' : '取消'),
   interpolate,
+  joinNames: (items, locale) => joinNames(items, locale),
+  formatCurrency,
+  locale: computed(() => appStore.locale),
   onError: (message) => ElMessage.error(message),
-  onSuccess: (message) => ElMessage.success(message)
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
 const companyCount = computed(() => countCompany(tableData.value))
