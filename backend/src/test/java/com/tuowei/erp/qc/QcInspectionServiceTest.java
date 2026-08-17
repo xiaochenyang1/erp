@@ -28,6 +28,7 @@ import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryLineEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -83,6 +85,9 @@ class QcInspectionServiceTest {
 
     @Mock
     private AuditMetadataFactory auditMetadataFactory;
+
+    @Mock
+    private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -498,6 +503,24 @@ class QcInspectionServiceTest {
         return entity;
     }
 
+    @Test
+    void submitStopsAtAttachmentGateWithoutLeavingDraft() {
+        stubAudit();
+        QcInspectionOrderEntity draft = submittedInspectionIqc();
+        draft.setStatus("DRAFT");
+        when(qcInspectionOrderMapper.selectById(5001L)).thenReturn(draft);
+        doThrow(new IllegalArgumentException("业务类型 QC_INSPECTION 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("QC_INSPECTION", 5001L);
+
+        assertThatThrownBy(() -> service().submit(5001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("QC_INSPECTION");
+
+        assertThat(draft.getStatus()).isEqualTo("DRAFT");
+        verify(qcInspectionOrderMapper, never()).updateById(any(QcInspectionOrderEntity.class));
+    }
+
     private QcInspectionService service() {
         QcInspectionSourceAccess sourceAccess = new QcInspectionSourceAccess(
                 purchaseReceiptMapper,
@@ -526,7 +549,8 @@ class QcInspectionServiceTest {
                 auditMetadataFactory,
                 createService,
                 sourceAccess,
-                queryService
+                queryService,
+                attachmentService
         );
     }
 

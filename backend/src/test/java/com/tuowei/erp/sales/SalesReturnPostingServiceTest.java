@@ -28,6 +28,7 @@ import com.tuowei.erp.sales.returnorder.model.SalesReturnLineEntity;
 import com.tuowei.erp.sales.returnorder.service.SalesReturnPostingService;
 import com.tuowei.erp.sales.returnorder.service.SalesReturnQueryService;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnResponse;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -103,6 +105,9 @@ class SalesReturnPostingServiceTest {
 
     @Mock
     private AccountPeriodGuard accountPeriodGuard;
+
+    @Mock
+    private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -493,6 +498,22 @@ class SalesReturnPostingServiceTest {
         verify(salesReturnQueryService, never()).getById(any());
     }
 
+    @Test
+    void postStopsAtAttachmentGateBeforeCheckingAccountingPeriod() {
+        SalesReturnEntity entity = salesReturn();
+        when(salesReturnMapper.selectById(RETURN_ID)).thenReturn(entity);
+        doThrow(new IllegalArgumentException("业务类型 SALES_RETURN 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("SALES_RETURN", RETURN_ID);
+
+        assertThatThrownBy(() -> service().post(RETURN_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SALES_RETURN");
+
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        assertNoPostingWrites();
+    }
+
     private SalesReturnPostingService service() {
         return new SalesReturnPostingService(
                 salesReturnMapper,
@@ -507,7 +528,8 @@ class SalesReturnPostingServiceTest {
                 financePostingService,
                 auditMetadataFactory,
                 salesReturnQueryService,
-                accountPeriodGuard
+                accountPeriodGuard,
+                attachmentService
         );
     }
 

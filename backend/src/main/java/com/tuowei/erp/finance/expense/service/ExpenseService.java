@@ -13,6 +13,7 @@ import com.tuowei.erp.finance.expense.web.ExpenseReconciliationResponse;
 import com.tuowei.erp.finance.expense.web.ExpenseResponse;
 import com.tuowei.erp.finance.expense.web.ExpenseUpdateRequest;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.finance.subject.model.AccountSubjectEntity;
 import com.tuowei.erp.finance.subject.service.AccountSubjectService;
@@ -126,8 +127,8 @@ public class ExpenseService {
         if (!"DRAFT".equals(expense.getStatus()) && !"REJECTED".equals(expense.getStatus())) {
             throw new IllegalArgumentException("只有草稿或已驳回的费用单可以提交审批");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.EXPENSE, expense.getId());
         ExpenseResponse response = transitionStatus(expense, "PENDING");
-        attachmentService.requireIfConfigured("EXPENSE", expense.getId());
         workflowService.submit("EXPENSE", expense.getId(), expense.getExpenseNo(), "费用单 " + expense.getExpenseNo(), remark);
         return response;
     }

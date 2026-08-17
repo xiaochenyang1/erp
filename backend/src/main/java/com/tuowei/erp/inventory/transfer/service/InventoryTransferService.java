@@ -29,6 +29,8 @@ import com.tuowei.erp.inventory.transfer.web.InventoryTransferResponse;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.system.user.model.UserEntity;
 import org.springframework.stereotype.Service;
@@ -60,6 +62,7 @@ public class InventoryTransferService {
     private final WarehouseMapper warehouseMapper;
     private final ProductValidator productValidator;
     private final AccountPeriodGuard accountPeriodGuard;
+    private final AttachmentService attachmentService;
 
     public InventoryTransferService(
             InventoryTransferMapper transferMapper,
@@ -73,7 +76,8 @@ public class InventoryTransferService {
             UserMapper userMapper,
             WarehouseMapper warehouseMapper,
             ProductValidator productValidator,
-            AccountPeriodGuard accountPeriodGuard
+            AccountPeriodGuard accountPeriodGuard,
+            AttachmentService attachmentService
     ) {
         this.transferMapper = transferMapper;
         this.lineMapper = lineMapper;
@@ -87,6 +91,7 @@ public class InventoryTransferService {
         this.warehouseMapper = warehouseMapper;
         this.productValidator = productValidator;
         this.accountPeriodGuard = accountPeriodGuard;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -215,6 +220,7 @@ public class InventoryTransferService {
             throw new IllegalArgumentException("只有草稿状态的库存调拨单可以过账");
         }
         assertCanView(transfer);
+        attachmentService.requireIfConfigured(AttachmentBusinessType.INVENTORY_TRANSFER, transfer.getId());
         accountPeriodGuard.requireOpen(transfer.getTransferDate(), "库存调拨过账");
 
         List<InventoryTransferLineEntity> lines = selectLines(transfer);

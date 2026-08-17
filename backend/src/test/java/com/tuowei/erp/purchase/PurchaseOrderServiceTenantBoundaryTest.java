@@ -26,6 +26,8 @@ import com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderSubmitRequest;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -42,6 +44,7 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -77,6 +80,7 @@ class PurchaseOrderServiceTenantBoundaryTest {
     private final PurchaseOrderQueryService purchaseOrderQueryService = mock(PurchaseOrderQueryService.class);
     private final PurchaseOrderTraceService purchaseOrderTraceService = mock(PurchaseOrderTraceService.class);
     private final WorkflowService workflowService = mock(WorkflowService.class);
+    private final AttachmentService attachmentService = mock(AttachmentService.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -241,6 +245,24 @@ class PurchaseOrderServiceTenantBoundaryTest {
         });
     }
 
+    @Test
+    void submitStopsAtAttachmentGateBeforeLoadingLinesOrEvaluatingPrice() {
+        PurchaseOrderEntity draft = order();
+        when(purchaseOrderMapper.selectById(4301L)).thenReturn(draft);
+        doThrow(new IllegalArgumentException("业务类型 PURCHASE_ORDER 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("PURCHASE_ORDER", 4301L);
+
+        assertThatThrownBy(() -> service().submit(4301L, new PurchaseOrderSubmitRequest("gate")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PURCHASE_ORDER");
+
+        assertThat(draft.getStatus()).isEqualTo("DRAFT");
+        verify(purchaseOrderLineMapper, never()).selectList(any());
+        verify(purchaseOrderMapper, never()).updateById(any(PurchaseOrderEntity.class));
+        verify(workflowService, never()).submit(any(), any(), any(), any(), any());
+    }
+
     private PurchaseOrderService service() {
         return new PurchaseOrderService(
                 purchaseOrderMapper,
@@ -253,7 +275,8 @@ class PurchaseOrderServiceTenantBoundaryTest {
                 purchaseOrderQueryService,
                 purchaseOrderTraceService,
                 workflowService,
-                mock(PurchasePriceEvaluator.class)
+                mock(PurchasePriceEvaluator.class),
+                attachmentService
         );
     }
 

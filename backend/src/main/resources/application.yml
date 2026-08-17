@@ -22,7 +22,13 @@ erp:
   attachment:
     storage-root: ${ERP_ATTACHMENT_STORAGE_ROOT:./data/attachments}
     max-file-size-bytes: ${ERP_ATTACHMENT_MAX_FILE_SIZE_BYTES:20971520}
-    # 过账/提交前强制附件的业务类型（逗号分隔），默认费用单
+    # 过账/提交前强制附件的业务类型（逗号分隔），默认费用单。
+    # 可选值由 AttachmentBusinessType.GATED 定义，配置未挂闸门的类型会启动失败：
+    # EXPENSE, MANUAL_VOUCHER, FIN_INVOICE,
+    # SALES_ORDER, SALES_DELIVERY, SALES_RETURN,
+    # PURCHASE_REQUISITION, PURCHASE_ORDER, PURCHASE_RECEIPT, PURCHASE_RETURN,
+    # INVENTORY_ADJUSTMENT, INVENTORY_TRANSFER, INVENTORY_CHECK,
+    # QC_INSPECTION, PRODUCTION_ORDER
     required-business-types: ${ERP_ATTACHMENT_REQUIRED_TYPES:EXPENSE}
     min-required-count: ${ERP_ATTACHMENT_MIN_REQUIRED_COUNT:1}
   idempotency:

@@ -26,6 +26,7 @@ import com.tuowei.erp.sales.order.web.SalesOrderCreateRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderLineRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderPageQuery;
 import com.tuowei.erp.sales.order.web.SalesOrderSubmitRequest;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,7 +42,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -90,6 +93,7 @@ class SalesOrderServiceTenantBoundaryTest {
     private final WorkflowService workflowService = mock(WorkflowService.class);
     private final SalesCreditEvaluator salesCreditEvaluator = mock(SalesCreditEvaluator.class);
     private final SalesPriceEvaluator salesPriceEvaluator = mock(SalesPriceEvaluator.class);
+    private final AttachmentService attachmentService = mock(AttachmentService.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -222,6 +226,24 @@ class SalesOrderServiceTenantBoundaryTest {
         });
     }
 
+    @Test
+    void submitStopsAtAttachmentGateBeforeLoadingLinesOrEvaluatingCredit() {
+        SalesOrderEntity draft = order();
+        when(salesOrderMapper.selectById(3401L)).thenReturn(draft);
+        doThrow(new IllegalArgumentException("业务类型 SALES_ORDER 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("SALES_ORDER", 3401L);
+
+        assertThatThrownBy(() -> service().submit(3401L, new SalesOrderSubmitRequest("gate")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SALES_ORDER");
+
+        assertThat(draft.getStatus()).isEqualTo("DRAFT");
+        verify(salesOrderLineMapper, never()).selectList(any());
+        verify(salesOrderMapper, never()).updateById(any(SalesOrderEntity.class));
+        verify(workflowService, never()).submit(any(), any(), any(), any(), any());
+    }
+
     private SalesOrderService service() {
         return new SalesOrderService(
                 salesOrderMapper,
@@ -235,7 +257,8 @@ class SalesOrderServiceTenantBoundaryTest {
                 salesOrderQueryService,
                 workflowService,
                 salesCreditEvaluator,
-                salesPriceEvaluator
+                salesPriceEvaluator,
+                attachmentService
         );
     }
 

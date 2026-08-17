@@ -22,6 +22,8 @@ import com.tuowei.erp.finance.voucher.web.ManualVoucherLineRequest;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherPageQuery;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherResponse;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherSaveRequest;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.config.service.SequenceNumberGenerator;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -65,6 +67,7 @@ public class ManualVoucherService {
     private final SequenceNumberGenerator sequenceNumberGenerator;
     private final AuditMetadataFactory auditMetadataFactory;
     private final ManualVoucherQueryService manualVoucherQueryService;
+    private final AttachmentService attachmentService;
 
     public ManualVoucherService(
             ManualVoucherMapper manualVoucherMapper,
@@ -75,7 +78,8 @@ public class ManualVoucherService {
             AccountPeriodGuard accountPeriodGuard,
             SequenceNumberGenerator sequenceNumberGenerator,
             AuditMetadataFactory auditMetadataFactory,
-            ManualVoucherQueryService manualVoucherQueryService
+            ManualVoucherQueryService manualVoucherQueryService,
+            AttachmentService attachmentService
     ) {
         this.manualVoucherMapper = manualVoucherMapper;
         this.manualVoucherLineMapper = manualVoucherLineMapper;
@@ -86,6 +90,7 @@ public class ManualVoucherService {
         this.sequenceNumberGenerator = sequenceNumberGenerator;
         this.auditMetadataFactory = auditMetadataFactory;
         this.manualVoucherQueryService = manualVoucherQueryService;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -150,6 +155,7 @@ public class ManualVoucherService {
         if (!STATUS_DRAFT.equals(voucher.getStatus())) {
             throw new BusinessConflictException("只有草稿状态的手工凭证可以提交");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.MANUAL_VOUCHER, voucher.getId());
         // 重新校验借贷平衡，防止空草稿或被改脏后提交
         requireBalanced(loadLines(voucher, audit));
         voucher.setStatus(STATUS_PENDING);
@@ -206,6 +212,7 @@ public class ManualVoucherService {
         if (!STATUS_APPROVED.equals(voucher.getStatus())) {
             throw new BusinessConflictException("只有审批通过的手工凭证可以过账");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.MANUAL_VOUCHER, voucher.getId());
         accountPeriodGuard.requireOpen(voucher.getBizDate(), "手工凭证过账");
 
         List<ManualVoucherLineEntity> lines = loadLines(voucher, audit);

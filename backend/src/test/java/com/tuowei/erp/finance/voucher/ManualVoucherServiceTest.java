@@ -20,6 +20,7 @@ import com.tuowei.erp.finance.voucher.service.ManualVoucherService;
 import com.tuowei.erp.finance.voucher.service.ManualVoucherQueryService;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherLineRequest;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherSaveRequest;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.config.service.SequenceNumberGenerator;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -59,6 +60,7 @@ class ManualVoucherServiceTest {
     private final AccountPeriodGuard accountPeriodGuard = mock(AccountPeriodGuard.class);
     private final SequenceNumberGenerator sequenceNumberGenerator = mock(SequenceNumberGenerator.class);
     private final AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
+    private final AttachmentService attachmentService = mock(AttachmentService.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -116,6 +118,42 @@ class ManualVoucherServiceTest {
         assertThat(manual.getStatus()).isEqualTo("POSTED");
         assertThat(manual.getPostedVoucherId()).isEqualTo(2001L);
         verify(manualVoucherMapper).updateById(manual);
+    }
+
+    @Test
+    void submitStopsAtAttachmentGateWithoutLeavingDraft() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        ManualVoucherEntity manual = manualVoucher(1001L, "DRAFT", AUDIT.companyId(), AUDIT.accountBookId());
+        when(manualVoucherMapper.selectById(1001L)).thenReturn(manual);
+        when(manualVoucherLineMapper.selectList(any())).thenReturn(manualLines(1001L));
+        doThrow(new IllegalArgumentException("业务类型 MANUAL_VOUCHER 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService).requireIfConfigured("MANUAL_VOUCHER", 1001L);
+
+        assertThatThrownBy(() -> service().submit(1001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MANUAL_VOUCHER");
+
+        assertThat(manual.getStatus()).isEqualTo("DRAFT");
+        verify(manualVoucherMapper, never()).updateById(any(ManualVoucherEntity.class));
+    }
+
+    @Test
+    void postStopsAtAttachmentGateBeforeEnteringLedger() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        ManualVoucherEntity manual = manualVoucher(1001L, "APPROVED", AUDIT.companyId(), AUDIT.accountBookId());
+        when(manualVoucherMapper.selectById(1001L)).thenReturn(manual);
+        when(manualVoucherLineMapper.selectList(any())).thenReturn(manualLines(1001L));
+        doThrow(new IllegalArgumentException("业务类型 MANUAL_VOUCHER 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService).requireIfConfigured("MANUAL_VOUCHER", 1001L);
+
+        assertThatThrownBy(() -> service().post(1001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MANUAL_VOUCHER");
+
+        assertThat(manual.getStatus()).isEqualTo("APPROVED");
+        verify(voucherMapper, never()).insert(any(VoucherEntity.class));
+        verify(voucherEntryMapper, never()).insert(any(VoucherEntryEntity.class));
+        verify(manualVoucherMapper, never()).updateById(any(ManualVoucherEntity.class));
     }
 
     @Test
@@ -431,7 +469,8 @@ class ManualVoucherServiceTest {
                 accountPeriodGuard,
                 sequenceNumberGenerator,
                 auditMetadataFactory,
-                queryService
+                queryService,
+                attachmentService
         );
     }
 

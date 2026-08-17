@@ -13,6 +13,7 @@ import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.finance.invoice.service.InvoiceNumberService;
 import com.tuowei.erp.finance.invoice.web.InvoiceCreateRequest;
 import com.tuowei.erp.finance.invoice.web.InvoiceResponse;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -23,8 +24,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,6 +46,7 @@ class FinanceInvoiceServiceTest {
     private final PurchaseOrderMapper purchaseOrderMapper = mock(PurchaseOrderMapper.class);
     private final SalesOrderMapper salesOrderMapper = mock(SalesOrderMapper.class);
     private final AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
+    private final AttachmentService attachmentService = mock(AttachmentService.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -116,8 +121,31 @@ class FinanceInvoiceServiceTest {
         assertThat(draft.getStatus()).isEqualTo("CANCELLED");
     }
 
+    @Test
+    void postStopsAtAttachmentGateWithoutMarkingInvoicePosted() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        InvoiceRegisterEntity draft = new InvoiceRegisterEntity();
+        draft.setId(5001L);
+        draft.setCompanyId(AUDIT.companyId());
+        draft.setAccountBookId(AUDIT.accountBookId());
+        draft.setInvoiceNo("FI202607170001");
+        draft.setStatus("DRAFT");
+        draft.setDeletedFlag(0);
+        when(invoiceRegisterMapper.selectById(5001L)).thenReturn(draft);
+        doThrow(new IllegalArgumentException("业务类型 FIN_INVOICE 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("FIN_INVOICE", 5001L);
+
+        assertThatThrownBy(() -> service().post(5001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("FIN_INVOICE");
+
+        assertThat(draft.getStatus()).isEqualTo("DRAFT");
+        verify(invoiceRegisterMapper, never()).updateById(any(InvoiceRegisterEntity.class));
+    }
+
     private FinanceInvoiceService service() {
-        return new FinanceInvoiceService(invoiceRegisterMapper, invoiceNumberService, purchaseOrderMapper, salesOrderMapper, auditMetadataFactory);
+        return new FinanceInvoiceService(invoiceRegisterMapper, invoiceNumberService, purchaseOrderMapper, salesOrderMapper, auditMetadataFactory, attachmentService);
     }
 
     private InvoiceRegisterEntity copy(InvoiceRegisterEntity source) {

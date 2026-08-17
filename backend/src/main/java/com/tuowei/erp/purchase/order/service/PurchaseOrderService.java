@@ -26,6 +26,8 @@ import com.tuowei.erp.purchase.order.web.PurchaseOrderSubmitRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderTraceResponse;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderUpdateRequest;
 import com.tuowei.erp.purchase.support.PurchaseAmountCalculator;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +54,7 @@ public class PurchaseOrderService {
     private final PurchaseOrderTraceService purchaseOrderTraceService;
     private final WorkflowService workflowService;
     private final PurchasePriceEvaluator purchasePriceEvaluator;
+    private final AttachmentService attachmentService;
 
     public PurchaseOrderService(
             PurchaseOrderMapper purchaseOrderMapper,
@@ -64,7 +67,8 @@ public class PurchaseOrderService {
             PurchaseOrderQueryService purchaseOrderQueryService,
             PurchaseOrderTraceService purchaseOrderTraceService,
             WorkflowService workflowService,
-            PurchasePriceEvaluator purchasePriceEvaluator
+            PurchasePriceEvaluator purchasePriceEvaluator,
+            AttachmentService attachmentService
     ) {
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
@@ -77,6 +81,7 @@ public class PurchaseOrderService {
         this.purchaseOrderTraceService = purchaseOrderTraceService;
         this.workflowService = workflowService;
         this.purchasePriceEvaluator = purchasePriceEvaluator;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -228,6 +233,7 @@ public class PurchaseOrderService {
         if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许提交审批");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.PURCHASE_ORDER, entity.getId());
         List<PurchaseOrderLineEntity> existingLines = loadOrderLines(entity);
         List<PurchaseOrderLineRequest> lineRequests = existingLines.stream()
                 .map(line -> new PurchaseOrderLineRequest(

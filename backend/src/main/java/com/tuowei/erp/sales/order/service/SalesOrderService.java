@@ -28,6 +28,8 @@ import com.tuowei.erp.sales.order.web.SalesOrderResponse;
 import com.tuowei.erp.sales.order.web.SalesOrderSubmitRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderUpdateRequest;
 import com.tuowei.erp.sales.support.SalesAmountCalculator;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +55,7 @@ public class SalesOrderService {
     private final WorkflowService workflowService;
     private final SalesCreditEvaluator salesCreditEvaluator;
     private final SalesPriceEvaluator salesPriceEvaluator;
+    private final AttachmentService attachmentService;
 
     public SalesOrderService(
             SalesOrderMapper salesOrderMapper,
@@ -66,7 +69,8 @@ public class SalesOrderService {
             SalesOrderQueryService salesOrderQueryService,
             WorkflowService workflowService,
             SalesCreditEvaluator salesCreditEvaluator,
-            SalesPriceEvaluator salesPriceEvaluator
+            SalesPriceEvaluator salesPriceEvaluator,
+            AttachmentService attachmentService
     ) {
         this.salesOrderMapper = salesOrderMapper;
         this.salesOrderLineMapper = salesOrderLineMapper;
@@ -80,6 +84,7 @@ public class SalesOrderService {
         this.workflowService = workflowService;
         this.salesCreditEvaluator = salesCreditEvaluator;
         this.salesPriceEvaluator = salesPriceEvaluator;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -209,6 +214,7 @@ public class SalesOrderService {
         if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前销售订单状态不允许提交审批");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.SALES_ORDER, entity.getId());
         List<SalesOrderLineEntity> existingLines = salesOrderLineMapper.selectList(new LambdaQueryWrapper<SalesOrderLineEntity>()
                 .eq(SalesOrderLineEntity::getCompanyId, entity.getCompanyId())
                 .eq(SalesOrderLineEntity::getAccountBookId, entity.getAccountBookId())

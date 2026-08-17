@@ -14,6 +14,7 @@ import com.tuowei.erp.qc.inspection.service.QcInspectionSourceAccess;
 import com.tuowei.erp.qc.inspection.web.QcInspectionPageQuery;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryLineMapper;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -67,7 +68,8 @@ class QcInspectionServiceDecompositionTest {
                 mock(AuditMetadataFactory.class),
                 mock(QcInspectionCreateService.class),
                 mock(QcInspectionSourceAccess.class),
-                queryService
+                queryService,
+                mock(AttachmentService.class)
         );
 
         service.list(null);

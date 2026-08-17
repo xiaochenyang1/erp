@@ -20,6 +20,7 @@ import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,8 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -80,6 +83,9 @@ class InventoryStockCheckServiceTenantBoundaryTest {
 
     @Mock
     private AccountPeriodGuard accountPeriodGuard;
+
+    @Mock
+    private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -190,6 +196,24 @@ class InventoryStockCheckServiceTenantBoundaryTest {
                 .hasMessage("库存盘点单不存在");
     }
 
+    @Test
+    void postAdjustmentStopsAtAttachmentGateBeforeCheckingAccountingPeriod() {
+        InventoryStockCheckEntity check = stockCheck(AUDIT.accountBookId());
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(checkMapper.selectById(CHECK_ID)).thenReturn(check);
+        doThrow(new IllegalArgumentException("业务类型 INVENTORY_CHECK 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("INVENTORY_CHECK", CHECK_ID);
+
+        assertThatThrownBy(() -> service().postAdjustment(CHECK_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("INVENTORY_CHECK");
+
+        assertThat(check.getStatus()).isEqualTo("COUNTED");
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        verify(checkMapper, never()).updateById(any(InventoryStockCheckEntity.class));
+    }
+
     private InventoryStockCheckService service() {
         return new InventoryStockCheckService(
                 checkMapper,
@@ -200,7 +224,8 @@ class InventoryStockCheckServiceTenantBoundaryTest {
                 auditMetadataFactory,
                 warehouseMapper,
                 productValidator,
-                accountPeriodGuard
+                accountPeriodGuard,
+                attachmentService
         );
     }
 

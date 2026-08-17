@@ -21,6 +21,8 @@ import com.tuowei.erp.purchase.requisition.mapper.PurchaseRequisitionMapper;
 import com.tuowei.erp.purchase.requisition.model.PurchaseRequisitionEntity;
 import com.tuowei.erp.purchase.requisition.model.PurchaseRequisitionLineEntity;
 import com.tuowei.erp.purchase.requisition.web.*;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.config.service.SequenceNumberGenerator;
 import com.tuowei.erp.workflow.service.WorkflowService;
 import org.springframework.stereotype.Service;
@@ -43,15 +45,18 @@ public class PurchaseRequisitionService {
     private final SequenceNumberGenerator sequenceNumberGenerator;
     private final WorkflowService workflowService;
     private final AuditMetadataFactory auditMetadataFactory;
+    private final AttachmentService attachmentService;
 
     public PurchaseRequisitionService(PurchaseRequisitionMapper requisitionMapper, PurchaseRequisitionLineMapper lineMapper,
                                       ProductMapper productMapper, SupplierMapper supplierMapper,
                                       PurchaseOrderService purchaseOrderService, SequenceNumberGenerator sequenceNumberGenerator,
                                       WorkflowService workflowService,
-                                      AuditMetadataFactory auditMetadataFactory) {
+                                      AuditMetadataFactory auditMetadataFactory,
+                                      AttachmentService attachmentService) {
         this.requisitionMapper = requisitionMapper; this.lineMapper = lineMapper; this.productMapper = productMapper;
         this.supplierMapper = supplierMapper; this.purchaseOrderService = purchaseOrderService;
         this.sequenceNumberGenerator = sequenceNumberGenerator; this.workflowService = workflowService; this.auditMetadataFactory = auditMetadataFactory;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -96,6 +101,7 @@ public class PurchaseRequisitionService {
     public PurchaseRequisitionResponse submit(Long id) {
         PurchaseRequisitionEntity entity = require(id, auditMetadataFactory.current());
         if (!Set.of("DRAFT","REJECTED").contains(entity.getStatus())) throw new IllegalArgumentException("当前请购单状态不允许提交审批");
+        attachmentService.requireIfConfigured(AttachmentBusinessType.PURCHASE_REQUISITION, entity.getId());
         PurchaseRequisitionResponse response = transitionWorkflow(entity, "SUBMITTED", "IN_APPROVAL");
         workflowService.submit("PURCHASE_REQUISITION", entity.getId(), entity.getRequisitionNo(), "采购请购单 " + entity.getRequisitionNo(), null);
         return response;

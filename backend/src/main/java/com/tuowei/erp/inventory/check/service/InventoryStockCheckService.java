@@ -27,6 +27,8 @@ import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +55,7 @@ public class InventoryStockCheckService {
     private final WarehouseMapper warehouseMapper;
     private final ProductValidator productValidator;
     private final AccountPeriodGuard accountPeriodGuard;
+    private final AttachmentService attachmentService;
 
     public InventoryStockCheckService(
             InventoryStockCheckMapper checkMapper,
@@ -63,7 +66,8 @@ public class InventoryStockCheckService {
             AuditMetadataFactory auditMetadataFactory,
             WarehouseMapper warehouseMapper,
             ProductValidator productValidator,
-            AccountPeriodGuard accountPeriodGuard
+            AccountPeriodGuard accountPeriodGuard,
+            AttachmentService attachmentService
     ) {
         this.checkMapper = checkMapper;
         this.lineMapper = lineMapper;
@@ -74,6 +78,7 @@ public class InventoryStockCheckService {
         this.warehouseMapper = warehouseMapper;
         this.productValidator = productValidator;
         this.accountPeriodGuard = accountPeriodGuard;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -147,6 +152,7 @@ public class InventoryStockCheckService {
         if (!STATUS_COUNTED.equals(check.getStatus())) {
             throw new IllegalArgumentException("只有已录入盘点结果的盘点单可以生成调整");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.INVENTORY_CHECK, check.getId());
         accountPeriodGuard.requireOpen(check.getCheckDate(), "库存盘点调整");
 
         List<InventoryAdjustmentLineRequest> adjustmentLines = selectLines(check).stream()

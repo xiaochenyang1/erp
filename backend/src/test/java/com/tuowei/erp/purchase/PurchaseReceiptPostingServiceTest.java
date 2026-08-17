@@ -29,6 +29,7 @@ import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptPostingService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptQueryService;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptResponse;
 import com.tuowei.erp.qc.inspection.service.QcInspectionGate;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -112,6 +113,9 @@ class PurchaseReceiptPostingServiceTest {
 
     @Mock
     private ProductValidator productValidator;
+
+    @Mock
+    private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -449,6 +453,22 @@ class PurchaseReceiptPostingServiceTest {
         verify(purchaseReceiptQueryService, never()).getById(any());
     }
 
+    @Test
+    void postStopsAtAttachmentGateBeforeCheckingAccountingPeriod() {
+        PurchaseReceiptEntity receipt = receipt();
+        when(purchaseReceiptMapper.selectById(RECEIPT_ID)).thenReturn(receipt);
+        doThrow(new IllegalArgumentException("业务类型 PURCHASE_RECEIPT 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("PURCHASE_RECEIPT", RECEIPT_ID);
+
+        assertThatThrownBy(() -> service().post(RECEIPT_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PURCHASE_RECEIPT");
+
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        assertNoPostingWrites();
+    }
+
     private PurchaseReceiptPostingService service() {
         PurchaseOrderLookupService purchaseOrderLookupService = new PurchaseOrderLookupService(
                 purchaseOrderMapper,
@@ -468,7 +488,8 @@ class PurchaseReceiptPostingServiceTest {
                 purchaseReceiptQueryService,
                 accountPeriodGuard,
                 qcInspectionGate,
-                productValidator
+                productValidator,
+                attachmentService
         );
     }
 

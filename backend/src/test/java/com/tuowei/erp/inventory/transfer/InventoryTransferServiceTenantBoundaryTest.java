@@ -25,6 +25,7 @@ import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -43,6 +44,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -118,6 +120,9 @@ class InventoryTransferServiceTenantBoundaryTest {
 
     @Mock
     private AccountPeriodGuard accountPeriodGuard;
+
+    @Mock
+    private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -231,6 +236,26 @@ class InventoryTransferServiceTenantBoundaryTest {
                 .hasMessage("库存调拨单不存在");
     }
 
+    @Test
+    void postStopsAtAttachmentGateBeforeCheckingAccountingPeriod() {
+        InventoryTransferEntity transfer = transfer(AUDIT.accountBookId());
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(PRINCIPAL);
+        when(transferMapper.selectById(TRANSFER_ID)).thenReturn(transfer);
+        doThrow(new IllegalArgumentException("业务类型 INVENTORY_TRANSFER 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("INVENTORY_TRANSFER", TRANSFER_ID);
+
+        assertThatThrownBy(() -> service().post(TRANSFER_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("INVENTORY_TRANSFER");
+
+        assertThat(transfer.getStatus()).isEqualTo("DRAFT");
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        verify(transferMapper, never()).updateById(any(InventoryTransferEntity.class));
+    }
+
     private InventoryTransferService service() {
         return new InventoryTransferService(
                 transferMapper,
@@ -244,7 +269,8 @@ class InventoryTransferServiceTenantBoundaryTest {
                 userMapper,
                 warehouseMapper,
                 productValidator,
-                accountPeriodGuard
+                accountPeriodGuard,
+                attachmentService
         );
     }
 

@@ -25,6 +25,8 @@ import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +54,7 @@ public class InventoryAdjustmentService {
     private final WarehouseMapper warehouseMapper;
     private final ProductValidator productValidator;
     private final AccountPeriodGuard accountPeriodGuard;
+    private final AttachmentService attachmentService;
 
     public InventoryAdjustmentService(
             InventoryAdjustmentMapper adjustmentMapper,
@@ -63,7 +66,8 @@ public class InventoryAdjustmentService {
             AuditMetadataFactory auditMetadataFactory,
             WarehouseMapper warehouseMapper,
             ProductValidator productValidator,
-            AccountPeriodGuard accountPeriodGuard
+            AccountPeriodGuard accountPeriodGuard,
+            AttachmentService attachmentService
     ) {
         this.adjustmentMapper = adjustmentMapper;
         this.lineMapper = lineMapper;
@@ -75,6 +79,7 @@ public class InventoryAdjustmentService {
         this.warehouseMapper = warehouseMapper;
         this.productValidator = productValidator;
         this.accountPeriodGuard = accountPeriodGuard;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -199,6 +204,7 @@ public class InventoryAdjustmentService {
         if (!STATUS_DRAFT.equals(adjustment.getStatus())) {
             throw new IllegalArgumentException("只有草稿状态的库存调整单可以过账");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.INVENTORY_ADJUSTMENT, adjustment.getId());
         accountPeriodGuard.requireOpen(adjustment.getAdjustmentDate(), "库存调整过账");
 
         List<InventoryAdjustmentLineEntity> lines = selectLines(adjustment);

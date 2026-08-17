@@ -17,6 +17,8 @@ import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -40,19 +42,22 @@ public class FinanceInvoiceService {
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final SalesOrderMapper salesOrderMapper;
     private final AuditMetadataFactory auditMetadataFactory;
+    private final AttachmentService attachmentService;
 
     public FinanceInvoiceService(
             InvoiceRegisterMapper invoiceRegisterMapper,
             InvoiceNumberService invoiceNumberService,
             PurchaseOrderMapper purchaseOrderMapper,
             SalesOrderMapper salesOrderMapper,
-            AuditMetadataFactory auditMetadataFactory
+            AuditMetadataFactory auditMetadataFactory,
+            AttachmentService attachmentService
     ) {
         this.invoiceRegisterMapper = invoiceRegisterMapper;
         this.invoiceNumberService = invoiceNumberService;
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.salesOrderMapper = salesOrderMapper;
         this.auditMetadataFactory = auditMetadataFactory;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -166,6 +171,7 @@ public class FinanceInvoiceService {
         if (!STATUS_DRAFT.equals(entity.getStatus())) {
             throw new IllegalArgumentException("只有草稿状态的发票登记可以确认");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.FIN_INVOICE, entity.getId());
         AuditMetadata audit = auditMetadataFactory.current();
         entity.setStatus(STATUS_POSTED);
         entity.setUpdatedBy(audit.userId());

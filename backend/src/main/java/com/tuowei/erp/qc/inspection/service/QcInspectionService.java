@@ -21,6 +21,8 @@ import com.tuowei.erp.qc.inspection.web.QcInspectionPageQuery;
 import com.tuowei.erp.qc.inspection.web.QcInspectionResponse;
 import com.tuowei.erp.qc.inspection.web.QcInspectionUpdateLineRequest;
 import com.tuowei.erp.qc.inspection.web.QcInspectionUpdateRequest;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -54,6 +56,7 @@ public class QcInspectionService {
     private final QcInspectionCreateService qcInspectionCreateService;
     private final QcInspectionSourceAccess qcInspectionSourceAccess;
     private final QcInspectionQueryService qcInspectionQueryService;
+    private final AttachmentService attachmentService;
 
     public QcInspectionService(
             QcInspectionOrderMapper qcInspectionOrderMapper,
@@ -63,7 +66,8 @@ public class QcInspectionService {
             AuditMetadataFactory auditMetadataFactory,
             QcInspectionCreateService qcInspectionCreateService,
             QcInspectionSourceAccess qcInspectionSourceAccess,
-            QcInspectionQueryService qcInspectionQueryService
+            QcInspectionQueryService qcInspectionQueryService,
+            AttachmentService attachmentService
     ) {
         this.qcInspectionOrderMapper = qcInspectionOrderMapper;
         this.qcInspectionLineMapper = qcInspectionLineMapper;
@@ -73,6 +77,7 @@ public class QcInspectionService {
         this.qcInspectionCreateService = qcInspectionCreateService;
         this.qcInspectionSourceAccess = qcInspectionSourceAccess;
         this.qcInspectionQueryService = qcInspectionQueryService;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -152,6 +157,7 @@ public class QcInspectionService {
         if (!STATUS_DRAFT.equals(inspection.getStatus())) {
             throw new IllegalArgumentException("当前检验单状态不允许提交");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.QC_INSPECTION, inspection.getId());
         inspection.setStatus(STATUS_SUBMITTED);
         touch(inspection, audit);
         OptimisticLockGuard.requireUpdated(

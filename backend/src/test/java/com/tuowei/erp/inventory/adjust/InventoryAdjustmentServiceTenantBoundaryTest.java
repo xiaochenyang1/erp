@@ -21,6 +21,7 @@ import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -84,6 +86,9 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
 
     @Mock
     private AccountPeriodGuard accountPeriodGuard;
+
+    @Mock
+    private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -208,6 +213,26 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
         verify(financePostingService).recordInventoryAdjustment(adjustment, lines, AUDIT);
     }
 
+    @Test
+    void postStopsAtAttachmentGateBeforeCheckingAccountingPeriod() {
+        InventoryAdjustmentEntity adjustment = adjustment(AUDIT.accountBookId());
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(adjustmentMapper.selectById(ADJUSTMENT_ID)).thenReturn(adjustment);
+        doThrow(new IllegalArgumentException("业务类型 INVENTORY_ADJUSTMENT 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("INVENTORY_ADJUSTMENT", ADJUSTMENT_ID);
+
+        assertThatThrownBy(() -> service().post(ADJUSTMENT_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("INVENTORY_ADJUSTMENT");
+
+        assertThat(adjustment.getStatus()).isEqualTo("DRAFT");
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        verify(adjustmentMapper, never()).updateById(any(InventoryAdjustmentEntity.class));
+        verify(inventoryPostingService, never()).postInbound(any(), any());
+        verify(financePostingService, never()).recordInventoryAdjustment(any(), any(), any());
+    }
+
     private InventoryAdjustmentService service() {
         return new InventoryAdjustmentService(
                 adjustmentMapper,
@@ -219,7 +244,8 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
                 auditMetadataFactory,
                 warehouseMapper,
                 productValidator,
-                accountPeriodGuard
+                accountPeriodGuard,
+                attachmentService
         );
     }
 

@@ -15,6 +15,7 @@ import com.tuowei.erp.finance.voucher.mapper.VoucherEntryMapper;
 import com.tuowei.erp.finance.voucher.mapper.VoucherMapper;
 import com.tuowei.erp.finance.voucher.model.VoucherEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntryEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,7 +68,7 @@ public class ExpensePostingService {
         if (!"APPROVED".equals(expense.getStatus())) {
             throw new IllegalArgumentException("只有审批通过的费用单可以过账");
         }
-        attachmentService.requireIfConfigured("EXPENSE", expense.getId());
+        attachmentService.requireIfConfigured(AttachmentBusinessType.EXPENSE, expense.getId());
         accountPeriodGuard.requireOpen(expense.getExpenseDate(), "费用单过账");
         AuditMetadata audit = auditMetadataFactory.current();
         AccountSubjectEntity expenseSubject = accountSubjectService.requireActiveSubject(

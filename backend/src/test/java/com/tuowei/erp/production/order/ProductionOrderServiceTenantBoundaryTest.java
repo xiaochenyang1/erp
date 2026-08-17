@@ -29,6 +29,7 @@ import com.tuowei.erp.production.operation.service.ProductionOperationService;
 import com.tuowei.erp.production.order.web.ProductionOrderCreateRequest;
 import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
 import com.tuowei.erp.production.order.web.ProductionOrderUpdateRequest;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,7 +47,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -98,6 +101,7 @@ class ProductionOrderServiceTenantBoundaryTest {
     private final ScopedUserResolver scopedUserResolver = mock(ScopedUserResolver.class);
     private final UserMapper userMapper = mock(UserMapper.class);
     private final ProductionOperationService productionOperationService = mock(ProductionOperationService.class);
+    private final AttachmentService attachmentService = mock(AttachmentService.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -234,6 +238,26 @@ class ProductionOrderServiceTenantBoundaryTest {
         when(currentUserContext.requirePrincipal()).thenReturn(PRINCIPAL);
     }
 
+    @Test
+    void releaseStopsAtAttachmentGateBeforeReservingMaterials() {
+        stubAudit();
+        stubCurrentUser();
+        ProductionOrderEntity order = activeOrder(6001L, AUDIT.companyId(), AUDIT.accountBookId());
+        when(orderMapper.selectById(6001L)).thenReturn(order);
+        doThrow(new IllegalArgumentException("业务类型 PRODUCTION_ORDER 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("PRODUCTION_ORDER", 6001L);
+
+        assertThatThrownBy(() -> service().release(6001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PRODUCTION_ORDER");
+
+        assertThat(order.getStatus()).isEqualTo(ProductionOrderService.STATUS_DRAFT);
+        verify(materialMapper, never()).selectList(any());
+        verify(inventoryPostingService, never()).reserve(any(), any(), any());
+        verify(orderMapper, never()).updateById(any(ProductionOrderEntity.class));
+    }
+
     private ProductionOrderService service() {
         return new ProductionOrderService(
                 orderMapper,
@@ -248,7 +272,8 @@ class ProductionOrderServiceTenantBoundaryTest {
                 dataScopeService,
                 scopedUserResolver,
                 userMapper,
-                productionOperationService
+                productionOperationService,
+                attachmentService
         );
     }
 

@@ -30,6 +30,8 @@ import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
 import com.tuowei.erp.production.order.web.ProductionOrderResponse;
 import com.tuowei.erp.production.order.web.ProductionOrderUpdateRequest;
 import com.tuowei.erp.production.operation.service.ProductionOperationService;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.system.user.model.UserEntity;
 import org.springframework.stereotype.Service;
@@ -68,6 +70,7 @@ public class ProductionOrderService {
     private final ScopedUserResolver scopedUserResolver;
     private final UserMapper userMapper;
     private final ProductionOperationService productionOperationService;
+    private final AttachmentService attachmentService;
 
     public ProductionOrderService(
             ProductionOrderMapper orderMapper,
@@ -82,7 +85,8 @@ public class ProductionOrderService {
             DataScopeService dataScopeService,
             ScopedUserResolver scopedUserResolver,
             UserMapper userMapper,
-            ProductionOperationService productionOperationService
+            ProductionOperationService productionOperationService,
+            AttachmentService attachmentService
     ) {
         this.orderMapper = orderMapper;
         this.materialMapper = materialMapper;
@@ -97,6 +101,7 @@ public class ProductionOrderService {
         this.scopedUserResolver = scopedUserResolver;
         this.userMapper = userMapper;
         this.productionOperationService = productionOperationService;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -207,6 +212,7 @@ public class ProductionOrderService {
         if (!STATUS_DRAFT.equals(order.getStatus())) {
             throw new IllegalArgumentException("只有草稿状态的生产工单可以释放");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.PRODUCTION_ORDER, order.getId());
         List<ProductionOrderMaterialEntity> materials = selectMaterials(order);
         for (ProductionOrderMaterialEntity material : materials) {
             inventoryPostingService.reserve(

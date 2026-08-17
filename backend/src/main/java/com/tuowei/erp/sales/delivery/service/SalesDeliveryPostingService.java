@@ -27,6 +27,8 @@ import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,6 +61,7 @@ public class SalesDeliveryPostingService {
     private final AccountPeriodGuard accountPeriodGuard;
     private final ProductValidator productValidator;
     private final QcInspectionGate qcInspectionGate;
+    private final AttachmentService attachmentService;
 
     public SalesDeliveryPostingService(
             SalesDeliveryMapper salesDeliveryMapper,
@@ -74,7 +77,8 @@ public class SalesDeliveryPostingService {
             AuditMetadataFactory auditMetadataFactory,
             AccountPeriodGuard accountPeriodGuard,
             ProductValidator productValidator,
-            QcInspectionGate qcInspectionGate
+            QcInspectionGate qcInspectionGate,
+            AttachmentService attachmentService
     ) {
         this.salesDeliveryMapper = salesDeliveryMapper;
         this.salesDeliveryLineMapper = salesDeliveryLineMapper;
@@ -90,6 +94,7 @@ public class SalesDeliveryPostingService {
         this.accountPeriodGuard = accountPeriodGuard;
         this.productValidator = productValidator;
         this.qcInspectionGate = qcInspectionGate;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -99,6 +104,7 @@ public class SalesDeliveryPostingService {
         if (!"DRAFT".equals(delivery.getStatus())) {
             throw new IllegalArgumentException("当前销售出库单状态不允许过账");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.SALES_DELIVERY, delivery.getId());
         accountPeriodGuard.requireOpen(delivery.getDeliveryDate(), "销售出库过账");
 
         SalesOrderEntity order = requireApprovedOrder(delivery.getOrderId(), "销售订单未审批通过，不能执行出库过账");
