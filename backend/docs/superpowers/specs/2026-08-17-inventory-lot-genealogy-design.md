@@ -180,7 +180,10 @@ GenealogyLimits
   scopeLimited
 ```
 
-Terminal reasons, the full closed set: `PURCHASED`, `SOLD`, `RETURNED_BY_CUSTOMER`, `RETURNED_TO_SUPPLIER`, `MOVED_INTERNALLY`, `ADJUSTED`, `OPENING_BALANCE`, `REVERSED`, `IN_PRODUCTION`, `MATERIAL_NOT_LOT_CONTROLLED`, `OUTPUT_NOT_LOT_CONTROLLED`, `ALREADY_VISITED`, `MAX_DEPTH`, `UNKNOWN_SOURCE`, `UNKNOWN_DESTINATION`.
+Terminal reasons, the full closed set: `PURCHASED`, `SOLD`, `RETURNED_BY_CUSTOMER`, `RETURNED_TO_SUPPLIER`, `MOVED_INTERNALLY`, `ADJUSTED`, `OPENING_BALANCE`, `REVERSED`, `IN_PRODUCTION`, `NO_MATERIAL_ISSUED`, `MATERIAL_NOT_LOT_CONTROLLED`, `OUTPUT_NOT_LOT_CONTROLLED`, `ALREADY_VISITED`, `MAX_DEPTH`, `UNKNOWN_SOURCE`, `UNKNOWN_DESTINATION`.
+
+`NO_MATERIAL_ISSUED` is the upstream mirror of `IN_PRODUCTION`, added while planning: a production order can report completion with no `PRODUCTION_ISSUE` rows recorded against it, and that must read as "nothing was consumed on record" rather than falling through to `UNKNOWN_SOURCE`, which would imply the traversal met a `biz_type` it did not understand.
+
 
 `bizLabel` and `documentRoute` reuse the existing `resolveDocumentLabel` and `resolveDocumentRoute` mappings so deep links behave exactly as they do in the current lot trace dialog.
 
