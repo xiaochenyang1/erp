@@ -1,7 +1,7 @@
 # Inventory Lot Genealogy Design
 
 **Date:** 2026-08-17
-**Status:** Approach and security decision approved in conversation; spec awaiting review before an implementation plan is written.
+**Status:** Approach and security decision approved in conversation. Spec re-verified against the codebase on 2026-08-18 (see "Verification Log"); three corrections applied inline. Ready for an implementation plan.
 
 ## Goal
 
@@ -114,6 +114,14 @@ Starting from the same root, load rows with `direction = OUT`, then per `biz_typ
 
 A production order that has consumed material but not yet reported completion yields a link with reason `IN_PRODUCTION` and no child node. That is a real recall answer: the lot is still on the shop floor.
 
+### Lots that do not exist: non-lot-controlled materials and outputs
+
+**Added 2026-08-18, found during spec verification.** The spec above assumed every expanded child has a lot number. It does not. `lot_no` is only forced when `product.lotControlled = 1`, so a production order can legitimately consume a non-lot-controlled material, or report a non-lot-controlled output, and write `inv_txn` rows whose `lot_no` is `NULL`. Genealogy is keyed on `(productId, lotNo)`, so such a child cannot be recursed into.
+
+Dropping those branches would silently understate a recall, which this design forbids. Instead: emit the child node with `lotNo = null` so the consumed material or produced output is still named, and mark the link terminal with reason `MATERIAL_NOT_LOT_CONTROLLED` upstream and `OUTPUT_NOT_LOT_CONTROLLED` downstream. The operator learns that the chain genuinely ends there because the product is not lot-tracked, which is a different fact from "the chain ended because we hit a cap".
+
+The root lot is unaffected: `lotNo` remains required and blank input is still rejected.
+
 ### Guards
 
 - **Depth.** `maxDepth` defaults to `5`, hard cap `10`. Reaching it sets `truncated` and adds reason `MAX_DEPTH`.
@@ -172,7 +180,13 @@ GenealogyLimits
   scopeLimited
 ```
 
+Terminal reasons, the full closed set: `PURCHASED`, `SOLD`, `RETURNED_BY_CUSTOMER`, `RETURNED_TO_SUPPLIER`, `MOVED_INTERNALLY`, `ADJUSTED`, `OPENING_BALANCE`, `REVERSED`, `IN_PRODUCTION`, `MATERIAL_NOT_LOT_CONTROLLED`, `OUTPUT_NOT_LOT_CONTROLLED`, `ALREADY_VISITED`, `MAX_DEPTH`, `UNKNOWN_SOURCE`, `UNKNOWN_DESTINATION`.
+
 `bizLabel` and `documentRoute` reuse the existing `resolveDocumentLabel` and `resolveDocumentRoute` mappings so deep links behave exactly as they do in the current lot trace dialog.
+
+**Correction 1 (2026-08-18).** Both methods are `private` in `InventoryLotQueryService`, so "reuse" is not a call — it requires extracting them into a shared, injectable `InventoryDocumentLinkResolver` (package `inventory.stock.service`) that both `InventoryLotQueryService` and the new genealogy service depend on. `traceLot`'s output must stay byte-identical after the extraction; the existing `InventoryLotQueryServiceTest` is the guard. `resolveDocumentRoute` already covers all twelve `biz_type` values this design traverses, so no new route mapping is needed.
+
+**Correction 2 (2026-08-18).** `resolveDocumentLabel` returns hardcoded Chinese, and the current dialog renders `row.documentLabel || row.bizType`, so an English-locale user already sees Chinese document types there. The new page must therefore map `bizType` to a label through i18n on the client and treat `bizLabel` as a fallback only, rather than displaying the backend string directly. Fixing the pre-existing hole in the `/inventory/stocks` dialog is out of scope for this design.
 
 Errors follow the existing conventions: missing `productId` or blank `lotNo` raise `IllegalArgumentException` with the same wording style as `traceLot`. A lot with no transactions at all returns a root node with empty `links`, not a 404 — "this lot has no history in your scope" is a valid answer.
 
@@ -186,6 +200,8 @@ Migration `V145` seeds one `MENU` node and its role binding:
 - `ON DUPLICATE KEY UPDATE` for idempotency, following `V98`.
 
 The controller method carries `@PreAuthorize` on the new `inventory:lot:genealogy` code, and `PermissionCodes` gains the matching constant. V126's runtime menu alignment filters nodes whose route or component does not exist, so the frontend route must land in the same change.
+
+**Correction 3 (2026-08-18).** The constant belongs in `InventoryPermissionCodes`, not in `PermissionCodes` itself — `PermissionCodes` is a `final` aggregator implementing the fourteen module interfaces, and it reflectively collects every non-`HAS_` `String` field into `allPermissions()`. Adding `INVENTORY_LOT_GENEALOGY = "inventory:lot:genealogy"` plus `HAS_INVENTORY_LOT_GENEALOGY` there registers the code automatically and keeps it reachable as `PermissionCodes.HAS_INVENTORY_LOT_GENEALOGY`. Note the code omits the `:view` suffix that the rest of `InventoryPermissionCodes` uses; this is the approved design's wording and the seeded value must match it exactly.
 
 **Security decision, approved in conversation.** The genealogy exposes supplier and customer identities under the page permission alone, without additionally requiring customer or supplier masterdata read permission. The roles that run recalls — quality and production managers — commonly lack masterdata rights, and degrading names to document numbers for them would make the page useless to its primary audience. This is a deliberate widening relative to the AR/AP pages, which do gate counterparty options on masterdata permissions. Revisit if a tenant needs supplier identities hidden from quality staff.
 
@@ -224,3 +240,16 @@ Frontend: one test file per composable, covering label mapping, request sequenci
 - Given a caller restricted to one warehouse, `scopeLimited` is set.
 - The existing `/api/inventory/lots/trace` endpoint, its dialog, and all current tests behave unchanged.
 - Full backend suite green against real MySQL 8.4; frontend lint, types, tests, contract checks, and build green.
+
+## Verification Log (2026-08-18)
+
+Every load-bearing claim in this spec was checked against the working tree before an implementation plan was written. The design survives; three wording corrections are applied inline above.
+
+Confirmed:
+
+- **The manufacturing edge exists.** `ProductionIssueService` calls `postOutbound` with `BIZ_TYPE = "PRODUCTION_ISSUE"`, `order.getOrderNo()` as the document number, and `line.getLotNo()`. `ProductionCompletionService` calls `postInbound` with `BIZ_TYPE = "PRODUCTION_COMPLETION"`, `order.getOrderNo()`, and `completion.getLotNo()`. The shared production order number plus lot number is therefore already persisted on both sides, and `InventoryTransactionWriter` writes `lot_no` and `lot_key` onto `inv_txn`. **The "no schema change" premise holds.**
+- **`inv_txn` carries every field the traversal reads**: `companyId`, `accountBookId`, `warehouseId`, `productId`, `bizType`, `bizNo`, `bizLineId`, `direction`, `qty`, `occurredTime`, `lotNo`, `productionDate`, `expiryDate`.
+- **All thirteen `biz_type` values named in the traversal exist in `src/main/java`**, so no branch of the switch is dead: `PURCHASE_RECEIPT`, `SALES_DELIVERY`, `PURCHASE_RETURN`, `SALES_RETURN`, `INVENTORY_ADJUSTMENT`, `INVENTORY_TRANSFER`, `PRODUCTION_RETURN`, `PRODUCTION_ISSUE`, `PRODUCTION_COMPLETION`, `PRODUCTION_COMPLETION_REVERSAL`, `OPENING_INVENTORY`, `OPENING_BALANCE`, `INVENTORY_CHECK`.
+- **`DataScopeService.applyInventoryTransactionScope`** exists and is the same helper the three existing inventory read services use.
+- **Migration and id headroom.** Latest migration is `V144`, so `V145` is next. Highest seeded `sys_menu` id is `5471` and highest `sys_role_menu` id is `7481`, so `5480` and `7490` are both free. `5009` is confirmed as the inventory catalog parent (`V117` hangs the MRP menu off it) and `3002` as `ERP_ADMIN`.
+- **Nothing is implemented yet.** `grep -i genealogy` over `backend/src` and `frontend/src` returns no matches, so this is a greenfield addition with no partial work to reconcile.
