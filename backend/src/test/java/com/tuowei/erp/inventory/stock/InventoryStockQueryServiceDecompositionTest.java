@@ -1,9 +1,14 @@
 package com.tuowei.erp.inventory.stock;
 
+import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryLotBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
+import com.tuowei.erp.inventory.stock.service.InventoryBalanceQueryService;
 import com.tuowei.erp.inventory.stock.service.InventoryLotQueryService;
 import com.tuowei.erp.inventory.stock.service.InventoryStockQueryService;
+import com.tuowei.erp.inventory.stock.service.InventoryTransactionQueryService;
+import com.tuowei.erp.inventory.stock.web.InventoryBalancePageQuery;
+import com.tuowei.erp.inventory.stock.web.InventoryTransactionPageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotBalancePageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotExpiryAlertQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotTraceQuery;
@@ -21,17 +26,60 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InventoryStockQueryServiceDecompositionTest {
 
     @Test
-    void stockFacadeDelegatesLotQueriesWithoutRetainingLotMapperOrClock() {
+    void stockFacadeDelegatesReadSidesWithoutRetainingMappersOrClock() {
         assertThat(constructorDependencies(InventoryStockQueryService.class))
-                .contains(InventoryLotQueryService.class)
-                .doesNotContain(InventoryLotBalanceMapper.class, Clock.class);
+                .contains(
+                        InventoryBalanceQueryService.class,
+                        InventoryTransactionQueryService.class,
+                        InventoryLotQueryService.class
+                )
+                .doesNotContain(
+                        InventoryBalanceMapper.class,
+                        InventoryLotBalanceMapper.class,
+                        InventoryTransactionMapper.class,
+                        Clock.class
+                );
+        assertThat(constructorDependencies(InventoryBalanceQueryService.class))
+                .contains(InventoryBalanceMapper.class)
+                .doesNotContain(InventoryStockQueryService.class, InventoryLotBalanceMapper.class, Clock.class);
         assertThat(constructorDependencies(InventoryLotQueryService.class))
                 .contains(InventoryLotBalanceMapper.class, InventoryTransactionMapper.class, Clock.class)
                 .doesNotContain(InventoryStockQueryService.class);
+        assertThat(constructorDependencies(InventoryTransactionQueryService.class))
+                .contains(InventoryTransactionMapper.class)
+                .doesNotContain(InventoryStockQueryService.class, InventoryBalanceMapper.class, Clock.class);
     }
 
     @Test
     void facadeAndLotCollaboratorKeepReadOnlyTransactions() throws NoSuchMethodException {
+        assertReadOnly(InventoryStockQueryService.class.getDeclaredMethod(
+                "listBalances",
+                InventoryBalancePageQuery.class
+        ));
+        assertReadOnly(InventoryStockQueryService.class.getDeclaredMethod(
+                "exportBalances",
+                InventoryBalancePageQuery.class
+        ));
+        assertReadOnly(InventoryStockQueryService.class.getDeclaredMethod("getBalanceById", Long.class));
+        assertReadOnly(InventoryBalanceQueryService.class.getDeclaredMethod(
+                "listBalances",
+                InventoryBalancePageQuery.class
+        ));
+        assertReadOnly(InventoryBalanceQueryService.class.getDeclaredMethod(
+                "exportBalances",
+                InventoryBalancePageQuery.class
+        ));
+        assertReadOnly(InventoryBalanceQueryService.class.getDeclaredMethod("getBalanceById", Long.class));
+        assertReadOnly(InventoryStockQueryService.class.getDeclaredMethod(
+                "listTransactions",
+                InventoryTransactionPageQuery.class
+        ));
+        assertReadOnly(InventoryStockQueryService.class.getDeclaredMethod("getTransactionById", Long.class));
+        assertReadOnly(InventoryTransactionQueryService.class.getDeclaredMethod(
+                "listTransactions",
+                InventoryTransactionPageQuery.class
+        ));
+        assertReadOnly(InventoryTransactionQueryService.class.getDeclaredMethod("getTransactionById", Long.class));
         assertReadOnly(InventoryStockQueryService.class.getDeclaredMethod(
                 "listLotBalances",
                 InventoryLotBalancePageQuery.class

@@ -14,7 +14,9 @@ import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryStockQueryService;
+import com.tuowei.erp.inventory.stock.service.InventoryBalanceQueryService;
 import com.tuowei.erp.inventory.stock.service.InventoryLotQueryService;
+import com.tuowei.erp.inventory.stock.service.InventoryTransactionQueryService;
 import com.tuowei.erp.inventory.stock.web.InventoryBalancePageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotBalancePageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotExpiryAlertQuery;
@@ -27,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.math.BigDecimal;
 import java.io.ByteArrayOutputStream;
@@ -73,7 +76,13 @@ class InventoryStockQueryServiceTenantBoundaryTest {
     private InventoryBalanceMapper inventoryBalanceMapper;
 
     @Mock
+    private InventoryBalanceQueryService inventoryBalanceQueryService;
+
+    @Mock
     private InventoryTransactionMapper inventoryTransactionMapper;
+
+    @Mock
+    private InventoryTransactionQueryService inventoryTransactionQueryService;
 
     @Mock
     private CurrentUserContext currentUserContext;
@@ -101,7 +110,7 @@ class InventoryStockQueryServiceTenantBoundaryTest {
             return page;
         });
 
-        service().listBalances(new InventoryBalancePageQuery());
+        balanceService().listBalances(new InventoryBalancePageQuery());
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         ArgumentCaptor<LambdaQueryWrapper<InventoryBalanceEntity>> wrapperCaptor =
@@ -128,7 +137,7 @@ class InventoryStockQueryServiceTenantBoundaryTest {
         query.setProductId(4001L);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        service().exportBalances(query).writeTo(outputStream);
+        balanceService().exportBalances(query).writeTo(outputStream);
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         ArgumentCaptor<Page<InventoryBalanceEntity>> pageCaptor = ArgumentCaptor.forClass(Page.class);
@@ -151,9 +160,24 @@ class InventoryStockQueryServiceTenantBoundaryTest {
         stubCurrentUserForDetailCheck();
         when(inventoryBalanceMapper.selectById(6001L)).thenReturn(balance(9999L));
 
-        assertThatThrownBy(() -> service().getBalanceById(6001L))
+        assertThatThrownBy(() -> balanceService().getBalanceById(6001L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("库存余额不存在");
+    }
+
+    @Test
+    void balanceFacadeEntrypointsDelegateOriginalArguments() {
+        InventoryBalancePageQuery query = new InventoryBalancePageQuery();
+        StreamingResponseBody export = outputStream -> { };
+        when(inventoryBalanceQueryService.exportBalances(query)).thenReturn(export);
+
+        service().listBalances(query);
+        service().exportBalances(query);
+        service().getBalanceById(6001L);
+
+        verify(inventoryBalanceQueryService).listBalances(query);
+        verify(inventoryBalanceQueryService).exportBalances(query);
+        verify(inventoryBalanceQueryService).getBalanceById(6001L);
     }
 
     @Test
@@ -167,7 +191,7 @@ class InventoryStockQueryServiceTenantBoundaryTest {
             return page;
         });
 
-        service().listTransactions(new InventoryTransactionPageQuery());
+        transactionService().listTransactions(new InventoryTransactionPageQuery());
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         ArgumentCaptor<LambdaQueryWrapper<InventoryTransactionEntity>> wrapperCaptor =
@@ -181,9 +205,23 @@ class InventoryStockQueryServiceTenantBoundaryTest {
         stubCurrentUserForDetailCheck();
         when(inventoryTransactionMapper.selectById(7001L)).thenReturn(transaction(9999L));
 
-        assertThatThrownBy(() -> service().getTransactionById(7001L))
+        assertThatThrownBy(() -> transactionService().getTransactionById(7001L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("库存流水不存在");
+    }
+
+    @Test
+    void transactionFacadeEntrypointsDelegateOriginalArguments() {
+        InventoryTransactionPageQuery query = new InventoryTransactionPageQuery();
+        InventoryTransactionQueryService transactionService = inventoryTransactionQueryService;
+        when(transactionService.listTransactions(query)).thenReturn(null);
+        when(transactionService.getTransactionById(7001L)).thenReturn(null);
+
+        service().listTransactions(query);
+        service().getTransactionById(7001L);
+
+        verify(transactionService).listTransactions(query);
+        verify(transactionService).getTransactionById(7001L);
     }
 
     @Test
@@ -253,11 +291,25 @@ class InventoryStockQueryServiceTenantBoundaryTest {
 
     private InventoryStockQueryService service() {
         return new InventoryStockQueryService(
-                inventoryBalanceMapper,
+                inventoryBalanceQueryService,
+                inventoryTransactionQueryService,
+                inventoryLotQueryService
+        );
+    }
+
+    private InventoryTransactionQueryService transactionService() {
+        return new InventoryTransactionQueryService(
                 inventoryTransactionMapper,
                 currentUserContext,
-                dataScopeService,
-                inventoryLotQueryService
+                dataScopeService
+        );
+    }
+
+    private InventoryBalanceQueryService balanceService() {
+        return new InventoryBalanceQueryService(
+                inventoryBalanceMapper,
+                currentUserContext,
+                dataScopeService
         );
     }
 
