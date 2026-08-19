@@ -1,11 +1,9 @@
 import { ref } from 'vue'
 
 import {
-  getInventoryLotBalance,
   getInventoryReservation,
   getInventoryReservationSource,
   getInventoryStock,
-  type InventoryLotBalance,
   type InventoryReservation,
   type InventoryReservationDetail,
   type InventoryReservationSource,
@@ -14,14 +12,12 @@ import {
 
 export interface InventoryStockDetailDependencies {
   getStock: typeof getInventoryStock
-  getLotBalance: typeof getInventoryLotBalance
   getReservation: typeof getInventoryReservation
   getReservationSource: typeof getInventoryReservationSource
 }
 
 const defaultDependencies: InventoryStockDetailDependencies = {
   getStock: getInventoryStock,
-  getLotBalance: getInventoryLotBalance,
   getReservation: getInventoryReservation,
   getReservationSource: getInventoryReservationSource
 }
@@ -33,11 +29,9 @@ export const useInventoryStockDetails = (
   const detailLoading = ref(false)
   const reservationSourceLoading = ref(false)
   const stockDetailVisible = ref(false)
-  const lotBalanceDetailVisible = ref(false)
   const reservationDetailVisible = ref(false)
   const reservationSourceVisible = ref(false)
   const selectedStock = ref<InventoryStock>()
-  const selectedLotBalance = ref<InventoryLotBalance>()
   const reservationDetail = ref<InventoryReservationDetail>()
   const reservationSourceDetail = ref<InventoryReservationSource>()
 
@@ -50,20 +44,6 @@ export const useInventoryStockDetails = (
     } catch {
       onError('inventoryStocks.message.stockDetailLoadFailed')
       stockDetailVisible.value = false
-    } finally {
-      detailLoading.value = false
-    }
-  }
-
-  const handleViewLotBalance = async (row: InventoryLotBalance) => {
-    lotBalanceDetailVisible.value = true
-    selectedLotBalance.value = undefined
-    detailLoading.value = true
-    try {
-      selectedLotBalance.value = await dependencies.getLotBalance(row.id)
-    } catch {
-      onError('inventoryStocks.message.lotStockDetailLoadFailed')
-      lotBalanceDetailVisible.value = false
     } finally {
       detailLoading.value = false
     }
@@ -100,17 +80,14 @@ export const useInventoryStockDetails = (
 
   return {
     detailLoading,
-    handleViewLotBalance,
     handleViewReservation,
     handleViewReservationSource,
     handleViewStock,
-    lotBalanceDetailVisible,
     reservationDetail,
     reservationDetailVisible,
     reservationSourceDetail,
     reservationSourceLoading,
     reservationSourceVisible,
-    selectedLotBalance,
     selectedStock,
     stockDetailVisible
   }

@@ -340,12 +340,14 @@ const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInv
 const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInventoryStockActions.ts'), 'utf8')
 const inventoryStockBalanceList = readFileSync(resolve(root, 'src/composables/useInventoryStockBalanceList.ts'), 'utf8')
 const inventoryStockExpiryAlertList = readFileSync(resolve(root, 'src/composables/useInventoryStockExpiryAlertList.ts'), 'utf8')
+const inventoryStockLotBalanceList = readFileSync(resolve(root, 'src/composables/useInventoryStockLotBalanceList.ts'), 'utf8')
 const inventoryStockResources = readFileSync(resolve(root, 'src/composables/useInventoryStockResources.ts'), 'utf8')
 const inventoryStockTransactionList = readFileSync(resolve(root, 'src/composables/useInventoryStockTransactionList.ts'), 'utf8')
 const inventoryStockFeature = [
   inventoryStockView,
   inventoryStockBalanceList,
   inventoryStockExpiryAlertList,
+  inventoryStockLotBalanceList,
   inventoryStockTransactionList,
   inventoryStockDetails,
   inventoryStockActions,
@@ -3331,6 +3333,37 @@ for (const fragment of [
 ]) {
   if (!inventoryStockFeature.includes(fragment)) {
     errors.push(`库存查询页缺少批次库存/流水真实入口片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'getInventoryLotBalances',
+  'getInventoryLotBalance',
+  'getInventoryLotTrace',
+  'handleOpenLotBalances',
+  'handleViewLotBalance',
+  'handleOpenLotTrace',
+  'handleLotBalancePageChange',
+  'handleLotBalanceSizeChange',
+  'handleLotTracePageChange',
+  'handleLotTraceSizeChange',
+  "callbacks.onListError('inventoryStocks.message.lotStockLoadFailed', error)",
+  "callbacks.onDetailError('inventoryStocks.message.lotStockDetailLoadFailed')",
+  "callbacks.onListError('inventoryStocks.message.lotTraceLoadFailed', error)"
+]) {
+  if (!inventoryStockLotBalanceList.includes(fragment)) {
+    errors.push(`库存批次余额/追溯切片缺少真实查询、详情或分页片段: ${fragment}`)
+  }
+}
+for (const fragment of [
+  '@size-change="handleLotBalanceSizeChange"',
+  '@current-change="handleLotBalancePageChange"',
+  '@size-change="handleLotTraceSizeChange"',
+  '@current-change="handleLotTracePageChange"',
+  'v-if="lotBalanceDetailLoading"'
+]) {
+  if (!inventoryStockView.includes(fragment)) {
+    errors.push(`库存批次余额/追溯页缺少独立分页或详情加载绑定: ${fragment}`)
   }
 }
 

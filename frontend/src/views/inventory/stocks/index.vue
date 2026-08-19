@@ -438,8 +438,8 @@
         :total="lotBalanceTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleLotBalanceQuery"
-        @current-change="loadLotBalances"
+        @size-change="handleLotBalanceSizeChange"
+        @current-change="handleLotBalancePageChange"
       />
     </el-dialog>
 
@@ -625,8 +625,8 @@
         :total="lotTraceTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadLotTrace"
-        @current-change="loadLotTrace"
+        @size-change="handleLotTraceSizeChange"
+        @current-change="handleLotTracePageChange"
       />
     </el-dialog>
 
@@ -646,7 +646,7 @@
     </el-dialog>
 
     <el-dialog v-model="lotBalanceDetailVisible" :title="$t('inventoryStocks.lotStockDetail')" width="760px">
-      <el-skeleton v-if="detailLoading" :rows="6" animated />
+      <el-skeleton v-if="lotBalanceDetailLoading" :rows="6" animated />
       <el-descriptions v-else-if="selectedLotBalance" :column="2" border>
         <el-descriptions-item :label="$t('inventoryStocks.warehouse')">{{ warehouseName(selectedLotBalance.warehouseId) }}</el-descriptions-item>
         <el-descriptions-item :label="$t('inventoryStocks.product')">{{ productName(selectedLotBalance.productId) }}</el-descriptions-item>
@@ -727,6 +727,7 @@ import { useInventoryStockActions } from '@/composables/useInventoryStockActions
 import { useInventoryStockBalanceList } from '@/composables/useInventoryStockBalanceList'
 import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails'
 import { useInventoryStockExpiryAlertList } from '@/composables/useInventoryStockExpiryAlertList'
+import { useInventoryStockLotBalanceList } from '@/composables/useInventoryStockLotBalanceList'
 import { useInventoryStockQueries } from '@/composables/useInventoryStockQueries'
 import { useInventoryStockPresentation } from '@/composables/useInventoryStockPresentation'
 import { useInventoryStockResources } from '@/composables/useInventoryStockResources'
@@ -736,13 +737,7 @@ const route = useRoute()
 const { t } = useI18n()
 const router = useRouter()
 
-const {
-  applyStockScope,
-  lotBalanceQuery,
-  lotTraceQuery,
-  queryParams,
-  reservationQuery
-} = useInventoryStockQueries({
+const { queryParams, reservationQuery } = useInventoryStockQueries({
   warehouseId: route.query.warehouseId ? String(route.query.warehouseId) : undefined,
   productId: route.query.productId ? String(route.query.productId) : undefined,
   locationId: route.query.locationId ? String(route.query.locationId) : undefined
@@ -775,20 +770,48 @@ const {
 
 const {
   detailLoading,
-  handleViewLotBalance,
   handleViewReservation,
   handleViewReservationSource,
   handleViewStock,
-  lotBalanceDetailVisible,
   reservationDetail,
   reservationDetailVisible,
   reservationSourceDetail,
   reservationSourceLoading,
   reservationSourceVisible,
-  selectedLotBalance,
   selectedStock,
   stockDetailVisible
 } = useInventoryStockDetails((messageKey) => ElMessage.error(t(messageKey)))
+
+const {
+  handleLotBalancePageChange,
+  handleLotBalanceQuery,
+  handleLotBalanceSizeChange,
+  handleLotTracePageChange,
+  handleLotTraceSizeChange,
+  handleOpenLotBalances,
+  handleOpenLotTrace,
+  handleViewLotBalance,
+  lotBalanceData,
+  lotBalanceDetailLoading,
+  lotBalanceDetailVisible,
+  lotBalanceDialogVisible,
+  lotBalanceLoading,
+  lotBalanceQuery,
+  lotBalanceTotal,
+  lotTraceData,
+  lotTraceDialogVisible,
+  lotTraceLoading,
+  lotTraceQuery,
+  lotTraceTotal,
+  resetLotBalanceQuery,
+  selectedLotBalance
+} = useInventoryStockLotBalanceList(queryParams, {
+  onDetailError: (messageKey) => ElMessage.error(t(messageKey)),
+  onListError: (messageKey, error) => {
+    console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  }
+})
 
 const {
   handleOpenTransactions,
@@ -832,25 +855,15 @@ const {
 })
 
 const {
-  loadLotBalances,
-  loadLotTrace,
   loadReservations,
   loadReservationSummary,
-  lotBalanceData,
-  lotBalanceLoading,
-  lotBalanceTotal,
-  lotTraceData,
-  lotTraceLoading,
-  lotTraceTotal,
   reservationData,
   reservationLoading,
   reservationSummaryData,
   reservationSummaryLoading,
   reservationTotal
 } = useInventoryStockResources({
-  reservations: reservationQuery,
-  lotBalances: lotBalanceQuery,
-  lotTrace: lotTraceQuery
+  reservations: reservationQuery
 }, (messageKey, error) => {
   console.error(t(messageKey), error)
   ElMessage.error(t(messageKey))
@@ -860,14 +873,9 @@ const {
   checkDialogVisible,
   checkIssues,
   checkLoading,
-  handleLotBalanceQuery,
-  handleOpenLotBalances,
-  handleOpenLotTrace,
   handleOpenReservations,
   handleReservationCheck,
   handleReservationQuery,
-  lotBalanceDialogVisible,
-  lotTraceDialogVisible,
   openReleaseDialog,
   releaseDialogVisible,
   releaseForm,
@@ -875,23 +883,17 @@ const {
   releaseRules,
   releasing,
   reservationDialogVisible,
-  resetLotBalanceQuery,
   resetReservationQuery,
   selectedReservation,
   submitManualRelease
 } = useInventoryStockActions({
   queryParams,
-  reservationQuery,
-  lotBalanceQuery,
-  lotTraceQuery
+  reservationQuery
 }, {
   loadData,
-  loadLotBalances,
-  loadLotTrace,
   loadReservations,
   loadReservationSummary
 }, {
-  applyStockScope,
   reservationDetail,
   t,
   onError: (messageKey) => ElMessage.error(t(messageKey)),

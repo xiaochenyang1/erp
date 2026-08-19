@@ -4,9 +4,6 @@ import type { FormInstance, FormRules } from 'element-plus'
 import {
   checkInventoryReservations,
   manualReleaseInventoryReservation,
-  type InventoryLotBalance,
-  type InventoryLotBalanceQuery,
-  type InventoryLotTraceQuery,
   type InventoryReservation,
   type InventoryReservationCheckIssue,
   type InventoryReservationDetail,
@@ -18,25 +15,15 @@ import {
 export interface InventoryStockActionQueries {
   queryParams: InventoryStockQuery
   reservationQuery: InventoryReservationQuery
-  lotBalanceQuery: InventoryLotBalanceQuery
-  lotTraceQuery: InventoryLotTraceQuery
 }
 
 export interface InventoryStockActionLoaders {
   loadData: () => Promise<void> | void
-  loadLotBalances: () => Promise<void> | void
-  loadLotTrace: () => Promise<void> | void
   loadReservations: () => Promise<void> | void
   loadReservationSummary: () => Promise<void> | void
 }
 
 export interface InventoryStockActionDependencies {
-  applyStockScope: (target: {
-    warehouseId?: string | number
-    productId?: string | number
-    locationId?: string | number
-    pageNo?: number
-  }, row?: InventoryStock) => void
   checkReservations?: typeof checkInventoryReservations
   manualRelease?: typeof manualReleaseInventoryReservation
   onError: (messageKey: string, error?: unknown) => void
@@ -65,8 +52,6 @@ export const useInventoryStockActions = (
   const reservationDialogVisible = ref(false)
   const releaseDialogVisible = ref(false)
   const checkDialogVisible = ref(false)
-  const lotBalanceDialogVisible = ref(false)
-  const lotTraceDialogVisible = ref(false)
   const checkLoading = ref(false)
   const releasing = ref(false)
   const selectedReservation = ref<InventoryReservation>()
@@ -97,37 +82,6 @@ export const useInventoryStockActions = (
       { required: true, message: dependencies.t('inventoryStocks.validation.releaseReason'), trigger: 'blur' },
       { max: 255, message: dependencies.t('inventoryStocks.validation.releaseReasonLength'), trigger: 'blur' }
     ]
-  }
-
-  const handleOpenLotBalances = (row?: InventoryStock) => {
-    dependencies.applyStockScope(queries.lotBalanceQuery, row)
-    queries.lotBalanceQuery.lotNo = undefined
-    lotBalanceDialogVisible.value = true
-    void loaders.loadLotBalances()
-  }
-
-  const handleLotBalanceQuery = () => {
-    queries.lotBalanceQuery.pageNo = 1
-    void loaders.loadLotBalances()
-  }
-
-  const resetLotBalanceQuery = () => {
-    queries.lotBalanceQuery.lotNo = undefined
-    queries.lotBalanceQuery.expiringWithinDays = undefined
-    handleLotBalanceQuery()
-  }
-
-  const handleOpenLotTrace = (row: InventoryLotBalance) => {
-    Object.assign(queries.lotTraceQuery, {
-      pageNo: 1,
-      pageSize: 10,
-      warehouseId: row.warehouseId,
-      productId: row.productId,
-      lotNo: row.lotNo,
-      direction: undefined
-    })
-    lotTraceDialogVisible.value = true
-    void loaders.loadLotTrace()
   }
 
   const handleOpenReservations = (row: InventoryStock) => {
@@ -207,14 +161,9 @@ export const useInventoryStockActions = (
     checkDialogVisible,
     checkIssues,
     checkLoading,
-    handleLotBalanceQuery,
-    handleOpenLotBalances,
-    handleOpenLotTrace,
     handleOpenReservations,
     handleReservationCheck,
     handleReservationQuery,
-    lotBalanceDialogVisible,
-    lotTraceDialogVisible,
     openReleaseDialog,
     releaseDialogVisible,
     releaseForm,
@@ -222,7 +171,6 @@ export const useInventoryStockActions = (
     releaseRules,
     releasing,
     reservationDialogVisible,
-    resetLotBalanceQuery,
     resetReservationQuery,
     selectedReservation,
     submitManualRelease

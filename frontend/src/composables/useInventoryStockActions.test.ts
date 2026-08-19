@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
 import type {
-  InventoryLotBalance,
   InventoryReservation,
   InventoryReservationCheckIssue,
   InventoryReservationDetail,
@@ -16,8 +15,6 @@ describe('inventory stock actions', () => {
     const queries = useInventoryStockQueries({ warehouseId: 'W-1', productId: 'P-1', locationId: 'L-1' })
     const loaders = {
       loadData: vi.fn(async () => undefined),
-      loadLotBalances: vi.fn(async () => undefined),
-      loadLotTrace: vi.fn(async () => undefined),
       loadReservations: vi.fn(async () => undefined),
       loadReservationSummary: vi.fn(async () => undefined)
     }
@@ -27,7 +24,6 @@ describe('inventory stock actions', () => {
     const onError = vi.fn()
     const onSuccess = vi.fn()
     const actions = useInventoryStockActions(queries, loaders, {
-      applyStockScope: queries.applyStockScope,
       checkReservations,
       manualRelease,
       onError,
@@ -37,23 +33,6 @@ describe('inventory stock actions', () => {
     })
     return { actions, checkReservations, loaders, manualRelease, onError, onSuccess, queries, reservationDetail }
   }
-
-  it('opens lot balances with inherited scope and clears lot filters', () => {
-    const { actions, loaders, queries } = createHarness()
-    queries.lotBalanceQuery.pageNo = 4
-    queries.lotBalanceQuery.lotNo = 'OLD'
-
-    actions.handleOpenLotBalances({ warehouseId: 'W-2', productId: 'P-2', locationId: 'L-2' } as InventoryStock)
-
-    expect(queries.lotBalanceQuery).toMatchObject({
-      warehouseId: 'W-2',
-      productId: 'P-2',
-      pageNo: 1,
-      lotNo: undefined
-    })
-    expect(actions.lotBalanceDialogVisible.value).toBe(true)
-    expect(loaders.loadLotBalances).toHaveBeenCalledTimes(1)
-  })
 
   it('opens reservations scoped to the selected stock row', () => {
     const { actions, loaders, queries } = createHarness()
@@ -70,26 +49,6 @@ describe('inventory stock actions', () => {
     expect(actions.reservationDialogVisible.value).toBe(true)
     expect(loaders.loadReservationSummary).toHaveBeenCalledTimes(1)
     expect(loaders.loadReservations).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens lot trace from a lot balance row', () => {
-    const { actions, loaders, queries } = createHarness()
-
-    actions.handleOpenLotTrace({
-      warehouseId: 'W-3',
-      productId: 'P-3',
-      lotNo: 'LOT-3'
-    } as InventoryLotBalance)
-
-    expect(queries.lotTraceQuery).toMatchObject({
-      warehouseId: 'W-3',
-      productId: 'P-3',
-      lotNo: 'LOT-3',
-      pageNo: 1,
-      direction: undefined
-    })
-    expect(actions.lotTraceDialogVisible.value).toBe(true)
-    expect(loaders.loadLotTrace).toHaveBeenCalledTimes(1)
   })
 
   it('releases a reservation, stores the detail, and reloads lists', async () => {
