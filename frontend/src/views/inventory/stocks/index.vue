@@ -128,8 +128,8 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleQuery"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -717,20 +717,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search, Warning } from '@element-plus/icons-vue'
-import { exportInventoryStocks } from '@/api/inventory'
-import { getLocations, getProducts, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
 import { useInventoryStockActions } from '@/composables/useInventoryStockActions'
+import { useInventoryStockBalanceList } from '@/composables/useInventoryStockBalanceList'
 import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails'
 import { useInventoryStockQueries } from '@/composables/useInventoryStockQueries'
 import { useInventoryStockPresentation } from '@/composables/useInventoryStockPresentation'
 import { useInventoryStockResources } from '@/composables/useInventoryStockResources'
-import { downloadBlob } from '@/utils/download'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -750,12 +748,29 @@ const {
   locationId: route.query.locationId ? String(route.query.locationId) : undefined
 })
 
-const warehouses = ref<Warehouse[]>([])
-const products = ref<Product[]>([])
-const locations = ref<Location[]>([])
-const locationsForQuery = computed(() => {
-  if (!queryParams.warehouseId) return locations.value
-  return locations.value.filter((location) => String(location.warehouseId) === String(queryParams.warehouseId))
+const {
+  handleExport,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loadOptions,
+  loading,
+  locations,
+  locationsForQuery,
+  products,
+  tableData,
+  total,
+  warehouses
+} = useInventoryStockBalanceList(queryParams, {
+  t,
+  onError: (messageKey, error) => {
+    if (error) console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  },
+  onOptionsError: (messageKey, error) => console.error(t(messageKey), error),
+  onSuccess: (messageKey) => ElMessage.success(t(messageKey))
 })
 
 const {
@@ -779,14 +794,12 @@ const {
 } = useInventoryStockDetails((messageKey) => ElMessage.error(t(messageKey)))
 
 const {
-  loadData,
   loadLotAlerts,
   loadLotBalances,
   loadLotTrace,
   loadReservations,
   loadReservationSummary,
   loadTransactions,
-  loading,
   lotAlertData,
   lotAlertLoading,
   lotAlertTotal,
@@ -801,13 +814,10 @@ const {
   reservationSummaryData,
   reservationSummaryLoading,
   reservationTotal,
-  tableData,
-  total,
   transactionData,
   transactionLoading,
   transactionTotal
 } = useInventoryStockResources({
-  stock: queryParams,
   reservations: reservationQuery,
   lotBalances: lotBalanceQuery,
   transactions: transactionQuery,
@@ -889,53 +899,14 @@ const {
   warehouseName
 } = useInventoryStockPresentation(warehouses, products, t, locations)
 
-const loadOptions = async () => {
-  const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-  const [warehousePage, productPage, locationPage] = await Promise.all([
-    getWarehouses(optionPageQuery),
-    getProducts(optionPageQuery),
-    getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
-  ])
-  warehouses.value = warehousePage.records
-  products.value = productPage.records
-  locations.value = locationPage.records || []
-}
-
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryParams.warehouseId = undefined
-  queryParams.productId = undefined
-  queryParams.locationId = undefined
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleExport = async () => {
-  try {
-    const blob = await exportInventoryStocks(queryParams)
-    downloadBlob(blob, t('inventoryStocks.file.stockBalances', { timestamp: Date.now() }))
-    ElMessage.success(t('inventoryStocks.message.exported'))
-  } catch (error) {
-    ElMessage.error(t('inventoryStocks.message.exportFailed'))
-  }
-}
-
 const openTraceDocument = (route: string) => {
   if (!route) return
   router.push(route)
 }
 
 onMounted(async () => {
-  try {
-    await loadOptions()
-  } catch (error) {
-    console.error(t('inventoryStocks.message.optionsLoadFailed'), error)
-  }
-  loadData()
+  await loadOptions()
+  void loadData()
 })
 </script>
 

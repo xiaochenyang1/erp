@@ -6,7 +6,6 @@ import type {
   InventoryLotTrace,
   InventoryReservation,
   InventoryReservationSummary,
-  InventoryStock,
   InventoryTransaction
 } from '@/api/inventory'
 import { useInventoryStockQueries } from './useInventoryStockQueries'
@@ -16,7 +15,6 @@ import {
 } from './useInventoryStockResources'
 
 const page = <T>(record: T) => ({ records: [record], total: 1, pageNo: 1, pageSize: 10, pages: 1 })
-const stock = { id: 'stock-1' } as InventoryStock
 const reservation = { id: 'reservation-1' } as InventoryReservation
 const summary = { productId: 'product-1' } as InventoryReservationSummary
 const lot = { id: 'lot-1' } as InventoryLotBalance
@@ -25,7 +23,6 @@ const alert = { id: 'alert-1' } as InventoryLotExpiryAlert
 const trace = { id: 'trace-1' } as InventoryLotTrace
 
 const createDependencies = () => ({
-  getStocks: vi.fn(async () => page(stock)),
   getReservations: vi.fn(async () => page(reservation)),
   getReservationSummary: vi.fn(async () => [summary]),
   getLotBalances: vi.fn(async () => page(lot)),
@@ -43,7 +40,6 @@ const createResources = (onError = vi.fn(), dependencies = createDependencies())
     dependencies,
     onError,
     resources: useInventoryStockResources({
-      stock: queries.queryParams,
       reservations: queries.reservationQuery,
       lotBalances: queries.lotBalanceQuery,
       transactions: queries.transactionQuery,
@@ -54,11 +50,10 @@ const createResources = (onError = vi.fn(), dependencies = createDependencies())
 }
 
 describe('inventory stock resources', () => {
-  it('loads all seven resources and stores their records and totals', async () => {
+  it('loads all six dialog resources and stores their records and totals', async () => {
     const { dependencies, resources } = createResources()
 
     await Promise.all([
-      resources.loadData(),
       resources.loadReservations(),
       resources.loadReservationSummary(),
       resources.loadLotBalances(),
@@ -67,14 +62,12 @@ describe('inventory stock resources', () => {
       resources.loadLotTrace()
     ])
 
-    expect(resources.tableData.value[0]?.id).toBe('stock-1')
     expect(resources.reservationData.value[0]?.id).toBe('reservation-1')
     expect(resources.reservationSummaryData.value[0]?.productId).toBe('product-1')
     expect(resources.lotBalanceData.value[0]?.id).toBe('lot-1')
     expect(resources.transactionData.value[0]?.id).toBe('transaction-1')
     expect(resources.lotAlertData.value[0]?.id).toBe('alert-1')
     expect(resources.lotTraceData.value[0]?.id).toBe('trace-1')
-    expect(resources.total.value).toBe(1)
     expect(resources.reservationTotal.value).toBe(1)
     expect(resources.lotBalanceTotal.value).toBe(1)
     expect(resources.transactionTotal.value).toBe(1)
@@ -86,7 +79,6 @@ describe('inventory stock resources', () => {
   })
 
   it.each([
-    ['loadData', 'getStocks', 'loading', 'inventoryStocks.message.stockLoadFailed'],
     ['loadReservations', 'getReservations', 'reservationLoading', 'inventoryStocks.message.reservationsLoadFailed'],
     ['loadReservationSummary', 'getReservationSummary', 'reservationSummaryLoading', 'inventoryStocks.message.reservationSummaryLoadFailed'],
     ['loadLotBalances', 'getLotBalances', 'lotBalanceLoading', 'inventoryStocks.message.lotStockLoadFailed'],

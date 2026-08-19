@@ -338,8 +338,15 @@ const importsView = existsSync(importsViewPath)
 const inventoryStockView = readFileSync(resolve(root, 'src/views/inventory/stocks/index.vue'), 'utf8')
 const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInventoryStockDetails.ts'), 'utf8')
 const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInventoryStockActions.ts'), 'utf8')
+const inventoryStockBalanceList = readFileSync(resolve(root, 'src/composables/useInventoryStockBalanceList.ts'), 'utf8')
 const inventoryStockResources = readFileSync(resolve(root, 'src/composables/useInventoryStockResources.ts'), 'utf8')
-const inventoryStockFeature = `${inventoryStockView}\n${inventoryStockDetails}\n${inventoryStockActions}\n${inventoryStockResources}`
+const inventoryStockFeature = [
+  inventoryStockView,
+  inventoryStockBalanceList,
+  inventoryStockDetails,
+  inventoryStockActions,
+  inventoryStockResources
+].join('\n')
 // 库存预警页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
 const inventoryAlertView = [
   'src/views/inventory/alerts/index.vue',
