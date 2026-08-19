@@ -245,13 +245,14 @@
         :total="reservationTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleReservationQuery"
-        @current-change="loadReservations"
+        @size-change="handleReservationSizeChange"
+        @current-change="handleReservationPageChange"
       />
     </el-dialog>
 
     <el-dialog v-model="reservationDetailVisible" :title="$t('inventoryStocks.reservationDetail')" width="960px">
-      <template v-if="reservationDetail">
+      <el-skeleton v-if="reservationDetailLoading" :rows="6" animated />
+      <template v-else-if="reservationDetail">
         <el-descriptions :column="3" border>
           <el-descriptions-item :label="$t('inventoryStocks.warehouse')">
             {{ warehouseName(reservationDetail.reservation.warehouseId) }}
@@ -357,13 +358,13 @@
 
     <el-dialog v-model="checkDialogVisible" :title="$t('inventoryStocks.reservationCheck')" width="980px">
       <el-alert
-        v-if="!checkIssues.length && !checkLoading"
+        v-if="!checkIssues.length && !reservationCheckLoading && !reservationCheckFailed"
         :title="$t('inventoryStocks.noReservationIssues')"
         type="success"
         :closable="false"
         show-icon
       />
-      <el-table v-else v-loading="checkLoading" :data="checkIssues" border stripe>
+      <el-table v-else v-loading="reservationCheckLoading" :data="checkIssues" border stripe>
         <el-table-column prop="severity" :label="$t('inventoryStocks.severity')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.severity === 'ERROR' ? 'danger' : 'warning'">{{ severityLabel(row.severity) }}</el-tag>
@@ -723,21 +724,20 @@ import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search, Warning } from '@element-plus/icons-vue'
-import { useInventoryStockActions } from '@/composables/useInventoryStockActions'
 import { useInventoryStockBalanceList } from '@/composables/useInventoryStockBalanceList'
 import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails'
 import { useInventoryStockExpiryAlertList } from '@/composables/useInventoryStockExpiryAlertList'
 import { useInventoryStockLotBalanceList } from '@/composables/useInventoryStockLotBalanceList'
 import { useInventoryStockQueries } from '@/composables/useInventoryStockQueries'
 import { useInventoryStockPresentation } from '@/composables/useInventoryStockPresentation'
-import { useInventoryStockResources } from '@/composables/useInventoryStockResources'
+import { useInventoryStockReservationList } from '@/composables/useInventoryStockReservationList'
 import { useInventoryStockTransactionList } from '@/composables/useInventoryStockTransactionList'
 
 const route = useRoute()
 const { t } = useI18n()
 const router = useRouter()
 
-const { queryParams, reservationQuery } = useInventoryStockQueries({
+const { queryParams } = useInventoryStockQueries({
   warehouseId: route.query.warehouseId ? String(route.query.warehouseId) : undefined,
   productId: route.query.productId ? String(route.query.productId) : undefined,
   locationId: route.query.locationId ? String(route.query.locationId) : undefined
@@ -770,17 +770,54 @@ const {
 
 const {
   detailLoading,
-  handleViewReservation,
-  handleViewReservationSource,
   handleViewStock,
-  reservationDetail,
-  reservationDetailVisible,
-  reservationSourceDetail,
-  reservationSourceLoading,
-  reservationSourceVisible,
   selectedStock,
   stockDetailVisible
 } = useInventoryStockDetails((messageKey) => ElMessage.error(t(messageKey)))
+
+const {
+  checkDialogVisible,
+  checkFailed: reservationCheckFailed,
+  checkIssues,
+  checkLoading: reservationCheckLoading,
+  handleOpenReservations,
+  handleReservationCheck,
+  handleReservationPageChange,
+  handleReservationQuery,
+  handleReservationSizeChange,
+  handleViewReservation,
+  handleViewReservationSource,
+  openReleaseDialog,
+  releaseDialogVisible,
+  releaseForm,
+  releaseFormRef,
+  releaseRules,
+  releasing,
+  reservationData,
+  reservationDetail,
+  reservationDetailLoading,
+  reservationDetailVisible,
+  reservationDialogVisible,
+  reservationLoading,
+  reservationQuery,
+  reservationSourceDetail,
+  reservationSourceLoading,
+  reservationSourceVisible,
+  reservationSummaryData,
+  reservationSummaryLoading,
+  reservationTotal,
+  resetReservationQuery,
+  selectedReservation,
+  submitManualRelease
+} = useInventoryStockReservationList(queryParams, {
+  t,
+  onError: (messageKey, error) => {
+    if (error) console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  },
+  onSuccess: (messageKey) => ElMessage.success(t(messageKey)),
+  reloadStockList: loadData
+})
 
 const {
   handleLotBalancePageChange,
@@ -852,52 +889,6 @@ const {
     console.error(t(messageKey), error)
     ElMessage.error(t(messageKey))
   }
-})
-
-const {
-  loadReservations,
-  loadReservationSummary,
-  reservationData,
-  reservationLoading,
-  reservationSummaryData,
-  reservationSummaryLoading,
-  reservationTotal
-} = useInventoryStockResources({
-  reservations: reservationQuery
-}, (messageKey, error) => {
-  console.error(t(messageKey), error)
-  ElMessage.error(t(messageKey))
-})
-
-const {
-  checkDialogVisible,
-  checkIssues,
-  checkLoading,
-  handleOpenReservations,
-  handleReservationCheck,
-  handleReservationQuery,
-  openReleaseDialog,
-  releaseDialogVisible,
-  releaseForm,
-  releaseFormRef,
-  releaseRules,
-  releasing,
-  reservationDialogVisible,
-  resetReservationQuery,
-  selectedReservation,
-  submitManualRelease
-} = useInventoryStockActions({
-  queryParams,
-  reservationQuery
-}, {
-  loadData,
-  loadReservations,
-  loadReservationSummary
-}, {
-  reservationDetail,
-  t,
-  onError: (messageKey) => ElMessage.error(t(messageKey)),
-  onSuccess: (messageKey) => ElMessage.success(t(messageKey))
 })
 
 const {

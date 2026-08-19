@@ -1,9 +1,6 @@
 import { reactive } from 'vue'
 
-import type {
-  InventoryReservationQuery,
-  InventoryStockQuery
-} from '@/api/inventory'
+import type { InventoryStockQuery } from '@/api/inventory'
 
 export interface InventoryStockScope {
   warehouseId?: string
@@ -20,17 +17,7 @@ export const useInventoryStockQueries = (initialScope: InventoryStockScope = {})
     locationId: initialScope.locationId
   })
 
-  const reservationQuery = reactive<InventoryReservationQuery>({
-    pageNo: 1,
-    pageSize: 10,
-    warehouseId: undefined,
-    productId: undefined,
-    status: 'ACTIVE',
-    sourceNo: undefined
-  })
-
   return {
-    queryParams,
-    reservationQuery
+    queryParams
   }
 }

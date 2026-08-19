@@ -337,21 +337,19 @@ const importsView = existsSync(importsViewPath)
   : ''
 const inventoryStockView = readFileSync(resolve(root, 'src/views/inventory/stocks/index.vue'), 'utf8')
 const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInventoryStockDetails.ts'), 'utf8')
-const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInventoryStockActions.ts'), 'utf8')
 const inventoryStockBalanceList = readFileSync(resolve(root, 'src/composables/useInventoryStockBalanceList.ts'), 'utf8')
 const inventoryStockExpiryAlertList = readFileSync(resolve(root, 'src/composables/useInventoryStockExpiryAlertList.ts'), 'utf8')
 const inventoryStockLotBalanceList = readFileSync(resolve(root, 'src/composables/useInventoryStockLotBalanceList.ts'), 'utf8')
-const inventoryStockResources = readFileSync(resolve(root, 'src/composables/useInventoryStockResources.ts'), 'utf8')
+const inventoryStockReservationList = readFileSync(resolve(root, 'src/composables/useInventoryStockReservationList.ts'), 'utf8')
 const inventoryStockTransactionList = readFileSync(resolve(root, 'src/composables/useInventoryStockTransactionList.ts'), 'utf8')
 const inventoryStockFeature = [
   inventoryStockView,
   inventoryStockBalanceList,
   inventoryStockExpiryAlertList,
   inventoryStockLotBalanceList,
+  inventoryStockReservationList,
   inventoryStockTransactionList,
-  inventoryStockDetails,
-  inventoryStockActions,
-  inventoryStockResources
+  inventoryStockDetails
 ].join('\n')
 // 库存预警页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
 const inventoryAlertView = [
@@ -3279,6 +3277,58 @@ for (const fragment of [
 ]) {
   if (!inventoryStockFeature.includes(fragment)) {
     errors.push(`库存查询页缺少库存预留真实操作入口片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'getInventoryReservations',
+  'getInventoryReservation',
+  'getInventoryReservationSummary',
+  'getInventoryReservationSource',
+  'manualReleaseInventoryReservation',
+  'checkInventoryReservations',
+  'handleOpenReservations',
+  'handleReservationPageChange',
+  'handleReservationSizeChange',
+  'handleViewReservation',
+  'handleViewReservationSource',
+  'submitManualRelease',
+  'handleReservationCheck',
+  'const reservationLoading = ref(false)',
+  'const reservationSummaryLoading = ref(false)',
+  'const reservationDetailLoading = ref(false)',
+  'const reservationSourceLoading = ref(false)',
+  'const releasing = ref(false)',
+  'const checkLoading = ref(false)',
+  'const checkFailed = ref(false)',
+  'await dependencies.manualRelease(releaseRequest.id',
+  'await dependencies.checkReservations({',
+  "callbacks.onError('inventoryStocks.message.reservationsLoadFailed', error)",
+  "callbacks.onError('inventoryStocks.message.reservationSummaryLoadFailed', error)",
+  "callbacks.onError('inventoryStocks.message.reservationDetailLoadFailed', error)",
+  "callbacks.onError('inventoryStocks.message.sourceReservationLoadFailed', error)",
+  "callbacks.onSuccess('inventoryStocks.message.released')",
+  "callbacks.onError('inventoryStocks.message.releaseFailed', error)",
+  "callbacks.onError('inventoryStocks.message.reservationCheckFailed', error)"
+]) {
+  if (!inventoryStockReservationList.includes(fragment)) {
+    errors.push(`库存预留运营切片缺少真实查询、独立加载状态、释放/核对或错误反馈片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'v-loading="reservationSummaryLoading"',
+  'v-loading="reservationLoading"',
+  '@size-change="handleReservationSizeChange"',
+  '@current-change="handleReservationPageChange"',
+  'v-if="reservationDetailLoading"',
+  'v-if="reservationSourceLoading"',
+  ':loading="releasing"',
+  'v-loading="reservationCheckLoading"',
+  '!reservationCheckFailed'
+]) {
+  if (!inventoryStockView.includes(fragment)) {
+    errors.push(`库存预留运营页缺少独立加载或分页绑定: ${fragment}`)
   }
 }
 
