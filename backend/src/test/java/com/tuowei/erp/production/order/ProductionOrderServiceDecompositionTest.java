@@ -3,13 +3,17 @@ package com.tuowei.erp.production.order;
 import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.ScopedUserResolver;
+import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
+import com.tuowei.erp.production.operation.service.ProductionOperationService;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMaterialMapper;
+import com.tuowei.erp.production.order.service.ProductionOrderPostingService;
 import com.tuowei.erp.production.order.service.ProductionOrderQueryService;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.production.order.web.ProductionOrderCreateRequest;
 import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
 import com.tuowei.erp.system.user.mapper.UserMapper;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,14 +28,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ProductionOrderServiceDecompositionTest {
 
     @Test
-    void facadeKeepsReadSideSecurityBehindQueryService() {
+    void facadeKeepsReadAndPostingOrchestrationBehindCollaborators() {
         assertThat(constructorDependencies(ProductionOrderService.class))
-                .contains(ProductionOrderQueryService.class)
+                .contains(ProductionOrderQueryService.class, ProductionOrderPostingService.class)
                 .doesNotContain(
                         CurrentUserContext.class,
                         DataScopeService.class,
                         ScopedUserResolver.class,
-                        UserMapper.class
+                        UserMapper.class,
+                        InventoryPostingService.class,
+                        ProductionOperationService.class,
+                        AttachmentService.class
                 );
         assertThat(constructorDependencies(ProductionOrderQueryService.class))
                 .contains(
@@ -43,6 +50,15 @@ class ProductionOrderServiceDecompositionTest {
                         UserMapper.class
                 )
                 .doesNotContain(ProductionOrderService.class);
+        assertThat(constructorDependencies(ProductionOrderPostingService.class))
+                .contains(
+                        ProductionOrderMapper.class,
+                        ProductionOrderQueryService.class,
+                        InventoryPostingService.class,
+                        ProductionOperationService.class,
+                        AttachmentService.class
+                )
+                .doesNotContain(ProductionOrderService.class, ProductionOrderMaterialMapper.class);
     }
 
     @Test
@@ -54,11 +70,15 @@ class ProductionOrderServiceDecompositionTest {
     }
 
     @Test
-    void orderCreationKeepsRequiredWriteTransactionOnFacade() throws NoSuchMethodException {
+    void writeOrchestrationKeepsRequiredTransactionsOnFacadeAndCollaborator() throws NoSuchMethodException {
         assertRequiredWriteTransaction(ProductionOrderService.class.getDeclaredMethod(
                 "create",
                 ProductionOrderCreateRequest.class
         ));
+        assertRequiredWriteTransaction(ProductionOrderService.class.getDeclaredMethod("release", Long.class));
+        assertRequiredWriteTransaction(ProductionOrderService.class.getDeclaredMethod("cancel", Long.class));
+        assertRequiredWriteTransaction(ProductionOrderPostingService.class.getDeclaredMethod("release", Long.class));
+        assertRequiredWriteTransaction(ProductionOrderPostingService.class.getDeclaredMethod("cancel", Long.class));
     }
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {

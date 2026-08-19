@@ -6,8 +6,6 @@ import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.inventory.stock.service.InventoryReservationCommand;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -22,9 +20,6 @@ import com.tuowei.erp.production.order.web.ProductionOrderCreateRequest;
 import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
 import com.tuowei.erp.production.order.web.ProductionOrderResponse;
 import com.tuowei.erp.production.order.web.ProductionOrderUpdateRequest;
-import com.tuowei.erp.production.operation.service.ProductionOperationService;
-import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
-import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,49 +32,43 @@ import java.util.Objects;
 @Service
 public class ProductionOrderService {
 
-    public static final String STATUS_DRAFT = "DRAFT";
-    public static final String STATUS_RELEASED = "RELEASED";
-    public static final String STATUS_MATERIAL_ISSUED = "MATERIAL_ISSUED";
-    public static final String STATUS_COMPLETED = "COMPLETED";
-    public static final String STATUS_CANCELLED = "CANCELLED";
-    public static final String SOURCE_TYPE = "PRODUCTION_ORDER";
+    public static final String STATUS_DRAFT = ProductionOrderConstants.STATUS_DRAFT;
+    public static final String STATUS_RELEASED = ProductionOrderConstants.STATUS_RELEASED;
+    public static final String STATUS_MATERIAL_ISSUED = ProductionOrderConstants.STATUS_MATERIAL_ISSUED;
+    public static final String STATUS_COMPLETED = ProductionOrderConstants.STATUS_COMPLETED;
+    public static final String STATUS_CANCELLED = ProductionOrderConstants.STATUS_CANCELLED;
+    public static final String SOURCE_TYPE = ProductionOrderConstants.SOURCE_TYPE;
 
     private final ProductionOrderMapper orderMapper;
     private final ProductionOrderMaterialMapper materialMapper;
     private final ProductionOrderNumberService numberService;
     private final ProductionBomService bomService;
-    private final InventoryPostingService inventoryPostingService;
     private final ProductValidator productValidator;
     private final WarehouseMapper warehouseMapper;
     private final AuditMetadataFactory auditMetadataFactory;
     private final ProductionOrderQueryService queryService;
-    private final ProductionOperationService productionOperationService;
-    private final AttachmentService attachmentService;
+    private final ProductionOrderPostingService postingService;
 
     public ProductionOrderService(
             ProductionOrderMapper orderMapper,
             ProductionOrderMaterialMapper materialMapper,
             ProductionOrderNumberService numberService,
             ProductionBomService bomService,
-            InventoryPostingService inventoryPostingService,
             ProductValidator productValidator,
             WarehouseMapper warehouseMapper,
             AuditMetadataFactory auditMetadataFactory,
             ProductionOrderQueryService queryService,
-            ProductionOperationService productionOperationService,
-            AttachmentService attachmentService
+            ProductionOrderPostingService postingService
     ) {
         this.orderMapper = orderMapper;
         this.materialMapper = materialMapper;
         this.numberService = numberService;
         this.bomService = bomService;
-        this.inventoryPostingService = inventoryPostingService;
         this.productValidator = productValidator;
         this.warehouseMapper = warehouseMapper;
         this.auditMetadataFactory = auditMetadataFactory;
         this.queryService = queryService;
-        this.productionOperationService = productionOperationService;
-        this.attachmentService = attachmentService;
+        this.postingService = postingService;
     }
 
     @Transactional
@@ -166,56 +155,12 @@ public class ProductionOrderService {
 
     @Transactional
     public ProductionOrderResponse release(Long id) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        ProductionOrderEntity order = requireOrder(id);
-        if (!STATUS_DRAFT.equals(order.getStatus())) {
-            throw new IllegalArgumentException("只有草稿状态的生产工单可以释放");
-        }
-        attachmentService.requireIfConfigured(AttachmentBusinessType.PRODUCTION_ORDER, order.getId());
-        List<ProductionOrderMaterialEntity> materials = selectMaterials(order);
-        for (ProductionOrderMaterialEntity material : materials) {
-            inventoryPostingService.reserve(
-                    new InventoryReservationCommand(
-                            order.getMaterialWarehouseId(),
-                            material.getMaterialProductId(),
-                            SOURCE_TYPE,
-                            order.getId(),
-                            order.getOrderNo(),
-                            material.getId(),
-                            material.getRequiredQty(),
-                            material.getRemark()
-                    ),
-                    audit,
-                    "材料可用量不足，不能释放生产工单"
-            );
-        }
-        order.setStatus(STATUS_RELEASED);
-        order.setUpdatedBy(audit.userId());
-        order.setUpdatedTime(audit.now());
-        if (orderMapper.updateById(order) != 1) {
-            throw new BusinessConflictException("生产工单已被其他操作修改，请重试");
-        }
-        productionOperationService.generateForReleasedOrder(order, audit);
-        return toResponse(order);
+        return postingService.release(id);
     }
 
     @Transactional
     public ProductionOrderResponse cancel(Long id) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        ProductionOrderEntity order = requireOrder(id);
-        if (STATUS_COMPLETED.equals(order.getStatus()) || STATUS_MATERIAL_ISSUED.equals(order.getStatus())) {
-            throw new IllegalArgumentException("已领料或已完工的生产工单不能取消");
-        }
-        if (STATUS_RELEASED.equals(order.getStatus())) {
-            inventoryPostingService.releaseAllReservations(SOURCE_TYPE, order.getId(), audit);
-        }
-        order.setStatus(STATUS_CANCELLED);
-        order.setUpdatedBy(audit.userId());
-        order.setUpdatedTime(audit.now());
-        if (orderMapper.updateById(order) != 1) {
-            throw new BusinessConflictException("生产工单已被其他操作修改，请重试");
-        }
-        return toResponse(order);
+        return postingService.cancel(id);
     }
 
     public ProductionOrderEntity requireOrder(Long id) {
