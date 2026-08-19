@@ -16,14 +16,15 @@ import com.tuowei.erp.purchase.order.service.PurchaseOrderQueryService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderTraceService;
 import com.tuowei.erp.purchase.order.service.PurchasePriceEvaluator;
+import com.tuowei.erp.purchase.order.service.PurchaseOrderWorkflowService;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderApproveRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderRejectRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderSubmitRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderTraceResponse;
-import com.tuowei.erp.system.attachment.service.AttachmentService;
-import com.tuowei.erp.workflow.service.WorkflowService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -36,7 +37,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -61,9 +61,8 @@ class PurchaseOrderServiceTenantBoundaryTest {
     private final AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
     private final PurchaseOrderQueryService purchaseOrderQueryService = mock(PurchaseOrderQueryService.class);
     private final PurchaseOrderTraceService purchaseOrderTraceService = mock(PurchaseOrderTraceService.class);
-    private final WorkflowService workflowService = mock(WorkflowService.class);
+    private final PurchaseOrderWorkflowService purchaseOrderWorkflowService = mock(PurchaseOrderWorkflowService.class);
     private final PurchasePriceEvaluator purchasePriceEvaluator = mock(PurchasePriceEvaluator.class);
-    private final AttachmentService attachmentService = mock(AttachmentService.class);
 
     @Test
     void getByIdDelegatesToQueryService() {
@@ -184,41 +183,39 @@ class PurchaseOrderServiceTenantBoundaryTest {
     }
 
     @Test
-    void unapproveApprovedUnreceivedOrderReturnsToDraft() {
-        stubAudit();
-        PurchaseOrderEntity approved = order();
-        approved.setStatus("APPROVED");
-        approved.setApprovalStatus("APPROVED");
-        approved.setReceiptStatus("NOT_RECEIVED");
-        PurchaseOrderResponse expected = response("DRAFT", "NOT_SUBMITTED", "NOT_RECEIVED");
-        when(purchaseOrderQueryService.requireOrder(4301L)).thenReturn(approved);
-        when(purchaseOrderMapper.updateById(any(PurchaseOrderEntity.class))).thenReturn(1);
-        when(purchaseOrderQueryService.getById(4301L)).thenReturn(expected);
+    void workflowActionsKeepThePurchaseOrderFacade() {
+        PurchaseOrderSubmitRequest submitRequest = new PurchaseOrderSubmitRequest("submit");
+        PurchaseOrderApproveRequest approveRequest = new PurchaseOrderApproveRequest("approve");
+        PurchaseOrderRejectRequest rejectRequest = new PurchaseOrderRejectRequest("reject");
+        PurchaseOrderResponse expected = response("APPROVED", "APPROVED", "NOT_RECEIVED");
+        when(purchaseOrderWorkflowService.submit(4301L, submitRequest)).thenReturn(expected);
+        when(purchaseOrderWorkflowService.approve(4301L, approveRequest)).thenReturn(expected);
+        when(purchaseOrderWorkflowService.approveWorkflowTask(5501L, 4301L, approveRequest))
+                .thenReturn(expected);
+        when(purchaseOrderWorkflowService.unapprove(4301L)).thenReturn(expected);
+        when(purchaseOrderWorkflowService.reject(4301L, rejectRequest)).thenReturn(expected);
+        when(purchaseOrderWorkflowService.rejectWorkflowTask(5502L, 4301L, rejectRequest))
+                .thenReturn(expected);
+        when(purchaseOrderWorkflowService.cancel(4301L)).thenReturn(expected);
+        when(purchaseOrderWorkflowService.close(4301L)).thenReturn(expected);
 
-        PurchaseOrderResponse actual = service().unapprove(4301L);
+        assertThat(service().submit(4301L, submitRequest)).isSameAs(expected);
+        assertThat(service().approve(4301L, approveRequest)).isSameAs(expected);
+        assertThat(service().approveWorkflowTask(5501L, 4301L, approveRequest)).isSameAs(expected);
+        assertThat(service().unapprove(4301L)).isSameAs(expected);
+        assertThat(service().reject(4301L, rejectRequest)).isSameAs(expected);
+        assertThat(service().rejectWorkflowTask(5502L, 4301L, rejectRequest)).isSameAs(expected);
+        assertThat(service().cancel(4301L)).isSameAs(expected);
+        assertThat(service().close(4301L)).isSameAs(expected);
 
-        assertThat(actual).isSameAs(expected);
-        assertThat(approved.getStatus()).isEqualTo("DRAFT");
-        assertThat(approved.getApprovalStatus()).isEqualTo("NOT_SUBMITTED");
-        verify(purchaseOrderQueryService).requireOrder(4301L);
-        verify(purchaseOrderMapper).updateById(approved);
-        verify(purchaseOrderQueryService).getById(4301L);
-    }
-
-    @Test
-    void unapproveRejectsReceivedOrderWithoutUpdating() {
-        PurchaseOrderEntity received = order();
-        received.setStatus("APPROVED");
-        received.setApprovalStatus("APPROVED");
-        received.setReceiptStatus("PARTIAL_RECEIVED");
-        when(purchaseOrderQueryService.requireOrder(4301L)).thenReturn(received);
-
-        assertThatThrownBy(() -> service().unapprove(4301L))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("已入库采购订单不允许反审核");
-        verify(purchaseOrderQueryService).requireOrder(4301L);
-        verify(purchaseOrderMapper, never()).updateById(any(PurchaseOrderEntity.class));
-        verify(purchaseOrderQueryService, never()).getById(any());
+        verify(purchaseOrderWorkflowService).submit(4301L, submitRequest);
+        verify(purchaseOrderWorkflowService).approve(4301L, approveRequest);
+        verify(purchaseOrderWorkflowService).approveWorkflowTask(5501L, 4301L, approveRequest);
+        verify(purchaseOrderWorkflowService).unapprove(4301L);
+        verify(purchaseOrderWorkflowService).reject(4301L, rejectRequest);
+        verify(purchaseOrderWorkflowService).rejectWorkflowTask(5502L, 4301L, rejectRequest);
+        verify(purchaseOrderWorkflowService).cancel(4301L);
+        verify(purchaseOrderWorkflowService).close(4301L);
     }
 
     private void stubAudit() {
@@ -233,29 +230,6 @@ class PurchaseOrderServiceTenantBoundaryTest {
         });
     }
 
-    @Test
-    void submitStopsAtAttachmentGateBeforeLoadingLinesOrEvaluatingPrice() {
-        PurchaseOrderEntity draft = order();
-        when(purchaseOrderQueryService.requireOrder(4301L)).thenReturn(draft);
-        doThrow(new IllegalArgumentException("业务类型 PURCHASE_ORDER 要求至少上传 1 个附件，当前 0 个"))
-                .when(attachmentService)
-                .requireIfConfigured("PURCHASE_ORDER", 4301L);
-
-        assertThatThrownBy(() -> service().submit(4301L, new PurchaseOrderSubmitRequest("gate")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("PURCHASE_ORDER");
-
-        assertThat(draft.getStatus()).isEqualTo("DRAFT");
-        verify(purchaseOrderQueryService).requireOrder(4301L);
-        verify(purchaseOrderQueryService, never()).selectLines(any());
-        verify(purchasePriceEvaluator, never()).assertLinesWithinMaxPrice(
-                any(), any(), any(), any(), any()
-        );
-        verify(purchaseOrderMapper, never()).updateById(any(PurchaseOrderEntity.class));
-        verify(purchaseOrderQueryService, never()).getById(any());
-        verify(workflowService, never()).submit(any(), any(), any(), any(), any());
-    }
-
     private PurchaseOrderService service() {
         return new PurchaseOrderService(
                 purchaseOrderMapper,
@@ -266,9 +240,8 @@ class PurchaseOrderServiceTenantBoundaryTest {
                 auditMetadataFactory,
                 purchaseOrderQueryService,
                 purchaseOrderTraceService,
-                workflowService,
-                purchasePriceEvaluator,
-                attachmentService
+                purchaseOrderWorkflowService,
+                purchasePriceEvaluator
         );
     }
 
@@ -286,20 +259,6 @@ class PurchaseOrderServiceTenantBoundaryTest {
                         "line"
                 ))
         );
-    }
-
-    private PurchaseOrderEntity order() {
-        PurchaseOrderEntity entity = new PurchaseOrderEntity();
-        entity.setId(4301L);
-        entity.setCompanyId(AUDIT.companyId());
-        entity.setAccountBookId(AUDIT.accountBookId());
-        entity.setOrderNo("PO-4301");
-        entity.setSupplierId(SUPPLIER_ID);
-        entity.setOrderDate(LocalDate.of(2026, 6, 8));
-        entity.setStatus("DRAFT");
-        entity.setApprovalStatus("DRAFT");
-        entity.setDeletedFlag(0);
-        return entity;
     }
 
     private PurchaseOrderResponse response(String status, String approvalStatus, String receiptStatus) {

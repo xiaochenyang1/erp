@@ -23,9 +23,6 @@ import com.tuowei.erp.purchase.order.web.PurchaseOrderSubmitRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderTraceResponse;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderUpdateRequest;
 import com.tuowei.erp.purchase.support.PurchaseAmountCalculator;
-import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
-import com.tuowei.erp.system.attachment.service.AttachmentService;
-import com.tuowei.erp.workflow.service.WorkflowService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -48,9 +45,8 @@ public class PurchaseOrderService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final PurchaseOrderQueryService purchaseOrderQueryService;
     private final PurchaseOrderTraceService purchaseOrderTraceService;
-    private final WorkflowService workflowService;
+    private final PurchaseOrderWorkflowService purchaseOrderWorkflowService;
     private final PurchasePriceEvaluator purchasePriceEvaluator;
-    private final AttachmentService attachmentService;
 
     public PurchaseOrderService(
             PurchaseOrderMapper purchaseOrderMapper,
@@ -61,9 +57,8 @@ public class PurchaseOrderService {
             AuditMetadataFactory auditMetadataFactory,
             PurchaseOrderQueryService purchaseOrderQueryService,
             PurchaseOrderTraceService purchaseOrderTraceService,
-            WorkflowService workflowService,
-            PurchasePriceEvaluator purchasePriceEvaluator,
-            AttachmentService attachmentService
+            PurchaseOrderWorkflowService purchaseOrderWorkflowService,
+            PurchasePriceEvaluator purchasePriceEvaluator
     ) {
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
@@ -73,9 +68,8 @@ public class PurchaseOrderService {
         this.auditMetadataFactory = auditMetadataFactory;
         this.purchaseOrderQueryService = purchaseOrderQueryService;
         this.purchaseOrderTraceService = purchaseOrderTraceService;
-        this.workflowService = workflowService;
+        this.purchaseOrderWorkflowService = purchaseOrderWorkflowService;
         this.purchasePriceEvaluator = purchasePriceEvaluator;
-        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -208,115 +202,42 @@ public class PurchaseOrderService {
 
     @Transactional
     public PurchaseOrderResponse submit(Long id, PurchaseOrderSubmitRequest request) {
-        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
-        if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
-            throw new IllegalArgumentException("当前采购订单状态不允许提交审批");
-        }
-        attachmentService.requireIfConfigured(AttachmentBusinessType.PURCHASE_ORDER, entity.getId());
-        List<PurchaseOrderLineEntity> existingLines = purchaseOrderQueryService.selectLines(entity);
-        List<PurchaseOrderLineRequest> lineRequests = existingLines.stream()
-                .map(line -> new PurchaseOrderLineRequest(
-                        line.getProductId(),
-                        line.getQty(),
-                        line.getPrice(),
-                        line.getTaxRate(),
-                        line.getRemark()
-                ))
-                .toList();
-        purchasePriceEvaluator.assertLinesWithinMaxPrice(
-                entity.getCompanyId(),
-                entity.getAccountBookId(),
-                entity.getSupplierId(),
-                entity.getOrderDate(),
-                lineRequests
-        );
-        PurchaseOrderResponse response = transitionWorkflowStatus(entity, "SUBMITTED", "IN_APPROVAL");
-        workflowService.submit("PURCHASE_ORDER", entity.getId(), entity.getOrderNo(), "采购订单 " + entity.getOrderNo(), request.remark());
-        return response;
+        return purchaseOrderWorkflowService.submit(id, request);
     }
 
     @Transactional
     public PurchaseOrderResponse approve(Long id, PurchaseOrderApproveRequest request) {
-        return approve(id, request, null);
+        return purchaseOrderWorkflowService.approve(id, request);
     }
 
     @Transactional
     public PurchaseOrderResponse approveWorkflowTask(Long taskId, Long id, PurchaseOrderApproveRequest request) {
-        return approve(id, request, taskId);
-    }
-
-    private PurchaseOrderResponse approve(Long id, PurchaseOrderApproveRequest request, Long workflowTaskId) {
-        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
-        if (!"SUBMITTED".equals(entity.getStatus()) || !"IN_APPROVAL".equals(entity.getApprovalStatus())) {
-            throw new IllegalArgumentException("当前采购订单状态不允许审批通过");
-        }
-        PurchaseOrderResponse response = transitionWorkflowStatus(entity, "APPROVED", "APPROVED");
-        if (workflowTaskId == null) {
-            workflowService.approve("PURCHASE_ORDER", entity.getId(), request.remark());
-        } else {
-            workflowService.approveTaskForBusiness(workflowTaskId, "PURCHASE_ORDER", entity.getId(), request.remark());
-        }
-        return response;
+        return purchaseOrderWorkflowService.approveWorkflowTask(taskId, id, request);
     }
 
     @Transactional
     public PurchaseOrderResponse unapprove(Long id) {
-        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
-        if (!"APPROVED".equals(entity.getStatus()) || !"APPROVED".equals(entity.getApprovalStatus())) {
-            throw new IllegalArgumentException("当前采购订单状态不允许反审核");
-        }
-        if (!"NOT_RECEIVED".equals(entity.getReceiptStatus())) {
-            throw new IllegalArgumentException("已入库采购订单不允许反审核");
-        }
-        return transitionWorkflowStatus(entity, "DRAFT", "NOT_SUBMITTED");
+        return purchaseOrderWorkflowService.unapprove(id);
     }
 
     @Transactional
     public PurchaseOrderResponse reject(Long id, PurchaseOrderRejectRequest request) {
-        return reject(id, request, null);
+        return purchaseOrderWorkflowService.reject(id, request);
     }
 
     @Transactional
     public PurchaseOrderResponse rejectWorkflowTask(Long taskId, Long id, PurchaseOrderRejectRequest request) {
-        return reject(id, request, taskId);
-    }
-
-    private PurchaseOrderResponse reject(Long id, PurchaseOrderRejectRequest request, Long workflowTaskId) {
-        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
-        if (!"SUBMITTED".equals(entity.getStatus()) || !"IN_APPROVAL".equals(entity.getApprovalStatus())) {
-            throw new IllegalArgumentException("当前采购订单状态不允许驳回");
-        }
-        PurchaseOrderResponse response = transitionWorkflowStatus(entity, "REJECTED", "REJECTED");
-        if (workflowTaskId == null) {
-            workflowService.reject("PURCHASE_ORDER", entity.getId(), request.reason());
-        } else {
-            workflowService.rejectTaskForBusiness(workflowTaskId, "PURCHASE_ORDER", entity.getId(), request.reason());
-        }
-        return response;
+        return purchaseOrderWorkflowService.rejectWorkflowTask(taskId, id, request);
     }
 
     @Transactional
     public PurchaseOrderResponse cancel(Long id) {
-        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
-        if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())
-                && !"SUBMITTED".equals(entity.getStatus())) {
-            throw new IllegalArgumentException("当前采购订单状态不允许作废");
-        }
-        PurchaseOrderResponse response = transitionWorkflowStatus(entity, "CANCELLED", "CANCELLED");
-        workflowService.cancel("PURCHASE_ORDER", entity.getId(), "作废采购订单");
-        return response;
+        return purchaseOrderWorkflowService.cancel(id);
     }
 
     @Transactional
     public PurchaseOrderResponse close(Long id) {
-        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
-        if (!"APPROVED".equals(entity.getStatus())) {
-            throw new IllegalArgumentException("当前采购订单状态不允许关闭");
-        }
-        if ("RECEIVED".equals(entity.getReceiptStatus())) {
-            throw new IllegalArgumentException("已完全入库的采购订单不允许关闭");
-        }
-        return transitionWorkflowStatus(entity, "CLOSED", "APPROVED");
+        return purchaseOrderWorkflowService.close(id);
     }
 
     private SupplierEntity requireActiveSupplier(Long supplierId, Long companyId, Long accountBookId) {
@@ -443,24 +364,6 @@ public class PurchaseOrderService {
                 entity.getSourceQuoteId(),
                 existingLines.stream().map(PurchaseOrderLineEntity::getSourceInquiryLineId).toList()
         );
-    }
-
-    private void touch(PurchaseOrderEntity entity) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        entity.setUpdatedBy(audit.userId());
-        entity.setUpdatedTime(audit.now());
-    }
-
-    private PurchaseOrderResponse transitionWorkflowStatus(
-            PurchaseOrderEntity entity,
-            String status,
-            String approvalStatus
-    ) {
-        entity.setStatus(status);
-        entity.setApprovalStatus(approvalStatus);
-        touch(entity);
-        OptimisticLockGuard.requireUpdated(purchaseOrderMapper.updateById(entity), "采购订单已被其他操作修改，请刷新后重试");
-        return purchaseOrderQueryService.getById(entity.getId());
     }
 
     public StreamingResponseBody exportOrders(PurchaseOrderPageQuery query) {
