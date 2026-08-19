@@ -1,10 +1,19 @@
 package com.tuowei.erp.finance.voucher;
 
 import com.tuowei.erp.common.security.AuditMetadata;
-import com.tuowei.erp.finance.voucher.model.ManualVoucherEntity;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.subject.mapper.AccountSubjectMapper;
+import com.tuowei.erp.finance.voucher.mapper.ManualVoucherLineMapper;
+import com.tuowei.erp.finance.voucher.mapper.ManualVoucherMapper;
+import com.tuowei.erp.finance.voucher.mapper.VoucherEntryMapper;
+import com.tuowei.erp.finance.voucher.mapper.VoucherMapper;
+import com.tuowei.erp.finance.voucher.service.ManualVoucherPostingService;
 import com.tuowei.erp.finance.voucher.service.ManualVoucherQueryService;
 import com.tuowei.erp.finance.voucher.service.ManualVoucherService;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherPageQuery;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.config.service.SequenceNumberGenerator;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,11 +28,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ManualVoucherServiceDecompositionTest {
 
     @Test
-    void facadeKeepsReadFilteringTenantGuardAndLineMappingBehindQueryService() {
+    void facadeKeepsReadAndPostingOrchestrationBehindCollaborators() {
         assertThat(constructorDependencies(ManualVoucherService.class))
-                .contains(ManualVoucherQueryService.class);
+                .contains(ManualVoucherQueryService.class, ManualVoucherPostingService.class)
+                .doesNotContain(VoucherMapper.class, VoucherEntryMapper.class, AccountPeriodGuard.class);
         assertThat(constructorDependencies(ManualVoucherQueryService.class))
-                .doesNotContain(ManualVoucherService.class);
+                .doesNotContain(ManualVoucherService.class, ManualVoucherPostingService.class);
+        assertThat(constructorDependencies(ManualVoucherPostingService.class))
+                .contains(
+                        ManualVoucherMapper.class,
+                        VoucherMapper.class,
+                        VoucherEntryMapper.class,
+                        AccountPeriodGuard.class,
+                        AuditMetadataFactory.class,
+                        ManualVoucherQueryService.class,
+                        AttachmentService.class
+                )
+                .doesNotContain(
+                        ManualVoucherService.class,
+                        ManualVoucherLineMapper.class,
+                        AccountSubjectMapper.class,
+                        SequenceNumberGenerator.class
+                );
     }
 
     @Test
@@ -40,13 +66,19 @@ class ManualVoucherServiceDecompositionTest {
     }
 
     @Test
-    void postingStateMachineKeepsRequiredWriteTransactionsOnFacade() throws NoSuchMethodException {
+    void postingStateMachineKeepsRequiredWriteTransactionsOnFacadeAndCollaborator() throws NoSuchMethodException {
         assertRequiredWriteTransaction(ManualVoucherService.class.getDeclaredMethod(
                 "create",
                 com.tuowei.erp.finance.voucher.web.ManualVoucherSaveRequest.class
         ));
         assertRequiredWriteTransaction(ManualVoucherService.class.getDeclaredMethod("post", Long.class));
         assertRequiredWriteTransaction(ManualVoucherService.class.getDeclaredMethod(
+                "cancel",
+                Long.class,
+                String.class
+        ));
+        assertRequiredWriteTransaction(ManualVoucherPostingService.class.getDeclaredMethod("post", Long.class));
+        assertRequiredWriteTransaction(ManualVoucherPostingService.class.getDeclaredMethod(
                 "cancel",
                 Long.class,
                 String.class
