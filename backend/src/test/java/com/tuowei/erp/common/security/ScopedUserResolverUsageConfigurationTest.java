@@ -39,7 +39,7 @@ class ScopedUserResolverUsageConfigurationTest {
     private static List<String> servicesWithDataScopeLists() {
         return List.of(
                 "src/main/java/com/tuowei/erp/finance/settlement/service/FinanceSettlementScopeSupport.java",
-                "src/main/java/com/tuowei/erp/production/order/service/ProductionOrderService.java",
+                "src/main/java/com/tuowei/erp/production/order/service/ProductionOrderQueryService.java",
                 "src/main/java/com/tuowei/erp/purchase/order/service/PurchaseOrderQueryService.java",
                 "src/main/java/com/tuowei/erp/purchase/receipt/service/PurchaseReceiptQueryService.java",
                 "src/main/java/com/tuowei/erp/purchase/returnorder/service/PurchaseReturnQueryService.java",

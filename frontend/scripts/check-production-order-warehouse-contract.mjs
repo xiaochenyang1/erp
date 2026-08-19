@@ -15,6 +15,8 @@ const orderView = [
   'src/composables/useProductionOrderCompletion.ts',
   'src/composables/useProductionOrderProductControls.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+const productionOrderView = readFileSync(resolve(root, 'src/views/production/orders/index.vue'), 'utf8')
+const productionOrderList = readFileSync(resolve(root, 'src/composables/useProductionOrderList.ts'), 'utf8')
 // BOM 页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const bomView = [
   'src/views/production/boms/index.vue',
@@ -2905,6 +2907,53 @@ for (const fragment of forbiddenFragments) {
 }
 
 for (const fragment of [
+  'export interface ProductionOrderQuery extends PageQuery',
+  'keyword?: string',
+  'export const getProductionOrders = (params: ProductionOrderQuery)',
+  "request.get<PageResponse<ProductionOrder>>('/production/orders', { params })"
+]) {
+  if (!productionApi.includes(fragment)) {
+    errors.push(`生产订单 API 缺少真实分页或关键字查询契约片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'keyword: queryForm.orderNo || undefined',
+  'pageNo: pagination.page',
+  'pageSize: pagination.size',
+  'const handlePageChange = (page: number) =>',
+  'const handleSizeChange = (size: number) =>',
+  'let listRequestId = 0',
+  'const requestId = ++listRequestId',
+  'if (requestId !== listRequestId) return',
+  'if (requestId === listRequestId) loading.value = false'
+]) {
+  if (!productionOrderList.includes(fragment)) {
+    errors.push(`生产订单列表切片缺少分页、筛选或竞态保护片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  '@size-change="handleSizeChange"',
+  '@current-change="handlePageChange"',
+  'v-loading="viewLoading"'
+]) {
+  if (!productionOrderView.includes(fragment)) {
+    errors.push(`生产订单页缺少独立分页或详情加载绑定: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  '@size-change="handleQuery"',
+  '@current-change="handleQuery"',
+  'v-model="queryForm.priority"'
+]) {
+  if (productionOrderView.includes(fragment)) {
+    errors.push(`生产订单页仍保留共享分页回调或无效优先级筛选片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
   'export const updateProductionOrder = (id: string | number, data: ProductionOrderUpdateRequest)',
   'request.put<ProductionOrder>(`/production/orders/${id}`, toProductionOrderPayload(data)).then(normalizeProductionOrder)',
   'export interface ProductionCompletionReversalRequest',
@@ -3301,7 +3350,10 @@ for (const fragment of [
   'const releasing = ref(false)',
   'const checkLoading = ref(false)',
   'const checkFailed = ref(false)',
+  'checkIssues.value = []',
   'await dependencies.manualRelease(releaseRequest.id',
+  'await Promise.all([',
+  'callbacks.reloadStockList()',
   'await dependencies.checkReservations({',
   "callbacks.onError('inventoryStocks.message.reservationsLoadFailed', error)",
   "callbacks.onError('inventoryStocks.message.reservationSummaryLoadFailed', error)",

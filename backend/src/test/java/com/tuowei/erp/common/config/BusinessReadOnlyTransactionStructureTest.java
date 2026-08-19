@@ -57,6 +57,7 @@ import com.tuowei.erp.masterdata.warehouse.service.WarehouseService;
 import com.tuowei.erp.masterdata.warehouse.web.WarehousePageQuery;
 import com.tuowei.erp.production.bom.service.ProductionBomService;
 import com.tuowei.erp.production.bom.web.ProductionBomPageQuery;
+import com.tuowei.erp.production.order.service.ProductionOrderQueryService;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryService;
@@ -308,6 +309,8 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(ProductionBomService.class, "getById", Long.class);
         assertReadOnly(ProductionOrderService.class, "list", ProductionOrderPageQuery.class);
         assertReadOnly(ProductionOrderService.class, "getById", Long.class);
+        assertReadOnly(ProductionOrderQueryService.class, "list", ProductionOrderPageQuery.class);
+        assertReadOnly(ProductionOrderQueryService.class, "getById", Long.class);
 
         assertReadOnly(VoucherQueryService.class, "list", VoucherPageQuery.class);
         assertReadOnly(VoucherQueryService.class, "detail", Long.class);

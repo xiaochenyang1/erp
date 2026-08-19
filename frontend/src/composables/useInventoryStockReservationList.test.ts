@@ -283,6 +283,32 @@ describe('inventory stock reservation list', () => {
     expect(list.releasing.value).toBe(false)
   })
 
+  it('waits for the stock list refresh before completing a manual release', async () => {
+    const { list, reloadStockList } = createHarness()
+    const stockReload = deferred<void>()
+    installValidForm(list)
+    vi.mocked(reloadStockList).mockImplementationOnce(() => stockReload.promise)
+    list.openReleaseDialog(reservation)
+    list.releaseForm.reason = 'reason'
+
+    let completed = false
+    const submit = list.submitManualRelease().then(() => {
+      completed = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(reloadStockList).toHaveBeenCalledTimes(1)
+    expect(completed).toBe(false)
+    expect(list.releasing.value).toBe(true)
+
+    stockReload.resolve()
+    await submit
+
+    expect(completed).toBe(true)
+    expect(list.releasing.value).toBe(false)
+  })
+
   it('does not overwrite or stop a newer detail request after releasing', async () => {
     const { dependencies, list } = createHarness()
     const release = deferred<InventoryReservationDetail>()
@@ -390,13 +416,16 @@ describe('inventory stock reservation list', () => {
     expect(list.checkIssues.value).toEqual([checkIssue])
 
     vi.mocked(dependencies.checkReservations).mockRejectedValueOnce(new Error('check failed'))
-    await list.handleReservationCheck()
+    const failedCheck = list.handleReservationCheck()
+    expect(list.checkIssues.value).toEqual([])
+    await failedCheck
     expect(onError).toHaveBeenCalledWith(
       'inventoryStocks.message.reservationCheckFailed',
       expect.any(Error)
     )
     expect(list.checkDialogVisible.value).toBe(true)
     expect(list.checkFailed.value).toBe(true)
+    expect(list.checkIssues.value).toEqual([])
     expect(list.checkLoading.value).toBe(false)
 
     await list.handleReservationCheck()

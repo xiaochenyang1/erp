@@ -358,7 +358,14 @@
 
     <el-dialog v-model="checkDialogVisible" :title="$t('inventoryStocks.reservationCheck')" width="980px">
       <el-alert
-        v-if="!checkIssues.length && !reservationCheckLoading && !reservationCheckFailed"
+        v-if="reservationCheckFailed"
+        :title="$t('inventoryStocks.message.reservationCheckFailed')"
+        type="error"
+        :closable="false"
+        show-icon
+      />
+      <el-alert
+        v-else-if="!checkIssues.length && !reservationCheckLoading && !reservationCheckFailed"
         :title="$t('inventoryStocks.noReservationIssues')"
         type="success"
         :closable="false"

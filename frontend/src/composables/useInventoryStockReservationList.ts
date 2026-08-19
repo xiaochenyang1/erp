@@ -264,8 +264,10 @@ export const useInventoryStockReservationList = (
       }
       releaseDialogVisible.value = false
       callbacks.onSuccess('inventoryStocks.message.released')
-      await reloadReservationData()
-      void callbacks.reloadStockList()
+      await Promise.all([
+        reloadReservationData(),
+        callbacks.reloadStockList()
+      ])
     } catch (error) {
       callbacks.onError('inventoryStocks.message.releaseFailed', error)
     } finally {
@@ -277,6 +279,7 @@ export const useInventoryStockReservationList = (
     const requestId = ++reservationCheckRequestId
     checkDialogVisible.value = true
     checkFailed.value = false
+    checkIssues.value = []
     checkLoading.value = true
     try {
       const issues = await dependencies.checkReservations({
@@ -288,6 +291,7 @@ export const useInventoryStockReservationList = (
     } catch (error) {
       if (requestId !== reservationCheckRequestId) return
       callbacks.onError('inventoryStocks.message.reservationCheckFailed', error)
+      checkIssues.value = []
       checkFailed.value = true
     } finally {
       if (requestId === reservationCheckRequestId) checkLoading.value = false
