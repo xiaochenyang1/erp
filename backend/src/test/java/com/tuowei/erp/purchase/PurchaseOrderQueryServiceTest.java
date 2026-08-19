@@ -12,8 +12,10 @@ import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
+import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
+import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderQueryService;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
 import com.tuowei.erp.system.user.mapper.UserMapper;
@@ -24,7 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -40,8 +44,11 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +66,7 @@ class PurchaseOrderQueryServiceTest {
     );
 
     private final PurchaseOrderMapper purchaseOrderMapper = mock(PurchaseOrderMapper.class);
+    private final PurchaseOrderLineMapper purchaseOrderLineMapper = mock(PurchaseOrderLineMapper.class);
     private final SupplierMapper supplierMapper = mock(SupplierMapper.class);
     private final CurrentUserContext currentUserContext = mock(CurrentUserContext.class);
     private final ScopedUserResolver scopedUserResolver = mock(ScopedUserResolver.class);
@@ -66,15 +74,8 @@ class PurchaseOrderQueryServiceTest {
 
     @BeforeAll
     static void initTableInfo() {
-        if (TableInfoHelper.getTableInfo(PurchaseOrderEntity.class) != null) {
-            return;
-        }
-        MapperBuilderAssistant assistant = new MapperBuilderAssistant(
-                new MybatisConfiguration(),
-                PurchaseOrderEntity.class.getName()
-        );
-        assistant.setCurrentNamespace(PurchaseOrderEntity.class.getName());
-        TableInfoHelper.initTableInfo(assistant, PurchaseOrderEntity.class);
+        initTableInfo(PurchaseOrderEntity.class);
+        initTableInfo(PurchaseOrderLineEntity.class);
     }
 
     @ParameterizedTest(name = "{0} scope is shared by list and export")
@@ -153,6 +154,37 @@ class PurchaseOrderQueryServiceTest {
     }
 
     @Test
+    void listAndExportDoNotHydrateNamesAcrossTenantBoundaries() throws Exception {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.all();
+        stubScope(snapshot, Set.of(), Set.of());
+        PurchaseOrderEntity order = order();
+        order.setCreatedBy(7201L);
+        SupplierEntity crossTenantSupplier = supplier();
+        crossTenantSupplier.setAccountBookId(999L);
+        UserEntity crossTenantCreator = user(7201L, "cross.tenant.creator");
+        crossTenantCreator.setAccountBookId(999L);
+        when(purchaseOrderMapper.selectPage(any(), any())).thenAnswer(invocation -> {
+            Page<PurchaseOrderEntity> page = invocation.getArgument(0);
+            page.setRecords(List.of(order));
+            page.setTotal(1L);
+            return page;
+        });
+        when(purchaseOrderMapper.selectList(any())).thenReturn(List.of(order));
+        when(supplierMapper.selectBatchIds(any())).thenReturn(List.of(crossTenantSupplier));
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of(crossTenantCreator));
+
+        PurchaseOrderQueryService service = service(new DataScopeService(null, null, null, null));
+        var result = service.list(new PurchaseOrderPageQuery());
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        service.exportOrders(new PurchaseOrderPageQuery()).writeTo(output);
+
+        assertThat(result.records()).singleElement()
+                .satisfies(summary -> assertThat(summary.supplierName()).isNull());
+        assertThat(output.toString(StandardCharsets.UTF_8))
+                .contains("PO-4301,,2026-06-08,2026-06-10,100.00,APPROVED,,2026-06-08T21:30,query export");
+    }
+
+    @Test
     void assertCanViewPassesTheCreatorOrganizationToDataScope() {
         DataScopeSnapshot snapshot = new DataScopeSnapshot(false, true, true, false, Set.of());
         DataScopeService dataScopeService = mock(DataScopeService.class);
@@ -174,6 +206,166 @@ class PurchaseOrderQueryServiceTest {
                 31L,
                 32L
         );
+    }
+
+    @Test
+    void assertCanViewIgnoresCreatorOrganizationAcrossTenantBoundaries() {
+        DataScopeSnapshot snapshot = new DataScopeSnapshot(false, true, true, false, Set.of());
+        DataScopeService dataScopeService = mock(DataScopeService.class);
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
+        PurchaseOrderEntity order = order();
+        order.setCreatedBy(7201L);
+        UserEntity creator = user(7201L, "cross.tenant.creator");
+        creator.setAccountBookId(999L);
+        creator.setDeptId(31L);
+        creator.setPostId(32L);
+        when(userMapper.selectById(7201L)).thenReturn(creator);
+
+        service(dataScopeService).assertCanView(order);
+
+        verify(dataScopeService).assertCanViewPurchaseOrder(
+                order,
+                CURRENT_USER,
+                snapshot,
+                null,
+                null
+        );
+    }
+
+    @Test
+    void getByIdChecksDataScopeScopesLinesAndMapsFullDetail() {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.all();
+        DataScopeService dataScopeService = mock(DataScopeService.class);
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
+        PurchaseOrderEntity order = order();
+        order.setSourceInquiryId(5101L);
+        order.setSourceInquiryNo("RFQ-5101");
+        order.setSourceQuoteId(5201L);
+        when(purchaseOrderMapper.selectById(order.getId())).thenReturn(order);
+        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier());
+        when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
+
+        var detail = service(dataScopeService).getById(order.getId());
+
+        verify(dataScopeService).assertCanViewPurchaseOrder(
+                order,
+                CURRENT_USER,
+                snapshot,
+                null,
+                null
+        );
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<PurchaseOrderLineEntity>> lineQuery =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(purchaseOrderLineMapper).selectList(lineQuery.capture());
+        assertThat(lineQuery.getValue().getSqlSegment().toLowerCase(Locale.ROOT))
+                .contains("company_id", "account_book_id", "order_id", "line_no");
+        assertThat(lineQuery.getValue().getParamNameValuePairs().values())
+                .contains(CURRENT_USER.companyId(), CURRENT_USER.accountBookId(), order.getId());
+        assertThat(detail.supplierName()).isEqualTo("Scoped Supplier");
+        assertThat(detail.sourceInquiryId()).isEqualTo(5101L);
+        assertThat(detail.sourceInquiryNo()).isEqualTo("RFQ-5101");
+        assertThat(detail.sourceQuoteId()).isEqualTo(5201L);
+        assertThat(detail.lines()).singleElement().satisfies(line -> {
+            assertThat(line.id()).isEqualTo(4401L);
+            assertThat(line.auxQty()).isEqualByComparingTo("2.0000");
+            assertThat(line.auxUnitName()).isEqualTo("箱");
+            assertThat(line.conversionFactor()).isEqualByComparingTo("5.000000");
+            assertThat(line.sourceInquiryId()).isEqualTo(5101L);
+            assertThat(line.sourceInquiryLineId()).isEqualTo(5301L);
+        });
+    }
+
+    @Test
+    void getByIdStopsHydrationWhenDataScopeRejectsTheOrder() {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.all();
+        DataScopeService dataScopeService = mock(DataScopeService.class);
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
+        PurchaseOrderEntity order = order();
+        when(purchaseOrderMapper.selectById(order.getId())).thenReturn(order);
+        doThrow(new AccessDeniedException("无权访问采购订单"))
+                .when(dataScopeService)
+                .assertCanViewPurchaseOrder(order, CURRENT_USER, snapshot, null, null);
+
+        assertThatThrownBy(() -> service(dataScopeService).getById(order.getId()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("无权访问采购订单");
+
+        verify(supplierMapper, never()).selectById(any());
+        verify(purchaseOrderLineMapper, never()).selectList(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"COMPANY", "ACCOUNT_BOOK"})
+    void getByIdDoesNotHydrateSupplierNameAcrossTenantBoundaries(String invalidField) {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.all();
+        DataScopeService dataScopeService = mock(DataScopeService.class);
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
+        PurchaseOrderEntity order = order();
+        SupplierEntity supplier = supplier();
+        if ("COMPANY".equals(invalidField)) {
+            supplier.setCompanyId(999L);
+        } else {
+            supplier.setAccountBookId(999L);
+        }
+        when(purchaseOrderMapper.selectById(order.getId())).thenReturn(order);
+        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier);
+        when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of());
+
+        var detail = service(dataScopeService).getById(order.getId());
+
+        assertThat(detail.supplierName()).isNull();
+    }
+
+    @Test
+    void getBySourceInquiryKeepsTenantAndSourceContractAndMapsLines() {
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        PurchaseOrderEntity order = order();
+        order.setSourceInquiryId(5101L);
+        order.setSourceInquiryNo("RFQ-5101");
+        order.setSourceQuoteId(5201L);
+        when(purchaseOrderMapper.selectById(order.getId())).thenReturn(order);
+        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier());
+        when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
+
+        var detail = service(mock(DataScopeService.class)).getBySourceInquiry(order.getId(), 5101L);
+
+        assertThat(detail.id()).isEqualTo(order.getId());
+        assertThat(detail.supplierName()).isEqualTo("Scoped Supplier");
+        assertThat(detail.lines()).singleElement()
+                .satisfies(line -> assertThat(line.sourceInquiryLineId()).isEqualTo(5301L));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DELETED", "COMPANY", "ACCOUNT_BOOK", "INQUIRY", "SOURCE_NULL", "REQUEST_NULL"})
+    void getBySourceInquiryRejectsInvalidTenantOrSourceBeforeHydration(String invalidField) {
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        PurchaseOrderEntity order = order();
+        order.setSourceInquiryId(5101L);
+        switch (invalidField) {
+            case "DELETED" -> order.setDeletedFlag(1);
+            case "COMPANY" -> order.setCompanyId(999L);
+            case "ACCOUNT_BOOK" -> order.setAccountBookId(999L);
+            case "INQUIRY" -> order.setSourceInquiryId(999L);
+            case "SOURCE_NULL" -> order.setSourceInquiryId(null);
+            case "REQUEST_NULL" -> {
+            }
+            default -> throw new IllegalArgumentException("unsupported field");
+        }
+        when(purchaseOrderMapper.selectById(order.getId())).thenReturn(order);
+        Long inquiryId = "REQUEST_NULL".equals(invalidField) ? null : 5101L;
+
+        PurchaseOrderQueryService service = service(mock(DataScopeService.class));
+        assertThatThrownBy(() -> service.getBySourceInquiry(order.getId(), inquiryId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("询价单关联的采购订单不存在");
+
+        verify(supplierMapper, never()).selectById(any());
+        verify(purchaseOrderLineMapper, never()).selectList(any());
     }
 
     @Test
@@ -240,6 +432,7 @@ class PurchaseOrderQueryServiceTest {
     private PurchaseOrderQueryService service(DataScopeService dataScopeService) {
         return new PurchaseOrderQueryService(
                 purchaseOrderMapper,
+                purchaseOrderLineMapper,
                 supplierMapper,
                 currentUserContext,
                 dataScopeService,
@@ -325,14 +518,53 @@ class PurchaseOrderQueryServiceTest {
     private SupplierEntity supplier() {
         SupplierEntity entity = new SupplierEntity();
         entity.setId(SUPPLIER_ID);
+        entity.setCompanyId(CURRENT_USER.companyId());
+        entity.setAccountBookId(CURRENT_USER.accountBookId());
         entity.setSupplierName("Scoped Supplier");
+        return entity;
+    }
+
+    private PurchaseOrderLineEntity orderLine() {
+        PurchaseOrderLineEntity entity = new PurchaseOrderLineEntity();
+        entity.setId(4401L);
+        entity.setCompanyId(CURRENT_USER.companyId());
+        entity.setAccountBookId(CURRENT_USER.accountBookId());
+        entity.setOrderId(4301L);
+        entity.setLineNo(1);
+        entity.setProductId(4201L);
+        entity.setQty(BigDecimal.TEN);
+        entity.setAuxQty(new BigDecimal("2.0000"));
+        entity.setAuxUnitName("箱");
+        entity.setConversionFactor(new BigDecimal("5.000000"));
+        entity.setPrice(new BigDecimal("10.00"));
+        entity.setTaxRate(new BigDecimal("0.1300"));
+        entity.setAmount(new BigDecimal("100.00"));
+        entity.setTaxAmount(new BigDecimal("13.00"));
+        entity.setReceivedQty(BigDecimal.ONE);
+        entity.setSourceInquiryId(5101L);
+        entity.setSourceInquiryLineId(5301L);
+        entity.setRemark("detail line");
         return entity;
     }
 
     private UserEntity user(Long id, String username) {
         UserEntity entity = new UserEntity();
         entity.setId(id);
+        entity.setCompanyId(CURRENT_USER.companyId());
+        entity.setAccountBookId(CURRENT_USER.accountBookId());
         entity.setUsername(username);
         return entity;
+    }
+
+    private static void initTableInfo(Class<?> entityClass) {
+        if (TableInfoHelper.getTableInfo(entityClass) != null) {
+            return;
+        }
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(
+                new MybatisConfiguration(),
+                entityClass.getName()
+        );
+        assistant.setCurrentNamespace(entityClass.getName());
+        TableInfoHelper.initTableInfo(assistant, entityClass);
     }
 }

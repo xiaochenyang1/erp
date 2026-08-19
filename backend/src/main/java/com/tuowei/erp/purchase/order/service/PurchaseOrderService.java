@@ -6,8 +6,6 @@ import com.tuowei.erp.common.math.ProductAuxUnitConversion;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
@@ -17,7 +15,6 @@ import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
-import com.tuowei.erp.purchase.order.web.PurchaseOrderLineResponse;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderApproveRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderRejectRequest;
@@ -46,7 +43,6 @@ public class PurchaseOrderService {
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
     private final SupplierMapper supplierMapper;
-    private final ProductMapper productMapper;
     private final ProductValidator productValidator;
     private final PurchaseOrderNumberService purchaseOrderNumberService;
     private final AuditMetadataFactory auditMetadataFactory;
@@ -60,7 +56,6 @@ public class PurchaseOrderService {
             PurchaseOrderMapper purchaseOrderMapper,
             PurchaseOrderLineMapper purchaseOrderLineMapper,
             SupplierMapper supplierMapper,
-            ProductMapper productMapper,
             ProductValidator productValidator,
             PurchaseOrderNumberService purchaseOrderNumberService,
             AuditMetadataFactory auditMetadataFactory,
@@ -73,7 +68,6 @@ public class PurchaseOrderService {
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
         this.supplierMapper = supplierMapper;
-        this.productMapper = productMapper;
         this.productValidator = productValidator;
         this.purchaseOrderNumberService = purchaseOrderNumberService;
         this.auditMetadataFactory = auditMetadataFactory;
@@ -143,30 +137,17 @@ public class PurchaseOrderService {
 
         List<PurchaseOrderLineEntity> lines = saveOrderLines(entity.getId(), request.lines(), audit, now, source);
 
-        return toResponse(entity, supplier.getSupplierName(), lines);
+        return purchaseOrderQueryService.toResponse(entity, supplier.getSupplierName(), lines);
     }
 
     @Transactional(readOnly = true)
     public PurchaseOrderResponse getById(Long id) {
-        PurchaseOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
-        List<PurchaseOrderLineEntity> lines = loadOrderLines(entity);
-        return toResponse(entity, findSupplierName(entity.getSupplierId()), lines);
+        return purchaseOrderQueryService.getById(id);
     }
 
     @Transactional(readOnly = true)
     public PurchaseOrderResponse getBySourceInquiry(Long orderId, Long inquiryId) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        PurchaseOrderEntity entity = purchaseOrderMapper.selectById(orderId);
-        if (entity == null
-                || entity.getDeletedFlag() == null
-                || entity.getDeletedFlag() != 0
-                || !Objects.equals(entity.getCompanyId(), audit.companyId())
-                || !Objects.equals(entity.getAccountBookId(), audit.accountBookId())
-                || !Objects.equals(entity.getSourceInquiryId(), inquiryId)) {
-            throw new IllegalArgumentException("询价单关联的采购订单不存在");
-        }
-        return toResponse(entity, findSupplierName(entity.getSupplierId()), loadOrderLines(entity));
+        return purchaseOrderQueryService.getBySourceInquiry(orderId, inquiryId);
     }
 
     @Transactional(readOnly = true)
@@ -182,8 +163,7 @@ public class PurchaseOrderService {
 
     @Transactional
     public PurchaseOrderResponse update(Long id, PurchaseOrderUpdateRequest request) {
-        PurchaseOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
+        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
         if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许编辑");
         }
@@ -223,18 +203,17 @@ public class PurchaseOrderService {
 
         saveOrderLines(entity.getId(), request.lines(), audit, now, inquirySource);
 
-        return getById(id);
+        return purchaseOrderQueryService.getById(id);
     }
 
     @Transactional
     public PurchaseOrderResponse submit(Long id, PurchaseOrderSubmitRequest request) {
-        PurchaseOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
+        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
         if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许提交审批");
         }
         attachmentService.requireIfConfigured(AttachmentBusinessType.PURCHASE_ORDER, entity.getId());
-        List<PurchaseOrderLineEntity> existingLines = loadOrderLines(entity);
+        List<PurchaseOrderLineEntity> existingLines = purchaseOrderQueryService.selectLines(entity);
         List<PurchaseOrderLineRequest> lineRequests = existingLines.stream()
                 .map(line -> new PurchaseOrderLineRequest(
                         line.getProductId(),
@@ -267,8 +246,7 @@ public class PurchaseOrderService {
     }
 
     private PurchaseOrderResponse approve(Long id, PurchaseOrderApproveRequest request, Long workflowTaskId) {
-        PurchaseOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
+        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
         if (!"SUBMITTED".equals(entity.getStatus()) || !"IN_APPROVAL".equals(entity.getApprovalStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许审批通过");
         }
@@ -283,8 +261,7 @@ public class PurchaseOrderService {
 
     @Transactional
     public PurchaseOrderResponse unapprove(Long id) {
-        PurchaseOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
+        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
         if (!"APPROVED".equals(entity.getStatus()) || !"APPROVED".equals(entity.getApprovalStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许反审核");
         }
@@ -305,8 +282,7 @@ public class PurchaseOrderService {
     }
 
     private PurchaseOrderResponse reject(Long id, PurchaseOrderRejectRequest request, Long workflowTaskId) {
-        PurchaseOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
+        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
         if (!"SUBMITTED".equals(entity.getStatus()) || !"IN_APPROVAL".equals(entity.getApprovalStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许驳回");
         }
@@ -321,8 +297,7 @@ public class PurchaseOrderService {
 
     @Transactional
     public PurchaseOrderResponse cancel(Long id) {
-        PurchaseOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
+        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
         if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())
                 && !"SUBMITTED".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许作废");
@@ -334,8 +309,7 @@ public class PurchaseOrderService {
 
     @Transactional
     public PurchaseOrderResponse close(Long id) {
-        PurchaseOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
+        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
         if (!"APPROVED".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许关闭");
         }
@@ -343,14 +317,6 @@ public class PurchaseOrderService {
             throw new IllegalArgumentException("已完全入库的采购订单不允许关闭");
         }
         return transitionWorkflowStatus(entity, "CLOSED", "APPROVED");
-    }
-
-    private PurchaseOrderEntity requireOrder(Long id) {
-        PurchaseOrderEntity entity = purchaseOrderMapper.selectById(id);
-        if (entity == null || entity.getDeletedFlag() == null || entity.getDeletedFlag() != 0) {
-            throw new IllegalArgumentException("采购订单不存在");
-        }
-        return entity;
     }
 
     private SupplierEntity requireActiveSupplier(Long supplierId, Long companyId, Long accountBookId) {
@@ -453,14 +419,6 @@ public class PurchaseOrderService {
         }
     }
 
-    private List<PurchaseOrderLineEntity> loadOrderLines(PurchaseOrderEntity entity) {
-        return purchaseOrderLineMapper.selectList(new LambdaQueryWrapper<PurchaseOrderLineEntity>()
-                .eq(PurchaseOrderLineEntity::getCompanyId, entity.getCompanyId())
-                .eq(PurchaseOrderLineEntity::getAccountBookId, entity.getAccountBookId())
-                .eq(PurchaseOrderLineEntity::getOrderId, entity.getId())
-                .orderByAsc(PurchaseOrderLineEntity::getLineNo));
-    }
-
     private PurchaseOrderInquirySource sourceForUpdate(
             PurchaseOrderEntity entity,
             List<PurchaseOrderLineRequest> requestedLines
@@ -468,7 +426,7 @@ public class PurchaseOrderService {
         if (entity.getSourceInquiryId() == null) {
             return null;
         }
-        List<PurchaseOrderLineEntity> existingLines = loadOrderLines(entity);
+        List<PurchaseOrderLineEntity> existingLines = purchaseOrderQueryService.selectLines(entity);
         if (existingLines.size() != requestedLines.size()) {
             throw new IllegalArgumentException("询价单生成的采购订单不允许增删明细");
         }
@@ -487,10 +445,6 @@ public class PurchaseOrderService {
         );
     }
 
-    private void assertCanView(PurchaseOrderEntity entity) {
-        purchaseOrderQueryService.assertCanView(entity);
-    }
-
     private void touch(PurchaseOrderEntity entity) {
         AuditMetadata audit = auditMetadataFactory.current();
         entity.setUpdatedBy(audit.userId());
@@ -506,58 +460,7 @@ public class PurchaseOrderService {
         entity.setApprovalStatus(approvalStatus);
         touch(entity);
         OptimisticLockGuard.requireUpdated(purchaseOrderMapper.updateById(entity), "采购订单已被其他操作修改，请刷新后重试");
-        return getById(entity.getId());
-    }
-
-    private PurchaseOrderResponse toResponse(
-            PurchaseOrderEntity entity,
-            String supplierName,
-            List<PurchaseOrderLineEntity> lines
-    ) {
-        return new PurchaseOrderResponse(
-                entity.getId(),
-                entity.getOrderNo(),
-                entity.getSupplierId(),
-                supplierName,
-                entity.getOrderDate(),
-                entity.getDeliveryDate(),
-                entity.getStatus(),
-                entity.getApprovalStatus(),
-                entity.getReceiptStatus(),
-                entity.getSourceInquiryId(),
-                entity.getSourceInquiryNo(),
-                entity.getSourceQuoteId(),
-                entity.getTotalQuantity(),
-                entity.getTotalAmount(),
-                entity.getTotalTaxAmount(),
-                entity.getRemark(),
-                lines.stream().map(this::toLineResponse).toList()
-        );
-    }
-
-    private String findSupplierName(Long supplierId) {
-        SupplierEntity supplier = supplierMapper.selectById(supplierId);
-        return supplier == null ? null : supplier.getSupplierName();
-    }
-
-    private PurchaseOrderLineResponse toLineResponse(PurchaseOrderLineEntity entity) {
-        return new PurchaseOrderLineResponse(
-                entity.getId(),
-                entity.getLineNo(),
-                entity.getProductId(),
-                entity.getQty(),
-                entity.getAuxQty(),
-                entity.getAuxUnitName(),
-                entity.getConversionFactor(),
-                entity.getPrice(),
-                entity.getTaxRate(),
-                entity.getAmount(),
-                entity.getTaxAmount(),
-                entity.getReceivedQty(),
-                entity.getSourceInquiryId(),
-                entity.getSourceInquiryLineId(),
-                entity.getRemark()
-        );
+        return purchaseOrderQueryService.getById(entity.getId());
     }
 
     public StreamingResponseBody exportOrders(PurchaseOrderPageQuery query) {

@@ -11,8 +11,11 @@ import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
+import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
+import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderLineResponse;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
 import com.tuowei.erp.system.user.mapper.UserMapper;
@@ -38,6 +41,7 @@ import java.util.stream.Collectors;
 public class PurchaseOrderQueryService {
 
     private final PurchaseOrderMapper purchaseOrderMapper;
+    private final PurchaseOrderLineMapper purchaseOrderLineMapper;
     private final SupplierMapper supplierMapper;
     private final CurrentUserContext currentUserContext;
     private final DataScopeService dataScopeService;
@@ -46,6 +50,7 @@ public class PurchaseOrderQueryService {
 
     public PurchaseOrderQueryService(
             PurchaseOrderMapper purchaseOrderMapper,
+            PurchaseOrderLineMapper purchaseOrderLineMapper,
             SupplierMapper supplierMapper,
             CurrentUserContext currentUserContext,
             DataScopeService dataScopeService,
@@ -53,11 +58,35 @@ public class PurchaseOrderQueryService {
             UserMapper userMapper
     ) {
         this.purchaseOrderMapper = purchaseOrderMapper;
+        this.purchaseOrderLineMapper = purchaseOrderLineMapper;
         this.supplierMapper = supplierMapper;
         this.currentUserContext = currentUserContext;
         this.dataScopeService = dataScopeService;
         this.scopedUserResolver = scopedUserResolver;
         this.userMapper = userMapper;
+    }
+
+    @Transactional(readOnly = true)
+    public PurchaseOrderResponse getById(Long id) {
+        PurchaseOrderEntity entity = requireOrder(id);
+        return toResponse(entity, findSupplierName(entity), selectLines(entity));
+    }
+
+    @Transactional(readOnly = true)
+    public PurchaseOrderResponse getBySourceInquiry(Long orderId, Long inquiryId) {
+        CurrentUser currentUser = currentUserContext.requireCurrentUser();
+        PurchaseOrderEntity entity = purchaseOrderMapper.selectById(orderId);
+        if (entity == null
+                || entity.getDeletedFlag() == null
+                || entity.getDeletedFlag() != 0
+                || !Objects.equals(entity.getCompanyId(), currentUser.companyId())
+                || !Objects.equals(entity.getAccountBookId(), currentUser.accountBookId())
+                || inquiryId == null
+                || entity.getSourceInquiryId() == null
+                || !Objects.equals(entity.getSourceInquiryId(), inquiryId)) {
+            throw new IllegalArgumentException("询价单关联的采购订单不存在");
+        }
+        return toResponse(entity, findSupplierName(entity), selectLines(entity));
     }
 
     @Transactional(readOnly = true)
@@ -68,14 +97,14 @@ public class PurchaseOrderQueryService {
                 normalizePageSize(safeQuery.getPageSize())
         );
         Page<PurchaseOrderEntity> result = purchaseOrderMapper.selectPage(page, scopedListQuery(safeQuery));
-        Map<Long, String> supplierNames = loadSupplierNames(result.getRecords());
+        Map<SupplierKey, String> supplierNames = loadSupplierNames(result.getRecords());
 
         return new PageResponse<>(
                 result.getCurrent(),
                 result.getSize(),
                 result.getTotal(),
                 result.getRecords().stream()
-                        .map(entity -> toSummaryResponse(entity, supplierNames.get(entity.getSupplierId())))
+                        .map(entity -> toSummaryResponse(entity, supplierNames.get(supplierKey(entity))))
                         .toList()
         );
     }
@@ -84,13 +113,56 @@ public class PurchaseOrderQueryService {
     public void assertCanView(PurchaseOrderEntity entity) {
         CurrentUser currentUser = currentUserContext.requireCurrentUser();
         DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        UserEntity creator = entity.getCreatedBy() == null ? null : userMapper.selectById(entity.getCreatedBy());
+        UserEntity creator = findCreator(entity);
         dataScopeService.assertCanViewPurchaseOrder(
                 entity,
                 currentUser,
                 snapshot,
                 creator == null ? null : creator.getDeptId(),
                 creator == null ? null : creator.getPostId()
+        );
+    }
+
+    public PurchaseOrderEntity requireOrder(Long id) {
+        PurchaseOrderEntity entity = purchaseOrderMapper.selectById(id);
+        if (entity == null || entity.getDeletedFlag() == null || entity.getDeletedFlag() != 0) {
+            throw new IllegalArgumentException("采购订单不存在");
+        }
+        assertCanView(entity);
+        return entity;
+    }
+
+    public List<PurchaseOrderLineEntity> selectLines(PurchaseOrderEntity entity) {
+        return purchaseOrderLineMapper.selectList(new LambdaQueryWrapper<PurchaseOrderLineEntity>()
+                .eq(PurchaseOrderLineEntity::getCompanyId, entity.getCompanyId())
+                .eq(PurchaseOrderLineEntity::getAccountBookId, entity.getAccountBookId())
+                .eq(PurchaseOrderLineEntity::getOrderId, entity.getId())
+                .orderByAsc(PurchaseOrderLineEntity::getLineNo));
+    }
+
+    public PurchaseOrderResponse toResponse(
+            PurchaseOrderEntity entity,
+            String supplierName,
+            List<PurchaseOrderLineEntity> lines
+    ) {
+        return new PurchaseOrderResponse(
+                entity.getId(),
+                entity.getOrderNo(),
+                entity.getSupplierId(),
+                supplierName,
+                entity.getOrderDate(),
+                entity.getDeliveryDate(),
+                entity.getStatus(),
+                entity.getApprovalStatus(),
+                entity.getReceiptStatus(),
+                entity.getSourceInquiryId(),
+                entity.getSourceInquiryNo(),
+                entity.getSourceQuoteId(),
+                entity.getTotalQuantity(),
+                entity.getTotalAmount(),
+                entity.getTotalTaxAmount(),
+                entity.getRemark(),
+                lines.stream().map(this::toLineResponse).toList()
         );
     }
 
@@ -148,17 +220,17 @@ public class PurchaseOrderQueryService {
                 "订单金额", "状态", "创建人", "创建时间", "备注"
         );
         List<PurchaseOrderEntity> orders = purchaseOrderMapper.selectList(scopedListQuery(safeQuery));
-        Map<Long, String> supplierNames = loadSupplierNames(orders);
-        Map<Long, String> userNames = loadUserNames(orders);
+        Map<SupplierKey, String> supplierNames = loadSupplierNames(orders);
+        Map<UserKey, String> userNames = loadUserNames(orders);
         List<List<String>> rows = orders.stream()
                 .map(order -> List.of(
                         order.getOrderNo() != null ? order.getOrderNo() : "",
-                        supplierNames.getOrDefault(order.getSupplierId(), ""),
+                        valueOrEmpty(supplierNames, supplierKey(order)),
                         order.getOrderDate() != null ? order.getOrderDate().toString() : "",
                         order.getDeliveryDate() != null ? order.getDeliveryDate().toString() : "",
                         order.getTotalAmount() != null ? order.getTotalAmount().toString() : "",
                         order.getStatus() != null ? order.getStatus() : "",
-                        userNames.getOrDefault(order.getCreatedBy(), ""),
+                        valueOrEmpty(userNames, userKey(order)),
                         order.getCreatedTime() != null ? order.getCreatedTime().toString() : "",
                         order.getRemark() != null ? order.getRemark() : ""
                 ))
@@ -188,7 +260,53 @@ public class PurchaseOrderQueryService {
         );
     }
 
-    private Map<Long, String> loadSupplierNames(List<PurchaseOrderEntity> orders) {
+    private String findSupplierName(PurchaseOrderEntity order) {
+        if (order.getSupplierId() == null) {
+            return null;
+        }
+        SupplierEntity supplier = supplierMapper.selectById(order.getSupplierId());
+        if (supplier == null
+                || !Objects.equals(supplier.getCompanyId(), order.getCompanyId())
+                || !Objects.equals(supplier.getAccountBookId(), order.getAccountBookId())) {
+            return null;
+        }
+        return supplier.getSupplierName();
+    }
+
+    private UserEntity findCreator(PurchaseOrderEntity order) {
+        if (order.getCreatedBy() == null) {
+            return null;
+        }
+        UserEntity creator = userMapper.selectById(order.getCreatedBy());
+        if (creator == null
+                || !Objects.equals(creator.getCompanyId(), order.getCompanyId())
+                || !Objects.equals(creator.getAccountBookId(), order.getAccountBookId())) {
+            return null;
+        }
+        return creator;
+    }
+
+    private PurchaseOrderLineResponse toLineResponse(PurchaseOrderLineEntity entity) {
+        return new PurchaseOrderLineResponse(
+                entity.getId(),
+                entity.getLineNo(),
+                entity.getProductId(),
+                entity.getQty(),
+                entity.getAuxQty(),
+                entity.getAuxUnitName(),
+                entity.getConversionFactor(),
+                entity.getPrice(),
+                entity.getTaxRate(),
+                entity.getAmount(),
+                entity.getTaxAmount(),
+                entity.getReceivedQty(),
+                entity.getSourceInquiryId(),
+                entity.getSourceInquiryLineId(),
+                entity.getRemark()
+        );
+    }
+
+    private Map<SupplierKey, String> loadSupplierNames(List<PurchaseOrderEntity> orders) {
         List<Long> supplierIds = orders.stream()
                 .map(PurchaseOrderEntity::getSupplierId)
                 .filter(Objects::nonNull)
@@ -198,10 +316,23 @@ public class PurchaseOrderQueryService {
             return Map.of();
         }
         return supplierMapper.selectBatchIds(supplierIds).stream()
-                .collect(Collectors.toMap(SupplierEntity::getId, SupplierEntity::getSupplierName));
+                .filter(supplier -> supplier.getId() != null && supplier.getSupplierName() != null)
+                .collect(Collectors.toMap(
+                        supplier -> new SupplierKey(
+                                supplier.getId(),
+                                supplier.getCompanyId(),
+                                supplier.getAccountBookId()
+                        ),
+                        SupplierEntity::getSupplierName,
+                        (first, ignored) -> first
+                ));
     }
 
-    private Map<Long, String> loadUserNames(List<PurchaseOrderEntity> orders) {
+    private SupplierKey supplierKey(PurchaseOrderEntity order) {
+        return new SupplierKey(order.getSupplierId(), order.getCompanyId(), order.getAccountBookId());
+    }
+
+    private Map<UserKey, String> loadUserNames(List<PurchaseOrderEntity> orders) {
         Set<Long> userIds = orders.stream()
                 .map(PurchaseOrderEntity::getCreatedBy)
                 .filter(Objects::nonNull)
@@ -210,7 +341,20 @@ public class PurchaseOrderQueryService {
             return Map.of();
         }
         return userMapper.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(UserEntity::getId, UserEntity::getUsername));
+                .filter(user -> user.getId() != null && user.getUsername() != null)
+                .collect(Collectors.toMap(
+                        user -> new UserKey(user.getId(), user.getCompanyId(), user.getAccountBookId()),
+                        UserEntity::getUsername,
+                        (first, ignored) -> first
+                ));
+    }
+
+    private UserKey userKey(PurchaseOrderEntity order) {
+        return new UserKey(order.getCreatedBy(), order.getCompanyId(), order.getAccountBookId());
+    }
+
+    private <K> String valueOrEmpty(Map<K, String> values, K key) {
+        return key == null ? "" : values.getOrDefault(key, "");
     }
 
     private String normalizeNullableText(String value) {
@@ -251,5 +395,11 @@ public class PurchaseOrderQueryService {
     private interface ThrowingRunnable {
 
         void run() throws IOException;
+    }
+
+    private record SupplierKey(Long id, Long companyId, Long accountBookId) {
+    }
+
+    private record UserKey(Long id, Long companyId, Long accountBookId) {
     }
 }

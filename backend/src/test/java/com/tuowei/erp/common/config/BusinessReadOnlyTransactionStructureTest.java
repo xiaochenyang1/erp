@@ -155,8 +155,11 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(PurchaseInquiryQueryService.class, "poPrefill", Long.class);
         assertReadOnly(PurchaseOrderService.class, "list", PurchaseOrderPageQuery.class);
         assertReadOnly(PurchaseOrderService.class, "getById", Long.class);
+        assertReadOnly(PurchaseOrderService.class, "getBySourceInquiry", Long.class, Long.class);
         assertReadOnly(PurchaseOrderService.class, "trace", Long.class);
         assertReadOnly(PurchaseOrderQueryService.class, "list", PurchaseOrderPageQuery.class);
+        assertReadOnly(PurchaseOrderQueryService.class, "getById", Long.class);
+        assertReadOnly(PurchaseOrderQueryService.class, "getBySourceInquiry", Long.class, Long.class);
         assertReadOnly(PurchaseOrderQueryService.class, "assertCanView", PurchaseOrderEntity.class);
         assertReadOnly(PurchaseOrderTraceService.class, "trace", PurchaseOrderResponse.class);
         assertReadOnly(PurchaseReceiptService.class, "list", PurchaseReceiptPageQuery.class);

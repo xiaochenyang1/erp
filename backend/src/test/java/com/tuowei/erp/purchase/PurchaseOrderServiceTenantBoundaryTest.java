@@ -1,14 +1,8 @@
 package com.tuowei.erp.purchase;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.security.CurrentUser;
 import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
@@ -27,10 +21,9 @@ import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderPageQuery;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderSubmitRequest;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderTraceResponse;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.workflow.service.WorkflowService;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -39,7 +32,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -58,49 +50,43 @@ class PurchaseOrderServiceTenantBoundaryTest {
             202L,
             LocalDateTime.of(2026, 6, 8, 21, 30)
     );
-    private static final CurrentUser CURRENT_USER = new CurrentUser(
-            AUDIT.userId(),
-            AUDIT.companyId(),
-            AUDIT.accountBookId(),
-            11L,
-            12L,
-            "purchase_order_scope_user",
-            "采购订单用户"
-    );
     private static final Long SUPPLIER_ID = 4101L;
     private static final Long PRODUCT_ID = 4201L;
 
     private final PurchaseOrderMapper purchaseOrderMapper = mock(PurchaseOrderMapper.class);
     private final PurchaseOrderLineMapper purchaseOrderLineMapper = mock(PurchaseOrderLineMapper.class);
     private final SupplierMapper supplierMapper = mock(SupplierMapper.class);
-    private final ProductMapper productMapper = mock(ProductMapper.class);
     private final ProductValidator productValidator = mock(ProductValidator.class);
     private final PurchaseOrderNumberService purchaseOrderNumberService = mock(PurchaseOrderNumberService.class);
     private final AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
     private final PurchaseOrderQueryService purchaseOrderQueryService = mock(PurchaseOrderQueryService.class);
     private final PurchaseOrderTraceService purchaseOrderTraceService = mock(PurchaseOrderTraceService.class);
     private final WorkflowService workflowService = mock(WorkflowService.class);
+    private final PurchasePriceEvaluator purchasePriceEvaluator = mock(PurchasePriceEvaluator.class);
     private final AttachmentService attachmentService = mock(AttachmentService.class);
 
-    @BeforeAll
-    static void initTableInfo() {
-        initTableInfo(PurchaseOrderEntity.class);
-        initTableInfo(PurchaseOrderLineEntity.class);
+    @Test
+    void getByIdDelegatesToQueryService() {
+        PurchaseOrderResponse expected = response("DRAFT", "DRAFT", "NOT_RECEIVED");
+        when(purchaseOrderQueryService.getById(4301L)).thenReturn(expected);
+
+        PurchaseOrderResponse actual = service().getById(4301L);
+
+        assertThat(actual).isSameAs(expected);
+        verify(purchaseOrderQueryService).getById(4301L);
+        verify(purchaseOrderMapper, never()).selectById(any());
+        verify(purchaseOrderLineMapper, never()).selectList(any());
     }
 
     @Test
-    void getByIdScopesLineQueryByCompanyAndAccountBook() {
-        when(purchaseOrderMapper.selectById(4301L)).thenReturn(order());
-        when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
+    void getBySourceInquiryDelegatesToQueryService() {
+        PurchaseOrderResponse expected = response("DRAFT", "DRAFT", "NOT_RECEIVED");
+        when(purchaseOrderQueryService.getBySourceInquiry(4301L, 5101L)).thenReturn(expected);
 
-        service().getById(4301L);
+        PurchaseOrderResponse actual = service().getBySourceInquiry(4301L, 5101L);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        ArgumentCaptor<LambdaQueryWrapper<PurchaseOrderLineEntity>> wrapperCaptor =
-                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(purchaseOrderLineMapper).selectList(wrapperCaptor.capture());
-        assertTenantScoped(wrapperCaptor.getValue());
-        verify(purchaseOrderQueryService).assertCanView(any(PurchaseOrderEntity.class));
+        assertThat(actual).isSameAs(expected);
+        verify(purchaseOrderQueryService).getBySourceInquiry(4301L, 5101L);
     }
 
     @Test
@@ -119,17 +105,16 @@ class PurchaseOrderServiceTenantBoundaryTest {
 
     @Test
     void traceLoadsTheAuthorizedOrderBeforeDelegatingTheDocumentChain() {
-        when(purchaseOrderMapper.selectById(4301L)).thenReturn(order());
-        when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
+        PurchaseOrderResponse order = response("DRAFT", "DRAFT", "NOT_RECEIVED");
+        PurchaseOrderTraceResponse expected = new PurchaseOrderTraceResponse(order, null, null, null);
+        when(purchaseOrderQueryService.getById(4301L)).thenReturn(order);
+        when(purchaseOrderTraceService.trace(order)).thenReturn(expected);
 
-        service().trace(4301L);
+        PurchaseOrderTraceResponse actual = service().trace(4301L);
 
-        ArgumentCaptor<PurchaseOrderResponse> orderCaptor =
-                ArgumentCaptor.forClass(PurchaseOrderResponse.class);
-        verify(purchaseOrderTraceService).trace(orderCaptor.capture());
-        assertThat(orderCaptor.getValue().id()).isEqualTo(4301L);
-        assertThat(orderCaptor.getValue().lines()).singleElement()
-                .satisfies(line -> assertThat(line.id()).isEqualTo(4401L));
+        assertThat(actual).isSameAs(expected);
+        verify(purchaseOrderQueryService).getById(4301L);
+        verify(purchaseOrderTraceService).trace(order);
     }
 
     @Test
@@ -137,9 +122,6 @@ class PurchaseOrderServiceTenantBoundaryTest {
         stubAudit();
         when(supplierMapper.selectById(SUPPLIER_ID))
                 .thenReturn(activeSupplier(SUPPLIER_ID, AUDIT.companyId(), 999L));
-        when(productMapper.selectById(PRODUCT_ID))
-                .thenReturn(activeProduct(PRODUCT_ID, AUDIT.companyId(), AUDIT.accountBookId()));
-        stubOrderInsert();
 
         assertThatThrownBy(() -> service().create(createRequest()))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -173,8 +155,10 @@ class PurchaseOrderServiceTenantBoundaryTest {
             line.setId(4401L);
             return 1;
         });
+        PurchaseOrderResponse expected = response("DRAFT", "NOT_SUBMITTED", "NOT_RECEIVED");
+        when(purchaseOrderQueryService.toResponse(any(), any(), any())).thenReturn(expected);
 
-        var response = service().createFromInquiry(
+        PurchaseOrderResponse actual = service().createFromInquiry(
                 createRequest(),
                 new PurchaseOrderInquirySource(5101L, "RFQ202606080001", 5201L, List.of(5301L))
         );
@@ -191,14 +175,12 @@ class PurchaseOrderServiceTenantBoundaryTest {
         verify(purchaseOrderLineMapper).insert(lineCaptor.capture());
         assertThat(lineCaptor.getValue().getSourceInquiryId()).isEqualTo(5101L);
         assertThat(lineCaptor.getValue().getSourceInquiryLineId()).isEqualTo(5301L);
-        assertThat(response.sourceInquiryId()).isEqualTo(5101L);
-        assertThat(response.sourceInquiryNo()).isEqualTo("RFQ202606080001");
-        assertThat(response.sourceQuoteId()).isEqualTo(5201L);
-        assertThat(response.lines()).singleElement()
-                .satisfies(line -> {
-                    assertThat(line.sourceInquiryId()).isEqualTo(5101L);
-                    assertThat(line.sourceInquiryLineId()).isEqualTo(5301L);
-                });
+        verify(purchaseOrderQueryService).toResponse(
+                insertedOrder,
+                "tenant supplier",
+                List.of(lineCaptor.getValue())
+        );
+        assertThat(actual).isSameAs(expected);
     }
 
     @Test
@@ -208,15 +190,19 @@ class PurchaseOrderServiceTenantBoundaryTest {
         approved.setStatus("APPROVED");
         approved.setApprovalStatus("APPROVED");
         approved.setReceiptStatus("NOT_RECEIVED");
-        when(purchaseOrderMapper.selectById(4301L)).thenReturn(approved);
+        PurchaseOrderResponse expected = response("DRAFT", "NOT_SUBMITTED", "NOT_RECEIVED");
+        when(purchaseOrderQueryService.requireOrder(4301L)).thenReturn(approved);
         when(purchaseOrderMapper.updateById(any(PurchaseOrderEntity.class))).thenReturn(1);
-        when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
+        when(purchaseOrderQueryService.getById(4301L)).thenReturn(expected);
 
-        service().unapprove(4301L);
+        PurchaseOrderResponse actual = service().unapprove(4301L);
 
+        assertThat(actual).isSameAs(expected);
         assertThat(approved.getStatus()).isEqualTo("DRAFT");
         assertThat(approved.getApprovalStatus()).isEqualTo("NOT_SUBMITTED");
+        verify(purchaseOrderQueryService).requireOrder(4301L);
         verify(purchaseOrderMapper).updateById(approved);
+        verify(purchaseOrderQueryService).getById(4301L);
     }
 
     @Test
@@ -225,12 +211,14 @@ class PurchaseOrderServiceTenantBoundaryTest {
         received.setStatus("APPROVED");
         received.setApprovalStatus("APPROVED");
         received.setReceiptStatus("PARTIAL_RECEIVED");
-        when(purchaseOrderMapper.selectById(4301L)).thenReturn(received);
+        when(purchaseOrderQueryService.requireOrder(4301L)).thenReturn(received);
 
         assertThatThrownBy(() -> service().unapprove(4301L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("已入库采购订单不允许反审核");
+        verify(purchaseOrderQueryService).requireOrder(4301L);
         verify(purchaseOrderMapper, never()).updateById(any(PurchaseOrderEntity.class));
+        verify(purchaseOrderQueryService, never()).getById(any());
     }
 
     private void stubAudit() {
@@ -248,7 +236,7 @@ class PurchaseOrderServiceTenantBoundaryTest {
     @Test
     void submitStopsAtAttachmentGateBeforeLoadingLinesOrEvaluatingPrice() {
         PurchaseOrderEntity draft = order();
-        when(purchaseOrderMapper.selectById(4301L)).thenReturn(draft);
+        when(purchaseOrderQueryService.requireOrder(4301L)).thenReturn(draft);
         doThrow(new IllegalArgumentException("业务类型 PURCHASE_ORDER 要求至少上传 1 个附件，当前 0 个"))
                 .when(attachmentService)
                 .requireIfConfigured("PURCHASE_ORDER", 4301L);
@@ -258,8 +246,13 @@ class PurchaseOrderServiceTenantBoundaryTest {
                 .hasMessageContaining("PURCHASE_ORDER");
 
         assertThat(draft.getStatus()).isEqualTo("DRAFT");
-        verify(purchaseOrderLineMapper, never()).selectList(any());
+        verify(purchaseOrderQueryService).requireOrder(4301L);
+        verify(purchaseOrderQueryService, never()).selectLines(any());
+        verify(purchasePriceEvaluator, never()).assertLinesWithinMaxPrice(
+                any(), any(), any(), any(), any()
+        );
         verify(purchaseOrderMapper, never()).updateById(any(PurchaseOrderEntity.class));
+        verify(purchaseOrderQueryService, never()).getById(any());
         verify(workflowService, never()).submit(any(), any(), any(), any(), any());
     }
 
@@ -268,14 +261,13 @@ class PurchaseOrderServiceTenantBoundaryTest {
                 purchaseOrderMapper,
                 purchaseOrderLineMapper,
                 supplierMapper,
-                productMapper,
                 productValidator,
                 purchaseOrderNumberService,
                 auditMetadataFactory,
                 purchaseOrderQueryService,
                 purchaseOrderTraceService,
                 workflowService,
-                mock(PurchasePriceEvaluator.class),
+                purchasePriceEvaluator,
                 attachmentService
         );
     }
@@ -296,17 +288,11 @@ class PurchaseOrderServiceTenantBoundaryTest {
         );
     }
 
-    private void assertTenantScoped(LambdaQueryWrapper<?> wrapper) {
-        assertThat(wrapper.getSqlSegment().toLowerCase(Locale.ROOT))
-                .contains("company_id")
-                .contains("account_book_id");
-    }
-
     private PurchaseOrderEntity order() {
         PurchaseOrderEntity entity = new PurchaseOrderEntity();
         entity.setId(4301L);
-        entity.setCompanyId(CURRENT_USER.companyId());
-        entity.setAccountBookId(CURRENT_USER.accountBookId());
+        entity.setCompanyId(AUDIT.companyId());
+        entity.setAccountBookId(AUDIT.accountBookId());
         entity.setOrderNo("PO-4301");
         entity.setSupplierId(SUPPLIER_ID);
         entity.setOrderDate(LocalDate.of(2026, 6, 8));
@@ -316,19 +302,26 @@ class PurchaseOrderServiceTenantBoundaryTest {
         return entity;
     }
 
-    private PurchaseOrderLineEntity orderLine() {
-        PurchaseOrderLineEntity entity = new PurchaseOrderLineEntity();
-        entity.setId(4401L);
-        entity.setOrderId(4301L);
-        entity.setLineNo(1);
-        entity.setProductId(PRODUCT_ID);
-        entity.setQty(BigDecimal.ONE);
-        entity.setPrice(BigDecimal.TEN);
-        entity.setTaxRate(BigDecimal.ZERO);
-        entity.setAmount(BigDecimal.TEN);
-        entity.setTaxAmount(BigDecimal.ZERO);
-        entity.setReceivedQty(BigDecimal.ZERO);
-        return entity;
+    private PurchaseOrderResponse response(String status, String approvalStatus, String receiptStatus) {
+        return new PurchaseOrderResponse(
+                4301L,
+                "PO-4301",
+                SUPPLIER_ID,
+                "tenant supplier",
+                LocalDate.of(2026, 6, 8),
+                LocalDate.of(2026, 6, 9),
+                status,
+                approvalStatus,
+                receiptStatus,
+                null,
+                null,
+                null,
+                BigDecimal.ONE,
+                BigDecimal.TEN,
+                BigDecimal.ZERO,
+                "tenant boundary",
+                List.of()
+        );
     }
 
     private SupplierEntity activeSupplier(Long id, Long companyId, Long accountBookId) {
@@ -342,22 +335,4 @@ class PurchaseOrderServiceTenantBoundaryTest {
         return supplier;
     }
 
-    private ProductEntity activeProduct(Long id, Long companyId, Long accountBookId) {
-        ProductEntity product = new ProductEntity();
-        product.setId(id);
-        product.setCompanyId(companyId);
-        product.setAccountBookId(accountBookId);
-        product.setStatus("ACTIVE");
-        product.setDeletedFlag(0);
-        return product;
-    }
-
-    private static void initTableInfo(Class<?> entityClass) {
-        if (TableInfoHelper.getTableInfo(entityClass) != null) {
-            return;
-        }
-        MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), entityClass.getName());
-        assistant.setCurrentNamespace(entityClass.getName());
-        TableInfoHelper.initTableInfo(assistant, entityClass);
-    }
 }
