@@ -596,6 +596,18 @@
         <el-table-column prop="documentLabel" :label="$t('inventoryStocks.documentType')" min-width="120">
           <template #default="{ row }">{{ row.documentLabel || row.bizType }}</template>
         </el-table-column>
+        <el-table-column :label="$t('inventoryStocks.actions')" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              v-permission="'inventory:lot:genealogy'"
+              link
+              type="primary"
+              @click="router.push({ path: '/inventory/lot-genealogy', query: { productId: String(row.productId), lotNo: row.lotNo || '' } })"
+            >
+              {{ $t('inventoryStocks.action.viewGenealogy') }}
+            </el-button>
+          </template>
+        </el-table-column>
         <el-table-column prop="direction" :label="$t('inventoryStocks.direction')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.direction === 'IN' ? 'success' : 'warning'">{{ directionLabel(row.direction) }}</el-tag>

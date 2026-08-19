@@ -14,6 +14,7 @@ import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryLotBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryLotQueryService;
+import com.tuowei.erp.inventory.stock.service.InventoryDocumentLinkResolver;
 import com.tuowei.erp.inventory.stock.web.InventoryLotBalancePageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotExpiryAlertQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotTraceQuery;
@@ -242,6 +243,7 @@ class InventoryLotQueryServiceTest {
                 transactionMapper,
                 currentUserContext,
                 dataScopeService,
+                new InventoryDocumentLinkResolver(),
                 Clock.fixed(Instant.parse("2026-06-29T00:00:00Z"), ZoneOffset.UTC)
         );
     }

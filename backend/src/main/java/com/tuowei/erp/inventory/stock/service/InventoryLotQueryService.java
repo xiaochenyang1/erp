@@ -22,8 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -40,6 +38,7 @@ public class InventoryLotQueryService {
     private final InventoryTransactionMapper inventoryTransactionMapper;
     private final CurrentUserContext currentUserContext;
     private final DataScopeService dataScopeService;
+    private final InventoryDocumentLinkResolver documentLinkResolver;
     private final Clock clock;
 
     public InventoryLotQueryService(
@@ -47,12 +46,14 @@ public class InventoryLotQueryService {
             InventoryTransactionMapper inventoryTransactionMapper,
             CurrentUserContext currentUserContext,
             DataScopeService dataScopeService,
+            InventoryDocumentLinkResolver documentLinkResolver,
             Clock clock
     ) {
         this.inventoryLotBalanceMapper = inventoryLotBalanceMapper;
         this.inventoryTransactionMapper = inventoryTransactionMapper;
         this.currentUserContext = currentUserContext;
         this.dataScopeService = dataScopeService;
+        this.documentLinkResolver = documentLinkResolver;
         this.clock = clock;
     }
 
@@ -300,8 +301,8 @@ public class InventoryLotQueryService {
                 ),
                 entity.getOccurredTime(),
                 entity.getRemark(),
-                resolveDocumentRoute(bizType, entity.getBizNo()),
-                resolveDocumentLabel(bizType)
+                documentLinkResolver.resolveRoute(bizType, entity.getBizNo()),
+                documentLinkResolver.resolveLabel(bizType)
         );
     }
 
@@ -338,49 +339,6 @@ public class InventoryLotQueryService {
         return ScalePrecision.quantity(
                 ScalePrecision.zeroDefault(entity.getQtyOnHand()).subtract(qtyReserved(entity))
         );
-    }
-
-    private String resolveDocumentRoute(String bizType, String bizNo) {
-        if (!StringUtils.hasText(bizType) || !StringUtils.hasText(bizNo)) {
-            return null;
-        }
-        String type = bizType.trim().toUpperCase(Locale.ROOT);
-        String encoded = URLEncoder.encode(bizNo.trim(), StandardCharsets.UTF_8);
-        return switch (type) {
-            case "PURCHASE_RECEIPT" -> "/purchase/receipts?keyword=" + encoded;
-            case "PURCHASE_RETURN" -> "/purchase/returns?keyword=" + encoded;
-            case "SALES_DELIVERY" -> "/sales/deliveries?keyword=" + encoded;
-            case "SALES_RETURN" -> "/sales/returns?keyword=" + encoded;
-            case "PRODUCTION_ISSUE", "PRODUCTION_COMPLETION", "PRODUCTION_COMPLETION_REVERSAL", "PRODUCTION_RETURN" ->
-                    "/production/orders?keyword=" + encoded;
-            case "INVENTORY_ADJUSTMENT" -> "/inventory/adjustments?keyword=" + encoded;
-            case "INVENTORY_TRANSFER" -> "/inventory/transfers?keyword=" + encoded;
-            case "INVENTORY_CHECK" -> "/inventory/checks?keyword=" + encoded;
-            case "OPENING_INVENTORY", "OPENING_BALANCE" ->
-                    "/system/imports?importType=OPENING_INVENTORY&keyword=" + encoded;
-            default -> null;
-        };
-    }
-
-    private String resolveDocumentLabel(String bizType) {
-        if (!StringUtils.hasText(bizType)) {
-            return null;
-        }
-        return switch (bizType.trim().toUpperCase(Locale.ROOT)) {
-            case "PURCHASE_RECEIPT" -> "采购收货";
-            case "PURCHASE_RETURN" -> "采购退货";
-            case "SALES_DELIVERY" -> "销售发货";
-            case "SALES_RETURN" -> "销售退货";
-            case "PRODUCTION_ISSUE" -> "生产领料";
-            case "PRODUCTION_COMPLETION" -> "生产完工";
-            case "PRODUCTION_COMPLETION_REVERSAL" -> "完工红冲";
-            case "PRODUCTION_RETURN" -> "生产退料";
-            case "INVENTORY_ADJUSTMENT" -> "库存调整";
-            case "INVENTORY_TRANSFER" -> "库存调拨";
-            case "INVENTORY_CHECK" -> "库存盘点";
-            case "OPENING_INVENTORY", "OPENING_BALANCE" -> "期初库存";
-            default -> bizType;
-        };
     }
 
     private DataScopeSnapshot currentSnapshot() {

@@ -324,7 +324,7 @@ export const operationsPageMessages = {
         expiryAlerts: '效期预警', reservationCheck: '预留检查', export: '导出', refresh: '刷新',
         view: '详情', reservationDetails: '预留明细', lots: '批次', transaction: '流水',
         source: '来源', release: '释放', manualRelease: '手工释放', cancel: '取消',
-        confirmRelease: '确认释放', trace: '追踪'
+        confirmRelease: '确认释放', trace: '追踪', viewGenealogy: '查看谱系'
       },
       reservationStatus: { active: '有效', released: '已释放', cancelled: '已取消' },
       reservationEvent: { reserve: '预留', release: '释放', manualRelease: '手工释放' },
@@ -351,6 +351,49 @@ export const operationsPageMessages = {
         optionsLoadFailed: '加载筛选项失败'
       },
       file: { stockBalances: '库存余额_{timestamp}.csv' }
+    },
+    inventoryLotGenealogy: {
+      title: '批次谱系',
+      noLot: '无批次',
+      upstream: '上游来源',
+      downstream: '下游去向',
+      recallList: '客户召回清单',
+      empty: '暂无谱系数据',
+      field: { product: '产品', lotNo: '批次号', direction: '追溯方向', maxDepth: '最大深度' },
+      placeholder: { product: '请选择产品', lotNo: '请输入批次号', direction: '请选择方向' },
+      direction: { upstream: '仅上游', downstream: '仅下游', both: '上下游' },
+      action: {
+        search: '查询', reset: '重置', exportRecall: '导出召回清单', openDocument: '打开单据'
+      },
+      bizType: {
+        purchaseReceipt: '采购收货', purchaseReturn: '采购退货', salesDelivery: '销售发货',
+        salesReturn: '销售退货', productionIssue: '生产领料', productionCompletion: '生产完工',
+        productionCompletionReversal: '完工红冲', productionReturn: '生产退料',
+        inventoryAdjustment: '库存调整', inventoryTransfer: '库存调拨', inventoryCheck: '库存盘点',
+        openingBalance: '期初库存'
+      },
+      reason: {
+        purchased: '采购入库来源', sold: '已发往客户', returnedByCustomer: '客户退回',
+        returnedToSupplier: '已退供应商', movedInternally: '内部移动', adjusted: '库存调整',
+        openingBalance: '期初库存', reversed: '已红冲或退料', inProduction: '仍在生产中',
+        noMaterialIssued: '未找到生产领料', materialNotLotControlled: '材料未启用批次管理',
+        outputNotLotControlled: '产出未启用批次管理', alreadyVisited: '已访问节点',
+        maxDepth: '达到最大深度', nodeLimitPerLevel: '单层节点达到上限',
+        nodeLimitTotal: '总节点达到上限', unknownSource: '未知来源', unknownDestination: '未知去向'
+      },
+      banner: {
+        truncated: '谱系结果已截断：{reasons}',
+        scopeLimited: '当前账号的数据范围有限，显示的是可见仓库内的部分谱系。'
+      },
+      recall: {
+        product: '产品', lotNo: '批次号', bizType: '业务类型', bizNo: '业务单号',
+        orderNo: '销售订单', counterpartyCode: '客户编码', counterpartyName: '客户名称',
+        qty: '数量', occurredTime: '发生时间', filename: '批次召回清单.csv'
+      },
+      feedback: {
+        productAndLotRequired: '请选择产品并输入批次号', loadFailed: '加载批次谱系失败',
+        exportEmpty: '当前没有可导出的客户召回记录', productsLoadFailed: '加载产品列表失败'
+      }
     },
     salesReturnOps: {
       returnNo: '退货单号',
@@ -810,7 +853,8 @@ export const operationsPageMessages = {
         expiryAlerts: 'Expiry alerts', reservationCheck: 'Reservation check', export: 'Export',
         refresh: 'Refresh', view: 'Details', reservationDetails: 'Reservations', lots: 'Lots',
         transaction: 'Transactions', source: 'Source', release: 'Release',
-        manualRelease: 'Manual release', cancel: 'Cancel', confirmRelease: 'Confirm release', trace: 'Trace'
+        manualRelease: 'Manual release', cancel: 'Cancel', confirmRelease: 'Confirm release', trace: 'Trace',
+        viewGenealogy: 'View genealogy'
       },
       reservationStatus: { active: 'Active', released: 'Released', cancelled: 'Cancelled' },
       reservationEvent: { reserve: 'Reserve', release: 'Release', manualRelease: 'Manual release' },
@@ -842,6 +886,49 @@ export const operationsPageMessages = {
         reservationCheckFailed: 'Reservation check failed', optionsLoadFailed: 'Failed to load filter options'
       },
       file: { stockBalances: 'inventory_balances_{timestamp}.csv' }
+    },
+    inventoryLotGenealogy: {
+      title: 'Lot genealogy',
+      noLot: 'No lot',
+      upstream: 'Upstream sources',
+      downstream: 'Downstream destinations',
+      recallList: 'Customer recall list',
+      empty: 'No genealogy data',
+      field: { product: 'Product', lotNo: 'Lot no.', direction: 'Trace direction', maxDepth: 'Maximum depth' },
+      placeholder: { product: 'Select a product', lotNo: 'Enter a lot no.', direction: 'Select a direction' },
+      direction: { upstream: 'Upstream only', downstream: 'Downstream only', both: 'Both directions' },
+      action: {
+        search: 'Search', reset: 'Reset', exportRecall: 'Export recall list', openDocument: 'Open document'
+      },
+      bizType: {
+        purchaseReceipt: 'Purchase receipt', purchaseReturn: 'Purchase return', salesDelivery: 'Sales delivery',
+        salesReturn: 'Sales return', productionIssue: 'Production issue', productionCompletion: 'Production completion',
+        productionCompletionReversal: 'Completion reversal', productionReturn: 'Production return',
+        inventoryAdjustment: 'Inventory adjustment', inventoryTransfer: 'Inventory transfer', inventoryCheck: 'Stock check',
+        openingBalance: 'Opening inventory'
+      },
+      reason: {
+        purchased: 'Purchased source', sold: 'Delivered to customer', returnedByCustomer: 'Returned by customer',
+        returnedToSupplier: 'Returned to supplier', movedInternally: 'Moved internally', adjusted: 'Inventory adjusted',
+        openingBalance: 'Opening inventory', reversed: 'Reversed or returned', inProduction: 'Still in production',
+        noMaterialIssued: 'No material issue found', materialNotLotControlled: 'Material is not lot-controlled',
+        outputNotLotControlled: 'Output is not lot-controlled', alreadyVisited: 'Already visited',
+        maxDepth: 'Maximum depth reached', nodeLimitPerLevel: 'Per-level node limit reached',
+        nodeLimitTotal: 'Total node limit reached', unknownSource: 'Unknown source', unknownDestination: 'Unknown destination'
+      },
+      banner: {
+        truncated: 'The genealogy result was truncated: {reasons}',
+        scopeLimited: 'Your data scope is limited. This is a partial genealogy for visible warehouses.'
+      },
+      recall: {
+        product: 'Product', lotNo: 'Lot no.', bizType: 'Business type', bizNo: 'Business no.',
+        orderNo: 'Sales order', counterpartyCode: 'Customer code', counterpartyName: 'Customer name',
+        qty: 'Quantity', occurredTime: 'Occurred', filename: 'lot_recall_list.csv'
+      },
+      feedback: {
+        productAndLotRequired: 'Select a product and enter a lot no.', loadFailed: 'Failed to load lot genealogy',
+        exportEmpty: 'There are no customer recall records to export', productsLoadFailed: 'Failed to load products'
+      }
     },
     salesReturnOps: {
       returnNo: 'Return no.',

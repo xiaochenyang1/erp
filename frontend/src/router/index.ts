@@ -312,6 +312,16 @@ const routes: RouteRecordRaw[] = [
               icon: 'ShoppingCart',
               permission: 'inventory:replenishment:view'
             }
+          },
+          {
+            path: 'lot-genealogy',
+            name: 'InventoryLotGenealogy',
+            component: () => import('@/views/inventory/lot-genealogy/index.vue'),
+            meta: {
+              title: '批次谱系',
+              icon: 'Share',
+              permission: 'inventory:lot:genealogy'
+            }
           }
         ]
       },
