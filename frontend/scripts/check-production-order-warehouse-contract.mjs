@@ -340,9 +340,11 @@ const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInv
 const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInventoryStockActions.ts'), 'utf8')
 const inventoryStockBalanceList = readFileSync(resolve(root, 'src/composables/useInventoryStockBalanceList.ts'), 'utf8')
 const inventoryStockResources = readFileSync(resolve(root, 'src/composables/useInventoryStockResources.ts'), 'utf8')
+const inventoryStockTransactionList = readFileSync(resolve(root, 'src/composables/useInventoryStockTransactionList.ts'), 'utf8')
 const inventoryStockFeature = [
   inventoryStockView,
   inventoryStockBalanceList,
+  inventoryStockTransactionList,
   inventoryStockDetails,
   inventoryStockActions,
   inventoryStockResources

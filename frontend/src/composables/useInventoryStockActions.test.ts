@@ -20,8 +20,7 @@ describe('inventory stock actions', () => {
       loadLotBalances: vi.fn(async () => undefined),
       loadLotTrace: vi.fn(async () => undefined),
       loadReservations: vi.fn(async () => undefined),
-      loadReservationSummary: vi.fn(async () => undefined),
-      loadTransactions: vi.fn(async () => undefined)
+      loadReservationSummary: vi.fn(async () => undefined)
     }
     const checkReservations = vi.fn(async () => ([{ id: 'issue-1' }] as unknown as InventoryReservationCheckIssue[]))
     const manualRelease = vi.fn(async () => ({ id: 'detail-1' } as unknown as InventoryReservationDetail))

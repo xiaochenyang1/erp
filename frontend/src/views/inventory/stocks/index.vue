@@ -499,8 +499,8 @@
         :total="transactionTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleTransactionQuery"
-        @current-change="loadTransactions"
+        @size-change="handleTransactionSizeChange"
+        @current-change="handleTransactionPageChange"
       />
     </el-dialog>
 
@@ -663,7 +663,7 @@
     </el-dialog>
 
     <el-dialog v-model="transactionDetailVisible" :title="$t('inventoryStocks.transactionDetail')" width="760px">
-      <el-skeleton v-if="detailLoading" :rows="6" animated />
+      <el-skeleton v-if="transactionDetailLoading" :rows="6" animated />
       <el-descriptions v-else-if="selectedTransaction" :column="2" border>
         <el-descriptions-item :label="$t('inventoryStocks.warehouse')">{{ warehouseName(selectedTransaction.warehouseId) }}</el-descriptions-item>
         <el-descriptions-item :label="$t('inventoryStocks.product')">{{ productName(selectedTransaction.productId) }}</el-descriptions-item>
@@ -729,6 +729,7 @@ import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails
 import { useInventoryStockQueries } from '@/composables/useInventoryStockQueries'
 import { useInventoryStockPresentation } from '@/composables/useInventoryStockPresentation'
 import { useInventoryStockResources } from '@/composables/useInventoryStockResources'
+import { useInventoryStockTransactionList } from '@/composables/useInventoryStockTransactionList'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -740,8 +741,7 @@ const {
   lotBalanceQuery,
   lotTraceQuery,
   queryParams,
-  reservationQuery,
-  transactionQuery
+  reservationQuery
 } = useInventoryStockQueries({
   warehouseId: route.query.warehouseId ? String(route.query.warehouseId) : undefined,
   productId: route.query.productId ? String(route.query.productId) : undefined,
@@ -779,7 +779,6 @@ const {
   handleViewReservation,
   handleViewReservationSource,
   handleViewStock,
-  handleViewTransaction,
   lotBalanceDetailVisible,
   reservationDetail,
   reservationDetailVisible,
@@ -788,10 +787,31 @@ const {
   reservationSourceVisible,
   selectedLotBalance,
   selectedStock,
-  selectedTransaction,
-  stockDetailVisible,
-  transactionDetailVisible
+  stockDetailVisible
 } = useInventoryStockDetails((messageKey) => ElMessage.error(t(messageKey)))
+
+const {
+  handleOpenTransactions,
+  handleTransactionPageChange,
+  handleTransactionQuery,
+  handleTransactionSizeChange,
+  handleViewTransaction,
+  resetTransactionQuery,
+  selectedTransaction,
+  transactionData,
+  transactionDetailLoading,
+  transactionDetailVisible,
+  transactionDialogVisible,
+  transactionLoading,
+  transactionQuery,
+  transactionTotal
+} = useInventoryStockTransactionList(queryParams, {
+  onDetailError: (messageKey) => ElMessage.error(t(messageKey)),
+  onListError: (messageKey, error) => {
+    console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  }
+})
 
 const {
   loadLotAlerts,
@@ -799,7 +819,6 @@ const {
   loadLotTrace,
   loadReservations,
   loadReservationSummary,
-  loadTransactions,
   lotAlertData,
   lotAlertLoading,
   lotAlertTotal,
@@ -813,14 +832,10 @@ const {
   reservationLoading,
   reservationSummaryData,
   reservationSummaryLoading,
-  reservationTotal,
-  transactionData,
-  transactionLoading,
-  transactionTotal
+  reservationTotal
 } = useInventoryStockResources({
   reservations: reservationQuery,
   lotBalances: lotBalanceQuery,
-  transactions: transactionQuery,
   lotAlerts: lotAlertQuery,
   lotTrace: lotTraceQuery
 }, (messageKey, error) => {
@@ -838,10 +853,8 @@ const {
   handleOpenLotBalances,
   handleOpenLotTrace,
   handleOpenReservations,
-  handleOpenTransactions,
   handleReservationCheck,
   handleReservationQuery,
-  handleTransactionQuery,
   lotAlertDialogVisible,
   lotBalanceDialogVisible,
   lotTraceDialogVisible,
@@ -855,15 +868,12 @@ const {
   resetLotAlertQuery,
   resetLotBalanceQuery,
   resetReservationQuery,
-  resetTransactionQuery,
   selectedReservation,
-  submitManualRelease,
-  transactionDialogVisible
+  submitManualRelease
 } = useInventoryStockActions({
   queryParams,
   reservationQuery,
   lotBalanceQuery,
-  transactionQuery,
   lotAlertQuery,
   lotTraceQuery
 }, {
@@ -872,8 +882,7 @@ const {
   loadLotBalances,
   loadLotTrace,
   loadReservations,
-  loadReservationSummary,
-  loadTransactions
+  loadReservationSummary
 }, {
   applyStockScope,
   reservationDetail,

@@ -16,7 +16,6 @@ describe('inventory stock query state', () => {
     expect(queries.reservationQuery).toMatchObject({ pageNo: 1, pageSize: 10, status: 'ACTIVE' })
     expect(queries.lotAlertQuery).toMatchObject({ pageNo: 1, pageSize: 10, warningDays: 30 })
     expect(queries.lotBalanceQuery.pageSize).toBe(10)
-    expect(queries.transactionQuery.pageSize).toBe(10)
     expect(queries.lotTraceQuery.pageSize).toBe(10)
   })
 
@@ -37,9 +36,9 @@ describe('inventory stock query state', () => {
     const queries = useInventoryStockQueries({ warehouseId: 'W-1', productId: 'P-1' })
     const row = { warehouseId: 'W-2', productId: 'P-2' } as InventoryStock
 
-    queries.applyStockScope(queries.transactionQuery, row)
+    queries.applyStockScope(queries.lotAlertQuery, row)
 
-    expect(queries.transactionQuery).toMatchObject({
+    expect(queries.lotAlertQuery).toMatchObject({
       warehouseId: 'W-2',
       productId: 'P-2',
       pageNo: 1

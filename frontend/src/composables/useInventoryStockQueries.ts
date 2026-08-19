@@ -6,8 +6,7 @@ import type {
   InventoryLotTraceQuery,
   InventoryReservationQuery,
   InventoryStock,
-  InventoryStockQuery,
-  InventoryTransactionQuery
+  InventoryStockQuery
 } from '@/api/inventory'
 
 export interface InventoryStockScope {
@@ -50,15 +49,6 @@ export const useInventoryStockQueries = (initialScope: InventoryStockScope = {})
     expiringWithinDays: undefined
   })
 
-  const transactionQuery = reactive<InventoryTransactionQuery>({
-    pageNo: 1,
-    pageSize: 10,
-    warehouseId: undefined,
-    productId: undefined,
-    bizNo: undefined,
-    direction: undefined
-  })
-
   const lotAlertQuery = reactive<InventoryLotExpiryAlertQuery>({
     pageNo: 1,
     pageSize: 10,
@@ -93,7 +83,6 @@ export const useInventoryStockQueries = (initialScope: InventoryStockScope = {})
     lotBalanceQuery,
     lotTraceQuery,
     queryParams,
-    reservationQuery,
-    transactionQuery
+    reservationQuery
   }
 }

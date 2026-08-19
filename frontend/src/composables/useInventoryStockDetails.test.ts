@@ -5,8 +5,7 @@ import type {
   InventoryReservation,
   InventoryReservationDetail,
   InventoryReservationSource,
-  InventoryStock,
-  InventoryTransaction
+  InventoryStock
 } from '@/api/inventory'
 import {
   useInventoryStockDetails,
@@ -15,7 +14,6 @@ import {
 
 const stock = { id: 'stock-1', warehouseId: 'w-1', productId: 'p-1' } as InventoryStock
 const lot = { id: 'lot-1' } as InventoryLotBalance
-const transaction = { id: 'tx-1' } as InventoryTransaction
 const reservation = {
   id: 'reservation-1',
   sourceType: 'SALES_ORDER',
@@ -26,7 +24,6 @@ const reservation = {
 const createDependencies = (): InventoryStockDetailDependencies => ({
   getStock: vi.fn(async () => stock),
   getLotBalance: vi.fn(async () => lot),
-  getTransaction: vi.fn(async () => transaction),
   getReservation: vi.fn(async () => ({ reservation, events: [] } as InventoryReservationDetail)),
   getReservationSource: vi.fn(async () => ({ sourceNo: reservation.sourceNo } as InventoryReservationSource))
 })
@@ -38,18 +35,15 @@ describe('inventory stock detail loading', () => {
 
     await details.handleViewStock(stock)
     await details.handleViewLotBalance(lot)
-    await details.handleViewTransaction(transaction)
     await details.handleViewReservation(reservation)
     await details.handleViewReservationSource(reservation)
 
     expect(details.selectedStock.value?.id).toBe(stock.id)
     expect(details.selectedLotBalance.value?.id).toBe(lot.id)
-    expect(details.selectedTransaction.value?.id).toBe(transaction.id)
     expect(details.reservationDetail.value?.reservation.id).toBe(reservation.id)
     expect(details.reservationSourceDetail.value?.sourceNo).toBe('SO-1')
     expect(details.stockDetailVisible.value).toBe(true)
     expect(details.lotBalanceDetailVisible.value).toBe(true)
-    expect(details.transactionDetailVisible.value).toBe(true)
     expect(details.reservationDetailVisible.value).toBe(true)
     expect(details.reservationSourceVisible.value).toBe(true)
     expect(dependencies.getReservationSource).toHaveBeenCalledWith({
@@ -60,7 +54,6 @@ describe('inventory stock detail loading', () => {
   it.each([
     ['handleViewStock', 'getStock', stock, 'stockDetailVisible', 'inventoryStocks.message.stockDetailLoadFailed'],
     ['handleViewLotBalance', 'getLotBalance', lot, 'lotBalanceDetailVisible', 'inventoryStocks.message.lotStockDetailLoadFailed'],
-    ['handleViewTransaction', 'getTransaction', transaction, 'transactionDetailVisible', 'inventoryStocks.message.transactionDetailLoadFailed'],
     ['handleViewReservation', 'getReservation', reservation, 'reservationDetailVisible', 'inventoryStocks.message.reservationDetailLoadFailed'],
     ['handleViewReservationSource', 'getReservationSource', reservation, 'reservationSourceVisible', 'inventoryStocks.message.sourceReservationLoadFailed']
   ] as const)('closes the dialog and reports the proper key when %s fails', async (

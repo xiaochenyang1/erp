@@ -6,7 +6,6 @@ import {
   getInventoryLotTrace,
   getInventoryReservationSummary,
   getInventoryReservations,
-  getInventoryTransactions,
   type InventoryLotBalance,
   type InventoryLotBalanceQuery,
   type InventoryLotExpiryAlert,
@@ -15,15 +14,12 @@ import {
   type InventoryLotTraceQuery,
   type InventoryReservation,
   type InventoryReservationQuery,
-  type InventoryReservationSummary,
-  type InventoryTransaction,
-  type InventoryTransactionQuery
+  type InventoryReservationSummary
 } from '@/api/inventory'
 
 export interface InventoryStockResourceQueries {
   reservations: InventoryReservationQuery
   lotBalances: InventoryLotBalanceQuery
-  transactions: InventoryTransactionQuery
   lotAlerts: InventoryLotExpiryAlertQuery
   lotTrace: InventoryLotTraceQuery
 }
@@ -32,7 +28,6 @@ export interface InventoryStockResourceDependencies {
   getReservations: typeof getInventoryReservations
   getReservationSummary: typeof getInventoryReservationSummary
   getLotBalances: typeof getInventoryLotBalances
-  getTransactions: typeof getInventoryTransactions
   getLotAlerts: typeof getInventoryLotExpiryAlerts
   getLotTrace: typeof getInventoryLotTrace
 }
@@ -41,7 +36,6 @@ const defaultDependencies: InventoryStockResourceDependencies = {
   getReservations: getInventoryReservations,
   getReservationSummary: getInventoryReservationSummary,
   getLotBalances: getInventoryLotBalances,
-  getTransactions: getInventoryTransactions,
   getLotAlerts: getInventoryLotExpiryAlerts,
   getLotTrace: getInventoryLotTrace
 }
@@ -54,7 +48,6 @@ export const useInventoryStockResources = (
   const reservationLoading = ref(false)
   const reservationSummaryLoading = ref(false)
   const lotBalanceLoading = ref(false)
-  const transactionLoading = ref(false)
   const lotAlertLoading = ref(false)
   const lotTraceLoading = ref(false)
   const reservationData = ref<InventoryReservation[]>([])
@@ -62,8 +55,6 @@ export const useInventoryStockResources = (
   const reservationTotal = ref(0)
   const lotBalanceData = ref<InventoryLotBalance[]>([])
   const lotBalanceTotal = ref(0)
-  const transactionData = ref<InventoryTransaction[]>([])
-  const transactionTotal = ref(0)
   const lotAlertData = ref<InventoryLotExpiryAlert[]>([])
   const lotAlertTotal = ref(0)
   const lotTraceData = ref<InventoryLotTrace[]>([])
@@ -110,19 +101,6 @@ export const useInventoryStockResources = (
     }
   }
 
-  const loadTransactions = async () => {
-    transactionLoading.value = true
-    try {
-      const page = await dependencies.getTransactions(queries.transactions)
-      transactionData.value = page.records
-      transactionTotal.value = page.total
-    } catch (error) {
-      onError('inventoryStocks.message.transactionsLoadFailed', error)
-    } finally {
-      transactionLoading.value = false
-    }
-  }
-
   const loadLotAlerts = async () => {
     lotAlertLoading.value = true
     try {
@@ -155,7 +133,6 @@ export const useInventoryStockResources = (
     loadLotTrace,
     loadReservations,
     loadReservationSummary,
-    loadTransactions,
     lotAlertData,
     lotAlertLoading,
     lotAlertTotal,
@@ -169,9 +146,6 @@ export const useInventoryStockResources = (
     reservationLoading,
     reservationSummaryData,
     reservationSummaryLoading,
-    reservationTotal,
-    transactionData,
-    transactionLoading,
-    transactionTotal
+    reservationTotal
   }
 }

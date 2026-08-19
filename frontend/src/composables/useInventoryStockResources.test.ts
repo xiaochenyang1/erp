@@ -5,8 +5,7 @@ import type {
   InventoryLotExpiryAlert,
   InventoryLotTrace,
   InventoryReservation,
-  InventoryReservationSummary,
-  InventoryTransaction
+  InventoryReservationSummary
 } from '@/api/inventory'
 import { useInventoryStockQueries } from './useInventoryStockQueries'
 import {
@@ -18,7 +17,6 @@ const page = <T>(record: T) => ({ records: [record], total: 1, pageNo: 1, pageSi
 const reservation = { id: 'reservation-1' } as InventoryReservation
 const summary = { productId: 'product-1' } as InventoryReservationSummary
 const lot = { id: 'lot-1' } as InventoryLotBalance
-const transaction = { id: 'transaction-1' } as InventoryTransaction
 const alert = { id: 'alert-1' } as InventoryLotExpiryAlert
 const trace = { id: 'trace-1' } as InventoryLotTrace
 
@@ -26,7 +24,6 @@ const createDependencies = () => ({
   getReservations: vi.fn(async () => page(reservation)),
   getReservationSummary: vi.fn(async () => [summary]),
   getLotBalances: vi.fn(async () => page(lot)),
-  getTransactions: vi.fn(async () => page(transaction)),
   getLotAlerts: vi.fn(async () => page(alert)),
   getLotTrace: vi.fn(async () => page(trace))
 }) as unknown as InventoryStockResourceDependencies
@@ -42,7 +39,6 @@ const createResources = (onError = vi.fn(), dependencies = createDependencies())
     resources: useInventoryStockResources({
       reservations: queries.reservationQuery,
       lotBalances: queries.lotBalanceQuery,
-      transactions: queries.transactionQuery,
       lotAlerts: queries.lotAlertQuery,
       lotTrace: queries.lotTraceQuery
     }, onError, dependencies)
@@ -50,14 +46,13 @@ const createResources = (onError = vi.fn(), dependencies = createDependencies())
 }
 
 describe('inventory stock resources', () => {
-  it('loads all six dialog resources and stores their records and totals', async () => {
+  it('loads the remaining five dialog resources and stores their records and totals', async () => {
     const { dependencies, resources } = createResources()
 
     await Promise.all([
       resources.loadReservations(),
       resources.loadReservationSummary(),
       resources.loadLotBalances(),
-      resources.loadTransactions(),
       resources.loadLotAlerts(),
       resources.loadLotTrace()
     ])
@@ -65,12 +60,10 @@ describe('inventory stock resources', () => {
     expect(resources.reservationData.value[0]?.id).toBe('reservation-1')
     expect(resources.reservationSummaryData.value[0]?.productId).toBe('product-1')
     expect(resources.lotBalanceData.value[0]?.id).toBe('lot-1')
-    expect(resources.transactionData.value[0]?.id).toBe('transaction-1')
     expect(resources.lotAlertData.value[0]?.id).toBe('alert-1')
     expect(resources.lotTraceData.value[0]?.id).toBe('trace-1')
     expect(resources.reservationTotal.value).toBe(1)
     expect(resources.lotBalanceTotal.value).toBe(1)
-    expect(resources.transactionTotal.value).toBe(1)
     expect(resources.lotAlertTotal.value).toBe(1)
     expect(resources.lotTraceTotal.value).toBe(1)
     expect(dependencies.getReservationSummary).toHaveBeenCalledWith({
@@ -82,7 +75,6 @@ describe('inventory stock resources', () => {
     ['loadReservations', 'getReservations', 'reservationLoading', 'inventoryStocks.message.reservationsLoadFailed'],
     ['loadReservationSummary', 'getReservationSummary', 'reservationSummaryLoading', 'inventoryStocks.message.reservationSummaryLoadFailed'],
     ['loadLotBalances', 'getLotBalances', 'lotBalanceLoading', 'inventoryStocks.message.lotStockLoadFailed'],
-    ['loadTransactions', 'getTransactions', 'transactionLoading', 'inventoryStocks.message.transactionsLoadFailed'],
     ['loadLotAlerts', 'getLotAlerts', 'lotAlertLoading', 'inventoryStocks.message.expiryAlertsLoadFailed'],
     ['loadLotTrace', 'getLotTrace', 'lotTraceLoading', 'inventoryStocks.message.lotTraceLoadFailed']
   ] as const)('reports and resets loading when %s fails', async (

@@ -5,19 +5,16 @@ import {
   getInventoryReservation,
   getInventoryReservationSource,
   getInventoryStock,
-  getInventoryTransaction,
   type InventoryLotBalance,
   type InventoryReservation,
   type InventoryReservationDetail,
   type InventoryReservationSource,
-  type InventoryStock,
-  type InventoryTransaction
+  type InventoryStock
 } from '@/api/inventory'
 
 export interface InventoryStockDetailDependencies {
   getStock: typeof getInventoryStock
   getLotBalance: typeof getInventoryLotBalance
-  getTransaction: typeof getInventoryTransaction
   getReservation: typeof getInventoryReservation
   getReservationSource: typeof getInventoryReservationSource
 }
@@ -25,7 +22,6 @@ export interface InventoryStockDetailDependencies {
 const defaultDependencies: InventoryStockDetailDependencies = {
   getStock: getInventoryStock,
   getLotBalance: getInventoryLotBalance,
-  getTransaction: getInventoryTransaction,
   getReservation: getInventoryReservation,
   getReservationSource: getInventoryReservationSource
 }
@@ -38,12 +34,10 @@ export const useInventoryStockDetails = (
   const reservationSourceLoading = ref(false)
   const stockDetailVisible = ref(false)
   const lotBalanceDetailVisible = ref(false)
-  const transactionDetailVisible = ref(false)
   const reservationDetailVisible = ref(false)
   const reservationSourceVisible = ref(false)
   const selectedStock = ref<InventoryStock>()
   const selectedLotBalance = ref<InventoryLotBalance>()
-  const selectedTransaction = ref<InventoryTransaction>()
   const reservationDetail = ref<InventoryReservationDetail>()
   const reservationSourceDetail = ref<InventoryReservationSource>()
 
@@ -70,20 +64,6 @@ export const useInventoryStockDetails = (
     } catch {
       onError('inventoryStocks.message.lotStockDetailLoadFailed')
       lotBalanceDetailVisible.value = false
-    } finally {
-      detailLoading.value = false
-    }
-  }
-
-  const handleViewTransaction = async (row: InventoryTransaction) => {
-    transactionDetailVisible.value = true
-    selectedTransaction.value = undefined
-    detailLoading.value = true
-    try {
-      selectedTransaction.value = await dependencies.getTransaction(row.id)
-    } catch {
-      onError('inventoryStocks.message.transactionDetailLoadFailed')
-      transactionDetailVisible.value = false
     } finally {
       detailLoading.value = false
     }
@@ -124,7 +104,6 @@ export const useInventoryStockDetails = (
     handleViewReservation,
     handleViewReservationSource,
     handleViewStock,
-    handleViewTransaction,
     lotBalanceDetailVisible,
     reservationDetail,
     reservationDetailVisible,
@@ -133,8 +112,6 @@ export const useInventoryStockDetails = (
     reservationSourceVisible,
     selectedLotBalance,
     selectedStock,
-    selectedTransaction,
-    stockDetailVisible,
-    transactionDetailVisible
+    stockDetailVisible
   }
 }

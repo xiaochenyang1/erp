@@ -13,15 +13,13 @@ import {
   type InventoryReservationDetail,
   type InventoryReservationQuery,
   type InventoryStock,
-  type InventoryStockQuery,
-  type InventoryTransactionQuery
+  type InventoryStockQuery
 } from '@/api/inventory'
 
 export interface InventoryStockActionQueries {
   queryParams: InventoryStockQuery
   reservationQuery: InventoryReservationQuery
   lotBalanceQuery: InventoryLotBalanceQuery
-  transactionQuery: InventoryTransactionQuery
   lotAlertQuery: InventoryLotExpiryAlertQuery
   lotTraceQuery: InventoryLotTraceQuery
 }
@@ -33,7 +31,6 @@ export interface InventoryStockActionLoaders {
   loadLotTrace: () => Promise<void> | void
   loadReservations: () => Promise<void> | void
   loadReservationSummary: () => Promise<void> | void
-  loadTransactions: () => Promise<void> | void
 }
 
 export interface InventoryStockActionDependencies {
@@ -72,7 +69,6 @@ export const useInventoryStockActions = (
   const releaseDialogVisible = ref(false)
   const checkDialogVisible = ref(false)
   const lotBalanceDialogVisible = ref(false)
-  const transactionDialogVisible = ref(false)
   const lotAlertDialogVisible = ref(false)
   const lotTraceDialogVisible = ref(false)
   const checkLoading = ref(false)
@@ -123,25 +119,6 @@ export const useInventoryStockActions = (
     queries.lotBalanceQuery.lotNo = undefined
     queries.lotBalanceQuery.expiringWithinDays = undefined
     handleLotBalanceQuery()
-  }
-
-  const handleOpenTransactions = (row?: InventoryStock) => {
-    dependencies.applyStockScope(queries.transactionQuery, row)
-    queries.transactionQuery.bizNo = undefined
-    queries.transactionQuery.direction = undefined
-    transactionDialogVisible.value = true
-    void loaders.loadTransactions()
-  }
-
-  const handleTransactionQuery = () => {
-    queries.transactionQuery.pageNo = 1
-    void loaders.loadTransactions()
-  }
-
-  const resetTransactionQuery = () => {
-    queries.transactionQuery.bizNo = undefined
-    queries.transactionQuery.direction = undefined
-    handleTransactionQuery()
   }
 
   const handleOpenLotAlerts = (row?: InventoryStock) => {
@@ -259,10 +236,8 @@ export const useInventoryStockActions = (
     handleOpenLotBalances,
     handleOpenLotTrace,
     handleOpenReservations,
-    handleOpenTransactions,
     handleReservationCheck,
     handleReservationQuery,
-    handleTransactionQuery,
     lotAlertDialogVisible,
     lotBalanceDialogVisible,
     lotTraceDialogVisible,
@@ -276,9 +251,7 @@ export const useInventoryStockActions = (
     resetLotAlertQuery,
     resetLotBalanceQuery,
     resetReservationQuery,
-    resetTransactionQuery,
     selectedReservation,
-    submitManualRelease,
-    transactionDialogVisible
+    submitManualRelease
   }
 }
