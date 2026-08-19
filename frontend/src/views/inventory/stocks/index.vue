@@ -562,8 +562,8 @@
         :total="lotAlertTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleLotAlertQuery"
-        @current-change="loadLotAlerts"
+        @size-change="handleLotAlertSizeChange"
+        @current-change="handleLotAlertPageChange"
       />
     </el-dialog>
 
@@ -726,6 +726,7 @@ import { Download, Refresh, Search, Warning } from '@element-plus/icons-vue'
 import { useInventoryStockActions } from '@/composables/useInventoryStockActions'
 import { useInventoryStockBalanceList } from '@/composables/useInventoryStockBalanceList'
 import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails'
+import { useInventoryStockExpiryAlertList } from '@/composables/useInventoryStockExpiryAlertList'
 import { useInventoryStockQueries } from '@/composables/useInventoryStockQueries'
 import { useInventoryStockPresentation } from '@/composables/useInventoryStockPresentation'
 import { useInventoryStockResources } from '@/composables/useInventoryStockResources'
@@ -737,7 +738,6 @@ const router = useRouter()
 
 const {
   applyStockScope,
-  lotAlertQuery,
   lotBalanceQuery,
   lotTraceQuery,
   queryParams,
@@ -814,14 +814,28 @@ const {
 })
 
 const {
-  loadLotAlerts,
+  handleLotAlertPageChange,
+  handleLotAlertQuery,
+  handleLotAlertSizeChange,
+  handleOpenLotAlerts,
+  lotAlertData,
+  lotAlertDialogVisible,
+  lotAlertLoading,
+  lotAlertQuery,
+  lotAlertTotal,
+  resetLotAlertQuery
+} = useInventoryStockExpiryAlertList(queryParams, {
+  onError: (messageKey, error) => {
+    console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  }
+})
+
+const {
   loadLotBalances,
   loadLotTrace,
   loadReservations,
   loadReservationSummary,
-  lotAlertData,
-  lotAlertLoading,
-  lotAlertTotal,
   lotBalanceData,
   lotBalanceLoading,
   lotBalanceTotal,
@@ -836,7 +850,6 @@ const {
 } = useInventoryStockResources({
   reservations: reservationQuery,
   lotBalances: lotBalanceQuery,
-  lotAlerts: lotAlertQuery,
   lotTrace: lotTraceQuery
 }, (messageKey, error) => {
   console.error(t(messageKey), error)
@@ -847,15 +860,12 @@ const {
   checkDialogVisible,
   checkIssues,
   checkLoading,
-  handleLotAlertQuery,
   handleLotBalanceQuery,
-  handleOpenLotAlerts,
   handleOpenLotBalances,
   handleOpenLotTrace,
   handleOpenReservations,
   handleReservationCheck,
   handleReservationQuery,
-  lotAlertDialogVisible,
   lotBalanceDialogVisible,
   lotTraceDialogVisible,
   openReleaseDialog,
@@ -865,7 +875,6 @@ const {
   releaseRules,
   releasing,
   reservationDialogVisible,
-  resetLotAlertQuery,
   resetLotBalanceQuery,
   resetReservationQuery,
   selectedReservation,
@@ -874,11 +883,9 @@ const {
   queryParams,
   reservationQuery,
   lotBalanceQuery,
-  lotAlertQuery,
   lotTraceQuery
 }, {
   loadData,
-  loadLotAlerts,
   loadLotBalances,
   loadLotTrace,
   loadReservations,

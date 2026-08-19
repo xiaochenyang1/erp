@@ -6,7 +6,6 @@ import {
   manualReleaseInventoryReservation,
   type InventoryLotBalance,
   type InventoryLotBalanceQuery,
-  type InventoryLotExpiryAlertQuery,
   type InventoryLotTraceQuery,
   type InventoryReservation,
   type InventoryReservationCheckIssue,
@@ -20,13 +19,11 @@ export interface InventoryStockActionQueries {
   queryParams: InventoryStockQuery
   reservationQuery: InventoryReservationQuery
   lotBalanceQuery: InventoryLotBalanceQuery
-  lotAlertQuery: InventoryLotExpiryAlertQuery
   lotTraceQuery: InventoryLotTraceQuery
 }
 
 export interface InventoryStockActionLoaders {
   loadData: () => Promise<void> | void
-  loadLotAlerts: () => Promise<void> | void
   loadLotBalances: () => Promise<void> | void
   loadLotTrace: () => Promise<void> | void
   loadReservations: () => Promise<void> | void
@@ -69,7 +66,6 @@ export const useInventoryStockActions = (
   const releaseDialogVisible = ref(false)
   const checkDialogVisible = ref(false)
   const lotBalanceDialogVisible = ref(false)
-  const lotAlertDialogVisible = ref(false)
   const lotTraceDialogVisible = ref(false)
   const checkLoading = ref(false)
   const releasing = ref(false)
@@ -119,25 +115,6 @@ export const useInventoryStockActions = (
     queries.lotBalanceQuery.lotNo = undefined
     queries.lotBalanceQuery.expiringWithinDays = undefined
     handleLotBalanceQuery()
-  }
-
-  const handleOpenLotAlerts = (row?: InventoryStock) => {
-    dependencies.applyStockScope(queries.lotAlertQuery, row)
-    queries.lotAlertQuery.lotNo = undefined
-    lotAlertDialogVisible.value = true
-    void loaders.loadLotAlerts()
-  }
-
-  const handleLotAlertQuery = () => {
-    queries.lotAlertQuery.pageNo = 1
-    void loaders.loadLotAlerts()
-  }
-
-  const resetLotAlertQuery = () => {
-    queries.lotAlertQuery.lotNo = undefined
-    queries.lotAlertQuery.warningDays = 30
-    queries.lotAlertQuery.status = undefined
-    handleLotAlertQuery()
   }
 
   const handleOpenLotTrace = (row: InventoryLotBalance) => {
@@ -230,15 +207,12 @@ export const useInventoryStockActions = (
     checkDialogVisible,
     checkIssues,
     checkLoading,
-    handleLotAlertQuery,
     handleLotBalanceQuery,
-    handleOpenLotAlerts,
     handleOpenLotBalances,
     handleOpenLotTrace,
     handleOpenReservations,
     handleReservationCheck,
     handleReservationQuery,
-    lotAlertDialogVisible,
     lotBalanceDialogVisible,
     lotTraceDialogVisible,
     openReleaseDialog,
@@ -248,7 +222,6 @@ export const useInventoryStockActions = (
     releaseRules,
     releasing,
     reservationDialogVisible,
-    resetLotAlertQuery,
     resetLotBalanceQuery,
     resetReservationQuery,
     selectedReservation,

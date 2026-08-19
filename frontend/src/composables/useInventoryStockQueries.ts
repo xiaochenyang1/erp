@@ -2,7 +2,6 @@ import { reactive } from 'vue'
 
 import type {
   InventoryLotBalanceQuery,
-  InventoryLotExpiryAlertQuery,
   InventoryLotTraceQuery,
   InventoryReservationQuery,
   InventoryStock,
@@ -49,16 +48,6 @@ export const useInventoryStockQueries = (initialScope: InventoryStockScope = {})
     expiringWithinDays: undefined
   })
 
-  const lotAlertQuery = reactive<InventoryLotExpiryAlertQuery>({
-    pageNo: 1,
-    pageSize: 10,
-    warehouseId: undefined,
-    productId: undefined,
-    lotNo: undefined,
-    warningDays: 30,
-    status: undefined
-  })
-
   const lotTraceQuery = reactive<InventoryLotTraceQuery>({
     pageNo: 1,
     pageSize: 10,
@@ -79,7 +68,6 @@ export const useInventoryStockQueries = (initialScope: InventoryStockScope = {})
 
   return {
     applyStockScope,
-    lotAlertQuery,
     lotBalanceQuery,
     lotTraceQuery,
     queryParams,

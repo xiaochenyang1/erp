@@ -2,14 +2,11 @@ import { ref } from 'vue'
 
 import {
   getInventoryLotBalances,
-  getInventoryLotExpiryAlerts,
   getInventoryLotTrace,
   getInventoryReservationSummary,
   getInventoryReservations,
   type InventoryLotBalance,
   type InventoryLotBalanceQuery,
-  type InventoryLotExpiryAlert,
-  type InventoryLotExpiryAlertQuery,
   type InventoryLotTrace,
   type InventoryLotTraceQuery,
   type InventoryReservation,
@@ -20,7 +17,6 @@ import {
 export interface InventoryStockResourceQueries {
   reservations: InventoryReservationQuery
   lotBalances: InventoryLotBalanceQuery
-  lotAlerts: InventoryLotExpiryAlertQuery
   lotTrace: InventoryLotTraceQuery
 }
 
@@ -28,7 +24,6 @@ export interface InventoryStockResourceDependencies {
   getReservations: typeof getInventoryReservations
   getReservationSummary: typeof getInventoryReservationSummary
   getLotBalances: typeof getInventoryLotBalances
-  getLotAlerts: typeof getInventoryLotExpiryAlerts
   getLotTrace: typeof getInventoryLotTrace
 }
 
@@ -36,7 +31,6 @@ const defaultDependencies: InventoryStockResourceDependencies = {
   getReservations: getInventoryReservations,
   getReservationSummary: getInventoryReservationSummary,
   getLotBalances: getInventoryLotBalances,
-  getLotAlerts: getInventoryLotExpiryAlerts,
   getLotTrace: getInventoryLotTrace
 }
 
@@ -48,15 +42,12 @@ export const useInventoryStockResources = (
   const reservationLoading = ref(false)
   const reservationSummaryLoading = ref(false)
   const lotBalanceLoading = ref(false)
-  const lotAlertLoading = ref(false)
   const lotTraceLoading = ref(false)
   const reservationData = ref<InventoryReservation[]>([])
   const reservationSummaryData = ref<InventoryReservationSummary[]>([])
   const reservationTotal = ref(0)
   const lotBalanceData = ref<InventoryLotBalance[]>([])
   const lotBalanceTotal = ref(0)
-  const lotAlertData = ref<InventoryLotExpiryAlert[]>([])
-  const lotAlertTotal = ref(0)
   const lotTraceData = ref<InventoryLotTrace[]>([])
   const lotTraceTotal = ref(0)
 
@@ -101,19 +92,6 @@ export const useInventoryStockResources = (
     }
   }
 
-  const loadLotAlerts = async () => {
-    lotAlertLoading.value = true
-    try {
-      const page = await dependencies.getLotAlerts(queries.lotAlerts)
-      lotAlertData.value = page.records
-      lotAlertTotal.value = page.total
-    } catch (error) {
-      onError('inventoryStocks.message.expiryAlertsLoadFailed', error)
-    } finally {
-      lotAlertLoading.value = false
-    }
-  }
-
   const loadLotTrace = async () => {
     lotTraceLoading.value = true
     try {
@@ -128,14 +106,10 @@ export const useInventoryStockResources = (
   }
 
   return {
-    loadLotAlerts,
     loadLotBalances,
     loadLotTrace,
     loadReservations,
     loadReservationSummary,
-    lotAlertData,
-    lotAlertLoading,
-    lotAlertTotal,
     lotBalanceData,
     lotBalanceLoading,
     lotBalanceTotal,

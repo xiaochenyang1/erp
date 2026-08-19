@@ -339,11 +339,13 @@ const inventoryStockView = readFileSync(resolve(root, 'src/views/inventory/stock
 const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInventoryStockDetails.ts'), 'utf8')
 const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInventoryStockActions.ts'), 'utf8')
 const inventoryStockBalanceList = readFileSync(resolve(root, 'src/composables/useInventoryStockBalanceList.ts'), 'utf8')
+const inventoryStockExpiryAlertList = readFileSync(resolve(root, 'src/composables/useInventoryStockExpiryAlertList.ts'), 'utf8')
 const inventoryStockResources = readFileSync(resolve(root, 'src/composables/useInventoryStockResources.ts'), 'utf8')
 const inventoryStockTransactionList = readFileSync(resolve(root, 'src/composables/useInventoryStockTransactionList.ts'), 'utf8')
 const inventoryStockFeature = [
   inventoryStockView,
   inventoryStockBalanceList,
+  inventoryStockExpiryAlertList,
   inventoryStockTransactionList,
   inventoryStockDetails,
   inventoryStockActions,
@@ -3329,6 +3331,27 @@ for (const fragment of [
 ]) {
   if (!inventoryStockFeature.includes(fragment)) {
     errors.push(`库存查询页缺少批次库存/流水真实入口片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'getInventoryLotExpiryAlerts',
+  'handleOpenLotAlerts',
+  'handleLotAlertPageChange',
+  'handleLotAlertSizeChange',
+  'lotAlertQuery.warningDays = 30',
+  "callbacks.onError('inventoryStocks.message.expiryAlertsLoadFailed', error)"
+]) {
+  if (!inventoryStockExpiryAlertList.includes(fragment)) {
+    errors.push(`库存效期预警切片缺少真实查询或分页片段: ${fragment}`)
+  }
+}
+for (const fragment of [
+  '@size-change="handleLotAlertSizeChange"',
+  '@current-change="handleLotAlertPageChange"'
+]) {
+  if (!inventoryStockView.includes(fragment)) {
+    errors.push(`库存效期预警页缺少独立分页绑定: ${fragment}`)
   }
 }
 

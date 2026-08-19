@@ -16,7 +16,6 @@ describe('inventory stock actions', () => {
     const queries = useInventoryStockQueries({ warehouseId: 'W-1', productId: 'P-1', locationId: 'L-1' })
     const loaders = {
       loadData: vi.fn(async () => undefined),
-      loadLotAlerts: vi.fn(async () => undefined),
       loadLotBalances: vi.fn(async () => undefined),
       loadLotTrace: vi.fn(async () => undefined),
       loadReservations: vi.fn(async () => undefined),
