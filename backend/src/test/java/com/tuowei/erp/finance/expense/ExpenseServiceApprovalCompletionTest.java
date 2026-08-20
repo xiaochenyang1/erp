@@ -5,6 +5,7 @@ import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.expense.mapper.ExpenseMapper;
 import com.tuowei.erp.finance.expense.model.ExpenseEntity;
 import com.tuowei.erp.finance.expense.service.ExpenseNumberService;
+import com.tuowei.erp.finance.expense.service.ExpenseCommandService;
 import com.tuowei.erp.finance.expense.service.ExpensePostingService;
 import com.tuowei.erp.finance.expense.service.ExpenseQueryService;
 import com.tuowei.erp.finance.expense.service.ExpenseService;
@@ -60,16 +61,20 @@ class ExpenseServiceApprovalCompletionTest {
         when(expenseQueryService.requireExpense(EXPENSE_ID)).thenReturn(expense);
         when(expenseQueryService.detail(EXPENSE_ID))
                 .thenAnswer(invocation -> response(expense.getStatus()));
-        service = new ExpenseService(
+        ExpenseCommandService commandService = new ExpenseCommandService(
                 expenseMapper,
                 org.mockito.Mockito.mock(ExpenseNumberService.class),
                 org.mockito.Mockito.mock(AccountSubjectService.class),
                 auditMetadataFactory,
                 expenseQueryService,
-                org.mockito.Mockito.mock(ExpensePostingService.class),
                 org.mockito.Mockito.mock(AccountPeriodGuard.class),
                 org.mockito.Mockito.mock(AttachmentService.class),
                 workflowService
+        );
+        service = new ExpenseService(
+                expenseQueryService,
+                commandService,
+                org.mockito.Mockito.mock(ExpensePostingService.class)
         );
     }
 
