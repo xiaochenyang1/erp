@@ -4,6 +4,7 @@ import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.inventory.alert.mapper.InventoryAlertRuleMapper;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.replenishment.mapper.InventoryReplenishmentSuggestionMapper;
+import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionCommandService;
 import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionQueryService;
 import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionService;
 import com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionPageQuery;
@@ -32,11 +33,28 @@ class InventoryReplenishmentSuggestionServiceDecompositionTest {
     @Test
     void facadeKeepsFilteringTenantGuardDisplayHydrationAndMappingBehindQueryService() {
         assertThat(constructorDependencies(InventoryReplenishmentSuggestionService.class))
-                .contains(InventoryReplenishmentSuggestionQueryService.class)
+                .containsExactlyInAnyOrder(
+                        InventoryReplenishmentSuggestionQueryService.class,
+                        InventoryReplenishmentSuggestionCommandService.class
+                )
                 .doesNotContain(PurchaseOrderMapper.class);
         assertThat(constructorDependencies(InventoryReplenishmentSuggestionQueryService.class))
                 .contains(PurchaseOrderMapper.class)
                 .doesNotContain(InventoryReplenishmentSuggestionService.class);
+        assertThat(constructorDependencies(InventoryReplenishmentSuggestionCommandService.class))
+                .containsExactlyInAnyOrder(
+                        InventoryReplenishmentSuggestionMapper.class,
+                        InventoryAlertRuleMapper.class,
+                        InventoryPostingService.class,
+                        InventoryAlertService.class,
+                        AuditMetadataFactory.class,
+                        WarehouseMapper.class,
+                        ProductMapper.class,
+                        SupplierMapper.class,
+                        PurchaseOrderService.class,
+                        InventoryReplenishmentSuggestionQueryService.class
+                )
+                .doesNotContain(InventoryReplenishmentSuggestionService.class, PurchaseOrderMapper.class);
     }
 
     @Test
@@ -44,16 +62,8 @@ class InventoryReplenishmentSuggestionServiceDecompositionTest {
         InventoryReplenishmentSuggestionQueryService queryService =
                 mock(InventoryReplenishmentSuggestionQueryService.class);
         InventoryReplenishmentSuggestionService service = new InventoryReplenishmentSuggestionService(
-                mock(InventoryReplenishmentSuggestionMapper.class),
-                mock(InventoryAlertRuleMapper.class),
-                mock(InventoryPostingService.class),
-                mock(InventoryAlertService.class),
-                mock(AuditMetadataFactory.class),
-                mock(WarehouseMapper.class),
-                mock(ProductMapper.class),
-                mock(SupplierMapper.class),
-                mock(PurchaseOrderService.class),
-                queryService
+                queryService,
+                mock(InventoryReplenishmentSuggestionCommandService.class)
         );
 
         service.list(null);
@@ -79,24 +89,21 @@ class InventoryReplenishmentSuggestionServiceDecompositionTest {
 
     @Test
     void suggestionWriteFlowKeepsRequiredTransactionsOnFacade() throws NoSuchMethodException {
-        assertRequiredWriteTransaction(InventoryReplenishmentSuggestionService.class.getDeclaredMethod(
+        assertWriteTransactions(
                 "create",
                 com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionCreateRequest.class
-        ));
-        assertRequiredWriteTransaction(InventoryReplenishmentSuggestionService.class.getDeclaredMethod(
+        );
+        assertWriteTransactions(
                 "update",
                 Long.class,
                 com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionUpdateRequest.class
-        ));
-        assertRequiredWriteTransaction(InventoryReplenishmentSuggestionService.class.getDeclaredMethod(
+        );
+        assertWriteTransactions(
                 "cancel",
                 Long.class,
                 com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionCancelRequest.class
-        ));
-        assertRequiredWriteTransaction(InventoryReplenishmentSuggestionService.class.getDeclaredMethod(
-                "convertToPurchaseOrder",
-                Long.class
-        ));
+        );
+        assertWriteTransactions("convertToPurchaseOrder", Long.class);
     }
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {
@@ -109,6 +116,18 @@ class InventoryReplenishmentSuggestionServiceDecompositionTest {
         Transactional transactional = method.getAnnotation(Transactional.class);
         assertThat(transactional).isNotNull();
         assertThat(transactional.readOnly()).isTrue();
+    }
+
+    private void assertWriteTransactions(String methodName, Class<?>... parameterTypes)
+            throws NoSuchMethodException {
+        assertRequiredWriteTransaction(InventoryReplenishmentSuggestionService.class.getDeclaredMethod(
+                methodName,
+                parameterTypes
+        ));
+        assertRequiredWriteTransaction(InventoryReplenishmentSuggestionCommandService.class.getDeclaredMethod(
+                methodName,
+                parameterTypes
+        ));
     }
 
     private void assertRequiredWriteTransaction(Method method) {
