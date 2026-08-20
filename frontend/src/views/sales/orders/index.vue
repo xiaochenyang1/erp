@@ -81,7 +81,7 @@
             <el-button v-if="canEdit(row)" v-permission="'sales:order:update'" link type="primary" :icon="Edit" @click="handleEdit(row)">{{ t('salesOrder.edit') }}</el-button>
             <el-button v-if="canSubmit(row)" v-permission="'sales:order:submit'" link type="success" @click="handleSubmitOrder(row)">{{ t('salesOrder.submit') }}</el-button>
             <el-button v-if="canApprove(row)" v-permission="'sales:order:approve'" link type="success" @click="handleApprove(row)">{{ t('salesOrder.approve') }}</el-button>
-            <el-button v-if="canApprove(row)" v-permission="'sales:order:reject'" link type="warning" @click="handleReject(row)">{{ t('salesOrder.reject') }}</el-button>
+            <el-button v-if="canReject(row)" v-permission="'sales:order:reject'" link type="warning" @click="handleReject(row)">{{ t('salesOrder.reject') }}</el-button>
             <el-button v-if="canUnapprove(row)" v-permission="'sales:order:unapprove'" link type="warning" @click="handleUnapprove(row)">{{ t('salesOrder.unapprove') }}</el-button>
             <el-button v-if="canCancel(row)" v-permission="'sales:order:cancel'" link type="danger" @click="handleCancel(row)">{{ t('salesOrder.cancel') }}</el-button>
           </template>
@@ -358,6 +358,7 @@ const {
   canApprove,
   canCancel,
   canEdit,
+  canReject,
   canSubmit,
   canUnapprove,
   deliveryText,

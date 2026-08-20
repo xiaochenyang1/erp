@@ -14,7 +14,7 @@ export interface SalesOrder {
   totalAmount: number
   totalQuantity?: number
   totalTaxAmount?: number
-  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELIVERING' | 'COMPLETED' | 'CANCELLED' | 'CONFIRMED' | 'CLOSED'
+  status: 'DRAFT' | 'SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELIVERING' | 'COMPLETED' | 'CANCELLED' | 'CONFIRMED' | 'CLOSED'
   approvalStatus?: string
   deliveryStatus?: string
   items: SalesOrderItem[]

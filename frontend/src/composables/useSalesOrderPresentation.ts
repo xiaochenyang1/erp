@@ -5,14 +5,23 @@ type Translate = (key: string, params?: Record<string, unknown>) => string
 type TagType = 'success' | 'info' | 'warning' | 'danger'
 
 export const useSalesOrderPresentation = (t: Translate) => {
-  const canEdit = (row: SalesOrder) => row.approvalStatus === 'DRAFT' || row.status === 'DRAFT'
-  const canSubmit = (row: SalesOrder) => row.approvalStatus === 'DRAFT' || row.status === 'DRAFT'
-  const canApprove = (row: SalesOrder) => row.approvalStatus === 'IN_APPROVAL' || row.approvalStatus === 'PENDING'
+  // Keep action visibility aligned with the lifecycle guards in SalesOrderService.
+  // Approval actions require both the document and approval state to match.
+  const canEdit = (row: SalesOrder) => ['DRAFT', 'REJECTED'].includes(row.status)
+  const canSubmit = (row: SalesOrder) => ['DRAFT', 'REJECTED'].includes(row.status)
+  const canApprove = (row: SalesOrder) =>
+    row.status === 'SUBMITTED'
+    && row.approvalStatus === 'IN_APPROVAL'
+  const canReject = (row: SalesOrder) =>
+    row.status === 'SUBMITTED'
+    && row.approvalStatus === 'IN_APPROVAL'
   const canUnapprove = (row: SalesOrder) =>
     row.status === 'APPROVED'
     && row.approvalStatus === 'APPROVED'
     && row.deliveryStatus === 'NOT_DELIVERED'
-  const canCancel = (row: SalesOrder) => row.status !== 'CANCELLED' && row.status !== 'CLOSED'
+  const canCancel = (row: SalesOrder) =>
+    ['DRAFT', 'REJECTED', 'SUBMITTED'].includes(row.status)
+    || (row.status === 'APPROVED' && row.deliveryStatus === 'NOT_DELIVERED')
 
   const lineAmount = (row: SalesOrderItem) => Number(row.quantity ?? 0) * Number(row.price ?? 0)
 
@@ -45,6 +54,8 @@ export const useSalesOrderPresentation = (t: Translate) => {
 
   const deliveryText = (status?: string) => ({
     NOT_DELIVERED: t('salesOrder.status.notDelivered'),
+    PARTIAL_DELIVERED: t('salesOrder.status.partial'),
+    FULL_DELIVERED: t('salesOrder.status.delivered'),
     PARTIAL: t('salesOrder.status.partial'),
     COMPLETED: t('salesOrder.status.delivered')
   }[status || ''] || status || '-')
@@ -62,6 +73,7 @@ export const useSalesOrderPresentation = (t: Translate) => {
     canApprove,
     canCancel,
     canEdit,
+    canReject,
     canSubmit,
     canUnapprove,
     deliveryText,

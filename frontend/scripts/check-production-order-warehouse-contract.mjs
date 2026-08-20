@@ -782,7 +782,7 @@ for (const fragment of [
   }
 }
 
-for (const fragment of [
+for (const fragments of [
   'cancelPurchaseOrder,',
   'closePurchaseOrder,',
   'tracePurchaseOrder,',
@@ -791,14 +791,15 @@ for (const fragment of [
   'handleCancelOrder',
   'handleCloseOrder',
   'handleTraceOrder',
-  'canCancelOrder(row)',
-  'canCloseOrder(row)',
+  ['canCancelOrder(row)', 'canCancel(row)'],
+  ['canCloseOrder(row)', 'canClose(row)'],
   ':title="t(\'purchaseOrder.traceTitle\')"',
   'purchaseTrace.executionInfo',
   'purchaseTrace.relatedDocs'
 ]) {
-  if (!purchaseOrderView.includes(fragment)) {
-    errors.push(`采购订单页缺少取消/关闭/追踪真实入口片段: ${fragment}`)
+  const alternatives = Array.isArray(fragments) ? fragments : [fragments]
+  if (!alternatives.some((fragment) => purchaseOrderView.includes(fragment))) {
+    errors.push(`采购订单页缺少取消/关闭/追踪真实入口片段: ${alternatives.join(' 或 ')}`)
   }
 }
 

@@ -126,31 +126,31 @@
             <el-button v-permission="'purchase:order:create'" link type="primary" size="small" @click="handleCopy(row)">
               {{ t('purchaseOrder.copy') }}
             </el-button>
-            <el-button v-if="row.status === 'DRAFT'" v-permission="'purchase:order:update'" link type="primary" size="small" @click="handleEdit(row)">
+            <el-button v-if="canEdit(row)" v-permission="'purchase:order:update'" link type="primary" size="small" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
               {{ t('purchaseOrder.edit') }}
             </el-button>
-            <el-button v-if="row.status === 'DRAFT'" v-permission="'purchase:order:submit'" link type="success" size="small" @click="handleSubmit(row)">
+            <el-button v-if="canSubmit(row)" v-permission="'purchase:order:submit'" link type="success" size="small" @click="handleSubmit(row)">
               <el-icon><Check /></el-icon>
               {{ t('purchaseOrder.submit') }}
             </el-button>
-            <el-button v-if="row.status === 'SUBMITTED' || row.status === 'PENDING' || row.approvalStatus === 'IN_APPROVAL'" v-permission="'purchase:order:approve'" link type="success" size="small" @click="handleApprove(row)">
+            <el-button v-if="canApprove(row)" v-permission="'purchase:order:approve'" link type="success" size="small" @click="handleApprove(row)">
               <el-icon><CircleCheck /></el-icon>
               {{ t('purchaseOrder.approve') }}
             </el-button>
-            <el-button v-if="row.status === 'SUBMITTED' || row.status === 'PENDING' || row.approvalStatus === 'IN_APPROVAL'" v-permission="'purchase:order:reject'" link type="warning" size="small" @click="handleReject(row)">
+            <el-button v-if="canReject(row)" v-permission="'purchase:order:reject'" link type="warning" size="small" @click="handleReject(row)">
               <el-icon><CircleClose /></el-icon>
               {{ t('purchaseOrder.reject') }}
             </el-button>
-            <el-button v-if="canUnapproveOrder(row)" v-permission="'purchase:order:unapprove'" link type="warning" size="small" @click="handleUnapprove(row)">
+            <el-button v-if="canUnapprove(row)" v-permission="'purchase:order:unapprove'" link type="warning" size="small" @click="handleUnapprove(row)">
               <el-icon><RefreshLeft /></el-icon>
               {{ t('purchaseOrder.unapprove') }}
             </el-button>
-            <el-button v-if="canCloseOrder(row)" v-permission="'purchase:order:close'" link type="warning" size="small" @click="handleCloseOrder(row)">
+            <el-button v-if="canClose(row)" v-permission="'purchase:order:close'" link type="warning" size="small" @click="handleCloseOrder(row)">
               <el-icon><CircleClose /></el-icon>
               {{ t('purchaseOrder.close') }}
             </el-button>
-            <el-button v-if="canCancelOrder(row)" v-permission="'purchase:order:cancel'" link type="danger" size="small" @click="handleCancelOrder(row)">
+            <el-button v-if="canCancel(row)" v-permission="'purchase:order:cancel'" link type="danger" size="small" @click="handleCancelOrder(row)">
               <el-icon><Delete /></el-icon>
               {{ t('purchaseOrder.cancel') }}
             </el-button>
@@ -540,9 +540,13 @@ const {
 
 const {
   approvedCount,
-  canCancelOrder,
-  canCloseOrder,
-  canUnapproveOrder,
+  canApprove,
+  canCancel,
+  canClose,
+  canEdit,
+  canReject,
+  canSubmit,
+  canUnapprove,
   formatMoney,
   pendingCount
 } = usePurchaseOrderSummary(tableData)
