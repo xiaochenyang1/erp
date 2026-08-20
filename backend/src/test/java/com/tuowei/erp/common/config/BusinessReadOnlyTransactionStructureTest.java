@@ -61,6 +61,9 @@ import com.tuowei.erp.production.bom.web.ProductionBomPageQuery;
 import com.tuowei.erp.production.order.service.ProductionOrderQueryService;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
+import com.tuowei.erp.production.routing.service.ProductionRoutingQueryService;
+import com.tuowei.erp.production.routing.service.ProductionRoutingService;
+import com.tuowei.erp.production.routing.web.ProductionRoutingPageQuery;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQueryService;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryPageQuery;
@@ -311,6 +314,10 @@ class BusinessReadOnlyTransactionStructureTest {
     void productionAndFinanceQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
         assertReadOnly(ProductionBomService.class, "list", ProductionBomPageQuery.class);
         assertReadOnly(ProductionBomService.class, "getById", Long.class);
+        assertReadOnly(ProductionRoutingService.class, "list", ProductionRoutingPageQuery.class);
+        assertReadOnly(ProductionRoutingService.class, "getById", Long.class);
+        assertReadOnly(ProductionRoutingQueryService.class, "list", ProductionRoutingPageQuery.class);
+        assertReadOnly(ProductionRoutingQueryService.class, "getById", Long.class);
         assertReadOnly(ProductionOrderService.class, "list", ProductionOrderPageQuery.class);
         assertReadOnly(ProductionOrderService.class, "getById", Long.class);
         assertReadOnly(ProductionOrderQueryService.class, "list", ProductionOrderPageQuery.class);
