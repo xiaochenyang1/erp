@@ -198,7 +198,7 @@ class SalesOrderWorkflowServiceTest {
     }
 
     @Test
-    void directApproveReservesLinesThenTransitionsBeforeWorkflow() {
+    void directApproveCompletesWorkflowBeforeReservationAndTransition() {
         SalesOrderEntity submitted = order("SUBMITTED", "IN_APPROVAL", "NOT_DELIVERED");
         SalesOrderLineEntity firstLine = line(4302L, "2.0000", "15.0000", "0.0000");
         SalesOrderLineEntity secondLine = line(4303L, "1.5000", "12.0000", "0.1300");
@@ -208,6 +208,7 @@ class SalesOrderWorkflowServiceTest {
         when(salesOrderQueryService.selectLines(submitted)).thenReturn(List.of(firstLine, secondLine));
         CustomerEntity customer = customer();
         when(customerMapper.selectById(CUSTOMER_ID)).thenReturn(customer);
+        when(workflowService.approve("SALES_ORDER", ORDER_ID, "approve")).thenReturn(true);
         stubTransition(submitted, expected);
 
         assertThat(service().approve(ORDER_ID, new SalesOrderApproveRequest("approve"))).isSameAs(expected);
@@ -220,6 +221,7 @@ class SalesOrderWorkflowServiceTest {
         order.verify(salesOrderQueryService).requireOrder(ORDER_ID);
         order.verify(customerMapper).selectById(CUSTOMER_ID);
         order.verify(salesCreditEvaluator).assertWithinCreditLimit(same(customer), same(submitted), eq("审批"));
+        order.verify(workflowService).approve("SALES_ORDER", ORDER_ID, "approve");
         order.verify(auditMetadataFactory).current();
         order.verify(salesOrderQueryService).selectLines(submitted);
         order.verify(inventoryPostingService, org.mockito.Mockito.times(2)).reserve(
@@ -228,7 +230,6 @@ class SalesOrderWorkflowServiceTest {
         order.verify(auditMetadataFactory).current();
         order.verify(salesOrderMapper).updateById(same(submitted));
         order.verify(salesOrderQueryService).getById(ORDER_ID);
-        order.verify(workflowService).approve("SALES_ORDER", ORDER_ID, "approve");
         assertThat(command.getAllValues()).hasSize(2);
         assertThat(command.getAllValues().get(0)).extracting(
                 InventoryReservationCommand::warehouseId,
@@ -257,6 +258,12 @@ class SalesOrderWorkflowServiceTest {
         SalesOrderResponse expected = response("APPROVED", "APPROVED", "NOT_DELIVERED");
         when(salesOrderQueryService.requireOrder(ORDER_ID)).thenReturn(submitted);
         when(salesOrderQueryService.selectLines(submitted)).thenReturn(List.of());
+        when(workflowService.approveTaskForBusiness(
+                WORKFLOW_TASK_ID,
+                "SALES_ORDER",
+                ORDER_ID,
+                "task"
+        )).thenReturn(true);
         stubTransition(submitted, expected);
 
         assertThat(service().approveWorkflowTask(WORKFLOW_TASK_ID, ORDER_ID, new SalesOrderApproveRequest("task")))
@@ -264,9 +271,78 @@ class SalesOrderWorkflowServiceTest {
 
         assertThat(submitted.getStatus()).isEqualTo("APPROVED");
         assertThat(submitted.getApprovalStatus()).isEqualTo("APPROVED");
-        verify(salesOrderMapper).updateById(same(submitted));
-        verify(workflowService).approveTaskForBusiness(WORKFLOW_TASK_ID, "SALES_ORDER", ORDER_ID, "task");
+        InOrder order = inOrder(salesOrderQueryService, workflowService, auditMetadataFactory, salesOrderMapper);
+        order.verify(salesOrderQueryService).requireOrder(ORDER_ID);
+        order.verify(workflowService).approveTaskForBusiness(
+                WORKFLOW_TASK_ID,
+                "SALES_ORDER",
+                ORDER_ID,
+                "task"
+        );
+        order.verify(auditMetadataFactory).current();
+        order.verify(salesOrderQueryService).selectLines(submitted);
+        order.verify(auditMetadataFactory).current();
+        order.verify(salesOrderMapper).updateById(same(submitted));
+        order.verify(salesOrderQueryService).getById(ORDER_ID);
         verify(workflowService, never()).approve(any(), any(), any());
+    }
+
+    @Test
+    void directApproveKeepsBusinessPendingWhenWorkflowAdvancesToNextNode() {
+        SalesOrderEntity submitted = order("SUBMITTED", "IN_APPROVAL", "NOT_DELIVERED");
+        SalesOrderResponse pending = response("SUBMITTED", "IN_APPROVAL", "NOT_DELIVERED");
+        when(salesOrderQueryService.requireOrder(ORDER_ID)).thenReturn(submitted);
+        when(workflowService.approve("SALES_ORDER", ORDER_ID, "next node")).thenReturn(false);
+        when(salesOrderQueryService.getById(ORDER_ID)).thenReturn(pending);
+
+        assertThat(service().approve(ORDER_ID, new SalesOrderApproveRequest("next node"))).isSameAs(pending);
+
+        assertThat(submitted.getStatus()).isEqualTo("SUBMITTED");
+        assertThat(submitted.getApprovalStatus()).isEqualTo("IN_APPROVAL");
+        InOrder order = inOrder(salesOrderQueryService, workflowService);
+        order.verify(salesOrderQueryService).requireOrder(ORDER_ID);
+        order.verify(workflowService).approve("SALES_ORDER", ORDER_ID, "next node");
+        order.verify(salesOrderQueryService).getById(ORDER_ID);
+        verify(workflowService, never()).approveTaskForBusiness(any(), any(), any(), any());
+        verify(salesOrderQueryService, never()).selectLines(any());
+        verify(salesOrderMapper, never()).updateById(any(SalesOrderEntity.class));
+        verifyNoInteractions(inventoryPostingService, auditMetadataFactory, salesCreditEvaluator);
+    }
+
+    @Test
+    void taskApproveKeepsBusinessPendingWhenWorkflowNodeIsIncomplete() {
+        SalesOrderEntity submitted = order("SUBMITTED", "IN_APPROVAL", "NOT_DELIVERED");
+        SalesOrderResponse pending = response("SUBMITTED", "IN_APPROVAL", "NOT_DELIVERED");
+        when(salesOrderQueryService.requireOrder(ORDER_ID)).thenReturn(submitted);
+        when(workflowService.approveTaskForBusiness(
+                WORKFLOW_TASK_ID,
+                "SALES_ORDER",
+                ORDER_ID,
+                "waiting"
+        )).thenReturn(false);
+        when(salesOrderQueryService.getById(ORDER_ID)).thenReturn(pending);
+
+        assertThat(service().approveWorkflowTask(
+                WORKFLOW_TASK_ID,
+                ORDER_ID,
+                new SalesOrderApproveRequest("waiting")
+        )).isSameAs(pending);
+
+        assertThat(submitted.getStatus()).isEqualTo("SUBMITTED");
+        assertThat(submitted.getApprovalStatus()).isEqualTo("IN_APPROVAL");
+        InOrder order = inOrder(salesOrderQueryService, workflowService);
+        order.verify(salesOrderQueryService).requireOrder(ORDER_ID);
+        order.verify(workflowService).approveTaskForBusiness(
+                WORKFLOW_TASK_ID,
+                "SALES_ORDER",
+                ORDER_ID,
+                "waiting"
+        );
+        order.verify(salesOrderQueryService).getById(ORDER_ID);
+        verify(workflowService, never()).approve(any(), any(), any());
+        verify(salesOrderQueryService, never()).selectLines(any());
+        verify(salesOrderMapper, never()).updateById(any(SalesOrderEntity.class));
+        verifyNoInteractions(inventoryPostingService, auditMetadataFactory, salesCreditEvaluator);
     }
 
     @ParameterizedTest
@@ -310,11 +386,12 @@ class SalesOrderWorkflowServiceTest {
     }
 
     @Test
-    void approveReservationFailureStopsBeforeTransition() {
+    void approveReservationFailureAfterWorkflowCompletionStopsBusinessTransition() {
         SalesOrderEntity submitted = order("SUBMITTED", "IN_APPROVAL", "NOT_DELIVERED");
         SalesOrderLineEntity line = line(4302L, "2.0000", "15.0000", "0.0000");
         when(salesOrderQueryService.requireOrder(ORDER_ID)).thenReturn(submitted);
         when(salesOrderQueryService.selectLines(submitted)).thenReturn(List.of(line));
+        when(workflowService.approve("SALES_ORDER", ORDER_ID, "stock")).thenReturn(true);
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
         doThrow(new IllegalArgumentException("库存可用量不足，不能审批销售订单"))
                 .when(inventoryPostingService)
@@ -327,7 +404,13 @@ class SalesOrderWorkflowServiceTest {
         assertThat(submitted.getStatus()).isEqualTo("SUBMITTED");
         verify(salesOrderMapper, never()).updateById(any(SalesOrderEntity.class));
         verify(salesOrderQueryService, never()).getById(any());
-        verifyNoInteractions(workflowService);
+        InOrder order = inOrder(workflowService, inventoryPostingService);
+        order.verify(workflowService).approve("SALES_ORDER", ORDER_ID, "stock");
+        order.verify(inventoryPostingService).reserve(
+                any(),
+                same(AUDIT),
+                eq("库存可用量不足，不能审批销售订单")
+        );
     }
 
     @Test

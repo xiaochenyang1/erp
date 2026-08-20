@@ -120,7 +120,7 @@ class WorkflowServiceQueryDefaultsTest {
         when(taskMapper.updateById(task)).thenReturn(1);
         when(instanceMapper.updateById(instance)).thenReturn(1);
 
-        service.approve("SALES_ORDER", 7001L, "approved by transferee");
+        assertThat(service.approve("SALES_ORDER", 7001L, "approved by transferee")).isTrue();
 
         assertThat(task.getStatus()).isEqualTo("APPROVED");
         assertThat(instance.getStatus()).isEqualTo("APPROVED");

@@ -95,14 +95,14 @@ public class WorkflowCommandService {
     }
 
     @Transactional
-    public void approve(String businessType, Long businessId, String comment) {
-        complete(businessType, businessId, "APPROVED", "APPROVE", comment, null);
+    public boolean approve(String businessType, Long businessId, String comment) {
+        return complete(businessType, businessId, "APPROVED", "APPROVE", comment, null);
     }
 
     @Transactional
-    public void approveTaskForBusiness(Long taskId, String businessType, Long businessId, String comment) {
+    public boolean approveTaskForBusiness(Long taskId, String businessType, Long businessId, String comment) {
         WorkflowTaskEntity task = requireMatchingCurrentPendingTask(taskId, businessType, businessId);
-        complete(task.getBusinessType(), task.getBusinessId(), "APPROVED", "APPROVE", comment, task.getId());
+        return complete(task.getBusinessType(), task.getBusinessId(), "APPROVED", "APPROVE", comment, task.getId());
     }
 
     @Transactional
@@ -147,7 +147,7 @@ public class WorkflowCommandService {
         recordCommandService.record(instance, "WITHDRAW", comment, audit, now);
     }
 
-    private void complete(
+    private boolean complete(
             String businessType,
             Long businessId,
             String status,
@@ -175,7 +175,7 @@ public class WorkflowCommandService {
             notificationService.closeWorkflowPending(instance, audit, now);
             updateInstanceStatus(instance, status, audit, now);
             notificationService.notifyWorkflowResult(instance, action, comment, audit, now);
-            return;
+            return true;
         }
 
         if (currentTask.getApproverUserId() == null
@@ -192,7 +192,7 @@ public class WorkflowCommandService {
                     configuredApproverUserIds
             )) {
                 notificationService.closeWorkflowPendingForUser(instance, audit.userId(), audit, now);
-                return;
+                return false;
             }
         }
 
@@ -212,12 +212,13 @@ public class WorkflowCommandService {
                 );
                 createPendingTask(instance, nextNode.getId(), pendingApproverUserIds, audit, now);
                 notificationService.createWorkflowPending(instance, pendingApproverUserIds, audit, now);
-                return;
+                return false;
             }
         }
 
         updateInstanceStatus(instance, status, audit, now);
         notificationService.notifyWorkflowResult(instance, action, comment, audit, now);
+        return true;
     }
 
     private void assertCurrentUserCanApprove(

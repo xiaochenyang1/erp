@@ -8,16 +8,20 @@ import com.tuowei.erp.system.notification.service.NotificationService;
 import com.tuowei.erp.workflow.mapper.WorkflowInstanceMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowRecordMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
+import com.tuowei.erp.workflow.model.WorkflowApprovalNodeEntity;
 import com.tuowei.erp.workflow.model.WorkflowInstanceEntity;
+import com.tuowei.erp.workflow.model.WorkflowRecordEntity;
 import com.tuowei.erp.workflow.model.WorkflowTaskEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -144,6 +148,79 @@ class WorkflowCommandServiceTest {
 
         verify(instanceMapper, never()).updateById(any(WorkflowInstanceEntity.class));
         verifyNoInteractions(taskMapper, notificationService, recordCommandService);
+    }
+
+    @Test
+    void approveReturnsCompletedWhenCurrentNodeIsFinal() {
+        WorkflowInstanceEntity instance = activeInstance(3005L, 1001L, 999L);
+        WorkflowTaskEntity task = pendingTask(4003L, instance.getId());
+        task.setApprovalNodeId(5001L);
+        task.setApproverUserId(AUDIT.userId());
+        when(instanceMapper.selectOne(any())).thenReturn(instance);
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        when(taskMapper.updateById(task)).thenReturn(1);
+        when(instanceMapper.updateById(instance)).thenReturn(1);
+
+        boolean completed = service.approve("SALES_ORDER", 1001L, "approve");
+
+        assertThat(completed).isTrue();
+        assertThat(task.getStatus()).isEqualTo("APPROVED");
+        assertThat(instance.getStatus()).isEqualTo("APPROVED");
+        verify(notificationService).notifyWorkflowResult(
+                instance, "APPROVE", "approve", AUDIT, AUDIT.now());
+    }
+
+    @Test
+    void approveReturnsInProgressWhenNextNodeIsCreated() {
+        WorkflowInstanceEntity instance = activeInstance(3006L, 1001L, 999L);
+        WorkflowTaskEntity task = pendingTask(4004L, instance.getId());
+        task.setApprovalNodeId(5002L);
+        task.setApproverUserId(AUDIT.userId());
+        WorkflowApprovalNodeEntity nextNode = new WorkflowApprovalNodeEntity();
+        nextNode.setId(5003L);
+        when(instanceMapper.selectOne(any())).thenReturn(instance);
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        when(taskMapper.updateById(task)).thenReturn(1);
+        when(approvalConfigService.resolveNextActiveNode(instance, 5002L, AUDIT)).thenReturn(nextNode);
+        when(approvalConfigService.resolvePendingApproverUserIds(instance, 5003L, AUDIT))
+                .thenReturn(List.of(702L));
+        when(approvalConfigService.resolveTaskTimeoutHours(instance, AUDIT, 24L)).thenReturn(6L);
+
+        boolean completed = service.approve("SALES_ORDER", 1001L, "approve");
+
+        assertThat(completed).isFalse();
+        assertThat(instance.getStatus()).isEqualTo("IN_APPROVAL");
+        verify(instanceMapper, never()).updateById(any(WorkflowInstanceEntity.class));
+        ArgumentCaptor<WorkflowTaskEntity> taskCaptor = ArgumentCaptor.forClass(WorkflowTaskEntity.class);
+        verify(taskMapper).insert(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getApprovalNodeId()).isEqualTo(5003L);
+        assertThat(taskCaptor.getValue().getApproverUserId()).isEqualTo(702L);
+        assertThat(taskCaptor.getValue().getDueTime()).isEqualTo(AUDIT.now().plusHours(6));
+    }
+
+    @Test
+    void approveReturnsInProgressWhileAllModeWaitsForAnotherApprover() {
+        WorkflowInstanceEntity instance = activeInstance(3007L, 1001L, 999L);
+        WorkflowTaskEntity task = pendingTask(4005L, instance.getId());
+        task.setApprovalNodeId(5004L);
+        WorkflowRecordEntity currentApproval = new WorkflowRecordEntity();
+        currentApproval.setOperatorUserId(AUDIT.userId());
+        when(instanceMapper.selectOne(any())).thenReturn(instance);
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        when(approvalConfigService.isAllApprovalMode(instance, 5004L, AUDIT)).thenReturn(true);
+        when(approvalConfigService.resolveConfiguredNodeApproverUserIds(instance, 5004L, AUDIT))
+                .thenReturn(List.of(AUDIT.userId(), 702L));
+        when(recordMapper.selectList(any())).thenReturn(List.of(currentApproval));
+
+        boolean completed = service.approve("SALES_ORDER", 1001L, "approve");
+
+        assertThat(completed).isFalse();
+        assertThat(task.getStatus()).isEqualTo("PENDING");
+        assertThat(instance.getStatus()).isEqualTo("IN_APPROVAL");
+        verify(notificationService).closeWorkflowPendingForUser(
+                instance, AUDIT.userId(), AUDIT, AUDIT.now());
+        verify(taskMapper, never()).updateById(any(WorkflowTaskEntity.class));
+        verify(instanceMapper, never()).updateById(any(WorkflowInstanceEntity.class));
     }
 
     private WorkflowInstanceEntity activeInstance(Long id, Long businessId, Long submitUserId) {

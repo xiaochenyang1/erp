@@ -156,18 +156,21 @@ public class PurchaseOrderWorkflowService {
         if (!"SUBMITTED".equals(entity.getStatus()) || !"IN_APPROVAL".equals(entity.getApprovalStatus())) {
             throw new IllegalArgumentException("当前采购订单状态不允许审批通过");
         }
-        PurchaseOrderResponse response = transitionWorkflowStatus(entity, "APPROVED", "APPROVED");
+        boolean completed;
         if (workflowTaskId == null) {
-            workflowService.approve(BUSINESS_TYPE, entity.getId(), request.remark());
+            completed = workflowService.approve(BUSINESS_TYPE, entity.getId(), request.remark());
         } else {
-            workflowService.approveTaskForBusiness(
+            completed = workflowService.approveTaskForBusiness(
                     workflowTaskId,
                     BUSINESS_TYPE,
                     entity.getId(),
                     request.remark()
             );
         }
-        return response;
+        if (!completed) {
+            return purchaseOrderQueryService.getById(entity.getId());
+        }
+        return transitionWorkflowStatus(entity, "APPROVED", "APPROVED");
     }
 
     private PurchaseOrderResponse reject(

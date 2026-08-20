@@ -148,13 +148,21 @@ public class ExpenseService {
         if (!"PENDING".equals(expense.getStatus())) {
             throw new IllegalArgumentException("只有待审批的费用单可以审批通过");
         }
-        ExpenseResponse response = transitionStatus(expense, "APPROVED");
+        boolean completed;
         if (workflowTaskId == null) {
-            workflowService.approve("EXPENSE", expense.getId(), remark);
+            completed = workflowService.approve("EXPENSE", expense.getId(), remark);
         } else {
-            workflowService.approveTaskForBusiness(workflowTaskId, "EXPENSE", expense.getId(), remark);
+            completed = workflowService.approveTaskForBusiness(
+                    workflowTaskId,
+                    "EXPENSE",
+                    expense.getId(),
+                    remark
+            );
         }
-        return response;
+        if (!completed) {
+            return detail(expense.getId());
+        }
+        return transitionStatus(expense, "APPROVED");
     }
 
     @Transactional

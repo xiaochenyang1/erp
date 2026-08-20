@@ -32,14 +32,16 @@ public class WorkflowService {
         commandService.submit(businessType, businessId, businessNo, title, comment);
     }
 
+    /** Returns true only when this approval completes the entire workflow. */
     @Transactional
-    public void approve(String businessType, Long businessId, String comment) {
-        commandService.approve(businessType, businessId, comment);
+    public boolean approve(String businessType, Long businessId, String comment) {
+        return commandService.approve(businessType, businessId, comment);
     }
 
+    /** Returns true only when this approval completes the entire workflow. */
     @Transactional
-    public void approveTaskForBusiness(Long taskId, String businessType, Long businessId, String comment) {
-        commandService.approveTaskForBusiness(taskId, businessType, businessId, comment);
+    public boolean approveTaskForBusiness(Long taskId, String businessType, Long businessId, String comment) {
+        return commandService.approveTaskForBusiness(taskId, businessType, businessId, comment);
     }
 
     @Transactional

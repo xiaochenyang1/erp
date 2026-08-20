@@ -172,19 +172,22 @@ public class SalesOrderWorkflowService {
         if (customer != null) {
             salesCreditEvaluator.assertWithinCreditLimit(customer, entity, "审批");
         }
-        reserveOrder(entity);
-        SalesOrderResponse response = transitionWorkflowStatus(entity, "APPROVED", "APPROVED");
+        boolean completed;
         if (workflowTaskId == null) {
-            workflowService.approve(BUSINESS_TYPE, entity.getId(), request.remark());
+            completed = workflowService.approve(BUSINESS_TYPE, entity.getId(), request.remark());
         } else {
-            workflowService.approveTaskForBusiness(
+            completed = workflowService.approveTaskForBusiness(
                     workflowTaskId,
                     BUSINESS_TYPE,
                     entity.getId(),
                     request.remark()
             );
         }
-        return response;
+        if (!completed) {
+            return salesOrderQueryService.getById(entity.getId());
+        }
+        reserveOrder(entity);
+        return transitionWorkflowStatus(entity, "APPROVED", "APPROVED");
     }
 
     private SalesOrderResponse reject(

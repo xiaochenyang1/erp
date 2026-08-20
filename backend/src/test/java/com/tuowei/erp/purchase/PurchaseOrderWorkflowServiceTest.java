@@ -246,10 +246,11 @@ class PurchaseOrderWorkflowServiceTest {
     }
 
     @Test
-    void directApproveReturnsUpdatedDetailBeforeCallingBusinessWorkflow() {
+    void directApproveCompletesWorkflowBeforeUpdatingBusinessOrder() {
         PurchaseOrderEntity submitted = order("SUBMITTED", "IN_APPROVAL", "NOT_RECEIVED");
         PurchaseOrderResponse expected = response("APPROVED", "APPROVED", "NOT_RECEIVED");
         when(purchaseOrderQueryService.requireOrder(ORDER_ID)).thenReturn(submitted);
+        when(workflowService.approve("PURCHASE_ORDER", ORDER_ID, "direct approve")).thenReturn(true);
         stubSuccessfulTransition(submitted, expected);
 
         PurchaseOrderResponse actual = service().approve(
@@ -261,7 +262,7 @@ class PurchaseOrderWorkflowServiceTest {
         assertThat(submitted.getStatus()).isEqualTo("APPROVED");
         assertThat(submitted.getApprovalStatus()).isEqualTo("APPROVED");
         assertAuditFields(submitted);
-        verifyTransitionBeforeWorkflow(
+        verifyWorkflowBeforeTransition(
                 submitted,
                 order -> order.verify(workflowService)
                         .approve("PURCHASE_ORDER", ORDER_ID, "direct approve")
@@ -274,6 +275,12 @@ class PurchaseOrderWorkflowServiceTest {
         PurchaseOrderEntity submitted = order("SUBMITTED", "IN_APPROVAL", "NOT_RECEIVED");
         PurchaseOrderResponse expected = response("APPROVED", "APPROVED", "NOT_RECEIVED");
         when(purchaseOrderQueryService.requireOrder(ORDER_ID)).thenReturn(submitted);
+        when(workflowService.approveTaskForBusiness(
+                WORKFLOW_TASK_ID,
+                "PURCHASE_ORDER",
+                ORDER_ID,
+                "task approve"
+        )).thenReturn(true);
         stubSuccessfulTransition(submitted, expected);
 
         PurchaseOrderResponse actual = service().approveWorkflowTask(
@@ -286,7 +293,7 @@ class PurchaseOrderWorkflowServiceTest {
         assertThat(submitted.getStatus()).isEqualTo("APPROVED");
         assertThat(submitted.getApprovalStatus()).isEqualTo("APPROVED");
         assertAuditFields(submitted);
-        verifyTransitionBeforeWorkflow(
+        verifyWorkflowBeforeTransition(
                 submitted,
                 order -> order.verify(workflowService).approveTaskForBusiness(
                         WORKFLOW_TASK_ID,
@@ -296,6 +303,67 @@ class PurchaseOrderWorkflowServiceTest {
                 )
         );
         verify(workflowService, never()).approve(any(), any(), any());
+    }
+
+    @Test
+    void directApproveKeepsBusinessPendingWhenWorkflowAdvancesToNextNode() {
+        PurchaseOrderEntity submitted = order("SUBMITTED", "IN_APPROVAL", "NOT_RECEIVED");
+        PurchaseOrderResponse pending = response("SUBMITTED", "IN_APPROVAL", "NOT_RECEIVED");
+        when(purchaseOrderQueryService.requireOrder(ORDER_ID)).thenReturn(submitted);
+        when(workflowService.approve("PURCHASE_ORDER", ORDER_ID, "next node")).thenReturn(false);
+        when(purchaseOrderQueryService.getById(ORDER_ID)).thenReturn(pending);
+
+        PurchaseOrderResponse actual = service().approve(
+                ORDER_ID,
+                new PurchaseOrderApproveRequest("next node")
+        );
+
+        assertThat(actual).isSameAs(pending);
+        assertThat(submitted.getStatus()).isEqualTo("SUBMITTED");
+        assertThat(submitted.getApprovalStatus()).isEqualTo("IN_APPROVAL");
+        InOrder order = inOrder(purchaseOrderQueryService, workflowService);
+        order.verify(purchaseOrderQueryService).requireOrder(ORDER_ID);
+        order.verify(workflowService).approve("PURCHASE_ORDER", ORDER_ID, "next node");
+        order.verify(purchaseOrderQueryService).getById(ORDER_ID);
+        verify(workflowService, never()).approveTaskForBusiness(any(), any(), any(), any());
+        verifyNoInteractions(auditMetadataFactory);
+        verify(purchaseOrderMapper, never()).updateById(any(PurchaseOrderEntity.class));
+    }
+
+    @Test
+    void taskApproveKeepsBusinessPendingWhenWorkflowNodeIsIncomplete() {
+        PurchaseOrderEntity submitted = order("SUBMITTED", "IN_APPROVAL", "NOT_RECEIVED");
+        PurchaseOrderResponse pending = response("SUBMITTED", "IN_APPROVAL", "NOT_RECEIVED");
+        when(purchaseOrderQueryService.requireOrder(ORDER_ID)).thenReturn(submitted);
+        when(workflowService.approveTaskForBusiness(
+                WORKFLOW_TASK_ID,
+                "PURCHASE_ORDER",
+                ORDER_ID,
+                "waiting"
+        )).thenReturn(false);
+        when(purchaseOrderQueryService.getById(ORDER_ID)).thenReturn(pending);
+
+        PurchaseOrderResponse actual = service().approveWorkflowTask(
+                WORKFLOW_TASK_ID,
+                ORDER_ID,
+                new PurchaseOrderApproveRequest("waiting")
+        );
+
+        assertThat(actual).isSameAs(pending);
+        assertThat(submitted.getStatus()).isEqualTo("SUBMITTED");
+        assertThat(submitted.getApprovalStatus()).isEqualTo("IN_APPROVAL");
+        InOrder order = inOrder(purchaseOrderQueryService, workflowService);
+        order.verify(purchaseOrderQueryService).requireOrder(ORDER_ID);
+        order.verify(workflowService).approveTaskForBusiness(
+                WORKFLOW_TASK_ID,
+                "PURCHASE_ORDER",
+                ORDER_ID,
+                "waiting"
+        );
+        order.verify(purchaseOrderQueryService).getById(ORDER_ID);
+        verify(workflowService, never()).approve(any(), any(), any());
+        verifyNoInteractions(auditMetadataFactory);
+        verify(purchaseOrderMapper, never()).updateById(any(PurchaseOrderEntity.class));
     }
 
     @ParameterizedTest
@@ -561,6 +629,23 @@ class PurchaseOrderWorkflowServiceTest {
         transitionOrder.verify(purchaseOrderMapper).updateById(same(entity));
         transitionOrder.verify(purchaseOrderQueryService).getById(ORDER_ID);
         workflowVerification.accept(transitionOrder);
+    }
+
+    private void verifyWorkflowBeforeTransition(
+            PurchaseOrderEntity entity,
+            Consumer<InOrder> workflowVerification
+    ) {
+        InOrder transitionOrder = inOrder(
+                purchaseOrderQueryService,
+                workflowService,
+                auditMetadataFactory,
+                purchaseOrderMapper
+        );
+        transitionOrder.verify(purchaseOrderQueryService).requireOrder(ORDER_ID);
+        workflowVerification.accept(transitionOrder);
+        transitionOrder.verify(auditMetadataFactory).current();
+        transitionOrder.verify(purchaseOrderMapper).updateById(same(entity));
+        transitionOrder.verify(purchaseOrderQueryService).getById(ORDER_ID);
     }
 
     private void verifyNoTransitionOrWorkflow() {
