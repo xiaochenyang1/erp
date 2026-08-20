@@ -15,6 +15,7 @@ import com.tuowei.erp.qc.inspection.mapper.QcInspectionLineMapper;
 import com.tuowei.erp.qc.inspection.mapper.QcInspectionOrderMapper;
 import com.tuowei.erp.qc.inspection.model.QcInspectionLineEntity;
 import com.tuowei.erp.qc.inspection.model.QcInspectionOrderEntity;
+import com.tuowei.erp.qc.inspection.service.QcInspectionCommandService;
 import com.tuowei.erp.qc.inspection.service.QcInspectionGate;
 import com.tuowei.erp.qc.inspection.service.QcInspectionCreateService;
 import com.tuowei.erp.qc.inspection.service.QcInspectionNumberService;
@@ -541,16 +542,20 @@ class QcInspectionServiceTest {
                 qcInspectionLineMapper,
                 auditMetadataFactory
         );
-        return new QcInspectionService(
+        QcInspectionCommandService commandService = new QcInspectionCommandService(
                 qcInspectionOrderMapper,
                 qcInspectionLineMapper,
                 purchaseReceiptMapper,
                 purchaseReceiptLineMapper,
                 auditMetadataFactory,
-                createService,
                 sourceAccess,
                 queryService,
                 attachmentService
+        );
+        return new QcInspectionService(
+                createService,
+                queryService,
+                commandService
         );
     }
 
