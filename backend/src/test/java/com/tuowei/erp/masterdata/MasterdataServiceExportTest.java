@@ -11,6 +11,8 @@ import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryLotBalanceEntity;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
+import com.tuowei.erp.masterdata.customer.service.CustomerCommandService;
+import com.tuowei.erp.masterdata.customer.service.CustomerQueryService;
 import com.tuowei.erp.masterdata.customer.service.CustomerService;
 import com.tuowei.erp.masterdata.customer.web.CustomerPageQuery;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
@@ -174,7 +176,13 @@ class MasterdataServiceExportTest {
     }
 
     private CustomerService customerService(CustomerMapper mapper) {
-        return new CustomerService(mapper, auditMetadataFactory);
+        CustomerQueryService queryService = new CustomerQueryService(mapper, auditMetadataFactory);
+        CustomerCommandService commandService = new CustomerCommandService(
+                mapper,
+                auditMetadataFactory,
+                queryService
+        );
+        return new CustomerService(queryService, commandService);
     }
 
     private SupplierService supplierService(SupplierMapper mapper) {

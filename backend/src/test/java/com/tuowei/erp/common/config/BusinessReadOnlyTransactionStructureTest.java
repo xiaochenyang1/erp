@@ -52,6 +52,7 @@ import com.tuowei.erp.inventory.transfer.service.InventoryTransferService;
 import com.tuowei.erp.issue.service.ExceptionTicketQueryService;
 import com.tuowei.erp.issue.service.ExceptionTicketService;
 import com.tuowei.erp.issue.web.ExceptionTicketPageQuery;
+import com.tuowei.erp.masterdata.customer.service.CustomerQueryService;
 import com.tuowei.erp.masterdata.customer.service.CustomerService;
 import com.tuowei.erp.masterdata.customer.web.CustomerPageQuery;
 import com.tuowei.erp.masterdata.product.service.ProductService;
@@ -140,6 +141,8 @@ class BusinessReadOnlyTransactionStructureTest {
     void masterdataQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
         assertReadOnly(CustomerService.class, "list", CustomerPageQuery.class);
         assertReadOnly(CustomerService.class, "getById", Long.class);
+        assertReadOnly(CustomerQueryService.class, "list", CustomerPageQuery.class);
+        assertReadOnly(CustomerQueryService.class, "getById", Long.class);
         assertReadOnly(SupplierService.class, "list", SupplierPageQuery.class);
         assertReadOnly(SupplierService.class, "getById", Long.class);
         assertReadOnly(ProductService.class, "list", ProductPageQuery.class);
