@@ -1,8 +1,17 @@
 package com.tuowei.erp.issue;
 
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.issue.mapper.ExceptionTicketEventMapper;
+import com.tuowei.erp.issue.mapper.ExceptionTicketMapper;
 import com.tuowei.erp.issue.service.ExceptionTicketQueryService;
+import com.tuowei.erp.issue.service.ExceptionTicketCommandService;
 import com.tuowei.erp.issue.service.ExceptionTicketService;
+import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyService;
+import com.tuowei.erp.system.notification.service.NotificationService;
+import com.tuowei.erp.issue.web.ExceptionTicketActionRequest;
+import com.tuowei.erp.issue.web.ExceptionTicketAssignRequest;
+import com.tuowei.erp.issue.web.ExceptionTicketCreateRequest;
 import com.tuowei.erp.issue.web.ExceptionTicketPageQuery;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
@@ -19,11 +28,39 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ExceptionTicketServiceDecompositionTest {
 
     @Test
-    void facadeKeepsReadFilteringEventHydrationAndMappingBehindQueryService() {
+    void facadeKeepsOnlyDedicatedQueryAndCommandCollaborators() {
         assertThat(constructorDependencies(ExceptionTicketService.class))
-                .contains(ExceptionTicketQueryService.class);
+                .containsExactlyInAnyOrder(
+                        ExceptionTicketQueryService.class,
+                        ExceptionTicketCommandService.class
+                );
+        assertThat(constructorDependencies(ExceptionTicketService.class))
+                .doesNotContain(
+                        AuditMetadataFactory.class,
+                        ExceptionTicketMapper.class,
+                        ExceptionTicketEventMapper.class,
+                        NotificationService.class,
+                        ExceptionSlaPolicyService.class,
+                        Clock.class
+                );
         assertThat(constructorDependencies(ExceptionTicketQueryService.class))
-                .contains(Clock.class)
+                .containsExactlyInAnyOrder(
+                        AuditMetadataFactory.class,
+                        ExceptionTicketMapper.class,
+                        ExceptionTicketEventMapper.class,
+                        Clock.class
+                )
+                .doesNotContain(ExceptionTicketService.class);
+        assertThat(constructorDependencies(ExceptionTicketCommandService.class))
+                .containsExactlyInAnyOrder(
+                        AuditMetadataFactory.class,
+                        ExceptionTicketMapper.class,
+                        ExceptionTicketEventMapper.class,
+                        NotificationService.class,
+                        ExceptionSlaPolicyService.class,
+                        ExceptionTicketQueryService.class,
+                        Clock.class
+                )
                 .doesNotContain(ExceptionTicketService.class);
     }
 
@@ -39,20 +76,27 @@ class ExceptionTicketServiceDecompositionTest {
     }
 
     @Test
-    void writeStateMachineKeepsRequiredTransactionsOnFacade() throws NoSuchMethodException {
-        assertRequiredWriteTransaction(ExceptionTicketService.class.getDeclaredMethod(
-                "create",
-                com.tuowei.erp.issue.web.ExceptionTicketCreateRequest.class
-        ));
-        assertRequiredWriteTransaction(ExceptionTicketService.class.getDeclaredMethod(
-                "assign",
-                Long.class,
-                com.tuowei.erp.issue.web.ExceptionTicketAssignRequest.class
-        ));
-        assertRequiredWriteTransaction(ExceptionTicketService.class.getDeclaredMethod(
-                "escalateOverdueTickets",
-                java.time.LocalDateTime.class
-        ));
+    void writeStateMachineKeepsRequiredTransactionsOnFacadeAndCommandService() throws NoSuchMethodException {
+        Class<?>[] writeMethods = {
+                ExceptionTicketService.class,
+                ExceptionTicketCommandService.class
+        };
+        for (Class<?> serviceType : writeMethods) {
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "create", ExceptionTicketCreateRequest.class));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "create", ExceptionTicketCreateRequest.class, AuditMetadata.class));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "assign", Long.class, ExceptionTicketAssignRequest.class));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "start", Long.class, ExceptionTicketActionRequest.class));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "resolve", Long.class, ExceptionTicketActionRequest.class));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "close", Long.class, ExceptionTicketActionRequest.class));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "escalateOverdueTickets", java.time.LocalDateTime.class));
+        }
     }
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {

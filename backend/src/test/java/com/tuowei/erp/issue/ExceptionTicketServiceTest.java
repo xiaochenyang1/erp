@@ -11,6 +11,7 @@ import com.tuowei.erp.issue.model.ExceptionTicketEntity;
 import com.tuowei.erp.issue.model.ExceptionTicketEventEntity;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaEscalationPolicy;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyService;
+import com.tuowei.erp.issue.service.ExceptionTicketCommandService;
 import com.tuowei.erp.issue.service.ExceptionTicketQueryService;
 import com.tuowei.erp.issue.service.ExceptionTicketService;
 import com.tuowei.erp.issue.web.ExceptionTicketActionRequest;
@@ -293,7 +294,7 @@ class ExceptionTicketServiceTest {
                 eventMapper,
                 clock
         );
-        return new ExceptionTicketService(
+        ExceptionTicketCommandService commandService = new ExceptionTicketCommandService(
                 auditMetadataFactory,
                 ticketMapper,
                 eventMapper,
@@ -301,6 +302,10 @@ class ExceptionTicketServiceTest {
                 slaPolicyService,
                 queryService,
                 clock
+        );
+        return new ExceptionTicketService(
+                queryService,
+                commandService
         );
     }
 
