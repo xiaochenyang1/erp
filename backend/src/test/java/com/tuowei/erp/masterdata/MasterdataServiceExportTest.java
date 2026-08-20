@@ -23,6 +23,8 @@ import com.tuowei.erp.masterdata.product.service.ProductService;
 import com.tuowei.erp.masterdata.product.web.ProductPageQuery;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
+import com.tuowei.erp.masterdata.supplier.service.SupplierCommandService;
+import com.tuowei.erp.masterdata.supplier.service.SupplierQueryService;
 import com.tuowei.erp.masterdata.supplier.service.SupplierService;
 import com.tuowei.erp.masterdata.supplier.web.SupplierPageQuery;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
@@ -186,7 +188,13 @@ class MasterdataServiceExportTest {
     }
 
     private SupplierService supplierService(SupplierMapper mapper) {
-        return new SupplierService(mapper, auditMetadataFactory);
+        SupplierQueryService queryService = new SupplierQueryService(mapper, auditMetadataFactory);
+        SupplierCommandService commandService = new SupplierCommandService(
+                mapper,
+                auditMetadataFactory,
+                queryService
+        );
+        return new SupplierService(queryService, commandService);
     }
 
     private WarehouseService warehouseService(WarehouseMapper mapper, DeptMapper deptMapper, UserMapper userMapper) {
