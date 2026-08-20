@@ -9,6 +9,7 @@ import com.tuowei.erp.inventory.alert.mapper.InventoryAlertDispositionMapper;
 import com.tuowei.erp.inventory.alert.mapper.InventoryAlertRuleMapper;
 import com.tuowei.erp.inventory.alert.model.InventoryAlertDispositionEntity;
 import com.tuowei.erp.inventory.alert.model.InventoryAlertRuleEntity;
+import com.tuowei.erp.inventory.alert.service.InventoryAlertCommandService;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertQueryService;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleCreateRequest;
@@ -222,7 +223,7 @@ class InventoryAlertServiceTenantBoundaryTest {
                 productMapper,
                 inventoryBalanceMapper
         );
-        return new InventoryAlertService(
+        InventoryAlertCommandService commandService = new InventoryAlertCommandService(
                 alertRuleMapper,
                 dispositionMapper,
                 inventoryPostingService,
@@ -231,6 +232,7 @@ class InventoryAlertServiceTenantBoundaryTest {
                 productMapper,
                 queryService
         );
+        return new InventoryAlertService(queryService, commandService);
     }
 
     private InventoryAlertRuleCreateRequest createRequest() {
