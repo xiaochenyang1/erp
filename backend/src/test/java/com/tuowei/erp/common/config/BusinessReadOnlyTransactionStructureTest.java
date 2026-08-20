@@ -16,6 +16,7 @@ import com.tuowei.erp.finance.voucher.service.ManualVoucherService;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherPageQuery;
 import com.tuowei.erp.finance.voucher.web.VoucherPageQuery;
 import com.tuowei.erp.imports.service.ImportJobService;
+import com.tuowei.erp.imports.service.ImportJobQueryService;
 import com.tuowei.erp.imports.web.ImportJobPageQuery;
 import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentService;
 import com.tuowei.erp.inventory.check.service.InventoryStockCheckService;
@@ -338,6 +339,9 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(ImportJobService.class, "list", ImportJobPageQuery.class);
         assertReadOnly(ImportJobService.class, "detail", Long.class);
         assertReadOnly(ImportJobService.class, "exportErrorRows", Long.class);
+        assertReadOnly(ImportJobQueryService.class, "list", ImportJobPageQuery.class);
+        assertReadOnly(ImportJobQueryService.class, "detail", Long.class);
+        assertReadOnly(ImportJobQueryService.class, "exportErrorRows", Long.class);
 
         assertReadOnly(WorkflowService.class, "listTasks", WorkflowTaskPageQuery.class);
         assertReadOnly(WorkflowService.class, "listRecords", WorkflowRecordPageQuery.class);
