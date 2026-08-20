@@ -8,6 +8,7 @@ import com.tuowei.erp.finance.voucher.mapper.ManualVoucherLineMapper;
 import com.tuowei.erp.finance.voucher.mapper.ManualVoucherMapper;
 import com.tuowei.erp.finance.voucher.mapper.VoucherEntryMapper;
 import com.tuowei.erp.finance.voucher.mapper.VoucherMapper;
+import com.tuowei.erp.finance.voucher.service.ManualVoucherCommandService;
 import com.tuowei.erp.finance.voucher.service.ManualVoucherPostingService;
 import com.tuowei.erp.finance.voucher.service.ManualVoucherQueryService;
 import com.tuowei.erp.finance.voucher.service.ManualVoucherService;
@@ -28,14 +29,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ManualVoucherServiceDecompositionTest {
 
     @Test
-    void facadeKeepsReadAndPostingOrchestrationBehindCollaborators() {
+    void facadeKeepsAllOrchestrationBehindDedicatedCollaborators() {
         assertThat(constructorDependencies(ManualVoucherService.class))
-                .contains(ManualVoucherQueryService.class, ManualVoucherPostingService.class)
-                .doesNotContain(VoucherMapper.class, VoucherEntryMapper.class, AccountPeriodGuard.class);
+                .containsExactlyInAnyOrder(
+                        ManualVoucherQueryService.class,
+                        ManualVoucherCommandService.class,
+                        ManualVoucherPostingService.class
+                );
         assertThat(constructorDependencies(ManualVoucherQueryService.class))
+                .containsExactlyInAnyOrder(
+                        ManualVoucherMapper.class,
+                        ManualVoucherLineMapper.class,
+                        AuditMetadataFactory.class
+                )
+                .doesNotContain(ManualVoucherService.class, ManualVoucherCommandService.class);
+        assertThat(constructorDependencies(ManualVoucherCommandService.class))
+                .containsExactlyInAnyOrder(
+                        ManualVoucherMapper.class,
+                        ManualVoucherLineMapper.class,
+                        AccountSubjectMapper.class,
+                        SequenceNumberGenerator.class,
+                        AuditMetadataFactory.class,
+                        ManualVoucherQueryService.class,
+                        AttachmentService.class
+                )
                 .doesNotContain(ManualVoucherService.class, ManualVoucherPostingService.class);
         assertThat(constructorDependencies(ManualVoucherPostingService.class))
-                .contains(
+                .containsExactlyInAnyOrder(
                         ManualVoucherMapper.class,
                         VoucherMapper.class,
                         VoucherEntryMapper.class,
@@ -46,6 +66,7 @@ class ManualVoucherServiceDecompositionTest {
                 )
                 .doesNotContain(
                         ManualVoucherService.class,
+                        ManualVoucherCommandService.class,
                         ManualVoucherLineMapper.class,
                         AccountSubjectMapper.class,
                         SequenceNumberGenerator.class
@@ -66,11 +87,30 @@ class ManualVoucherServiceDecompositionTest {
     }
 
     @Test
-    void postingStateMachineKeepsRequiredWriteTransactionsOnFacadeAndCollaborator() throws NoSuchMethodException {
-        assertRequiredWriteTransaction(ManualVoucherService.class.getDeclaredMethod(
-                "create",
-                com.tuowei.erp.finance.voucher.web.ManualVoucherSaveRequest.class
-        ));
+    void allFacadeAndCommandWriteMethodsKeepRequiredTransactions() throws NoSuchMethodException {
+        Class<?>[] writeServices = {
+                ManualVoucherService.class,
+                ManualVoucherCommandService.class
+        };
+        for (Class<?> serviceType : writeServices) {
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "create",
+                    com.tuowei.erp.finance.voucher.web.ManualVoucherSaveRequest.class
+            ));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "update",
+                    Long.class,
+                    com.tuowei.erp.finance.voucher.web.ManualVoucherSaveRequest.class
+            ));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod("submit", Long.class));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod("approve", Long.class));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod(
+                    "reject",
+                    Long.class,
+                    String.class
+            ));
+            assertRequiredWriteTransaction(serviceType.getDeclaredMethod("delete", Long.class));
+        }
         assertRequiredWriteTransaction(ManualVoucherService.class.getDeclaredMethod("post", Long.class));
         assertRequiredWriteTransaction(ManualVoucherService.class.getDeclaredMethod(
                 "cancel",
