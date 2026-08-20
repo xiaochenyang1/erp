@@ -8,6 +8,7 @@ import com.tuowei.erp.workflow.mapper.WorkflowInstanceMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowRecordMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
 import com.tuowei.erp.workflow.service.WorkflowApprovalConfigService;
+import com.tuowei.erp.workflow.service.WorkflowCommandService;
 import com.tuowei.erp.workflow.service.WorkflowQueryService;
 import com.tuowei.erp.workflow.service.WorkflowRecordCommandService;
 import com.tuowei.erp.workflow.service.WorkflowService;
@@ -30,26 +31,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Structure gate for the workflow E-1 query/posting split. Mirrors the sibling decomposition tests
- * (e.g. {@code PurchaseReceiptServiceDecompositionTest}): the facade must keep read-side mappers and
- * audit lookups behind {@link WorkflowQueryService}, the query service owns read-only transactions on
- * the read API, and the facade write API keeps {@code REQUIRED} write transactions.
+ * (e.g. {@code PurchaseReceiptServiceDecompositionTest}): the facade must keep orchestration behind
+ * dedicated command/query/transition collaborators, while the public compatibility API retains its
+ * transaction boundaries.
  */
 class WorkflowServiceDecompositionTest {
 
     @Test
-    void facadeDelegatesReadsToQueryService() {
-        // The workflow E-1 split extracts only the read side into WorkflowQueryService; the write
-        // orchestration stays in the facade, so the facade legitimately keeps the three mappers for
-        // writes. The invariant that must hold: reads are delegated to WorkflowQueryService, which
-        // owns the mappers and audit factory and never reaches back into write-side collaborators.
+    void facadeKeepsOnlyDedicatedWorkflowCollaborators() {
         assertThat(constructorDependencies(WorkflowService.class))
-                .hasSize(9)
-                .contains(
+                .hasSize(3)
+                .containsExactlyInAnyOrder(
                         WorkflowQueryService.class,
-                        WorkflowTaskTransitionService.class,
+                        WorkflowCommandService.class,
+                        WorkflowTaskTransitionService.class
+                );
+        assertThat(constructorDependencies(WorkflowCommandService.class))
+                .hasSize(8)
+                .contains(
+                        WorkflowInstanceMapper.class,
+                        WorkflowTaskMapper.class,
+                        WorkflowRecordMapper.class,
+                        WorkflowQueryService.class,
+                        WorkflowApprovalConfigService.class,
                         WorkflowRecordCommandService.class
                 )
-                .doesNotContain(UserMapper.class, CurrentUserContext.class, SystemLogService.class);
+                .doesNotContain(WorkflowService.class, WorkflowTaskTransitionService.class,
+                        CurrentUserContext.class, SystemLogService.class, UserMapper.class);
         assertThat(constructorDependencies(WorkflowQueryService.class))
                 .hasSize(4)
                 .contains(
@@ -101,11 +109,35 @@ class WorkflowServiceDecompositionTest {
     void facadeKeepsRequiredWriteTransactionsOnWriteApi() throws NoSuchMethodException {
         assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
                 "submit", String.class, Long.class, String.class, String.class, String.class));
+        assertRequiredWriteTransaction(WorkflowCommandService.class.getDeclaredMethod(
+                "submit", String.class, Long.class, String.class, String.class, String.class));
+        assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
+                "approve", String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowCommandService.class.getDeclaredMethod(
+                "approve", String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
+                "approveTaskForBusiness", Long.class, String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowCommandService.class.getDeclaredMethod(
+                "approveTaskForBusiness", Long.class, String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
+                "reject", String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowCommandService.class.getDeclaredMethod(
+                "reject", String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
+                "rejectTaskForBusiness", Long.class, String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowCommandService.class.getDeclaredMethod(
+                "rejectTaskForBusiness", Long.class, String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
+                "cancel", String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowCommandService.class.getDeclaredMethod(
+                "cancel", String.class, Long.class, String.class));
         assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
                 "transfer", Long.class, Long.class, String.class));
         assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
                 "escalate", Long.class, Long.class, String.class));
         assertRequiredWriteTransaction(WorkflowService.class.getDeclaredMethod(
+                "withdraw", String.class, Long.class, String.class));
+        assertRequiredWriteTransaction(WorkflowCommandService.class.getDeclaredMethod(
                 "withdraw", String.class, Long.class, String.class));
         assertRequiredWriteTransaction(WorkflowTaskTransitionService.class.getDeclaredMethod(
                 "transfer", Long.class, Long.class, String.class));

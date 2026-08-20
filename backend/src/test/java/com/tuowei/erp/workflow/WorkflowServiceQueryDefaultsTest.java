@@ -8,6 +8,7 @@ import com.tuowei.erp.workflow.mapper.WorkflowRecordMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
 import com.tuowei.erp.workflow.model.WorkflowInstanceEntity;
 import com.tuowei.erp.workflow.service.WorkflowApprovalConfigService;
+import com.tuowei.erp.workflow.service.WorkflowCommandService;
 import com.tuowei.erp.workflow.service.WorkflowQueryService;
 import com.tuowei.erp.workflow.service.WorkflowRecordCommandService;
 import com.tuowei.erp.workflow.service.WorkflowService;
@@ -55,10 +56,12 @@ class WorkflowServiceQueryDefaultsTest {
         // the mocked instanceMapper then returns null and the no-op early-return is taken.
         WorkflowQueryService queryService = new WorkflowQueryService(
                 instanceMapper, taskMapper, mock(WorkflowRecordMapper.class), auditFactory());
-        WorkflowService service = new WorkflowService(
+        WorkflowCommandService commandService = new WorkflowCommandService(
                 instanceMapper, taskMapper, mock(WorkflowRecordMapper.class), auditFactory(),
                 mock(NotificationService.class), configService, queryService,
-                mock(WorkflowTaskTransitionService.class), mock(WorkflowRecordCommandService.class));
+                mock(WorkflowRecordCommandService.class));
+        WorkflowService service = new WorkflowService(
+                queryService, commandService, mock(WorkflowTaskTransitionService.class));
 
         service.submit("SALES_ORDER", 7001L, "SO-7001", "销售订单 SO-7001", null);
 
@@ -84,7 +87,7 @@ class WorkflowServiceQueryDefaultsTest {
                 recordMapper,
                 auditMetadataFactory
         );
-        WorkflowService service = new WorkflowService(
+        WorkflowCommandService commandService = new WorkflowCommandService(
                 instanceMapper,
                 taskMapper,
                 recordMapper,
@@ -92,8 +95,12 @@ class WorkflowServiceQueryDefaultsTest {
                 notificationService,
                 configService,
                 queryService,
-                mock(WorkflowTaskTransitionService.class),
                 recordCommandService
+        );
+        WorkflowService service = new WorkflowService(
+                queryService,
+                commandService,
+                mock(WorkflowTaskTransitionService.class)
         );
         WorkflowInstanceEntity instance = new WorkflowInstanceEntity();
         instance.setId(8001L);
