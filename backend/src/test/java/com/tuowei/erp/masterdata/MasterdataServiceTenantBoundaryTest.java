@@ -17,6 +17,8 @@ import com.tuowei.erp.masterdata.customer.web.CustomerCreateRequest;
 import com.tuowei.erp.masterdata.customer.web.CustomerPageQuery;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
+import com.tuowei.erp.masterdata.product.service.ProductCommandService;
+import com.tuowei.erp.masterdata.product.service.ProductQueryService;
 import com.tuowei.erp.masterdata.product.service.ProductService;
 import com.tuowei.erp.masterdata.product.web.ProductPageQuery;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
@@ -290,13 +292,16 @@ class MasterdataServiceTenantBoundaryTest {
     }
 
     private ProductService productService(ProductMapper mapper) {
-        return new ProductService(
+        ProductQueryService queryService = new ProductQueryService(mapper, auditMetadataFactory);
+        ProductCommandService commandService = new ProductCommandService(
                 mapper,
                 mock(InventoryBalanceMapper.class),
                 mock(InventoryLotBalanceMapper.class),
                 auditMetadataFactory,
-                mock(SystemDictService.class)
+                mock(SystemDictService.class),
+                queryService
         );
+        return new ProductService(queryService, commandService);
     }
 
     private CustomerService customerService(CustomerMapper mapper) {
