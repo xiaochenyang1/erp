@@ -27,13 +27,21 @@ import com.tuowei.erp.system.notification.web.NotificationPageQuery;
 import com.tuowei.erp.system.post.service.PostService;
 import com.tuowei.erp.system.post.web.PostPageQuery;
 import com.tuowei.erp.system.readiness.service.ReadinessService;
+import com.tuowei.erp.system.readiness.service.ReadinessCommandService;
 import com.tuowei.erp.system.readiness.service.ReadinessQueryService;
+import com.tuowei.erp.system.readiness.web.ReadinessDecisionRequest;
+import com.tuowei.erp.system.readiness.web.ReadinessEvidenceCreateRequest;
+import com.tuowei.erp.system.readiness.web.ReadinessItemCreateRequest;
+import com.tuowei.erp.system.readiness.web.ReadinessItemResultRequest;
+import com.tuowei.erp.system.readiness.web.ReadinessPreflightResponse;
+import com.tuowei.erp.system.readiness.web.ReadinessRunCreateRequest;
 import com.tuowei.erp.system.readiness.web.ReadinessRunPageQuery;
 import com.tuowei.erp.system.role.service.RoleService;
 import com.tuowei.erp.system.role.web.RolePageQuery;
 import com.tuowei.erp.system.user.service.UserService;
 import com.tuowei.erp.system.user.web.UserPageQuery;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
@@ -72,6 +80,19 @@ class ReadOnlyTransactionStructureTest {
         assertReadOnly(ReadinessService.class, "detail", Long.class);
         assertReadOnly(ReadinessQueryService.class, "listRuns", ReadinessRunPageQuery.class);
         assertReadOnly(ReadinessQueryService.class, "detail", Long.class);
+    }
+
+    @Test
+    void readinessCommandsUseRequiredWriteTransactions() throws NoSuchMethodException {
+        Class<?>[] writeServices = {ReadinessService.class, ReadinessCommandService.class};
+        for (Class<?> serviceClass : writeServices) {
+            assertRequiredWrite(serviceClass, "createRun", ReadinessRunCreateRequest.class);
+            assertRequiredWrite(serviceClass, "addItem", Long.class, ReadinessItemCreateRequest.class);
+            assertRequiredWrite(serviceClass, "addEvidence", Long.class, ReadinessEvidenceCreateRequest.class);
+            assertRequiredWrite(serviceClass, "markItemResult", Long.class, ReadinessItemResultRequest.class);
+            assertRequiredWrite(serviceClass, "decide", Long.class, ReadinessDecisionRequest.class);
+            assertRequiredWrite(serviceClass, "recordPreflightEvidence", Long.class, ReadinessPreflightResponse.class);
+        }
     }
 
     @Test
@@ -127,5 +148,16 @@ class ReadOnlyTransactionStructureTest {
         assertThat(transactional.readOnly())
                 .as("%s should be read-only", method)
                 .isTrue();
+    }
+
+    private static void assertRequiredWrite(Class<?> serviceClass, String methodName, Class<?>... parameterTypes)
+            throws NoSuchMethodException {
+        Transactional transactional = serviceClass.getMethod(methodName, parameterTypes)
+                .getAnnotation(Transactional.class);
+        assertThat(transactional)
+                .as("%s.%s should declare a required write transaction", serviceClass.getSimpleName(), methodName)
+                .isNotNull();
+        assertThat(transactional.readOnly()).isFalse();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRED);
     }
 }
