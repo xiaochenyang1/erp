@@ -7,7 +7,6 @@ import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.security.CurrentUser;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -21,13 +20,15 @@ import com.tuowei.erp.sales.order.service.SalesCreditEvaluator;
 import com.tuowei.erp.sales.order.service.SalesOrderNumberService;
 import com.tuowei.erp.sales.order.service.SalesOrderQueryService;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
+import com.tuowei.erp.sales.order.service.SalesOrderWorkflowService;
 import com.tuowei.erp.sales.order.service.SalesPriceEvaluator;
 import com.tuowei.erp.sales.order.web.SalesOrderCreateRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderApproveRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderLineRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderPageQuery;
+import com.tuowei.erp.sales.order.web.SalesOrderRejectRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderResponse;
 import com.tuowei.erp.sales.order.web.SalesOrderSubmitRequest;
-import com.tuowei.erp.system.attachment.service.AttachmentService;
-import com.tuowei.erp.workflow.service.WorkflowService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -86,14 +86,12 @@ class SalesOrderServiceTenantBoundaryTest {
     private final CustomerMapper customerMapper = mock(CustomerMapper.class);
     private final ProductValidator productValidator = mock(ProductValidator.class);
     private final WarehouseMapper warehouseMapper = mock(WarehouseMapper.class);
-    private final InventoryPostingService inventoryPostingService = mock(InventoryPostingService.class);
     private final SalesOrderNumberService salesOrderNumberService = mock(SalesOrderNumberService.class);
     private final AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
     private final SalesOrderQueryService salesOrderQueryService = mock(SalesOrderQueryService.class);
-    private final WorkflowService workflowService = mock(WorkflowService.class);
+    private final SalesOrderWorkflowService salesOrderWorkflowService = mock(SalesOrderWorkflowService.class);
     private final SalesCreditEvaluator salesCreditEvaluator = mock(SalesCreditEvaluator.class);
     private final SalesPriceEvaluator salesPriceEvaluator = mock(SalesPriceEvaluator.class);
-    private final AttachmentService attachmentService = mock(AttachmentService.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -162,30 +160,18 @@ class SalesOrderServiceTenantBoundaryTest {
 
     @Test
     void unapproveApprovedOrderReleasesReservationsAndReturnsToDraft() {
-        stubAudit();
-        SalesOrderEntity approved = order();
-        approved.setStatus("APPROVED");
-        approved.setApprovalStatus("APPROVED");
-        approved.setDeliveryStatus("NOT_DELIVERED");
-        when(salesOrderMapper.selectById(3401L)).thenReturn(approved);
-        when(salesOrderMapper.updateById(any(SalesOrderEntity.class))).thenReturn(1);
-        when(salesOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
+        var expected = mock(com.tuowei.erp.sales.order.web.SalesOrderResponse.class);
+        when(salesOrderWorkflowService.unapprove(3401L)).thenReturn(expected);
 
-        service().unapprove(3401L);
+        assertThat(service().unapprove(3401L)).isSameAs(expected);
 
-        verify(inventoryPostingService).releaseAllReservations("SALES_ORDER", 3401L, AUDIT);
-        assertThat(approved.getStatus()).isEqualTo("DRAFT");
-        assertThat(approved.getApprovalStatus()).isEqualTo("NOT_SUBMITTED");
-        verify(salesOrderMapper).updateById(approved);
+        verify(salesOrderWorkflowService).unapprove(3401L);
     }
 
     @Test
     void unapproveRejectsDeliveredOrderWithoutReleasingReservation() {
-        SalesOrderEntity delivered = order();
-        delivered.setStatus("APPROVED");
-        delivered.setApprovalStatus("APPROVED");
-        delivered.setDeliveryStatus("PARTIAL_DELIVERED");
-        when(salesOrderMapper.selectById(3401L)).thenReturn(delivered);
+        when(salesOrderWorkflowService.unapprove(3401L))
+                .thenThrow(new IllegalArgumentException("已出库销售订单不允许反审核"));
 
         assertThatThrownBy(() -> service().unapprove(3401L))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -194,19 +180,44 @@ class SalesOrderServiceTenantBoundaryTest {
 
     @Test
     void submitValidatesCreditLimitBeforeWorkflowSubmission() {
-        stubAudit();
-        SalesOrderEntity draft = order();
-        draft.setApprovalStatus("NOT_SUBMITTED");
-        when(salesOrderMapper.selectById(3401L)).thenReturn(draft);
-        when(customerMapper.selectById(CUSTOMER_ID))
-                .thenReturn(activeCustomer(CUSTOMER_ID, AUDIT.companyId(), AUDIT.accountBookId()));
-        when(salesOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
-        when(salesOrderMapper.updateById(any(SalesOrderEntity.class))).thenReturn(1);
+        var expected = mock(com.tuowei.erp.sales.order.web.SalesOrderResponse.class);
+        when(salesOrderWorkflowService.submit(3401L, new SalesOrderSubmitRequest("credit submit")))
+                .thenReturn(expected);
 
-        service().submit(3401L, new SalesOrderSubmitRequest("credit submit"));
+        assertThat(service().submit(3401L, new SalesOrderSubmitRequest("credit submit"))).isSameAs(expected);
 
-        verify(salesCreditEvaluator).assertWithinCreditLimit(any(CustomerEntity.class), any(SalesOrderEntity.class), eq("提交"));
-        verify(workflowService).submit("SALES_ORDER", 3401L, "SO-3401", "销售订单 SO-3401", "credit submit");
+        verify(salesOrderWorkflowService).submit(3401L, new SalesOrderSubmitRequest("credit submit"));
+    }
+
+    @Test
+    void workflowActionsKeepTheSalesOrderFacade() {
+        SalesOrderSubmitRequest submitRequest = new SalesOrderSubmitRequest("submit");
+        SalesOrderApproveRequest approveRequest = new SalesOrderApproveRequest("approve");
+        SalesOrderRejectRequest rejectRequest = new SalesOrderRejectRequest("reject");
+        SalesOrderResponse expected = mock(SalesOrderResponse.class);
+        when(salesOrderWorkflowService.submit(3401L, submitRequest)).thenReturn(expected);
+        when(salesOrderWorkflowService.approve(3401L, approveRequest)).thenReturn(expected);
+        when(salesOrderWorkflowService.approveWorkflowTask(5501L, 3401L, approveRequest)).thenReturn(expected);
+        when(salesOrderWorkflowService.unapprove(3401L)).thenReturn(expected);
+        when(salesOrderWorkflowService.reject(3401L, rejectRequest)).thenReturn(expected);
+        when(salesOrderWorkflowService.rejectWorkflowTask(5502L, 3401L, rejectRequest)).thenReturn(expected);
+        when(salesOrderWorkflowService.cancel(3401L)).thenReturn(expected);
+
+        assertThat(service().submit(3401L, submitRequest)).isSameAs(expected);
+        assertThat(service().approve(3401L, approveRequest)).isSameAs(expected);
+        assertThat(service().approveWorkflowTask(5501L, 3401L, approveRequest)).isSameAs(expected);
+        assertThat(service().unapprove(3401L)).isSameAs(expected);
+        assertThat(service().reject(3401L, rejectRequest)).isSameAs(expected);
+        assertThat(service().rejectWorkflowTask(5502L, 3401L, rejectRequest)).isSameAs(expected);
+        assertThat(service().cancel(3401L)).isSameAs(expected);
+
+        verify(salesOrderWorkflowService).submit(3401L, submitRequest);
+        verify(salesOrderWorkflowService).approve(3401L, approveRequest);
+        verify(salesOrderWorkflowService).approveWorkflowTask(5501L, 3401L, approveRequest);
+        verify(salesOrderWorkflowService).unapprove(3401L);
+        verify(salesOrderWorkflowService).reject(3401L, rejectRequest);
+        verify(salesOrderWorkflowService).rejectWorkflowTask(5502L, 3401L, rejectRequest);
+        verify(salesOrderWorkflowService).cancel(3401L);
     }
 
     private void stubAudit() {
@@ -228,20 +239,14 @@ class SalesOrderServiceTenantBoundaryTest {
 
     @Test
     void submitStopsAtAttachmentGateBeforeLoadingLinesOrEvaluatingCredit() {
-        SalesOrderEntity draft = order();
-        when(salesOrderMapper.selectById(3401L)).thenReturn(draft);
-        doThrow(new IllegalArgumentException("业务类型 SALES_ORDER 要求至少上传 1 个附件，当前 0 个"))
-                .when(attachmentService)
-                .requireIfConfigured("SALES_ORDER", 3401L);
+        when(salesOrderWorkflowService.submit(3401L, new SalesOrderSubmitRequest("gate")))
+                .thenThrow(new IllegalArgumentException("业务类型 SALES_ORDER 要求至少上传 1 个附件，当前 0 个"));
 
         assertThatThrownBy(() -> service().submit(3401L, new SalesOrderSubmitRequest("gate")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("SALES_ORDER");
 
-        assertThat(draft.getStatus()).isEqualTo("DRAFT");
-        verify(salesOrderLineMapper, never()).selectList(any());
-        verify(salesOrderMapper, never()).updateById(any(SalesOrderEntity.class));
-        verify(workflowService, never()).submit(any(), any(), any(), any(), any());
+        verify(salesOrderWorkflowService).submit(3401L, new SalesOrderSubmitRequest("gate"));
     }
 
     private SalesOrderService service() {
@@ -251,14 +256,12 @@ class SalesOrderServiceTenantBoundaryTest {
                 customerMapper,
                 productValidator,
                 warehouseMapper,
-                inventoryPostingService,
                 salesOrderNumberService,
                 auditMetadataFactory,
                 salesOrderQueryService,
-                workflowService,
+                salesOrderWorkflowService,
                 salesCreditEvaluator,
-                salesPriceEvaluator,
-                attachmentService
+                salesPriceEvaluator
         );
     }
 

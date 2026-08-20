@@ -4,8 +4,23 @@ import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
+import com.tuowei.erp.masterdata.product.service.ProductValidator;
+import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
+import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
+import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.service.SalesOrderQueryService;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
+import com.tuowei.erp.sales.order.service.SalesOrderWorkflowService;
+import com.tuowei.erp.sales.order.service.SalesCreditEvaluator;
+import com.tuowei.erp.sales.order.service.SalesPriceEvaluator;
+import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
+import com.tuowei.erp.sales.order.service.SalesOrderNumberService;
+import com.tuowei.erp.sales.order.web.SalesOrderApproveRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderRejectRequest;
+import com.tuowei.erp.sales.order.web.SalesOrderSubmitRequest;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.workflow.service.WorkflowService;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
@@ -25,21 +40,52 @@ class SalesOrderServiceDecompositionTest {
         Set<Class<?>> constructorDependencies = constructorDependencies(SalesOrderService.class);
 
         assertThat(constructorDependencies)
-                .contains(SalesOrderQueryService.class)
+                .contains(SalesOrderQueryService.class, SalesOrderWorkflowService.class)
                 .doesNotContain(
                         CurrentUserContext.class,
                         DataScopeService.class,
                         ScopedUserResolver.class,
                         UserMapper.class,
-                        ProductMapper.class
+                        ProductMapper.class,
+                        InventoryPostingService.class
                 );
         assertThat(constructorDependencies(SalesOrderQueryService.class))
                 .doesNotContain(SalesOrderService.class);
+        assertThat(constructorDependencies(SalesOrderWorkflowService.class))
+                .contains(
+                        CustomerMapper.class,
+                        InventoryPostingService.class,
+                        SalesOrderMapper.class,
+                        AuditMetadataFactory.class,
+                        SalesOrderQueryService.class,
+                        WorkflowService.class,
+                        SalesCreditEvaluator.class,
+                        SalesPriceEvaluator.class,
+                        AttachmentService.class
+                )
+                .doesNotContain(
+                        SalesOrderService.class,
+                        SalesOrderLineMapper.class,
+                        ProductValidator.class,
+                        SalesOrderNumberService.class
+                );
     }
 
     @Test
     void orderWriteKeepsRequiredWriteTransactionOnFacade() throws NoSuchMethodException {
         assertRequiredWriteTransaction(SalesOrderService.class.getDeclaredMethod("create", com.tuowei.erp.sales.order.web.SalesOrderCreateRequest.class));
+        assertWorkflowTransactions(SalesOrderService.class);
+        assertWorkflowTransactions(SalesOrderWorkflowService.class);
+    }
+
+    private void assertWorkflowTransactions(Class<?> type) throws NoSuchMethodException {
+        assertRequiredWriteTransaction(type.getDeclaredMethod("submit", Long.class, SalesOrderSubmitRequest.class));
+        assertRequiredWriteTransaction(type.getDeclaredMethod("approve", Long.class, SalesOrderApproveRequest.class));
+        assertRequiredWriteTransaction(type.getDeclaredMethod("approveWorkflowTask", Long.class, Long.class, SalesOrderApproveRequest.class));
+        assertRequiredWriteTransaction(type.getDeclaredMethod("reject", Long.class, SalesOrderRejectRequest.class));
+        assertRequiredWriteTransaction(type.getDeclaredMethod("rejectWorkflowTask", Long.class, Long.class, SalesOrderRejectRequest.class));
+        assertRequiredWriteTransaction(type.getDeclaredMethod("unapprove", Long.class));
+        assertRequiredWriteTransaction(type.getDeclaredMethod("cancel", Long.class));
     }
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {

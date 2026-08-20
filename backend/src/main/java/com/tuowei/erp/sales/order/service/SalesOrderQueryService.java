@@ -62,13 +62,7 @@ public class SalesOrderQueryService {
     @Transactional(readOnly = true)
     public SalesOrderResponse getById(Long id) {
         SalesOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
-        List<SalesOrderLineEntity> lines = salesOrderLineMapper.selectList(new LambdaQueryWrapper<SalesOrderLineEntity>()
-                .eq(SalesOrderLineEntity::getCompanyId, entity.getCompanyId())
-                .eq(SalesOrderLineEntity::getAccountBookId, entity.getAccountBookId())
-                .eq(SalesOrderLineEntity::getOrderId, id)
-                .orderByAsc(SalesOrderLineEntity::getLineNo));
-        return toResponse(entity, findCustomerName(entity.getCustomerId()), lines);
+        return toResponse(entity, findCustomerName(entity.getCustomerId()), selectLines(entity));
     }
 
     @Transactional(readOnly = true)
@@ -165,12 +159,21 @@ public class SalesOrderQueryService {
         return wrapper.orderByDesc(SalesOrderEntity::getId);
     }
 
-    private SalesOrderEntity requireOrder(Long id) {
+    public SalesOrderEntity requireOrder(Long id) {
         SalesOrderEntity entity = salesOrderMapper.selectById(id);
         if (entity == null || entity.getDeletedFlag() == null || entity.getDeletedFlag() != 0) {
             throw new IllegalArgumentException("销售订单不存在");
         }
+        assertCanView(entity);
         return entity;
+    }
+
+    public List<SalesOrderLineEntity> selectLines(SalesOrderEntity entity) {
+        return salesOrderLineMapper.selectList(new LambdaQueryWrapper<SalesOrderLineEntity>()
+                .eq(SalesOrderLineEntity::getCompanyId, entity.getCompanyId())
+                .eq(SalesOrderLineEntity::getAccountBookId, entity.getAccountBookId())
+                .eq(SalesOrderLineEntity::getOrderId, entity.getId())
+                .orderByAsc(SalesOrderLineEntity::getLineNo));
     }
 
     private String findCustomerName(Long customerId) {

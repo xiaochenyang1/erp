@@ -11,8 +11,6 @@ import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
-import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
-import com.tuowei.erp.inventory.stock.service.InventoryReservationCommand;
 import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
@@ -28,9 +26,6 @@ import com.tuowei.erp.sales.order.web.SalesOrderResponse;
 import com.tuowei.erp.sales.order.web.SalesOrderSubmitRequest;
 import com.tuowei.erp.sales.order.web.SalesOrderUpdateRequest;
 import com.tuowei.erp.sales.support.SalesAmountCalculator;
-import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
-import com.tuowei.erp.system.attachment.service.AttachmentService;
-import com.tuowei.erp.workflow.service.WorkflowService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,14 +43,12 @@ public class SalesOrderService {
     private final CustomerMapper customerMapper;
     private final ProductValidator productValidator;
     private final WarehouseMapper warehouseMapper;
-    private final InventoryPostingService inventoryPostingService;
     private final SalesOrderNumberService salesOrderNumberService;
     private final AuditMetadataFactory auditMetadataFactory;
     private final SalesOrderQueryService salesOrderQueryService;
-    private final WorkflowService workflowService;
+    private final SalesOrderWorkflowService salesOrderWorkflowService;
     private final SalesCreditEvaluator salesCreditEvaluator;
     private final SalesPriceEvaluator salesPriceEvaluator;
-    private final AttachmentService attachmentService;
 
     public SalesOrderService(
             SalesOrderMapper salesOrderMapper,
@@ -63,28 +56,24 @@ public class SalesOrderService {
             CustomerMapper customerMapper,
             ProductValidator productValidator,
             WarehouseMapper warehouseMapper,
-            InventoryPostingService inventoryPostingService,
             SalesOrderNumberService salesOrderNumberService,
             AuditMetadataFactory auditMetadataFactory,
             SalesOrderQueryService salesOrderQueryService,
-            WorkflowService workflowService,
+            SalesOrderWorkflowService salesOrderWorkflowService,
             SalesCreditEvaluator salesCreditEvaluator,
-            SalesPriceEvaluator salesPriceEvaluator,
-            AttachmentService attachmentService
+            SalesPriceEvaluator salesPriceEvaluator
     ) {
         this.salesOrderMapper = salesOrderMapper;
         this.salesOrderLineMapper = salesOrderLineMapper;
         this.customerMapper = customerMapper;
         this.productValidator = productValidator;
         this.warehouseMapper = warehouseMapper;
-        this.inventoryPostingService = inventoryPostingService;
         this.salesOrderNumberService = salesOrderNumberService;
         this.auditMetadataFactory = auditMetadataFactory;
         this.salesOrderQueryService = salesOrderQueryService;
-        this.workflowService = workflowService;
+        this.salesOrderWorkflowService = salesOrderWorkflowService;
         this.salesCreditEvaluator = salesCreditEvaluator;
         this.salesPriceEvaluator = salesPriceEvaluator;
-        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -209,128 +198,37 @@ public class SalesOrderService {
 
     @Transactional
     public SalesOrderResponse submit(Long id, SalesOrderSubmitRequest request) {
-        SalesOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
-        if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
-            throw new IllegalArgumentException("当前销售订单状态不允许提交审批");
-        }
-        attachmentService.requireIfConfigured(AttachmentBusinessType.SALES_ORDER, entity.getId());
-        List<SalesOrderLineEntity> existingLines = salesOrderLineMapper.selectList(new LambdaQueryWrapper<SalesOrderLineEntity>()
-                .eq(SalesOrderLineEntity::getCompanyId, entity.getCompanyId())
-                .eq(SalesOrderLineEntity::getAccountBookId, entity.getAccountBookId())
-                .eq(SalesOrderLineEntity::getOrderId, entity.getId())
-                .orderByAsc(SalesOrderLineEntity::getLineNo));
-        List<SalesOrderLineRequest> lineRequests = existingLines.stream()
-                .map(line -> new SalesOrderLineRequest(
-                        line.getProductId(),
-                        line.getQty(),
-                        line.getPrice(),
-                        line.getTaxRate(),
-                        line.getRemark()
-                ))
-                .toList();
-        salesPriceEvaluator.assertLinesWithinMinPrice(
-                entity.getCompanyId(),
-                entity.getAccountBookId(),
-                entity.getCustomerId(),
-                entity.getOrderDate(),
-                lineRequests
-        );
-        CustomerEntity customer = customerMapper.selectById(entity.getCustomerId());
-        if (customer != null) {
-            salesCreditEvaluator.assertWithinCreditLimit(customer, entity, "提交");
-        }
-        SalesOrderResponse response = transitionWorkflowStatus(entity, "SUBMITTED", "IN_APPROVAL");
-        workflowService.submit("SALES_ORDER", entity.getId(), entity.getOrderNo(), "销售订单 " + entity.getOrderNo(), request.remark());
-        return response;
+        return salesOrderWorkflowService.submit(id, request);
     }
 
     @Transactional
     public SalesOrderResponse approve(Long id, SalesOrderApproveRequest request) {
-        return approve(id, request, null);
+        return salesOrderWorkflowService.approve(id, request);
     }
 
     @Transactional
     public SalesOrderResponse approveWorkflowTask(Long taskId, Long id, SalesOrderApproveRequest request) {
-        return approve(id, request, taskId);
-    }
-
-    private SalesOrderResponse approve(Long id, SalesOrderApproveRequest request, Long workflowTaskId) {
-        SalesOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
-        if (!"SUBMITTED".equals(entity.getStatus()) || !"IN_APPROVAL".equals(entity.getApprovalStatus())) {
-            throw new IllegalArgumentException("当前销售订单状态不允许审批通过");
-        }
-        CustomerEntity customer = customerMapper.selectById(entity.getCustomerId());
-        if (customer != null) {
-            salesCreditEvaluator.assertWithinCreditLimit(customer, entity, "审批");
-        }
-        reserveOrder(entity);
-        SalesOrderResponse response = transitionWorkflowStatus(entity, "APPROVED", "APPROVED");
-        if (workflowTaskId == null) {
-            workflowService.approve("SALES_ORDER", entity.getId(), request.remark());
-        } else {
-            workflowService.approveTaskForBusiness(workflowTaskId, "SALES_ORDER", entity.getId(), request.remark());
-        }
-        return response;
+        return salesOrderWorkflowService.approveWorkflowTask(taskId, id, request);
     }
 
     @Transactional
     public SalesOrderResponse reject(Long id, SalesOrderRejectRequest request) {
-        return reject(id, request, null);
+        return salesOrderWorkflowService.reject(id, request);
     }
 
     @Transactional
     public SalesOrderResponse rejectWorkflowTask(Long taskId, Long id, SalesOrderRejectRequest request) {
-        return reject(id, request, taskId);
-    }
-
-    private SalesOrderResponse reject(Long id, SalesOrderRejectRequest request, Long workflowTaskId) {
-        SalesOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
-        if (!"SUBMITTED".equals(entity.getStatus()) || !"IN_APPROVAL".equals(entity.getApprovalStatus())) {
-            throw new IllegalArgumentException("当前销售订单状态不允许驳回");
-        }
-        SalesOrderResponse response = transitionWorkflowStatus(entity, "REJECTED", "REJECTED");
-        if (workflowTaskId == null) {
-            workflowService.reject("SALES_ORDER", entity.getId(), request.reason());
-        } else {
-            workflowService.rejectTaskForBusiness(workflowTaskId, "SALES_ORDER", entity.getId(), request.reason());
-        }
-        return response;
+        return salesOrderWorkflowService.rejectWorkflowTask(taskId, id, request);
     }
 
     @Transactional
     public SalesOrderResponse unapprove(Long id) {
-        SalesOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
-        if (!"APPROVED".equals(entity.getStatus()) || !"APPROVED".equals(entity.getApprovalStatus())) {
-            throw new IllegalArgumentException("当前销售订单状态不允许反审核");
-        }
-        if (!"NOT_DELIVERED".equals(entity.getDeliveryStatus())) {
-            throw new IllegalArgumentException("已出库销售订单不允许反审核");
-        }
-        inventoryPostingService.releaseAllReservations("SALES_ORDER", entity.getId(), auditMetadataFactory.current());
-        return transitionWorkflowStatus(entity, "DRAFT", "NOT_SUBMITTED");
+        return salesOrderWorkflowService.unapprove(id);
     }
 
     @Transactional
     public SalesOrderResponse cancel(Long id) {
-        SalesOrderEntity entity = requireOrder(id);
-        assertCanView(entity);
-        if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())
-                && !"SUBMITTED".equals(entity.getStatus()) && !"APPROVED".equals(entity.getStatus())) {
-            throw new IllegalArgumentException("当前销售订单状态不允许作废");
-        }
-        if ("APPROVED".equals(entity.getStatus()) && !"NOT_DELIVERED".equals(entity.getDeliveryStatus())) {
-            throw new IllegalArgumentException("已出库销售订单不允许作废");
-        }
-        if ("APPROVED".equals(entity.getStatus())) {
-            inventoryPostingService.releaseAllReservations("SALES_ORDER", entity.getId(), auditMetadataFactory.current());
-        }
-        SalesOrderResponse response = transitionWorkflowStatus(entity, "CANCELLED", "CANCELLED");
-        workflowService.cancel("SALES_ORDER", entity.getId(), "作废销售订单");
-        return response;
+        return salesOrderWorkflowService.cancel(id);
     }
 
     private SalesOrderEntity requireOrder(Long id) {
@@ -424,49 +322,6 @@ public class SalesOrderService {
             lines.add(line);
         }
         return lines;
-    }
-
-    private void touch(SalesOrderEntity entity) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        entity.setUpdatedBy(audit.userId());
-        entity.setUpdatedTime(audit.now());
-    }
-
-    private void reserveOrder(SalesOrderEntity entity) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        List<SalesOrderLineEntity> lines = salesOrderLineMapper.selectList(new LambdaQueryWrapper<SalesOrderLineEntity>()
-                .eq(SalesOrderLineEntity::getCompanyId, entity.getCompanyId())
-                .eq(SalesOrderLineEntity::getAccountBookId, entity.getAccountBookId())
-                .eq(SalesOrderLineEntity::getOrderId, entity.getId())
-                .orderByAsc(SalesOrderLineEntity::getLineNo));
-        for (SalesOrderLineEntity line : lines) {
-            inventoryPostingService.reserve(
-                    new InventoryReservationCommand(
-                            entity.getWarehouseId(),
-                            line.getProductId(),
-                            "SALES_ORDER",
-                            entity.getId(),
-                            entity.getOrderNo(),
-                            line.getId(),
-                            line.getQty(),
-                            line.getRemark()
-                    ),
-                    audit,
-                    "库存可用量不足，不能审批销售订单"
-            );
-        }
-    }
-
-    private SalesOrderResponse transitionWorkflowStatus(
-            SalesOrderEntity entity,
-            String status,
-            String approvalStatus
-    ) {
-        entity.setStatus(status);
-        entity.setApprovalStatus(approvalStatus);
-        touch(entity);
-        OptimisticLockGuard.requireUpdated(salesOrderMapper.updateById(entity), "销售订单已被其他操作修改，请刷新后重试");
-        return salesOrderQueryService.getById(entity.getId());
     }
 
     private record OrderTotals(BigDecimal totalQuantity, BigDecimal totalAmount, BigDecimal totalTaxAmount) {
