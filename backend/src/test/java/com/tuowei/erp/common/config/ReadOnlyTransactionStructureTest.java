@@ -28,6 +28,7 @@ import com.tuowei.erp.system.notification.service.NotificationService;
 import com.tuowei.erp.system.notification.service.NotificationQueryService;
 import com.tuowei.erp.system.notification.web.NotificationPageQuery;
 import com.tuowei.erp.system.post.service.PostService;
+import com.tuowei.erp.system.post.service.PostQueryService;
 import com.tuowei.erp.system.post.web.PostPageQuery;
 import com.tuowei.erp.system.readiness.service.ReadinessService;
 import com.tuowei.erp.system.readiness.service.ReadinessCommandService;
@@ -134,6 +135,8 @@ class ReadOnlyTransactionStructureTest {
 
         assertReadOnly(PostService.class, "list", PostPageQuery.class);
         assertReadOnly(PostService.class, "getById", Long.class);
+        assertReadOnly(PostQueryService.class, "list", PostPageQuery.class);
+        assertReadOnly(PostQueryService.class, "getById", Long.class);
 
         assertReadOnly(SystemDictService.class, "listTypes", DictTypePageQuery.class);
         assertReadOnly(SystemDictService.class, "getTypeById", Long.class);

@@ -28,6 +28,8 @@ import com.tuowei.erp.system.menu.service.MenuQueryService;
 import com.tuowei.erp.system.post.mapper.PostMapper;
 import com.tuowei.erp.system.post.model.PostEntity;
 import com.tuowei.erp.system.post.service.PostService;
+import com.tuowei.erp.system.post.service.PostCommandService;
+import com.tuowei.erp.system.post.service.PostQueryService;
 import com.tuowei.erp.system.post.web.PostCreateRequest;
 import com.tuowei.erp.system.post.web.PostPageQuery;
 import com.tuowei.erp.system.role.mapper.RoleMapper;
@@ -363,7 +365,11 @@ class SystemTenantBoundaryTest {
     }
 
     private PostService postService(PostMapper postMapper, DeptMapper deptMapper) {
-        return new PostService(postMapper, deptMapper, auditMetadataFactory);
+        PostQueryService queryService = new PostQueryService(postMapper, auditMetadataFactory);
+        PostCommandService commandService = new PostCommandService(
+                postMapper, deptMapper, auditMetadataFactory, queryService
+        );
+        return new PostService(queryService, commandService);
     }
 
     private RoleService roleService(RoleMapper roleMapper) {
