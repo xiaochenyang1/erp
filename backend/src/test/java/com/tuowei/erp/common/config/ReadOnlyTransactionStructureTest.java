@@ -8,6 +8,7 @@ import com.tuowei.erp.system.auth.service.UserSessionService;
 import com.tuowei.erp.system.auth.web.UserSessionPageQuery;
 import com.tuowei.erp.system.config.service.SequenceRuleService;
 import com.tuowei.erp.system.config.service.SystemConfigService;
+import com.tuowei.erp.system.config.service.SystemConfigQueryService;
 import com.tuowei.erp.system.config.web.SequenceRulePageQuery;
 import com.tuowei.erp.system.config.web.SystemConfigPageQuery;
 import com.tuowei.erp.system.dept.service.DeptService;
@@ -149,6 +150,8 @@ class ReadOnlyTransactionStructureTest {
 
         assertReadOnly(SystemConfigService.class, "list", SystemConfigPageQuery.class);
         assertReadOnly(SystemConfigService.class, "getById", Long.class);
+        assertReadOnly(SystemConfigQueryService.class, "list", SystemConfigPageQuery.class);
+        assertReadOnly(SystemConfigQueryService.class, "getById", Long.class);
 
         assertReadOnly(SequenceRuleService.class, "list", SequenceRulePageQuery.class);
         assertReadOnly(SequenceRuleService.class, "getById", Long.class);
