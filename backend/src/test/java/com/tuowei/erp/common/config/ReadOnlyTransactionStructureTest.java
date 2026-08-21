@@ -13,6 +13,7 @@ import com.tuowei.erp.system.config.web.SystemConfigPageQuery;
 import com.tuowei.erp.system.dept.service.DeptService;
 import com.tuowei.erp.system.dept.web.DeptPageQuery;
 import com.tuowei.erp.system.dict.service.SystemDictService;
+import com.tuowei.erp.system.dict.service.SystemDictQueryService;
 import com.tuowei.erp.system.dict.web.DictTypePageQuery;
 import com.tuowei.erp.system.log.service.SystemLogService;
 import com.tuowei.erp.system.log.service.SystemLogQueryService;
@@ -120,6 +121,10 @@ class ReadOnlyTransactionStructureTest {
         assertReadOnly(SystemDictService.class, "getTypeById", Long.class);
         assertReadOnly(SystemDictService.class, "listItems", String.class);
         assertReadOnly(SystemDictService.class, "requireEnabledItem", String.class, String.class, String.class);
+        assertReadOnly(SystemDictQueryService.class, "listTypes", DictTypePageQuery.class);
+        assertReadOnly(SystemDictQueryService.class, "getTypeById", Long.class);
+        assertReadOnly(SystemDictQueryService.class, "listItems", String.class);
+        assertReadOnly(SystemDictQueryService.class, "requireEnabledItem", String.class, String.class, String.class);
 
         assertReadOnly(SystemConfigService.class, "list", SystemConfigPageQuery.class);
         assertReadOnly(SystemConfigService.class, "getById", Long.class);
