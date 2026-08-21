@@ -27,7 +27,7 @@ class ScopedUserResolverUsageConfigurationTest {
     @Test
     void userMutationsEvictScopedUserResolverCache() throws IOException {
         String source = Files.readString(
-                Path.of("src", "main", "java", "com", "tuowei", "erp", "system", "user", "service", "UserService.java"),
+                Path.of("src", "main", "java", "com", "tuowei", "erp", "system", "user", "service", "UserCommandService.java"),
                 StandardCharsets.UTF_8
         );
 

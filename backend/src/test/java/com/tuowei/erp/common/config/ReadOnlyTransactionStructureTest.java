@@ -40,6 +40,7 @@ import com.tuowei.erp.system.readiness.web.ReadinessRunCreateRequest;
 import com.tuowei.erp.system.readiness.web.ReadinessRunPageQuery;
 import com.tuowei.erp.system.role.service.RoleService;
 import com.tuowei.erp.system.role.web.RolePageQuery;
+import com.tuowei.erp.system.user.service.UserQueryService;
 import com.tuowei.erp.system.user.service.UserService;
 import com.tuowei.erp.system.user.web.UserPageQuery;
 import org.junit.jupiter.api.Test;
@@ -102,6 +103,9 @@ class ReadOnlyTransactionStructureTest {
         assertReadOnly(UserService.class, "list", UserPageQuery.class);
         assertReadOnly(UserService.class, "getById", Long.class);
         assertReadOnly(UserService.class, "getAssignedRoles", Long.class);
+        assertReadOnly(UserQueryService.class, "list", UserPageQuery.class);
+        assertReadOnly(UserQueryService.class, "getById", Long.class);
+        assertReadOnly(UserQueryService.class, "getAssignedRoles", Long.class);
 
         assertReadOnly(RoleService.class, "list", RolePageQuery.class);
         assertReadOnly(RoleService.class, "getById", Long.class);

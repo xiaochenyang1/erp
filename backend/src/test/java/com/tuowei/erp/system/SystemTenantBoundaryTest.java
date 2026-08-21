@@ -36,6 +36,8 @@ import com.tuowei.erp.system.role.web.RolePageQuery;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.system.user.mapper.UserRoleMapper;
 import com.tuowei.erp.system.user.model.UserEntity;
+import com.tuowei.erp.system.user.service.UserCommandService;
+import com.tuowei.erp.system.user.service.UserQueryService;
 import com.tuowei.erp.system.user.service.UserService;
 import com.tuowei.erp.system.user.web.UserCreateRequest;
 import com.tuowei.erp.system.user.web.UserPageQuery;
@@ -420,7 +422,12 @@ class SystemTenantBoundaryTest {
             PostMapper postMapper,
             UserPermissionService permissionService
     ) {
-        return new UserService(
+        UserQueryService queryService = new UserQueryService(
+                userMapper,
+                userRoleMapper,
+                auditMetadataFactory
+        );
+        UserCommandService commandService = new UserCommandService(
                 userMapper,
                 userRoleMapper,
                 roleMapper,
@@ -431,8 +438,10 @@ class SystemTenantBoundaryTest {
                 mock(RefreshTokenService.class),
                 mock(SecurityPrincipalCache.class),
                 mock(ScopedUserResolver.class),
-                permissionService
+                permissionService,
+                queryService
         );
+        return new UserService(queryService, commandService);
     }
 
     private <T> Page<T> page() {
