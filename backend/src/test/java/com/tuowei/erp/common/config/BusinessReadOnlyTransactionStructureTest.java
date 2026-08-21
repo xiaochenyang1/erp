@@ -62,6 +62,7 @@ import com.tuowei.erp.masterdata.supplier.service.SupplierService;
 import com.tuowei.erp.masterdata.supplier.service.SupplierQueryService;
 import com.tuowei.erp.masterdata.supplier.web.SupplierPageQuery;
 import com.tuowei.erp.masterdata.warehouse.service.WarehouseService;
+import com.tuowei.erp.masterdata.warehouse.service.WarehouseQueryService;
 import com.tuowei.erp.masterdata.warehouse.web.WarehousePageQuery;
 import com.tuowei.erp.production.bom.service.ProductionBomService;
 import com.tuowei.erp.production.bom.web.ProductionBomPageQuery;
@@ -156,6 +157,8 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(ProductQueryService.class, "getByBarcode", String.class);
         assertReadOnly(WarehouseService.class, "list", WarehousePageQuery.class);
         assertReadOnly(WarehouseService.class, "getById", Long.class);
+        assertReadOnly(WarehouseQueryService.class, "list", WarehousePageQuery.class);
+        assertReadOnly(WarehouseQueryService.class, "getById", Long.class);
     }
 
     @Test

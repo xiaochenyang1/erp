@@ -31,6 +31,8 @@ import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.masterdata.location.service.LocationService;
 import com.tuowei.erp.masterdata.warehouse.service.WarehouseService;
+import com.tuowei.erp.masterdata.warehouse.service.WarehouseCommandService;
+import com.tuowei.erp.masterdata.warehouse.service.WarehouseQueryService;
 import com.tuowei.erp.masterdata.warehouse.web.WarehousePageQuery;
 import com.tuowei.erp.system.dept.mapper.DeptMapper;
 import com.tuowei.erp.system.dept.model.DeptEntity;
@@ -198,7 +200,16 @@ class MasterdataServiceExportTest {
     }
 
     private WarehouseService warehouseService(WarehouseMapper mapper, DeptMapper deptMapper, UserMapper userMapper) {
-        return new WarehouseService(mapper, deptMapper, userMapper, auditMetadataFactory, org.mockito.Mockito.mock(LocationService.class));
+        WarehouseQueryService queryService = new WarehouseQueryService(mapper, auditMetadataFactory);
+        WarehouseCommandService commandService = new WarehouseCommandService(
+                mapper,
+                deptMapper,
+                userMapper,
+                auditMetadataFactory,
+                org.mockito.Mockito.mock(LocationService.class),
+                queryService
+        );
+        return new WarehouseService(queryService, commandService);
     }
 
     private <T> void verifySelectListScoped(Object mapper, Class<T> entityClass) {
