@@ -39,6 +39,7 @@ import com.tuowei.erp.system.readiness.web.ReadinessPreflightResponse;
 import com.tuowei.erp.system.readiness.web.ReadinessRunCreateRequest;
 import com.tuowei.erp.system.readiness.web.ReadinessRunPageQuery;
 import com.tuowei.erp.system.role.service.RoleService;
+import com.tuowei.erp.system.role.service.RoleQueryService;
 import com.tuowei.erp.system.role.web.RolePageQuery;
 import com.tuowei.erp.system.user.service.UserQueryService;
 import com.tuowei.erp.system.user.service.UserService;
@@ -110,6 +111,9 @@ class ReadOnlyTransactionStructureTest {
         assertReadOnly(RoleService.class, "list", RolePageQuery.class);
         assertReadOnly(RoleService.class, "getById", Long.class);
         assertReadOnly(RoleService.class, "getAssignedMenus", Long.class);
+        assertReadOnly(RoleQueryService.class, "list", RolePageQuery.class);
+        assertReadOnly(RoleQueryService.class, "getById", Long.class);
+        assertReadOnly(RoleQueryService.class, "getAssignedMenus", Long.class);
 
         assertReadOnly(MenuService.class, "list", MenuPageQuery.class);
         assertReadOnly(MenuService.class, "tree");

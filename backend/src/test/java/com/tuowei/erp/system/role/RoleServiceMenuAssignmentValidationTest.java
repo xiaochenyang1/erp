@@ -12,6 +12,8 @@ import com.tuowei.erp.system.menu.model.RoleMenuEntity;
 import com.tuowei.erp.system.role.mapper.RoleMapper;
 import com.tuowei.erp.system.role.model.RoleEntity;
 import com.tuowei.erp.system.role.service.RoleService;
+import com.tuowei.erp.system.role.service.RoleCommandService;
+import com.tuowei.erp.system.role.service.RoleQueryService;
 import com.tuowei.erp.system.role.web.RoleMenuAssignRequest;
 import com.tuowei.erp.system.role.web.RoleMenuAssignmentResponse;
 import org.junit.jupiter.api.Test;
@@ -93,9 +95,11 @@ class RoleServiceMenuAssignmentValidationTest {
         RoleMenuMapper roleMenuMapper = mock(RoleMenuMapper.class);
         SecurityPrincipalCache principalCache = mock(SecurityPrincipalCache.class);
         UserPermissionService permissionService = mock(UserPermissionService.class);
-        RoleService service = new RoleService(
-                roleMapper, menuMapper, roleMenuMapper, auditFactory(), principalCache, permissionService
+        RoleQueryService queryService = new RoleQueryService(roleMapper, menuMapper, roleMenuMapper, auditFactory());
+        RoleCommandService commandService = new RoleCommandService(
+                roleMapper, roleMenuMapper, auditFactory(), principalCache, permissionService, queryService
         );
+        RoleService service = new RoleService(queryService, commandService);
         when(roleMapper.selectById(7L)).thenReturn(role());
         when(menuMapper.selectById(11L)).thenReturn(activeMenu(11L));
         when(menuMapper.selectById(12L)).thenReturn(null);
@@ -117,7 +121,7 @@ class RoleServiceMenuAssignmentValidationTest {
     }
 
     @Test
-    void assignMenusRejectsWhenAllRequestedMenusAreInactive() {
+    void assignMenusRejectsWhenAllRequestedMenusAreMissingOrDeleted() {
         RoleMapper roleMapper = mock(RoleMapper.class);
         MenuMapper menuMapper = mock(MenuMapper.class);
         RoleMenuMapper roleMenuMapper = mock(RoleMenuMapper.class);
@@ -155,14 +159,21 @@ class RoleServiceMenuAssignmentValidationTest {
     }
 
     private static RoleService service(RoleMapper roleMapper, MenuMapper menuMapper, RoleMenuMapper roleMenuMapper) {
-        return new RoleService(
+        RoleQueryService queryService = new RoleQueryService(
                 roleMapper,
                 menuMapper,
                 roleMenuMapper,
+                auditFactory()
+        );
+        RoleCommandService commandService = new RoleCommandService(
+                roleMapper,
+                roleMenuMapper,
                 auditFactory(),
                 mock(SecurityPrincipalCache.class),
-                mock(UserPermissionService.class)
+                mock(UserPermissionService.class),
+                queryService
         );
+        return new RoleService(queryService, commandService);
     }
 
     private static AuditMetadataFactory auditFactory() {

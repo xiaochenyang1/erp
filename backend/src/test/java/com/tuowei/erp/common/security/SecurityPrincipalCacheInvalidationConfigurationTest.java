@@ -14,7 +14,7 @@ class SecurityPrincipalCacheInvalidationConfigurationTest {
     @Test
     void securityMutationServicesEvictPrincipalCache() throws IOException {
         String userCommandService = readSource("system", "user", "service", "UserCommandService.java");
-        String roleService = readSource("system", "role", "service", "RoleService.java");
+        String roleService = readSource("system", "role", "service", "RoleCommandService.java");
         String menuCommandService = readSource("system", "menu", "service", "MenuCommandService.java");
         String authService = readSource("system", "auth", "service", "AuthService.java");
 

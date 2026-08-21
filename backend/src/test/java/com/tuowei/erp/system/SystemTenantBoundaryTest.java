@@ -30,6 +30,8 @@ import com.tuowei.erp.system.post.web.PostCreateRequest;
 import com.tuowei.erp.system.post.web.PostPageQuery;
 import com.tuowei.erp.system.role.mapper.RoleMapper;
 import com.tuowei.erp.system.role.model.RoleEntity;
+import com.tuowei.erp.system.role.service.RoleCommandService;
+import com.tuowei.erp.system.role.service.RoleQueryService;
 import com.tuowei.erp.system.role.service.RoleService;
 import com.tuowei.erp.system.role.web.RoleMenuAssignRequest;
 import com.tuowei.erp.system.role.web.RolePageQuery;
@@ -370,14 +372,21 @@ class SystemTenantBoundaryTest {
             RoleMenuMapper roleMenuMapper,
             UserPermissionService permissionService
     ) {
-        return new RoleService(
+        RoleQueryService queryService = new RoleQueryService(
                 roleMapper,
                 menuMapper,
                 roleMenuMapper,
+                auditMetadataFactory
+        );
+        RoleCommandService commandService = new RoleCommandService(
+                roleMapper,
+                roleMenuMapper,
                 auditMetadataFactory,
                 mock(SecurityPrincipalCache.class),
-                permissionService
+                permissionService,
+                queryService
         );
+        return new RoleService(queryService, commandService);
     }
 
     private MenuService menuService(MenuMapper menuMapper, UserPermissionService permissionService) {
