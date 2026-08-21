@@ -15,6 +15,8 @@ import com.tuowei.erp.system.auth.service.RefreshTokenService;
 import com.tuowei.erp.system.dept.mapper.DeptMapper;
 import com.tuowei.erp.system.dept.model.DeptEntity;
 import com.tuowei.erp.system.dept.service.DeptService;
+import com.tuowei.erp.system.dept.service.DeptCommandService;
+import com.tuowei.erp.system.dept.service.DeptQueryService;
 import com.tuowei.erp.system.dept.web.DeptCreateRequest;
 import com.tuowei.erp.system.dept.web.DeptPageQuery;
 import com.tuowei.erp.system.menu.mapper.MenuMapper;
@@ -355,7 +357,9 @@ class SystemTenantBoundaryTest {
     }
 
     private DeptService deptService(DeptMapper mapper) {
-        return new DeptService(mapper, auditMetadataFactory);
+        DeptQueryService queryService = new DeptQueryService(mapper, auditMetadataFactory);
+        DeptCommandService commandService = new DeptCommandService(mapper, auditMetadataFactory, queryService);
+        return new DeptService(queryService, commandService);
     }
 
     private PostService postService(PostMapper postMapper, DeptMapper deptMapper) {

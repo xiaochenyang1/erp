@@ -11,6 +11,7 @@ import com.tuowei.erp.system.config.service.SystemConfigService;
 import com.tuowei.erp.system.config.web.SequenceRulePageQuery;
 import com.tuowei.erp.system.config.web.SystemConfigPageQuery;
 import com.tuowei.erp.system.dept.service.DeptService;
+import com.tuowei.erp.system.dept.service.DeptQueryService;
 import com.tuowei.erp.system.dept.web.DeptPageQuery;
 import com.tuowei.erp.system.dict.service.SystemDictService;
 import com.tuowei.erp.system.dict.service.SystemDictQueryService;
@@ -127,6 +128,9 @@ class ReadOnlyTransactionStructureTest {
         assertReadOnly(DeptService.class, "list", DeptPageQuery.class);
         assertReadOnly(DeptService.class, "tree");
         assertReadOnly(DeptService.class, "getById", Long.class);
+        assertReadOnly(DeptQueryService.class, "list", DeptPageQuery.class);
+        assertReadOnly(DeptQueryService.class, "tree");
+        assertReadOnly(DeptQueryService.class, "getById", Long.class);
 
         assertReadOnly(PostService.class, "list", PostPageQuery.class);
         assertReadOnly(PostService.class, "getById", Long.class);
