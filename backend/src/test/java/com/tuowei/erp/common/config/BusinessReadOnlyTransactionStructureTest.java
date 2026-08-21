@@ -55,6 +55,9 @@ import com.tuowei.erp.issue.web.ExceptionTicketPageQuery;
 import com.tuowei.erp.masterdata.customer.service.CustomerQueryService;
 import com.tuowei.erp.masterdata.customer.service.CustomerService;
 import com.tuowei.erp.masterdata.customer.web.CustomerPageQuery;
+import com.tuowei.erp.masterdata.location.service.LocationQueryService;
+import com.tuowei.erp.masterdata.location.service.LocationService;
+import com.tuowei.erp.masterdata.location.web.LocationPageQuery;
 import com.tuowei.erp.masterdata.product.service.ProductService;
 import com.tuowei.erp.masterdata.product.service.ProductQueryService;
 import com.tuowei.erp.masterdata.product.web.ProductPageQuery;
@@ -159,6 +162,10 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(WarehouseService.class, "getById", Long.class);
         assertReadOnly(WarehouseQueryService.class, "list", WarehousePageQuery.class);
         assertReadOnly(WarehouseQueryService.class, "getById", Long.class);
+        assertReadOnly(LocationService.class, "list", LocationPageQuery.class);
+        assertReadOnly(LocationService.class, "getById", Long.class);
+        assertReadOnly(LocationQueryService.class, "list", LocationPageQuery.class);
+        assertReadOnly(LocationQueryService.class, "getById", Long.class);
     }
 
     @Test
