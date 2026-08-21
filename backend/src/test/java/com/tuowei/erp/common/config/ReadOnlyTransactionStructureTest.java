@@ -7,6 +7,7 @@ import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
 import com.tuowei.erp.system.auth.service.UserSessionService;
 import com.tuowei.erp.system.auth.web.UserSessionPageQuery;
 import com.tuowei.erp.system.config.service.SequenceRuleService;
+import com.tuowei.erp.system.config.service.SequenceRuleQueryService;
 import com.tuowei.erp.system.config.service.SystemConfigService;
 import com.tuowei.erp.system.config.service.SystemConfigQueryService;
 import com.tuowei.erp.system.config.web.SequenceRulePageQuery;
@@ -155,6 +156,8 @@ class ReadOnlyTransactionStructureTest {
 
         assertReadOnly(SequenceRuleService.class, "list", SequenceRulePageQuery.class);
         assertReadOnly(SequenceRuleService.class, "getById", Long.class);
+        assertReadOnly(SequenceRuleQueryService.class, "list", SequenceRulePageQuery.class);
+        assertReadOnly(SequenceRuleQueryService.class, "getById", Long.class);
 
         assertReadOnly(UserSessionService.class, "list", UserSessionPageQuery.class);
 
