@@ -21,6 +21,7 @@ import com.tuowei.erp.system.log.web.AuditLogPageQuery;
 import com.tuowei.erp.system.log.web.LoginLogPageQuery;
 import com.tuowei.erp.system.log.web.OperationLogPageQuery;
 import com.tuowei.erp.system.menu.service.MenuService;
+import com.tuowei.erp.system.menu.service.MenuQueryService;
 import com.tuowei.erp.system.menu.web.MenuPageQuery;
 import com.tuowei.erp.system.notification.service.NotificationService;
 import com.tuowei.erp.system.notification.service.NotificationQueryService;
@@ -108,7 +109,12 @@ class ReadOnlyTransactionStructureTest {
 
         assertReadOnly(MenuService.class, "list", MenuPageQuery.class);
         assertReadOnly(MenuService.class, "tree");
+        assertReadOnly(MenuService.class, "runtimeTreeForCurrentUser");
         assertReadOnly(MenuService.class, "getById", Long.class);
+        assertReadOnly(MenuQueryService.class, "list", MenuPageQuery.class);
+        assertReadOnly(MenuQueryService.class, "tree");
+        assertReadOnly(MenuQueryService.class, "runtimeTreeForCurrentUser");
+        assertReadOnly(MenuQueryService.class, "getById", Long.class);
 
         assertReadOnly(DeptService.class, "list", DeptPageQuery.class);
         assertReadOnly(DeptService.class, "tree");

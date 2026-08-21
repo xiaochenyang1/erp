@@ -21,6 +21,8 @@ import com.tuowei.erp.system.menu.mapper.MenuMapper;
 import com.tuowei.erp.system.menu.mapper.RoleMenuMapper;
 import com.tuowei.erp.system.menu.model.MenuEntity;
 import com.tuowei.erp.system.menu.service.MenuService;
+import com.tuowei.erp.system.menu.service.MenuCommandService;
+import com.tuowei.erp.system.menu.service.MenuQueryService;
 import com.tuowei.erp.system.post.mapper.PostMapper;
 import com.tuowei.erp.system.post.model.PostEntity;
 import com.tuowei.erp.system.post.service.PostService;
@@ -377,17 +379,26 @@ class SystemTenantBoundaryTest {
     }
 
     private MenuService menuService(MenuMapper menuMapper, UserPermissionService permissionService) {
-        return new MenuService(
+        MenuQueryService queryService = new MenuQueryService(
                 menuMapper,
-                auditMetadataFactory,
-                mock(SecurityPrincipalCache.class),
-                permissionService,
                 mock(com.tuowei.erp.common.security.CurrentUserContext.class),
                 mock(UserRoleMapper.class),
                 mock(RoleMapper.class),
                 mock(RoleMenuMapper.class),
                 CacheService.NOOP,
                 new ObjectMapper()
+        );
+        MenuCommandService commandService = new MenuCommandService(
+                menuMapper,
+                auditMetadataFactory,
+                mock(SecurityPrincipalCache.class),
+                permissionService,
+                CacheService.NOOP,
+                queryService
+        );
+        return new MenuService(
+                queryService,
+                commandService
         );
     }
 
