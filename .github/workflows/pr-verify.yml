@@ -15,8 +15,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-backend-changes:
+    name: Detect Backend Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect backend changes
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base_sha="$BEFORE_SHA"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+          fi
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]] || ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+            changed_files="$(git ls-files)"
+          else
+            changed_files="$(git diff --name-only "$base_sha" "$GITHUB_SHA")"
+          fi
+
+          backend_changed=false
+          while IFS= read -r changed_file; do
+            case "$changed_file" in
+              backend/*|.github/workflows/pr-verify.yml)
+                backend_changed=true
+                break
+                ;;
+            esac
+          done <<< "$changed_files"
+          echo "backend=$backend_changed" >> "$GITHUB_OUTPUT"
+          echo "Backend changes detected: $backend_changed"
+
   backend-verify:
     name: Release Check
+    needs: detect-backend-changes
+    if: needs.detect-backend-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -51,7 +95,9 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-          cache-dependency-path: backend/pom.xml
+          cache-dependency-path: |
+            backend/pom.xml
+            backend/.mvn/wrapper/maven-wrapper.properties
 
       - name: Run release check
         shell: pwsh

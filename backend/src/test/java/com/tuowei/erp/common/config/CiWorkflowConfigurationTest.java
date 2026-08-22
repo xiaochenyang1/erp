@@ -22,10 +22,21 @@ class CiWorkflowConfigurationTest {
                 .contains("pull_request:")
                 .contains("push:")
                 .contains("actions/checkout@v4")
+                .contains("detect-backend-changes:")
+                .contains("name: Detect Backend Changes")
+                .contains("needs: detect-backend-changes")
+                .contains("if: needs.detect-backend-changes.outputs.backend == 'true'")
+                .contains("name: Detect backend changes")
+                .contains("id: changes")
+                .contains("PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}")
+                .contains("git cat-file -e")
+                .contains("git diff --name-only")
+                .contains("backend/*|.github/workflows/pr-verify.yml")
                 .contains("actions/setup-java@v4")
                 .contains("distribution: temurin")
                 .contains("java-version: '17'")
                 .contains("cache: maven")
+                .contains("backend/.mvn/wrapper/maven-wrapper.properties")
                 .contains("working-directory: backend")
                 .contains("image: mysql:8.4")
                 .contains("ERP_TEST_DATASOURCE_URL:")
@@ -43,7 +54,8 @@ class CiWorkflowConfigurationTest {
                 .contains("backend/target/surefire-reports/**")
                 .contains("if-no-files-found: warn");
         assertThat(content)
-                .doesNotContain("verify-release-check-report.ps1 -ReportDirectory target -AllowFailed");
+                .doesNotContain("verify-release-check-report.ps1 -ReportDirectory target -AllowFailed")
+                .doesNotContain("Report skipped backend verification");
 
         int releaseCheckStep = content.indexOf("./scripts/release-check.ps1 -IncludeTestcontainers");
         int verifyReportStep = content.indexOf("./scripts/verify-release-check-report.ps1 -ReportDirectory target");
@@ -64,18 +76,27 @@ class CiWorkflowConfigurationTest {
                 .contains("pull_request:")
                 .contains("push:")
                 .contains("actions/checkout@v4")
+                .contains("detect-frontend-changes:")
+                .contains("name: Detect Frontend Changes")
+                .contains("needs: detect-frontend-changes")
+                .contains("if: needs.detect-frontend-changes.outputs.frontend == 'true'")
+                .contains("name: Detect frontend changes")
+                .contains("id: changes")
+                .contains("PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}")
+                .contains("git cat-file -e")
+                .contains("git diff --name-only")
+                .contains("frontend/*|.github/workflows/frontend-verify.yml")
                 .contains("actions/setup-node@v4")
                 .contains("node-version-file: frontend/.nvmrc")
                 .contains("cache-dependency-path: frontend/package-lock.json")
                 .contains("working-directory: frontend")
-                .contains("npm ci")
+                .contains("npm ci --audit=false")
                 .contains("npm run type-check")
                 .contains("npm run lint")
                 .contains("npm test")
                 .contains("npm run check:contracts")
                 .contains("npm run build")
                 .contains("npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org");
-
         assertThat(Path.of(".github", "workflows", "pr-verify.yml")).doesNotExist();
         assertThat(Path.of("..", "frontend", ".github", "workflows", "frontend-verify.yml")).doesNotExist();
     }
