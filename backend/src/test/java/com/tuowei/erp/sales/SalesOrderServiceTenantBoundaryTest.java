@@ -17,6 +17,7 @@ import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
 import com.tuowei.erp.sales.order.service.SalesCreditEvaluator;
+import com.tuowei.erp.sales.order.service.SalesOrderCommandService;
 import com.tuowei.erp.sales.order.service.SalesOrderNumberService;
 import com.tuowei.erp.sales.order.service.SalesOrderQueryService;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
@@ -250,7 +251,7 @@ class SalesOrderServiceTenantBoundaryTest {
     }
 
     private SalesOrderService service() {
-        return new SalesOrderService(
+        SalesOrderCommandService commandService = new SalesOrderCommandService(
                 salesOrderMapper,
                 salesOrderLineMapper,
                 customerMapper,
@@ -259,9 +260,13 @@ class SalesOrderServiceTenantBoundaryTest {
                 salesOrderNumberService,
                 auditMetadataFactory,
                 salesOrderQueryService,
-                salesOrderWorkflowService,
                 salesCreditEvaluator,
                 salesPriceEvaluator
+        );
+        return new SalesOrderService(
+                salesOrderQueryService,
+                commandService,
+                salesOrderWorkflowService
         );
     }
 

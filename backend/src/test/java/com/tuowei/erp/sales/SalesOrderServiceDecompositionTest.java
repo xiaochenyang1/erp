@@ -6,9 +6,11 @@ import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
+import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.service.SalesOrderQueryService;
+import com.tuowei.erp.sales.order.service.SalesOrderCommandService;
 import com.tuowei.erp.sales.order.service.SalesOrderService;
 import com.tuowei.erp.sales.order.service.SalesOrderWorkflowService;
 import com.tuowei.erp.sales.order.service.SalesCreditEvaluator;
@@ -40,7 +42,7 @@ class SalesOrderServiceDecompositionTest {
         Set<Class<?>> constructorDependencies = constructorDependencies(SalesOrderService.class);
 
         assertThat(constructorDependencies)
-                .contains(SalesOrderQueryService.class, SalesOrderWorkflowService.class)
+                .contains(SalesOrderQueryService.class, SalesOrderCommandService.class, SalesOrderWorkflowService.class)
                 .doesNotContain(
                         CurrentUserContext.class,
                         DataScopeService.class,
@@ -51,6 +53,20 @@ class SalesOrderServiceDecompositionTest {
                 );
         assertThat(constructorDependencies(SalesOrderQueryService.class))
                 .doesNotContain(SalesOrderService.class);
+        assertThat(constructorDependencies(SalesOrderCommandService.class))
+                .contains(
+                        SalesOrderMapper.class,
+                        SalesOrderLineMapper.class,
+                        CustomerMapper.class,
+                        ProductValidator.class,
+                        WarehouseMapper.class,
+                        SalesOrderNumberService.class,
+                        AuditMetadataFactory.class,
+                        SalesOrderQueryService.class,
+                        SalesCreditEvaluator.class,
+                        SalesPriceEvaluator.class
+                )
+                .doesNotContain(SalesOrderService.class, SalesOrderWorkflowService.class);
         assertThat(constructorDependencies(SalesOrderWorkflowService.class))
                 .contains(
                         CustomerMapper.class,
@@ -74,6 +90,11 @@ class SalesOrderServiceDecompositionTest {
     @Test
     void orderWriteKeepsRequiredWriteTransactionOnFacade() throws NoSuchMethodException {
         assertRequiredWriteTransaction(SalesOrderService.class.getDeclaredMethod("create", com.tuowei.erp.sales.order.web.SalesOrderCreateRequest.class));
+        assertRequiredWriteTransaction(SalesOrderCommandService.class.getDeclaredMethod("create", com.tuowei.erp.sales.order.web.SalesOrderCreateRequest.class));
+        assertRequiredWriteTransaction(SalesOrderService.class.getDeclaredMethod("update", Long.class, com.tuowei.erp.sales.order.web.SalesOrderUpdateRequest.class));
+        assertRequiredWriteTransaction(SalesOrderCommandService.class.getDeclaredMethod("update", Long.class, com.tuowei.erp.sales.order.web.SalesOrderUpdateRequest.class));
+        assertReadOnlyTransaction(SalesOrderService.class.getDeclaredMethod("previewCredit", com.tuowei.erp.sales.order.web.SalesOrderCreditPreviewRequest.class));
+        assertReadOnlyTransaction(SalesOrderCommandService.class.getDeclaredMethod("previewCredit", com.tuowei.erp.sales.order.web.SalesOrderCreditPreviewRequest.class));
         assertWorkflowTransactions(SalesOrderService.class);
         assertWorkflowTransactions(SalesOrderWorkflowService.class);
     }
@@ -98,6 +119,13 @@ class SalesOrderServiceDecompositionTest {
         Transactional transactional = method.getAnnotation(Transactional.class);
         assertThat(transactional).isNotNull();
         assertThat(transactional.readOnly()).isFalse();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRED);
+    }
+
+    private void assertReadOnlyTransaction(Method method) {
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.readOnly()).isTrue();
         assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRED);
     }
 }
