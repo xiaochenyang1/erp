@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.dashboard.service.OperationsDashboardPresentationService;
+import com.tuowei.erp.dashboard.service.OperationsDashboardQueryService;
 import com.tuowei.erp.dashboard.service.OperationsDashboardService;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
@@ -272,7 +274,7 @@ class OperationsDashboardServiceTest {
     }
 
     private OperationsDashboardService service() {
-        return new OperationsDashboardService(
+        OperationsDashboardQueryService queryService = new OperationsDashboardQueryService(
                 auditMetadataFactory,
                 workflowTaskMapper,
                 inventoryAlertService,
@@ -282,8 +284,11 @@ class OperationsDashboardServiceTest {
                 salesOrderMapper,
                 operationLogMapper,
                 salesDeliveryLineMapper,
-                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai")),
-                MESSAGE_SOURCE
+                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"))
+        );
+        return new OperationsDashboardService(
+                queryService,
+                new OperationsDashboardPresentationService(MESSAGE_SOURCE)
         );
     }
 
