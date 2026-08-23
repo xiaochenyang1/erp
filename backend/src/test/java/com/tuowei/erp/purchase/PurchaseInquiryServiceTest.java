@@ -18,6 +18,7 @@ import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryLineEntity;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryQuoteEntity;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryQuoteLineEntity;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryNumberService;
+import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryCommandService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQueryService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQuoteService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryService;
@@ -707,7 +708,7 @@ class PurchaseInquiryServiceTest {
                 auditMetadataFactory,
                 quoteService
         );
-        return new PurchaseInquiryService(
+        PurchaseInquiryCommandService commandService = new PurchaseInquiryCommandService(
                 purchaseInquiryMapper,
                 purchaseInquiryLineMapper,
                 purchaseInquiryNumberService,
@@ -717,6 +718,7 @@ class PurchaseInquiryServiceTest {
                 quoteService,
                 queryService
         );
+        return new PurchaseInquiryService(queryService, commandService);
     }
 
     private void stubAudit() {

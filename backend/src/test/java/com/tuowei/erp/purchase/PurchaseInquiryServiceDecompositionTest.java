@@ -3,6 +3,7 @@ package com.tuowei.erp.purchase;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
+import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryLineMapper;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryMapper;
 import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryQuoteLineMapper;
@@ -10,8 +11,13 @@ import com.tuowei.erp.purchase.inquiry.mapper.PurchaseInquiryQuoteMapper;
 import com.tuowei.erp.purchase.inquiry.model.PurchaseInquiryEntity;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQueryService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryQuoteService;
+import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryCommandService;
+import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryNumberService;
+import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
 import com.tuowei.erp.purchase.inquiry.service.PurchaseInquiryService;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryPageQuery;
+import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryCreateRequest;
+import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryUpdateRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquiryQuoteRequest;
 import com.tuowei.erp.purchase.inquiry.web.PurchaseInquirySelectQuoteRequest;
 import org.junit.jupiter.api.Test;
@@ -30,7 +36,7 @@ class PurchaseInquiryServiceDecompositionTest {
     @Test
     void purchaseInquiryServiceKeepsReadAndQuoteResponsibilitiesBehindDedicatedServices() {
         assertThat(constructorDependencies(PurchaseInquiryService.class))
-                .contains(PurchaseInquiryQuoteService.class, PurchaseInquiryQueryService.class)
+                .contains(PurchaseInquiryQueryService.class, PurchaseInquiryCommandService.class)
                 .doesNotContain(
                         PurchaseInquiryQuoteMapper.class,
                         PurchaseInquiryQuoteLineMapper.class,
@@ -42,6 +48,18 @@ class PurchaseInquiryServiceDecompositionTest {
                         PurchaseInquiryLineMapper.class,
                         AuditMetadataFactory.class,
                         PurchaseInquiryQuoteService.class
+                )
+                .doesNotContain(PurchaseInquiryService.class);
+        assertThat(constructorDependencies(PurchaseInquiryCommandService.class))
+                .containsExactlyInAnyOrder(
+                        PurchaseInquiryMapper.class,
+                        PurchaseInquiryLineMapper.class,
+                        PurchaseInquiryNumberService.class,
+                        ProductValidator.class,
+                        AuditMetadataFactory.class,
+                        PurchaseOrderService.class,
+                        PurchaseInquiryQuoteService.class,
+                        PurchaseInquiryQueryService.class
                 )
                 .doesNotContain(PurchaseInquiryService.class);
     }
@@ -61,10 +79,27 @@ class PurchaseInquiryServiceDecompositionTest {
 
     @Test
     void quoteCommandsKeepOneRequiredTransactionAtTheFacade() throws NoSuchMethodException {
+        for (Class<?> type : new Class<?>[]{PurchaseInquiryService.class, PurchaseInquiryCommandService.class}) {
+            assertRequiredWriteTransaction(type.getDeclaredMethod("create", PurchaseInquiryCreateRequest.class));
+            assertRequiredWriteTransaction(type.getDeclaredMethod("update", Long.class, PurchaseInquiryUpdateRequest.class));
+            assertRequiredWriteTransaction(type.getDeclaredMethod("submit", Long.class));
+            assertRequiredWriteTransaction(type.getDeclaredMethod("convertToPurchaseOrder", Long.class));
+            assertRequiredWriteTransaction(type.getDeclaredMethod("cancel", Long.class));
+        }
         assertRequiredWriteTransaction(PurchaseInquiryService.class.getDeclaredMethod(
                 "addQuote",
                 Long.class,
                 PurchaseInquiryQuoteRequest.class
+        ));
+        assertRequiredWriteTransaction(PurchaseInquiryCommandService.class.getDeclaredMethod(
+                "addQuote",
+                Long.class,
+                PurchaseInquiryQuoteRequest.class
+        ));
+        assertRequiredWriteTransaction(PurchaseInquiryCommandService.class.getDeclaredMethod(
+                "selectQuote",
+                Long.class,
+                PurchaseInquirySelectQuoteRequest.class
         ));
         assertRequiredWriteTransaction(PurchaseInquiryService.class.getDeclaredMethod(
                 "selectQuote",
