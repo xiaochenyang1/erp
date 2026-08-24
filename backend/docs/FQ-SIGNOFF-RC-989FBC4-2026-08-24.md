@@ -4,10 +4,10 @@
 
 本轮 RC 已达到“技术证据可送财务/质检人工签字”条件，当前状态为 **WAITING_FOR_BUSINESS_SIGNOFF**。技术预检已通过，但真人签字尚未完成；不得把技术通过当作业务放行。
 
-- RC commit：以 `git rev-parse --short HEAD` 为准
+- 后端候选 commit：`30313a7`
 - 执行时间：2026-08-24（Asia/Shanghai）
-- 环境：本机 `erp_codex_runtime`，MySQL 8.4，local profile
-- Readiness run：`RDY20260824081832459`（run ID `2091802323809300482`）
+- 环境：本机隔离候选容器，prod profile；连接 `erp_codex_runtime`（MySQL 8.4）与隔离 Redis
+- Readiness run：`RDY20260824131148092`（run ID `2091876125239918594`）
 - 独立证据根目录：`/Users/xiao/Desktop/python/release-evidence/rc-14f6a4c/`
 
 ## 技术预检结果
@@ -20,10 +20,9 @@
 
 本轮实际证据：
 
-- `fq-signoff-api-check-final-20260824/report.json` / `report.md`
-- `fq-signoff-api-check-final-20260824/human-items-report.json` / `human-items-report.md`
-- `fq-signoff-api-check-final-20260824/all-summary.json`
-- `fq-signoff-all-final-20260824.log`
+- `fq-signoff-api-check-30313a7/report.json` / `report.md`
+- `fq-signoff-api-check-30313a7/human-items-report.json` / `human-items-report.md`
+- `fq-signoff-api-check-30313a7/all-summary.json`
 
 以上文件位于独立证据根目录，不受 Maven `clean` 影响。
 
