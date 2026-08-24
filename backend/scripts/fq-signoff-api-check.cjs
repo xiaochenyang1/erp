@@ -1,6 +1,9 @@
 const fs = require('fs')
 const path = require('path')
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:8080'
+const OUT_DIR = path.resolve(
+  process.env.ERP_FQ_EVIDENCE_DIRECTORY || process.env.ERP_EVIDENCE_DIRECTORY || path.join('target', 'fq-signoff-api-check'),
+)
 
 async function login(username, password) {
   const r = await fetch(`${BASE}/api/auth/login`, {
@@ -348,7 +351,7 @@ async function main() {
     results,
   }
 
-  const outDir = path.join('target', 'fq-signoff-api-check')
+  const outDir = OUT_DIR
   fs.mkdirSync(outDir, { recursive: true })
   const jsonPath = path.join(outDir, 'report.json')
   fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2))

@@ -65,6 +65,26 @@ ui-smoke / 验收脚本还需要手工账号 `runtime_smoke / RuntimeSmoke123`�
 .\scripts\local-runtime-acceptance.ps1
 ```
 
+本地后端全量测试建议使用一次性 MySQL，避免依赖本机已有数据库账号或历史库：
+
+```bash
+./scripts/test-local.sh
+```
+
+Windows PowerShell：
+
+```powershell
+.\scripts\test-local.ps1
+```
+
+两个入口都会启动一个临时 MySQL 8.4，自动注入 `ERP_TEST_DATASOURCE_*`，测试结束后删除容器；普通测试使用 `test` profile 的 Redis 替身，标记为 `testcontainers` 的测试仍由 Maven/Testcontainers 自己启动隔离容器。脚本会自动把当前 Docker CLI context 的 endpoint 传给 Testcontainers（含 Colima 的 Ryuk socket 映射）。可用 `ERP_LOCAL_TEST_MYSQL_*` 环境变量覆盖镜像、库名和账号。未传 Maven goal 时默认执行 `test`；需要完整发布构建时可直接传入 Maven参数和 goal，例如：
+
+```bash
+./scripts/test-local.sh -Ptestcontainers -Derp.testcontainers.enabled=true clean package
+```
+
+F/Q 技术预检默认兼容写入 `target/fq-signoff-api-check/`。作为 RC 或发布证据时，应通过 `ERP_FQ_EVIDENCE_DIRECTORY`（或 `ERP_EVIDENCE_DIRECTORY`）指定不会被 Maven `clean` 删除的独立目录，并把该目录纳入发布证据包。
+
 Track B 扩展能力（询价/发票/OQC/信用 + 数据范围）可单独复跑：
 
 ```powershell
