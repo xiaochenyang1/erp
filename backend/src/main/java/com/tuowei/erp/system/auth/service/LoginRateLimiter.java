@@ -2,7 +2,7 @@ package com.tuowei.erp.system.auth.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.LockedException;
@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Locale;
 
 @Service
-@ConditionalOnBean(StringRedisTemplate.class)
+@Profile("!local & !test")
 public class LoginRateLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(LoginRateLimiter.class);
