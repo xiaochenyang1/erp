@@ -8,7 +8,7 @@
 - 执行时间：2026-08-24（Asia/Shanghai）
 - 环境：本机 `erp_codex_runtime`，MySQL 8.4，local profile
 - Readiness run：`RDY20260824081832459`（run ID `2091802323809300482`）
-- 独立证据根目录：`/Users/xiao/Desktop/python/release-evidence/rc-296a20b/`
+- 独立证据根目录：`/Users/xiao/Desktop/python/release-evidence/rc-14f6a4c/`
 
 ## 技术预检结果
 
