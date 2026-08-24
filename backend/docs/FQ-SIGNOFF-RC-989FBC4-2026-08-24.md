@@ -1,10 +1,10 @@
-# 财务/质检签字交接记录（RC `296a20b`）
+# 财务/质检签字交接记录（本轮 RC）
 
 ## 结论
 
 本轮 RC 已达到“技术证据可送财务/质检人工签字”条件，当前状态为 **WAITING_FOR_BUSINESS_SIGNOFF**。技术预检已通过，但真人签字尚未完成；不得把技术通过当作业务放行。
 
-- RC commit：`296a20b`
+- RC commit：以 `git rev-parse --short HEAD` 为准
 - 执行时间：2026-08-24（Asia/Shanghai）
 - 环境：本机 `erp_codex_runtime`，MySQL 8.4，local profile
 - Readiness run：`RDY20260824081832459`（run ID `2091802323809300482`）
