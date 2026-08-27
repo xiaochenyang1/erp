@@ -33,6 +33,7 @@ public final class AttachmentBusinessType {
     public static final String INVENTORY_CHECK = "INVENTORY_CHECK";
     public static final String QC_INSPECTION = "QC_INSPECTION";
     public static final String PRODUCTION_ORDER = "PRODUCTION_ORDER";
+    public static final String COMMERCIAL_CONTRACT = "COMMERCIAL_CONTRACT";
 
     /** 已挂闸门、允许出现在 required-business-types 里的业务类型。 */
     public static final Set<String> GATED = Set.of(
@@ -50,7 +51,8 @@ public final class AttachmentBusinessType {
             INVENTORY_TRANSFER,
             INVENTORY_CHECK,
             QC_INSPECTION,
-            PRODUCTION_ORDER
+            PRODUCTION_ORDER,
+            COMMERCIAL_CONTRACT
     );
 
     private AttachmentBusinessType() {

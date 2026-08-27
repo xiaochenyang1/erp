@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.commercial.contract.service.ContractExecutionService;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
@@ -58,6 +59,8 @@ public class PurchaseReceiptPostingService {
     private final QcInspectionGate qcInspectionGate;
     private final ProductValidator productValidator;
     private final AttachmentService attachmentService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ContractExecutionService contractExecutionService;
 
     public PurchaseReceiptPostingService(
             PurchaseReceiptMapper purchaseReceiptMapper,
@@ -143,6 +146,9 @@ public class PurchaseReceiptPostingService {
                     purchaseOrderLineMapper.updateById(orderLine),
                     "采购订单明细已被其他操作修改，请刷新后重试"
             );
+            if (contractExecutionService != null) {
+                contractExecutionService.increase(orderLine.getContractLineId(), receiptLine.getQty(), audit);
+            }
 
             inventoryPostingService.postInbound(
                     new InventoryPostingCommand(

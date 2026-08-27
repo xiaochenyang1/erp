@@ -23,6 +23,8 @@ public class PurchaseOrderEntity {
 
     private Long supplierId;
 
+    private Long contractId;
+
     private LocalDate orderDate;
 
     private LocalDate deliveryDate;
@@ -98,6 +100,14 @@ public class PurchaseOrderEntity {
 
     public void setSupplierId(Long supplierId) {
         this.supplierId = supplierId;
+    }
+
+    public Long getContractId() {
+        return contractId;
+    }
+
+    public void setContractId(Long contractId) {
+        this.contractId = contractId;
     }
 
     public LocalDate getOrderDate() {

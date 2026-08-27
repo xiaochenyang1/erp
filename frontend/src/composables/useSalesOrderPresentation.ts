@@ -7,7 +7,7 @@ type TagType = 'success' | 'info' | 'warning' | 'danger'
 export const useSalesOrderPresentation = (t: Translate) => {
   // Keep action visibility aligned with the lifecycle guards in SalesOrderService.
   // Approval actions require both the document and approval state to match.
-  const canEdit = (row: SalesOrder) => ['DRAFT', 'REJECTED'].includes(row.status)
+  const canEdit = (row: SalesOrder) => ['DRAFT', 'REJECTED'].includes(row.status) && !row.contractId
   const canSubmit = (row: SalesOrder) => ['DRAFT', 'REJECTED'].includes(row.status)
   const canApprove = (row: SalesOrder) =>
     row.status === 'SUBMITTED'

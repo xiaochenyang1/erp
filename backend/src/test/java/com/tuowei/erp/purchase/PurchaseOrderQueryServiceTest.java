@@ -323,7 +323,10 @@ class PurchaseOrderQueryServiceTest {
 
     @Test
     void getBySourceInquiryKeepsTenantAndSourceContractAndMapsLines() {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.all();
+        DataScopeService dataScopeService = mock(DataScopeService.class);
         when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
         PurchaseOrderEntity order = order();
         order.setSourceInquiryId(5101L);
         order.setSourceInquiryNo("RFQ-5101");
@@ -332,12 +335,40 @@ class PurchaseOrderQueryServiceTest {
         when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier());
         when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
 
-        var detail = service(mock(DataScopeService.class)).getBySourceInquiry(order.getId(), 5101L);
+        var detail = service(dataScopeService).getBySourceInquiry(order.getId(), 5101L);
 
         assertThat(detail.id()).isEqualTo(order.getId());
         assertThat(detail.supplierName()).isEqualTo("Scoped Supplier");
         assertThat(detail.lines()).singleElement()
                 .satisfies(line -> assertThat(line.sourceInquiryLineId()).isEqualTo(5301L));
+        verify(dataScopeService).assertCanViewPurchaseOrder(
+                order,
+                CURRENT_USER,
+                snapshot,
+                null,
+                null
+        );
+    }
+
+    @Test
+    void getBySourceInquiryStopsHydrationWhenDataScopeRejectsLinkedOrder() {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.all();
+        DataScopeService dataScopeService = mock(DataScopeService.class);
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
+        PurchaseOrderEntity order = order();
+        order.setSourceInquiryId(5101L);
+        when(purchaseOrderMapper.selectById(order.getId())).thenReturn(order);
+        doThrow(new AccessDeniedException("无权访问采购订单"))
+                .when(dataScopeService)
+                .assertCanViewPurchaseOrder(order, CURRENT_USER, snapshot, null, null);
+
+        assertThatThrownBy(() -> service(dataScopeService).getBySourceInquiry(order.getId(), 5101L))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("无权访问采购订单");
+
+        verify(supplierMapper, never()).selectById(any());
+        verify(purchaseOrderLineMapper, never()).selectList(any());
     }
 
     @ParameterizedTest

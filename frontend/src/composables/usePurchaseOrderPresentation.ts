@@ -3,7 +3,7 @@ import { computed, type Ref } from 'vue'
 import type { PurchaseOrder } from '@/api/purchase'
 import { formatLocalizedNumber } from '@/utils/locale'
 
-export type PurchaseOrderLike = Pick<PurchaseOrder, 'approvalStatus' | 'receiptStatus'> & {
+export type PurchaseOrderLike = Pick<PurchaseOrder, 'approvalStatus' | 'receiptStatus' | 'contractId'> & {
   status: string
 }
 
@@ -17,7 +17,7 @@ export const usePurchaseOrderPresentation = () => {
   // PurchaseOrderService so the list never advertises an action the API will
   // reject for the current lifecycle state.
   const canEdit = (row: PurchaseOrderLike) =>
-    row.status === 'DRAFT' || row.status === 'REJECTED'
+    (row.status === 'DRAFT' || row.status === 'REJECTED') && !row.contractId
 
   const canSubmit = (row: PurchaseOrderLike) =>
     row.status === 'DRAFT' || row.status === 'REJECTED'

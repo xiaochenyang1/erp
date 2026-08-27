@@ -86,6 +86,7 @@ public class PurchaseOrderQueryService {
                 || !Objects.equals(entity.getSourceInquiryId(), inquiryId)) {
             throw new IllegalArgumentException("询价单关联的采购订单不存在");
         }
+        assertCanView(entity);
         return toResponse(entity, findSupplierName(entity), selectLines(entity));
     }
 
@@ -148,6 +149,7 @@ public class PurchaseOrderQueryService {
         return new PurchaseOrderResponse(
                 entity.getId(),
                 entity.getOrderNo(),
+                entity.getContractId(),
                 entity.getSupplierId(),
                 supplierName,
                 entity.getOrderDate(),
@@ -242,6 +244,7 @@ public class PurchaseOrderQueryService {
         return new PurchaseOrderResponse(
                 entity.getId(),
                 entity.getOrderNo(),
+                entity.getContractId(),
                 entity.getSupplierId(),
                 supplierName,
                 entity.getOrderDate(),
@@ -290,6 +293,7 @@ public class PurchaseOrderQueryService {
         return new PurchaseOrderLineResponse(
                 entity.getId(),
                 entity.getLineNo(),
+                entity.getContractLineId(),
                 entity.getProductId(),
                 entity.getQty(),
                 entity.getAuxQty(),

@@ -133,6 +133,23 @@ public class AttachmentService {
     @Transactional(readOnly = true)
     public ResponseEntity<Resource> download(Long id) {
         AttachmentEntity entity = requireActive(id);
+        return download(entity);
+    }
+
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> downloadForBusiness(Long id, String businessType, Long businessId) {
+        AttachmentEntity entity = requireActive(id);
+        requireBusiness(entity, businessType, businessId);
+        return download(entity);
+    }
+
+    @Transactional(readOnly = true)
+    public void requireForBusiness(Long id, String businessType, Long businessId) {
+        AttachmentEntity entity = requireActive(id);
+        requireBusiness(entity, businessType, businessId);
+    }
+
+    private ResponseEntity<Resource> download(AttachmentEntity entity) {
         Path path = resolveStoragePath(entity.getStoragePath());
         long fileSize = requireFileSize(path);
         String downloadFilename = normalizeFilename(entity.getOriginalFilename());
@@ -148,12 +165,31 @@ public class AttachmentService {
     public void delete(Long id) {
         AuditMetadata audit = auditMetadataFactory.current();
         AttachmentEntity entity = requireActive(id);
+        delete(entity, audit);
+    }
+
+    @Transactional
+    public void deleteForBusiness(Long id, String businessType, Long businessId) {
+        AuditMetadata audit = auditMetadataFactory.current();
+        AttachmentEntity entity = requireActive(id);
+        requireBusiness(entity, businessType, businessId);
+        delete(entity, audit);
+    }
+
+    private void delete(AttachmentEntity entity, AuditMetadata audit) {
         entity.setDeletedFlag(1);
         entity.setStatus("DELETED");
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(audit.now());
         OptimisticLockGuard.requireUpdated(attachmentMapper.updateById(entity), "附件已被其他操作修改，请刷新后重试");
         timelineService.recordAttachmentDeleted(entity, audit);
+    }
+
+    private void requireBusiness(AttachmentEntity entity, String businessType, Long businessId) {
+        String type = normalizeRequired(businessType, "业务类型不能为空").toUpperCase(Locale.ROOT);
+        if (!type.equals(entity.getBusinessType()) || businessId == null || !businessId.equals(entity.getBusinessId())) {
+            throw new IllegalArgumentException("附件不存在");
+        }
     }
 
     @Transactional(readOnly = true)

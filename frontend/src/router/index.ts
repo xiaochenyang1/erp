@@ -224,6 +224,16 @@ const routes: RouteRecordRaw[] = [
           }
         ]
       },
+      {
+        path: '/contracts',
+        name: 'Contracts',
+        component: () => import('@/views/commercial/contracts/index.vue'),
+        meta: {
+          title: '合同管理',
+          icon: 'Files',
+          permission: 'contract:view'
+        }
+      },
       // 库存管理
       {
         path: '/inventory',

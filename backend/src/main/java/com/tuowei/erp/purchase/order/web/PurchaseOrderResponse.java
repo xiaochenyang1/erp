@@ -7,6 +7,7 @@ import java.util.List;
 public record PurchaseOrderResponse(
         Long id,
         String orderNo,
+        Long contractId,
         Long supplierId,
         String supplierName,
         LocalDate orderDate,
@@ -23,4 +24,14 @@ public record PurchaseOrderResponse(
         String remark,
         List<PurchaseOrderLineResponse> lines
 ) {
+    public PurchaseOrderResponse(Long id, String orderNo, Long supplierId, String supplierName,
+                                 LocalDate orderDate, LocalDate deliveryDate, String status,
+                                 String approvalStatus, String receiptStatus, Long sourceInquiryId,
+                                 String sourceInquiryNo, Long sourceQuoteId, BigDecimal totalQuantity,
+                                 BigDecimal totalAmount, BigDecimal totalTaxAmount, String remark,
+                                 List<PurchaseOrderLineResponse> lines) {
+        this(id, orderNo, null, supplierId, supplierName, orderDate, deliveryDate, status, approvalStatus,
+                receiptStatus, sourceInquiryId, sourceInquiryNo, sourceQuoteId, totalQuantity,
+                totalAmount, totalTaxAmount, remark, lines);
+    }
 }

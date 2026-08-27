@@ -62,6 +62,7 @@ export const useSalesOrderForm = (
     warehouseId: '',
     orderDate: '',
     deliveryDate: '',
+    contractId: undefined,
     remark: '',
     items: []
   })
@@ -90,6 +91,7 @@ export const useSalesOrderForm = (
       warehouseId: '',
       orderDate: '',
       deliveryDate: '',
+      contractId: undefined,
       remark: '',
       items: []
     })
@@ -119,6 +121,7 @@ export const useSalesOrderForm = (
       warehouseId: order.warehouseId || '',
       orderDate: order.orderDate,
       deliveryDate: order.deliveryDate || '',
+      contractId: order.contractId,
       remark: order.remark || '',
       items: order.items.map((item) => ({
         ...item,

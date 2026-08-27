@@ -5,6 +5,7 @@ import type { PageQuery, PageResponse } from '@/types/common'
 export interface PurchaseOrder {
   id: string | number
   orderNo: string
+  contractId?: string
   supplierId: string | number
   supplierName: string
   orderDate: string
@@ -33,6 +34,10 @@ export interface PurchaseOrderItem {
   auxUnitName?: string
   conversionFactor?: number | null
   id?: string | number
+  contractLineId?: string | number | null
+  contractQuantity?: number
+  committedQuantity?: number
+  fulfilledQuantity?: number
   productId: string | number
   productCode?: string
   productName?: string
@@ -92,6 +97,7 @@ export interface PurchaseOrderQuery extends PageQuery {
 
 // 采购订单保存请求
 export interface PurchaseOrderSaveRequest {
+  contractId?: string | number
   supplierId: string | number
   orderDate: string
   expectedDate?: string
@@ -203,12 +209,14 @@ const toPurchaseOrderQueryParams = (params: PurchaseOrderQuery) => {
 }
 
 const toPurchaseOrderPayload = (data: PurchaseOrderSaveRequest) => ({
+  contractId: data.contractId,
   supplierId: data.supplierId,
   orderDate: data.orderDate,
   deliveryDate: data.deliveryDate || data.expectedDate || undefined,
   remark: data.remark,
   lines: data.items.map((item) => ({
     productId: item.productId,
+    contractLineId: item.contractLineId ?? undefined,
     qty: item.qty ?? item.quantity,
     auxQty: item.auxQty ?? undefined,
     auxUnitName: item.auxUnitName || undefined,
@@ -234,6 +242,7 @@ const normalizePurchaseOrderLine = (item: PurchaseOrderItem): PurchaseOrderItem 
   receivedQty: Number(item.receivedQty ?? 0),
   sourceInquiryId: item.sourceInquiryId != null ? String(item.sourceInquiryId) : item.sourceInquiryId,
   sourceInquiryLineId: item.sourceInquiryLineId != null ? String(item.sourceInquiryLineId) : item.sourceInquiryLineId
+  ,contractLineId: item.contractLineId != null ? String(item.contractLineId) : item.contractLineId
 })
 
 const normalizePurchaseOrder = (order: PurchaseOrder): PurchaseOrder => {
@@ -241,6 +250,7 @@ const normalizePurchaseOrder = (order: PurchaseOrder): PurchaseOrder => {
   return {
     ...order,
     id: String(order.id),
+    contractId: order.contractId != null ? String(order.contractId) : undefined,
     supplierId: String(order.supplierId),
     sourceInquiryId: order.sourceInquiryId != null ? String(order.sourceInquiryId) : order.sourceInquiryId,
     sourceQuoteId: order.sourceQuoteId != null ? String(order.sourceQuoteId) : order.sourceQuoteId,

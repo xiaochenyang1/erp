@@ -22,6 +22,7 @@ import com.tuowei.erp.sales.order.web.SalesOrderResponse;
 import com.tuowei.erp.sales.order.web.SalesOrderUpdateRequest;
 import com.tuowei.erp.sales.support.SalesAmountCalculator;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -43,6 +44,8 @@ public class SalesOrderCommandService {
     private final SalesOrderQueryService salesOrderQueryService;
     private final SalesCreditEvaluator salesCreditEvaluator;
     private final SalesPriceEvaluator salesPriceEvaluator;
+    @Autowired
+    private com.tuowei.erp.commercial.contract.service.ContractOrderBindingService contractOrderBindingService;
 
     public SalesOrderCommandService(
             SalesOrderMapper salesOrderMapper,
@@ -73,8 +76,14 @@ public class SalesOrderCommandService {
         AuditMetadata audit = auditMetadataFactory.current();
         CustomerEntity customer = requireActiveCustomer(request.customerId(), audit.companyId(), audit.accountBookId());
         WarehouseEntity warehouse = requireActiveWarehouse(request.warehouseId(), audit.companyId(), audit.accountBookId());
-        salesPriceEvaluator.assertLinesWithinMinPrice(
-                audit.companyId(), audit.accountBookId(), customer.getId(), request.orderDate(), request.lines());
+        if (request.contractId() == null) {
+            salesPriceEvaluator.assertLinesWithinMinPrice(
+                    audit.companyId(), audit.accountBookId(), customer.getId(), request.orderDate(), request.lines());
+        }
+        if (hasContractBinding(request.contractId(), request.lines())) {
+            contractOrderBindingService.validateSales(request.contractId(), customer.getId(), request.orderDate(),
+                    request.lines(), null, audit);
+        }
         OrderTotals totals = calculateTotals(request.lines());
         LocalDateTime now = audit.now();
 
@@ -84,6 +93,7 @@ public class SalesOrderCommandService {
         entity.setOrderNo(salesOrderNumberService.nextOrderNo(request.orderDate()));
         entity.setCustomerId(customer.getId());
         entity.setWarehouseId(warehouse.getId());
+        entity.setContractId(request.contractId());
         entity.setOrderDate(request.orderDate());
         entity.setDeliveryDate(request.deliveryDate());
         entity.setStatus("DRAFT");
@@ -131,16 +141,26 @@ public class SalesOrderCommandService {
         if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前销售订单状态不允许编辑");
         }
+        if (entity.getContractId() != null) {
+            throw new IllegalArgumentException("合同生成的销售订单不允许修改来源明细，可作废后从合同重新生成");
+        }
 
         CustomerEntity customer = requireActiveCustomer(request.customerId(), audit.companyId(), audit.accountBookId());
         WarehouseEntity warehouse = requireActiveWarehouse(request.warehouseId(), audit.companyId(), audit.accountBookId());
-        salesPriceEvaluator.assertLinesWithinMinPrice(
-                audit.companyId(), audit.accountBookId(), customer.getId(), request.orderDate(), request.lines());
+        if (request.contractId() == null) {
+            salesPriceEvaluator.assertLinesWithinMinPrice(
+                    audit.companyId(), audit.accountBookId(), customer.getId(), request.orderDate(), request.lines());
+        }
+        if (hasContractBinding(request.contractId(), request.lines())) {
+            contractOrderBindingService.validateSales(request.contractId(), customer.getId(), request.orderDate(),
+                    request.lines(), id, audit);
+        }
         OrderTotals totals = calculateTotals(request.lines());
         LocalDateTime now = audit.now();
 
         entity.setCustomerId(customer.getId());
         entity.setWarehouseId(warehouse.getId());
+        entity.setContractId(request.contractId());
         entity.setOrderDate(request.orderDate());
         entity.setDeliveryDate(request.deliveryDate());
         entity.setTotalQuantity(totals.totalQuantity());
@@ -209,6 +229,7 @@ public class SalesOrderCommandService {
             line.setOrderId(orderId);
             line.setLineNo(i + 1);
             line.setProductId(lineRequest.productId());
+            line.setContractLineId(lineRequest.contractLineId());
             line.setQty(amounts.qty());
             line.setAuxQty(aux.auxQty());
             line.setAuxUnitName(aux.auxUnitName());
@@ -239,5 +260,9 @@ public class SalesOrderCommandService {
     }
 
     private record OrderTotals(BigDecimal totalQuantity, BigDecimal totalAmount, BigDecimal totalTaxAmount) {
+    }
+
+    private boolean hasContractBinding(Long contractId, List<SalesOrderLineRequest> lines) {
+        return contractId != null || lines.stream().anyMatch(line -> line.contractLineId() != null);
     }
 }

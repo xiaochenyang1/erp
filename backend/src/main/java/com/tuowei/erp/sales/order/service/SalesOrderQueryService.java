@@ -120,6 +120,7 @@ public class SalesOrderQueryService {
         return new SalesOrderResponse(
                 entity.getId(),
                 entity.getOrderNo(),
+                entity.getContractId(),
                 entity.getCustomerId(),
                 entity.getWarehouseId(),
                 customerName,
@@ -185,6 +186,7 @@ public class SalesOrderQueryService {
         return new SalesOrderResponse(
                 entity.getId(),
                 entity.getOrderNo(),
+                entity.getContractId(),
                 entity.getCustomerId(),
                 entity.getWarehouseId(),
                 customerName,
@@ -218,6 +220,7 @@ public class SalesOrderQueryService {
         return new SalesOrderLineResponse(
                 entity.getId(),
                 entity.getLineNo(),
+                entity.getContractLineId(),
                 entity.getProductId(),
                 entity.getQty(),
                 entity.getAuxQty(),

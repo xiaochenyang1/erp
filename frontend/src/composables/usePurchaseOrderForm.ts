@@ -48,6 +48,7 @@ export const usePurchaseOrderForm = (
   const formRef = ref<FormInstance>()
   const submitLoading = ref(false)
   const form = reactive<PurchaseOrderSaveRequest>({
+    contractId: undefined,
     supplierId: '',
     orderDate: '',
     expectedDate: '',
@@ -74,6 +75,7 @@ export const usePurchaseOrderForm = (
 
   const resetForm = () => {
     form.supplierId = ''
+    form.contractId = undefined
     form.orderDate = ''
     form.expectedDate = ''
     form.items = []
@@ -91,6 +93,7 @@ export const usePurchaseOrderForm = (
     editId.value = row.id
     Object.assign(form, {
       supplierId: row.supplierId,
+      contractId: row.contractId,
       orderDate: row.orderDate,
       expectedDate: row.expectedDate,
       items: (row.items || []).map((item) => ({ ...item })),
@@ -105,6 +108,7 @@ export const usePurchaseOrderForm = (
       editId.value = undefined
       Object.assign(form, {
         supplierId: detail.supplierId,
+        contractId: undefined,
         orderDate: options.formatBusinessDate(),
         expectedDate: detail.expectedDate || detail.deliveryDate || '',
         remark: t('purchaseOrder.dialog.copiedFrom', { orderNo: detail.orderNo })
