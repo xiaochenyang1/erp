@@ -17,6 +17,7 @@ import com.tuowei.erp.finance.voucher.model.VoucherEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntryEntity;
 import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,7 +39,32 @@ public class ExpensePostingService {
     private final ExpenseQueryService expenseQueryService;
     private final AccountPeriodGuard accountPeriodGuard;
     private final AttachmentService attachmentService;
+    private final com.tuowei.erp.finance.budget.service.BudgetExecutionService budgetExecutionService;
 
+    @Autowired
+    public ExpensePostingService(
+            ExpenseMapper expenseMapper,
+            VoucherMapper voucherMapper,
+            VoucherEntryMapper voucherEntryMapper,
+            AccountSubjectService accountSubjectService,
+            AuditMetadataFactory auditMetadataFactory,
+            ExpenseQueryService expenseQueryService,
+            AccountPeriodGuard accountPeriodGuard,
+            AttachmentService attachmentService,
+            com.tuowei.erp.finance.budget.service.BudgetExecutionService budgetExecutionService
+    ) {
+        this.expenseMapper = expenseMapper;
+        this.voucherMapper = voucherMapper;
+        this.voucherEntryMapper = voucherEntryMapper;
+        this.accountSubjectService = accountSubjectService;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.expenseQueryService = expenseQueryService;
+        this.accountPeriodGuard = accountPeriodGuard;
+        this.attachmentService = attachmentService;
+        this.budgetExecutionService = budgetExecutionService;
+    }
+
+    /** Compatibility constructor retained for focused unit tests and embedders. */
     public ExpensePostingService(
             ExpenseMapper expenseMapper,
             VoucherMapper voucherMapper,
@@ -49,14 +75,8 @@ public class ExpensePostingService {
             AccountPeriodGuard accountPeriodGuard,
             AttachmentService attachmentService
     ) {
-        this.expenseMapper = expenseMapper;
-        this.voucherMapper = voucherMapper;
-        this.voucherEntryMapper = voucherEntryMapper;
-        this.accountSubjectService = accountSubjectService;
-        this.auditMetadataFactory = auditMetadataFactory;
-        this.expenseQueryService = expenseQueryService;
-        this.accountPeriodGuard = accountPeriodGuard;
-        this.attachmentService = attachmentService;
+        this(expenseMapper, voucherMapper, voucherEntryMapper, accountSubjectService, auditMetadataFactory,
+                expenseQueryService, accountPeriodGuard, attachmentService, null);
     }
 
     @Transactional
@@ -90,6 +110,7 @@ public class ExpensePostingService {
                 expenseMapper.updateById(expense),
                 "费用单已被其他操作修改，请刷新后重试"
         );
+        if (budgetExecutionService != null) budgetExecutionService.actualizeExpense(expense);
         return expenseQueryService.detail(id);
     }
 
@@ -115,6 +136,7 @@ public class ExpensePostingService {
         }
         VoucherEntity reversalVoucher = insertReversalVoucherIfAbsent(expense, voucher, audit);
         insertReversalEntriesIfAbsent(reversalVoucher, entries, audit);
+        if (budgetExecutionService != null) budgetExecutionService.reverseExpense(expense);
         return expenseQueryService.detail(id);
     }
 

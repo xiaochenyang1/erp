@@ -68,6 +68,8 @@ public class MybatisPlusConfig {
             "fin_account_subject",
             "fin_account_period",
             "fin_expense",
+            "fin_budget",
+            "fin_budget_line",
             "fin_invoice_register",
             "fin_voucher_entry",
             "sys_dept",

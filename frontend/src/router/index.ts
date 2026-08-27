@@ -647,6 +647,16 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'budgets',
+            name: 'FinanceBudgets',
+            component: () => import('@/views/finance/budgets/index.vue'),
+            meta: {
+              title: '预算管理',
+              icon: 'PieChart',
+              permission: 'finance:budget:view'
+            }
+          },
+          {
             path: 'invoices',
             name: 'FinanceInvoices',
             component: () => import('@/views/finance/invoices/index.vue'),

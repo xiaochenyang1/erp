@@ -96,6 +96,39 @@ class FlywayMigrationSmokeTest {
     }
 
     @Test
+    void createsBudgetManagementTablesFieldsAndPermissions() {
+        Long budgetTables = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) in ('fin_budget', 'fin_budget_line')
+                """, Long.class);
+        Assertions.assertThat(budgetTables).isEqualTo(2L);
+
+        Long expenseBudgetColumns = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.columns
+                where lower(table_schema) = 'public'
+                  and lower(table_name) = 'fin_expense'
+                  and lower(column_name) in ('dept_id', 'budget_line_id', 'budget_state', 'budget_overrun_flag')
+                """, Long.class);
+        Assertions.assertThat(expenseBudgetColumns).isEqualTo(4L);
+
+        Long budgetPermissionCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_menu
+                where permission in ('finance:budget:view', 'finance:budget:manage', 'finance:budget:approve')
+                  and status = 'ACTIVE' and deleted_flag = 0
+                """, Long.class);
+        Assertions.assertThat(budgetPermissionCount).isEqualTo(3L);
+
+        Long adminBindingCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_role_menu rm
+                join sys_menu m on m.id = rm.menu_id
+                where rm.role_id = 3002
+                  and m.permission in ('finance:budget:view', 'finance:budget:manage', 'finance:budget:approve')
+                """, Long.class);
+        Assertions.assertThat(adminBindingCount).isEqualTo(3L);
+    }
+
+    @Test
     void createsProductionBatchExecutionTablesSequencesAndPermission() {
         Long tableCount = jdbcTemplate.queryForObject("""
                 select count(*)

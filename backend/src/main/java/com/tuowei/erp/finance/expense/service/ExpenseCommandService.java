@@ -15,6 +15,7 @@ import com.tuowei.erp.finance.subject.service.AccountSubjectService;
 import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.workflow.service.WorkflowService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,7 +42,32 @@ public class ExpenseCommandService {
     private final AccountPeriodGuard accountPeriodGuard;
     private final AttachmentService attachmentService;
     private final WorkflowService workflowService;
+    private final com.tuowei.erp.finance.budget.service.BudgetExecutionService budgetExecutionService;
 
+    @Autowired
+    public ExpenseCommandService(
+            ExpenseMapper expenseMapper,
+            ExpenseNumberService expenseNumberService,
+            AccountSubjectService accountSubjectService,
+            AuditMetadataFactory auditMetadataFactory,
+            ExpenseQueryService expenseQueryService,
+            AccountPeriodGuard accountPeriodGuard,
+            AttachmentService attachmentService,
+            WorkflowService workflowService,
+            com.tuowei.erp.finance.budget.service.BudgetExecutionService budgetExecutionService
+    ) {
+        this.expenseMapper = expenseMapper;
+        this.expenseNumberService = expenseNumberService;
+        this.accountSubjectService = accountSubjectService;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.expenseQueryService = expenseQueryService;
+        this.accountPeriodGuard = accountPeriodGuard;
+        this.attachmentService = attachmentService;
+        this.workflowService = workflowService;
+        this.budgetExecutionService = budgetExecutionService;
+    }
+
+    /** Compatibility constructor retained for focused unit tests and embedders. */
     public ExpenseCommandService(
             ExpenseMapper expenseMapper,
             ExpenseNumberService expenseNumberService,
@@ -52,14 +78,8 @@ public class ExpenseCommandService {
             AttachmentService attachmentService,
             WorkflowService workflowService
     ) {
-        this.expenseMapper = expenseMapper;
-        this.expenseNumberService = expenseNumberService;
-        this.accountSubjectService = accountSubjectService;
-        this.auditMetadataFactory = auditMetadataFactory;
-        this.expenseQueryService = expenseQueryService;
-        this.accountPeriodGuard = accountPeriodGuard;
-        this.attachmentService = attachmentService;
-        this.workflowService = workflowService;
+        this(expenseMapper, expenseNumberService, accountSubjectService, auditMetadataFactory,
+                expenseQueryService, accountPeriodGuard, attachmentService, workflowService, null);
     }
 
     @Transactional
@@ -81,6 +101,7 @@ public class ExpenseCommandService {
         entity.setAccountBookId(audit.accountBookId());
         entity.setExpenseNo(expenseNumberService.nextExpenseNo(request.expenseDate()));
         entity.setExpenseDate(request.expenseDate());
+        entity.setDeptId(request.deptId());
         entity.setSubjectId(expenseSubject.getId());
         entity.setPaymentSubjectId(paymentSubject.getId());
         entity.setAmount(ScalePrecision.amount(request.amount()));
@@ -110,6 +131,7 @@ public class ExpenseCommandService {
         requireSubjectsInTenant(expenseSubject, paymentSubject, audit);
 
         expense.setExpenseDate(request.expenseDate());
+        expense.setDeptId(request.deptId());
         expense.setSubjectId(expenseSubject.getId());
         expense.setPaymentSubjectId(paymentSubject.getId());
         expense.setAmount(ScalePrecision.amount(request.amount()));
@@ -127,6 +149,7 @@ public class ExpenseCommandService {
             throw new IllegalArgumentException("只有草稿或已驳回的费用单可以提交审批");
         }
         attachmentService.requireIfConfigured(AttachmentBusinessType.EXPENSE, expense.getId());
+        if (budgetExecutionService != null) budgetExecutionService.commitExpense(expense);
         ExpenseResponse response = transitionStatus(expense, STATUS_PENDING);
         workflowService.submit(
                 BUSINESS_TYPE,
@@ -165,6 +188,7 @@ public class ExpenseCommandService {
             throw new IllegalArgumentException("只有草稿或已驳回的费用单可以作废");
         }
         accountPeriodGuard.requireOpen(expense.getExpenseDate(), "费用单作废");
+        if (budgetExecutionService != null) budgetExecutionService.releaseExpense(expense);
         AuditMetadata audit = auditMetadataFactory.current();
         expense.setStatus(STATUS_CANCELLED);
         expense.setUpdatedBy(audit.userId());
@@ -200,6 +224,7 @@ public class ExpenseCommandService {
         if (!STATUS_PENDING.equals(expense.getStatus())) {
             throw new IllegalArgumentException("只有待审批的费用单可以驳回");
         }
+        if (budgetExecutionService != null) budgetExecutionService.releaseExpense(expense);
         ExpenseResponse response = transitionStatus(expense, STATUS_REJECTED);
         if (workflowTaskId == null) {
             workflowService.reject(BUSINESS_TYPE, expense.getId(), reason);

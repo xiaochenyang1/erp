@@ -251,7 +251,11 @@ public class ExpenseQueryService {
                         && amountsEqual(expense.getAmount(), reversalDebitTotal)
                         && amountsEqual(expense.getAmount(), reversalCreditTotal),
                 reversalVoucher != null,
-                expense.getRemark()
+                expense.getRemark(),
+                expense.getDeptId(),
+                expense.getBudgetLineId(),
+                expense.getBudgetState(),
+                expense.getBudgetOverrunFlag()
         );
     }
 

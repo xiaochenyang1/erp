@@ -407,6 +407,12 @@ export const financeReportPageMessages = {
         reverse: '红冲',
         selectExpenseSubject: '请选择费用科目',
         selectPaymentSubject: '请选择支付科目',
+        department: '部门',
+        selectDepartment: '请选择部门',
+        budgetState: '预算状态',
+        budgetOverrun: '预计超预算，提交后将按预算控制策略处理',
+        budgetAvailable: '预算额度充足',
+        budgetPreview: '当前可用 {available}，提交后预计可用 {projected}',
         selectDate: '请选择日期',
         remarkPlaceholder: '请输入备注',
         createTitle: '新增费用',
@@ -481,6 +487,14 @@ export const financeReportPageMessages = {
           saved: '保存成功',
           saveFailed: '保存失败'
         }
+      },
+      budgets: {
+        title: '预算管理', create: '新增预算', edit: '编辑预算', detail: '预算详情', execution: '预算执行查询', close: '关闭预算',
+        year: '预算年度', name: '预算名称', policy: '控制策略', month: '期间', monthSuffix: '月', annual: '年度额度',
+        department: '部门', subject: '会计科目', amount: '预算金额', totalBudget: '预算总额', committed: '已占用', actual: '已执行', available: '可用余额',
+        addLine: '新增明细', periodSource: '额度来源', projectedAvailable: '预计可用', overrun: '预计超预算', withinBudget: '预算额度充足',
+        policyValue: { reject: '超预算拒绝', approval: '超预算转审批' },
+        status: { draft: '草稿', submitted: '待审批', approved: '已审批', closed: '已关闭', cancelled: '已作废' }
       },
       payments: {
         tabs: { receipts: '收款管理', payments: '付款管理' },
@@ -946,6 +960,8 @@ export const financeReportPageMessages = {
         expenseSubject: 'Expense account', paymentSubject: 'Payment account', expenseAmount: 'Expense amount', voucher: 'Voucher',
         voucherValidation: 'Voucher validation', balanced: 'Balanced', reconciliation: 'Reconcile', reverse: 'Reverse',
         selectExpenseSubject: 'Select an expense account', selectPaymentSubject: 'Select a payment account', selectDate: 'Select a date',
+        department: 'Department', selectDepartment: 'Select a department', budgetState: 'Budget state',
+        budgetOverrun: 'Projected over budget; submission follows the budget control policy', budgetAvailable: 'Within budget', budgetPreview: 'Available {available}; projected available after submission {projected}',
         remarkPlaceholder: 'Enter a remark', createTitle: 'New expense', editTitle: 'Edit expense', detailTitle: 'Expense details',
         voucherNo: 'Voucher no.', voucherStatus: 'Voucher status', voucherEntries: 'Voucher entries', voucherAmount: 'Voucher amount',
         reversalVoucher: 'Reversal voucher', reversalStatus: 'Reversal status', reversed: 'Reversed', reconciliationTitle: 'Expense reconciliation',
@@ -973,6 +989,14 @@ export const financeReportPageMessages = {
           cancelled: 'Expense voided', cancelFailed: 'Failed to void the expense', rejectReasonRequired: 'Enter a rejection reason',
           rejected: 'Expense rejected', rejectFailed: 'Failed to reject the expense', saved: 'Expense saved', saveFailed: 'Failed to save the expense'
         }
+      },
+      budgets: {
+        title: 'Budgets', create: 'New budget', edit: 'Edit budget', detail: 'Budget details', execution: 'Budget execution', close: 'Close budget',
+        year: 'Budget year', name: 'Budget name', policy: 'Control policy', month: 'Period', monthSuffix: ' mo.', annual: 'Annual allocation',
+        department: 'Department', subject: 'Account', amount: 'Budget amount', totalBudget: 'Total budget', committed: 'Committed', actual: 'Actual', available: 'Available',
+        addLine: 'Add line', periodSource: 'Allocation source', projectedAvailable: 'Projected available', overrun: 'Projected over budget', withinBudget: 'Within budget',
+        policyValue: { reject: 'Reject overrun', approval: 'Route overrun for approval' },
+        status: { draft: 'Draft', submitted: 'Pending approval', approved: 'Approved', closed: 'Closed', cancelled: 'Voided' }
       },
       payments: {
         tabs: { receipts: 'Receipts', payments: 'Payments' }, customer: 'Customer', supplier: 'Supplier',

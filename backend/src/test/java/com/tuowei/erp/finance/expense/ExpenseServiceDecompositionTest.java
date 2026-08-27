@@ -1,6 +1,7 @@
 package com.tuowei.erp.finance.expense;
 
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.budget.service.BudgetExecutionService;
 import com.tuowei.erp.finance.expense.mapper.ExpenseMapper;
 import com.tuowei.erp.finance.expense.service.ExpenseCommandService;
 import com.tuowei.erp.finance.expense.service.ExpenseNumberService;
@@ -47,11 +48,12 @@ class ExpenseServiceDecompositionTest {
                         ExpenseQueryService.class,
                         AccountPeriodGuard.class,
                         AttachmentService.class,
-                        WorkflowService.class
+                        WorkflowService.class,
+                        BudgetExecutionService.class
                 )
                 .doesNotContain(ExpenseService.class, ExpensePostingService.class);
         assertThat(constructorDependencies(ExpensePostingService.class))
-                .contains(ExpenseQueryService.class, VoucherMapper.class, VoucherEntryMapper.class)
+                .contains(ExpenseQueryService.class, VoucherMapper.class, VoucherEntryMapper.class, BudgetExecutionService.class)
                 .doesNotContain(ExpenseService.class, ExpenseCommandService.class, WorkflowService.class);
     }
 

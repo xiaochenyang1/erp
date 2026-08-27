@@ -29,6 +29,9 @@ public interface FinancePermissionCodes {
     String FINANCE_AGING_VIEW = "finance:aging:view";
     String FINANCE_STATEMENT_VIEW = "finance:statement:view";
     String FINANCE_MARGIN_VIEW = "finance:margin:view";
+    String FINANCE_BUDGET_VIEW = "finance:budget:view";
+    String FINANCE_BUDGET_MANAGE = "finance:budget:manage";
+    String FINANCE_BUDGET_APPROVE = "finance:budget:approve";
 
     String HAS_FINANCE_PAYMENT_VIEW = "hasAuthority('" + FINANCE_PAYMENT_VIEW + "')";
     String HAS_FINANCE_PAYMENT_CREATE = "hasAuthority('" + FINANCE_PAYMENT_CREATE + "')";
@@ -57,4 +60,7 @@ public interface FinancePermissionCodes {
     String HAS_FINANCE_AGING_VIEW = "hasAuthority('" + FINANCE_AGING_VIEW + "')";
     String HAS_FINANCE_STATEMENT_VIEW = "hasAuthority('" + FINANCE_STATEMENT_VIEW + "')";
     String HAS_FINANCE_MARGIN_VIEW = "hasAuthority('" + FINANCE_MARGIN_VIEW + "')";
+    String HAS_FINANCE_BUDGET_VIEW = "hasAuthority('" + FINANCE_BUDGET_VIEW + "')";
+    String HAS_FINANCE_BUDGET_MANAGE = "hasAuthority('" + FINANCE_BUDGET_MANAGE + "')";
+    String HAS_FINANCE_BUDGET_APPROVE = "hasAuthority('" + FINANCE_BUDGET_APPROVE + "')";
 }
