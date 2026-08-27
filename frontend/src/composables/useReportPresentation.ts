@@ -4,7 +4,9 @@ import type {
   FinanceSettlementReportRow,
   InventoryBalanceReportRow,
   InventoryTransactionReportRow,
+  InventoryValuationReportRow,
   OrderReportRow
+  , ProductionCostReportRow
 } from '@/api/workflow'
 import { formatLocalizedCurrency, formatLocalizedNumber } from '@/utils/locale'
 
@@ -15,7 +17,9 @@ export const reportKeys = [
   'sales',
   'inventoryBalance',
   'inventoryTransaction',
-  'financeSettlement'
+  'financeSettlement',
+  'inventoryValuation',
+  'productionCost'
 ] as const
 
 export type ReportKey = (typeof reportKeys)[number]
@@ -24,6 +28,8 @@ export type ReportRecord =
   | InventoryBalanceReportRow
   | InventoryTransactionReportRow
   | FinanceSettlementReportRow
+  | InventoryValuationReportRow
+  | ProductionCostReportRow
 
 export interface ReportState {
   loading: boolean
@@ -38,7 +44,9 @@ const reportTabMessageKeys: Record<ReportKey, string> = {
   sales: 'financeReportPages.reports.tabs.sales',
   inventoryBalance: 'financeReportPages.reports.tabs.inventoryBalance',
   inventoryTransaction: 'financeReportPages.reports.tabs.inventoryTransaction',
-  financeSettlement: 'financeReportPages.reports.tabs.financeSettlement'
+  financeSettlement: 'financeReportPages.reports.tabs.financeSettlement',
+  inventoryValuation: 'financeReportPages.reports.tabs.inventoryValuation',
+  productionCost: 'financeReportPages.reports.tabs.productionCost'
 }
 
 const reportStatusMessageKeys: Record<string, string> = {
@@ -88,6 +96,8 @@ export const sumReportAmount = (records: ReportRecord[]) =>
     if ('amountOnHand' in row) return sum + Number(row.amountOnHand || 0)
     if ('amount' in row) return sum + Number(row.amount || 0)
     if ('remainingAmount' in row) return sum + Number(row.remainingAmount || 0)
+    if ('closingAmount' in row) return sum + Number(row.closingAmount || 0)
+    if ('materialCost' in row) return sum + Number(row.materialCost || 0)
     return sum
   }, 0)
 

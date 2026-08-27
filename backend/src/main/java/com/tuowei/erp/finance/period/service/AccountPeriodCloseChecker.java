@@ -2,6 +2,8 @@ package com.tuowei.erp.finance.period.service;
 
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.persistence.NativeSqlTenantScoped;
+import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckItemResponse;
@@ -15,29 +17,46 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @NativeSqlTenantScoped("JdbcTemplate close checks use the selected account period as the scope source and pass its company_id/account_book_id into every tenant-owned balance, voucher, and settlement query.")
 public class AccountPeriodCloseChecker {
 
     private final AccountPeriodMapper accountPeriodMapper;
+    private final AuditMetadataFactory auditMetadataFactory;
     private final InventoryFinanceReconciliationService reconciliationService;
     private final JdbcTemplate jdbcTemplate;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    public AccountPeriodCloseChecker(
+            AccountPeriodMapper accountPeriodMapper,
+            AuditMetadataFactory auditMetadataFactory,
+            InventoryFinanceReconciliationService reconciliationService,
+            JdbcTemplate jdbcTemplate
+    ) {
+        this.accountPeriodMapper = accountPeriodMapper;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.reconciliationService = reconciliationService;
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /** Keeps direct construction in legacy tests compatible; Spring uses the tenant-aware constructor above. */
     public AccountPeriodCloseChecker(
             AccountPeriodMapper accountPeriodMapper,
             InventoryFinanceReconciliationService reconciliationService,
             JdbcTemplate jdbcTemplate
     ) {
-        this.accountPeriodMapper = accountPeriodMapper;
-        this.reconciliationService = reconciliationService;
-        this.jdbcTemplate = jdbcTemplate;
+        this(accountPeriodMapper, null, reconciliationService, jdbcTemplate);
     }
 
     @Transactional(readOnly = true)
     public AccountPeriodCloseCheckResponse check(Long periodId) {
+        AuditMetadata audit = auditMetadataFactory == null ? null : auditMetadataFactory.current();
         AccountPeriodEntity period = accountPeriodMapper.selectById(periodId);
-        if (period == null) {
+        if (period == null
+                || (audit != null && (!Objects.equals(period.getCompanyId(), audit.companyId())
+                || !Objects.equals(period.getAccountBookId(), audit.accountBookId())))) {
             throw new IllegalArgumentException("会计期间不存在");
         }
         List<AccountPeriodCloseIssueResponse> issues = new ArrayList<>();

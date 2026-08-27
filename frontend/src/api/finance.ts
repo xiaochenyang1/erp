@@ -654,6 +654,26 @@ export interface AccountPeriodCloseCheck {
   checks?: AccountPeriodCloseCheckItem[]
 }
 
+export interface AccountPeriodCloseSnapshotItem {
+  code: string
+  title: string
+  category: string
+  passed: boolean
+  message: string
+  metric: number
+}
+
+export interface AccountPeriodCloseSnapshot {
+  id: string
+  periodId: string
+  actionType: 'LOCK' | 'CLOSE' | string
+  passed: boolean
+  issueCount: number
+  checkedBy?: string
+  checkedTime?: string
+  items: AccountPeriodCloseSnapshotItem[]
+}
+
 export interface InventoryFinanceReconciliation {
   periodId: string
   periodMonth: string
@@ -736,6 +756,11 @@ export const reopenAccountPeriod = (id: string | number) => {
   return request.post<AccountPeriod>(`/finance/periods/${id}/reopen`).then(normalizeAccountPeriod)
 }
 
+export const getAccountPeriodCloseSnapshots = (id: string | number) => {
+  return request.get<AccountPeriodCloseSnapshot[]>(`/finance/periods/${id}/close-snapshots`)
+    .then((snapshots) => snapshots.map(normalizeAccountPeriodCloseSnapshot))
+}
+
 export const getInventoryFinanceReconciliation = (id: string | number) => {
   return request.get<InventoryFinanceReconciliation>(`/finance/periods/${id}/reconciliation`)
     .then(normalizeInventoryFinanceReconciliation)
@@ -774,6 +799,18 @@ const normalizeAccountPeriodCloseCheck = (result: AccountPeriodCloseCheck): Acco
     amount: Number(issue.amount ?? 0)
   })),
   checks: (result.checks || []).map((item) => ({
+    ...item,
+    metric: Number(item.metric ?? 0)
+  }))
+})
+
+const normalizeAccountPeriodCloseSnapshot = (snapshot: AccountPeriodCloseSnapshot): AccountPeriodCloseSnapshot => ({
+  ...snapshot,
+  id: String(snapshot.id),
+  periodId: String(snapshot.periodId),
+  issueCount: Number(snapshot.issueCount ?? 0),
+  checkedBy: snapshot.checkedBy != null ? String(snapshot.checkedBy) : undefined,
+  items: (snapshot.items || []).map((item) => ({
     ...item,
     metric: Number(item.metric ?? 0)
   }))

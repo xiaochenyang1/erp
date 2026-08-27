@@ -7,10 +7,15 @@ import com.tuowei.erp.report.web.InventoryBalanceReportQuery;
 import com.tuowei.erp.report.web.InventoryBalanceReportResponse;
 import com.tuowei.erp.report.web.InventoryTransactionReportQuery;
 import com.tuowei.erp.report.web.InventoryTransactionReportResponse;
+import com.tuowei.erp.report.web.InventoryValuationReportQuery;
+import com.tuowei.erp.report.web.InventoryValuationReportResponse;
+import com.tuowei.erp.report.web.ProductionCostReportQuery;
+import com.tuowei.erp.report.web.ProductionCostReportResponse;
 import com.tuowei.erp.report.web.OrderReportResponse;
 import com.tuowei.erp.report.web.PurchaseOrderReportQuery;
 import com.tuowei.erp.report.web.SalesOrderReportQuery;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.function.Consumer;
@@ -21,15 +26,28 @@ public class ReportQueryService {
     private final OrderReportQueryService orderReportQueryService;
     private final InventoryReportQueryService inventoryReportQueryService;
     private final FinanceSettlementReportQueryService financeSettlementReportQueryService;
+    private final InventoryValuationReportService inventoryValuationReportService;
+    private final ProductionCostReportService productionCostReportService;
 
+    @Autowired
     public ReportQueryService(
             OrderReportQueryService orderReportQueryService,
             InventoryReportQueryService inventoryReportQueryService,
-            FinanceSettlementReportQueryService financeSettlementReportQueryService
+            FinanceSettlementReportQueryService financeSettlementReportQueryService,
+            InventoryValuationReportService inventoryValuationReportService,
+            ProductionCostReportService productionCostReportService
     ) {
         this.orderReportQueryService = orderReportQueryService;
         this.inventoryReportQueryService = inventoryReportQueryService;
         this.financeSettlementReportQueryService = financeSettlementReportQueryService;
+        this.inventoryValuationReportService = inventoryValuationReportService;
+        this.productionCostReportService = productionCostReportService;
+    }
+
+    public ReportQueryService(OrderReportQueryService orderReportQueryService,
+                              InventoryReportQueryService inventoryReportQueryService,
+                              FinanceSettlementReportQueryService financeSettlementReportQueryService) {
+        this(orderReportQueryService, inventoryReportQueryService, financeSettlementReportQueryService, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -110,5 +128,30 @@ public class ReportQueryService {
     @Transactional(readOnly = true)
     public void streamFinanceSettlements(FinanceSettlementReportQuery query, Consumer<FinanceSettlementReportResponse> consumer) {
         financeSettlementReportQueryService.streamFinanceSettlements(query, consumer);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<InventoryValuationReportResponse> listInventoryValuations(InventoryValuationReportQuery query) {
+        return inventoryValuationReportService.list(query);
+    }
+
+    @Transactional(readOnly = true)
+    public void assertInventoryValuationExportWithinLimit(InventoryValuationReportQuery query) {
+        inventoryValuationReportService.assertExportWithinLimit(query);
+    }
+
+    @Transactional(readOnly = true)
+    public void streamInventoryValuations(InventoryValuationReportQuery query, Consumer<InventoryValuationReportResponse> consumer) {
+        inventoryValuationReportService.stream(query, consumer);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ProductionCostReportResponse> listProductionCosts(ProductionCostReportQuery query) {
+        return productionCostReportService.list(query);
+    }
+
+    @Transactional(readOnly = true)
+    public void streamProductionCosts(ProductionCostReportQuery query, Consumer<ProductionCostReportResponse> consumer) {
+        productionCostReportService.stream(query, consumer, 500);
     }
 }

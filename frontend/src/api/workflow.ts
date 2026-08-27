@@ -269,6 +269,46 @@ export interface FinanceSettlementReportRow {
   status: string
 }
 
+export interface InventoryValuationReportRow {
+  rowKey: string
+  periodStart: string
+  asOfDate: string
+  warehouseId: string
+  warehouseCode: string
+  warehouseName: string
+  productId: string
+  productCode: string
+  productName: string
+  openingQty: number
+  openingAmount: number
+  inboundQty: number
+  inboundAmount: number
+  outboundQty: number
+  outboundAmount: number
+  closingQty: number
+  closingAmount: number
+  averageUnitCost: number
+}
+
+export interface ProductionCostReportRow {
+  orderId: string
+  orderNo: string
+  productId: string
+  productCode?: string
+  productName?: string
+  status: string
+  plannedStartDate?: string
+  plannedFinishDate?: string
+  plannedQty: number
+  completedQty: number
+  completionRate: number
+  materialCost: number
+  finishedGoodsCost: number
+  workInProgressCost: number
+  completionUnitCost: number
+  costStatus: string
+}
+
 // 报表API
 export const getPurchaseOrderReport = (params: ReportQuery) => {
   return request.get<PageResponse<OrderReportRow>>('/reports/purchase-orders', { params }).then((page) => normalizeReportPage(page, normalizeOrderReportRow))
@@ -288,6 +328,16 @@ export const getInventoryTransactionReport = (params: ReportQuery) => {
 
 export const getFinanceSettlementReport = (params: ReportQuery) => {
   return request.get<PageResponse<FinanceSettlementReportRow>>('/reports/finance-settlements', { params }).then((page) => normalizeReportPage(page, normalizeFinanceSettlementReportRow))
+}
+
+export const getInventoryValuationReport = (params: ReportQuery) => {
+  return request.get<PageResponse<InventoryValuationReportRow>>('/reports/inventory-valuations', { params })
+    .then((page) => normalizeReportPage(page, normalizeInventoryValuationReportRow))
+}
+
+export const getProductionCostReport = (params: ReportQuery) => {
+  return request.get<PageResponse<ProductionCostReportRow>>('/reports/production-costs', { params })
+    .then((page) => normalizeReportPage(page, normalizeProductionCostReportRow))
 }
 
 const normalizeReportPage = <T>(page: PageResponse<T>, normalize: (row: T) => T): PageResponse<T> => ({
@@ -320,6 +370,19 @@ const normalizeFinanceSettlementReportRow = (row: FinanceSettlementReportRow): F
   ...row,
   id: String(row.id),
   partnerId: String(row.partnerId)
+})
+
+const normalizeInventoryValuationReportRow = (row: InventoryValuationReportRow): InventoryValuationReportRow => ({
+  ...row,
+  rowKey: String(row.rowKey),
+  warehouseId: String(row.warehouseId),
+  productId: String(row.productId)
+})
+
+const normalizeProductionCostReportRow = (row: ProductionCostReportRow): ProductionCostReportRow => ({
+  ...row,
+  orderId: String(row.orderId),
+  productId: String(row.productId)
 })
 
 export const exportPurchaseOrderReport = (params: ReportQuery) => {
@@ -355,4 +418,12 @@ export const exportFinanceSettlementReport = (params: ReportQuery) => {
     params,
     responseType: 'blob'
   })
+}
+
+export const exportInventoryValuationReport = (params: ReportQuery) => {
+  return request.get<Blob>('/reports/inventory-valuations/export', { params, responseType: 'blob' })
+}
+
+export const exportProductionCostReport = (params: ReportQuery) => {
+  return request.get<Blob>('/reports/production-costs/export', { params, responseType: 'blob' })
 }

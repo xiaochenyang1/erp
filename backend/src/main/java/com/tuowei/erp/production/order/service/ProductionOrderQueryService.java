@@ -183,6 +183,12 @@ public class ProductionOrderQueryService {
         if (query.getFinishedWarehouseId() != null) {
             wrapper.eq(ProductionOrderEntity::getFinishedWarehouseId, query.getFinishedWarehouseId());
         }
+        if (query.getPlannedStartDateFrom() != null) {
+            wrapper.ge(ProductionOrderEntity::getPlannedStartDate, query.getPlannedStartDateFrom());
+        }
+        if (query.getPlannedStartDateTo() != null) {
+            wrapper.le(ProductionOrderEntity::getPlannedStartDate, query.getPlannedStartDateTo());
+        }
         return wrapper.orderByDesc(ProductionOrderEntity::getId);
     }
 

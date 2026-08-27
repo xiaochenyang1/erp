@@ -1,17 +1,18 @@
-package com.tuowei.erp.production.order.web;
+package com.tuowei.erp.report.web;
+
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 
-public class ProductionOrderPageQuery {
+public class ProductionCostReportQuery {
     private Integer pageNo;
     private Integer pageSize;
     private String keyword;
     private String status;
-    private Long bomId;
     private Long productId;
-    private Long materialWarehouseId;
-    private Long finishedWarehouseId;
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate plannedStartDateFrom;
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate plannedStartDateTo;
 
     public Integer getPageNo() { return pageNo; }
@@ -22,14 +23,8 @@ public class ProductionOrderPageQuery {
     public void setKeyword(String keyword) { this.keyword = keyword; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
-    public Long getBomId() { return bomId; }
-    public void setBomId(Long bomId) { this.bomId = bomId; }
     public Long getProductId() { return productId; }
     public void setProductId(Long productId) { this.productId = productId; }
-    public Long getMaterialWarehouseId() { return materialWarehouseId; }
-    public void setMaterialWarehouseId(Long materialWarehouseId) { this.materialWarehouseId = materialWarehouseId; }
-    public Long getFinishedWarehouseId() { return finishedWarehouseId; }
-    public void setFinishedWarehouseId(Long finishedWarehouseId) { this.finishedWarehouseId = finishedWarehouseId; }
     public LocalDate getPlannedStartDateFrom() { return plannedStartDateFrom; }
     public void setPlannedStartDateFrom(LocalDate plannedStartDateFrom) { this.plannedStartDateFrom = plannedStartDateFrom; }
     public LocalDate getPlannedStartDateTo() { return plannedStartDateTo; }

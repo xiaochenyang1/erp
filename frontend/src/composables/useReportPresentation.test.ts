@@ -33,12 +33,14 @@ describe('report presentation', () => {
       computed(() => state)
     )
 
-    expect(presentation.reportTabs.value).toHaveLength(5)
+    expect(presentation.reportTabs.value).toHaveLength(7)
     expect(presentation.activeReport.value.key).toBe('purchase')
     expect(presentation.pageCount.value).toBe(3)
     expect(presentation.summaryAmount.value).toBe(100)
     expect(sumReportAmount([])).toBe(0)
     expect(isReportKey('inventoryTransaction')).toBe(true)
+    expect(isReportKey('inventoryValuation')).toBe(true)
+    expect(isReportKey('productionCost')).toBe(true)
     expect(isReportKey('unknown')).toBe(false)
   })
 
