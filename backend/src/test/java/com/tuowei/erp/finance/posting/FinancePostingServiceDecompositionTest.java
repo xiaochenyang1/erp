@@ -8,6 +8,7 @@ import com.tuowei.erp.finance.voucher.mapper.VoucherMapper;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,8 +41,12 @@ class FinancePostingServiceDecompositionTest {
                         CustomerMapper.class,
                         SupplierMapper.class
                 );
-        assertThat(constructorDependencies(FinanceVoucherPostingService.class))
-                .contains(VoucherMapper.class, VoucherEntryMapper.class, AccountSubjectMapper.class);
+        assertThat(autowiredConstructorDependencies(FinanceVoucherPostingService.class))
+                .contains(FinanceVoucherPersistenceService.class)
+                .doesNotContain(VoucherMapper.class, VoucherEntryMapper.class, AccountSubjectMapper.class);
+        assertThat(constructorDependencies(FinanceVoucherPersistenceService.class))
+                .contains(VoucherMapper.class, VoucherEntryMapper.class, AccountSubjectMapper.class)
+                .doesNotContain(FinanceVoucherPostingService.class);
     }
 
     @Test
@@ -84,10 +89,20 @@ class FinancePostingServiceDecompositionTest {
         assertThat(Arrays.stream(FinanceVoucherPostingService.class.getDeclaredMethods())
                 .filter(method -> java.lang.reflect.Modifier.isPublic(method.getModifiers())))
                 .allSatisfy(this::assertRequiredWriteTransaction);
+        assertThat(Arrays.stream(FinanceVoucherPersistenceService.class.getDeclaredMethods())
+                .filter(method -> java.lang.reflect.Modifier.isPublic(method.getModifiers())))
+                .allSatisfy(method -> assertThat(method.getAnnotation(Transactional.class)).isNull());
     }
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {
         return Arrays.stream(type.getDeclaredConstructors())
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
+                .collect(Collectors.toSet());
+    }
+
+    private Set<Class<?>> autowiredConstructorDependencies(Class<?> type) {
+        return Arrays.stream(type.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
                 .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
                 .collect(Collectors.toSet());
     }

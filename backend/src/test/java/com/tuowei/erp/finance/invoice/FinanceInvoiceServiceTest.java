@@ -74,6 +74,7 @@ class FinanceInvoiceServiceTest {
         PurchaseOrderEntity po = new PurchaseOrderEntity();
         po.setId(9001L);
         po.setCompanyId(1L);
+        po.setAccountBookId(10L);
         when(purchaseOrderMapper.selectById(9001L)).thenReturn(po);
 
         FinanceInvoiceService service = service();

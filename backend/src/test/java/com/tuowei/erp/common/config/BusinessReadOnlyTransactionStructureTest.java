@@ -2,15 +2,27 @@ package com.tuowei.erp.common.config;
 
 import com.tuowei.erp.finance.expense.service.ExpenseService;
 import com.tuowei.erp.finance.expense.service.ExpenseQueryService;
+import com.tuowei.erp.finance.aging.service.FinanceAgingService;
+import com.tuowei.erp.finance.aging.service.FinanceAgingQueryService;
 import com.tuowei.erp.finance.expense.web.ExpensePageQuery;
 import com.tuowei.erp.finance.fund.service.FundQueryService;
 import com.tuowei.erp.finance.fund.service.FundService;
 import com.tuowei.erp.finance.fund.web.BankStatementPageQuery;
 import com.tuowei.erp.finance.fund.web.FundAccountPageQuery;
+import com.tuowei.erp.finance.invoice.service.FinanceInvoiceQueryService;
+import com.tuowei.erp.finance.invoice.service.FinanceInvoiceService;
+import com.tuowei.erp.finance.invoice.web.InvoicePageQuery;
+import com.tuowei.erp.finance.margin.service.GrossMarginQueryService;
+import com.tuowei.erp.finance.margin.service.GrossMarginService;
 import com.tuowei.erp.finance.payment.service.PaymentService;
+import com.tuowei.erp.finance.payment.service.PaymentQueryService;
 import com.tuowei.erp.finance.payment.web.PaymentPageQuery;
 import com.tuowei.erp.finance.period.service.AccountPeriodService;
+import com.tuowei.erp.finance.period.service.InventoryFinanceReconciliationQueryService;
+import com.tuowei.erp.finance.period.service.InventoryFinanceReconciliationService;
+import com.tuowei.erp.finance.period.web.InventoryFinanceDifferenceQuery;
 import com.tuowei.erp.finance.receipt.service.ReceiptService;
+import com.tuowei.erp.finance.receipt.service.ReceiptQueryService;
 import com.tuowei.erp.finance.receipt.web.ReceiptPageQuery;
 import com.tuowei.erp.finance.subject.service.AccountSubjectService;
 import com.tuowei.erp.finance.subject.web.AccountSubjectPageQuery;
@@ -39,6 +51,8 @@ import com.tuowei.erp.inventory.stock.service.InventoryReservationOpsService;
 import com.tuowei.erp.inventory.stock.service.InventoryReservationQueryService;
 import com.tuowei.erp.inventory.stock.service.InventoryStockQueryService;
 import com.tuowei.erp.inventory.stock.service.InventoryTransactionQueryService;
+import com.tuowei.erp.inventory.stock.service.InventoryLotGenealogyQueryService;
+import com.tuowei.erp.inventory.stock.service.InventoryLotGenealogyService;
 import com.tuowei.erp.inventory.stock.web.InventoryLotBalancePageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotExpiryAlertQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotTraceQuery;
@@ -88,8 +102,12 @@ import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptQueryService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptService;
 import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptPageQuery;
+import com.tuowei.erp.purchase.requisition.service.PurchaseRequisitionService;
+import com.tuowei.erp.purchase.requisition.service.PurchaseRequisitionQueryService;
+import com.tuowei.erp.purchase.requisition.web.PurchaseRequisitionPageQuery;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnService;
+import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnQueryService;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnQueryService;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnPageQuery;
 import com.tuowei.erp.qc.inspection.service.QcInspectionService;
@@ -170,6 +188,12 @@ class BusinessReadOnlyTransactionStructureTest {
 
     @Test
     void documentQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
+        assertReadOnly(FinanceAgingService.class, "summary", java.time.LocalDate.class);
+        assertReadOnly(FinanceAgingQueryService.class, "load", java.time.LocalDate.class);
+        assertReadOnly(InventoryLotGenealogyService.class, "genealogy",
+                com.tuowei.erp.inventory.stock.web.InventoryLotGenealogyQuery.class);
+        assertReadOnly(InventoryLotGenealogyQueryService.class, "genealogy",
+                com.tuowei.erp.inventory.stock.web.InventoryLotGenealogyQuery.class);
         assertReadOnly(ManualVoucherService.class, "list", ManualVoucherPageQuery.class);
         assertReadOnly(ManualVoucherService.class, "detail", Long.class);
         assertReadOnly(ManualVoucherQueryService.class, "list", ManualVoucherPageQuery.class);
@@ -201,9 +225,15 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(PurchaseReturnService.class, "getById", Long.class);
         assertReadOnly(PurchaseReturnQueryService.class, "list", PurchaseReturnPageQuery.class);
         assertReadOnly(PurchaseReturnQueryService.class, "getById", Long.class);
+        assertReadOnly(PurchaseReturnQueryService.class, "list", PurchaseReturnPageQuery.class);
+        assertReadOnly(PurchaseReturnQueryService.class, "getById", Long.class);
         assertReadOnly(PurchaseReturnQueryService.class, "assertCanView", PurchaseReturnEntity.class);
         assertReadOnly(PurchaseReturnQueryService.class, "assertCanView", PurchaseReceiptEntity.class);
         assertReadOnly(PurchaseReturnQueryService.class, "assertCanView", PurchaseOrderEntity.class);
+        assertReadOnly(PurchaseRequisitionService.class, "list", PurchaseRequisitionPageQuery.class);
+        assertReadOnly(PurchaseRequisitionService.class, "getById", Long.class);
+        assertReadOnly(PurchaseRequisitionQueryService.class, "list", PurchaseRequisitionPageQuery.class);
+        assertReadOnly(PurchaseRequisitionQueryService.class, "getById", Long.class);
         assertReadOnly(QcInspectionService.class, "list", QcInspectionPageQuery.class);
         assertReadOnly(QcInspectionService.class, "getById", Long.class);
         assertReadOnly(QcInspectionQueryService.class, "list", QcInspectionPageQuery.class);
@@ -354,6 +384,10 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(ReceiptService.class, "detail", Long.class);
         assertReadOnly(PaymentService.class, "list", PaymentPageQuery.class);
         assertReadOnly(PaymentService.class, "detail", Long.class);
+        assertReadOnly(PaymentQueryService.class, "list", PaymentPageQuery.class);
+        assertReadOnly(PaymentQueryService.class, "detail", Long.class);
+        assertReadOnly(ReceiptQueryService.class, "list", ReceiptPageQuery.class);
+        assertReadOnly(ReceiptQueryService.class, "detail", Long.class);
         assertReadOnly(ExpenseService.class, "list", ExpensePageQuery.class);
         assertReadOnly(ExpenseService.class, "detail", Long.class);
         assertReadOnly(ExpenseService.class, "reconciliation", Long.class);
@@ -368,6 +402,35 @@ class BusinessReadOnlyTransactionStructureTest {
         assertReadOnly(FundQueryService.class, "accountDetail", Long.class);
         assertReadOnly(FundQueryService.class, "listStatements", BankStatementPageQuery.class);
         assertReadOnly(FundQueryService.class, "statementDetail", Long.class);
+        assertReadOnly(FinanceInvoiceService.class, "list", InvoicePageQuery.class);
+        assertReadOnly(FinanceInvoiceService.class, "detail", Long.class);
+        assertReadOnly(FinanceInvoiceQueryService.class, "list", InvoicePageQuery.class);
+        assertReadOnly(FinanceInvoiceQueryService.class, "detail", Long.class);
+        assertReadOnly(GrossMarginService.class, "summary", java.time.LocalDate.class, java.time.LocalDate.class);
+        assertReadOnly(GrossMarginQueryService.class, "load", java.time.LocalDate.class, java.time.LocalDate.class);
+        assertReadOnly(InventoryFinanceReconciliationService.class, "summary", Long.class);
+        assertReadOnly(
+                InventoryFinanceReconciliationService.class,
+                "differences",
+                Long.class,
+                InventoryFinanceDifferenceQuery.class
+        );
+        assertReadOnly(
+                InventoryFinanceReconciliationService.class,
+                "differenceDetail",
+                Long.class,
+                String.class,
+                String.class
+        );
+        assertReadOnly(InventoryFinanceReconciliationQueryService.class, "loadSummary", Long.class);
+        assertReadOnly(InventoryFinanceReconciliationQueryService.class, "loadDifferences", Long.class);
+        assertReadOnly(
+                InventoryFinanceReconciliationQueryService.class,
+                "loadDifferenceDetail",
+                Long.class,
+                String.class,
+                String.class
+        );
         assertReadOnly(AccountSubjectService.class, "list", AccountSubjectPageQuery.class);
         assertReadOnly(AccountSubjectService.class, "detail", Long.class);
         assertReadOnly(AccountSubjectService.class, "tree");

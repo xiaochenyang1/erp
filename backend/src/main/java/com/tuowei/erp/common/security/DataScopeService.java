@@ -405,6 +405,38 @@ public class DataScopeService {
         throw new AccessDeniedException("无权访问该库存调拨单");
     }
 
+    public LambdaQueryWrapper<InventoryTransferEntity> applyInventoryTransferScope(
+            LambdaQueryWrapper<InventoryTransferEntity> wrapper,
+            CurrentUser currentUser,
+            DataScopeSnapshot snapshot,
+            Set<Long> deptUserIds,
+            Set<Long> postUserIds
+    ) {
+        wrapper.eq(InventoryTransferEntity::getCompanyId, currentUser.companyId())
+                .eq(InventoryTransferEntity::getAccountBookId, currentUser.accountBookId());
+        if (snapshot.hasAllScope()) {
+            return wrapper;
+        }
+
+        Set<Long> visibleCreatorIds = visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds);
+        if (visibleCreatorIds.isEmpty() && snapshot.warehouseIds().isEmpty()) {
+            return wrapper.apply("1 = 0");
+        }
+        if (visibleCreatorIds.isEmpty()) {
+            return wrapper.and(query -> query
+                    .in(InventoryTransferEntity::getFromWarehouseId, snapshot.warehouseIds())
+                    .in(InventoryTransferEntity::getToWarehouseId, snapshot.warehouseIds()));
+        }
+        if (snapshot.warehouseIds().isEmpty()) {
+            return wrapper.in(InventoryTransferEntity::getCreatedBy, visibleCreatorIds);
+        }
+        return wrapper.and(query -> query
+                .in(InventoryTransferEntity::getCreatedBy, visibleCreatorIds)
+                .or(nested -> nested
+                        .in(InventoryTransferEntity::getFromWarehouseId, snapshot.warehouseIds())
+                        .in(InventoryTransferEntity::getToWarehouseId, snapshot.warehouseIds())));
+    }
+
     public void assertCanViewProductionOrder(
             ProductionOrderEntity entity,
             CurrentUser currentUser,

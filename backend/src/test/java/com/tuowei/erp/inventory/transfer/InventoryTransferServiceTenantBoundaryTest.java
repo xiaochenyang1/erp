@@ -3,6 +3,7 @@ package com.tuowei.erp.inventory.transfer;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.security.CurrentUser;
@@ -10,6 +11,7 @@ import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
+import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
@@ -110,6 +112,9 @@ class InventoryTransferServiceTenantBoundaryTest {
     private DataScopeService dataScopeService;
 
     @Mock
+    private ScopedUserResolver scopedUserResolver;
+
+    @Mock
     private UserMapper userMapper;
 
     @Mock
@@ -126,6 +131,7 @@ class InventoryTransferServiceTenantBoundaryTest {
 
     @BeforeAll
     static void initTableInfo() {
+        initTableInfo(InventoryTransferEntity.class);
         initTableInfo(InventoryTransferLineEntity.class);
         initTableInfo(WarehouseEntity.class);
         initTableInfo(ProductEntity.class);
@@ -256,7 +262,43 @@ class InventoryTransferServiceTenantBoundaryTest {
         verify(transferMapper, never()).updateById(any(InventoryTransferEntity.class));
     }
 
+    @Test
+    void warehouseScopedListRequiresBothTransferWarehousesToBeAuthorized() {
+        DataScopeSnapshot snapshot = new DataScopeSnapshot(
+                false, false, false, false, Set.of(FROM_WAREHOUSE_ID, TO_WAREHOUSE_ID));
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
+        when(scopedUserResolver.resolve(CURRENT_USER, snapshot))
+                .thenReturn(new ScopedUserResolver.ScopedUserIds(Set.of(), Set.of()));
+        when(transferMapper.selectPage(any(), any())).thenAnswer(invocation -> {
+            Page<InventoryTransferEntity> page = invocation.getArgument(0);
+            page.setRecords(List.of());
+            page.setTotal(0L);
+            return page;
+        });
+
+        service(new DataScopeService(null, null, null, null)).list(null);
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        org.mockito.ArgumentCaptor<LambdaQueryWrapper<InventoryTransferEntity>> wrapperCaptor =
+                org.mockito.ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(transferMapper).selectPage(any(), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment().toLowerCase(Locale.ROOT);
+        assertThat(sql)
+                .contains("company_id")
+                .contains("account_book_id")
+                .contains("from_warehouse_id")
+                .contains("to_warehouse_id");
+        assertThat(wrapperCaptor.getValue().getParamNameValuePairs().values())
+                .contains(AUDIT.companyId(), AUDIT.accountBookId(), FROM_WAREHOUSE_ID, TO_WAREHOUSE_ID);
+    }
+
     private InventoryTransferService service() {
+        return service(dataScopeService);
+    }
+
+    private InventoryTransferService service(DataScopeService scopeService) {
         return new InventoryTransferService(
                 transferMapper,
                 lineMapper,
@@ -265,12 +307,28 @@ class InventoryTransferServiceTenantBoundaryTest {
                 inventorySerialNumberService,
                 auditMetadataFactory,
                 currentUserContext,
-                dataScopeService,
+                scopeService,
+                scopedUserResolver,
                 userMapper,
                 warehouseMapper,
                 productValidator,
                 accountPeriodGuard,
                 attachmentService
+        );
+    }
+
+    private ErpPrincipal principal(DataScopeSnapshot snapshot) {
+        return new ErpPrincipal(
+                CURRENT_USER.userId(),
+                CURRENT_USER.companyId(),
+                CURRENT_USER.accountBookId(),
+                CURRENT_USER.deptId(),
+                CURRENT_USER.postId(),
+                CURRENT_USER.username(),
+                CURRENT_USER.realName(),
+                "N/A",
+                Set.of(),
+                snapshot
         );
     }
 

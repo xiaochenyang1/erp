@@ -1,57 +1,35 @@
 package com.tuowei.erp.inventory.stock.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.tuowei.erp.common.exception.BusinessConflictException;
-import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
-import com.tuowei.erp.inventory.stock.service.InventoryLocationResolver;
 import com.tuowei.erp.inventory.stock.mapper.InventoryLotBalanceMapper;
-import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
-import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
+/** Compatibility facade for inventory posting, balance queries and reservations. */
 @Service
 public class InventoryPostingService {
-
-    private static final int MAX_ATTEMPTS = 8;
-
-    private final InventoryBalanceMapper inventoryBalanceMapper;
-    private final InventoryTransactionWriter inventoryTransactionWriter;
-    private final InventoryReservationPostingService inventoryReservationPostingService;
-    private final ProductMapper productMapper;
-    private final InventoryLotPostingService inventoryLotPostingService;
-    private final InventoryLocationResolver inventoryLocationResolver;
+    private final InventoryBalancePostingService balancePostingService;
+    private final InventoryPostingQueryService queryService;
+    private final InventoryReservationPostingService reservationPostingService;
 
     @Autowired
     public InventoryPostingService(
-            InventoryBalanceMapper inventoryBalanceMapper,
-            InventoryTransactionWriter inventoryTransactionWriter,
-            InventoryReservationPostingService inventoryReservationPostingService,
-            ProductMapper productMapper,
-            InventoryLotPostingService inventoryLotPostingService,
-            InventoryLocationResolver inventoryLocationResolver
+            InventoryBalancePostingService balancePostingService,
+            InventoryPostingQueryService queryService,
+            InventoryReservationPostingService reservationPostingService
     ) {
-        this.inventoryBalanceMapper = inventoryBalanceMapper;
-        this.inventoryTransactionWriter = inventoryTransactionWriter;
-        this.inventoryReservationPostingService = inventoryReservationPostingService;
-        this.productMapper = productMapper;
-        this.inventoryLotPostingService = inventoryLotPostingService;
-        this.inventoryLocationResolver = inventoryLocationResolver;
+        this.balancePostingService = balancePostingService;
+        this.queryService = queryService;
+        this.reservationPostingService = reservationPostingService;
     }
 
-    /**
-     * Compatibility constructor for focused unit tests and downstream modules that build the facade directly.
-     * Spring uses the collaborator-based constructor above.
-     */
+    /** Keeps direct construction in existing focused tests and downstream modules compatible. */
     public InventoryPostingService(
             InventoryBalanceMapper inventoryBalanceMapper,
             InventoryTransactionWriter inventoryTransactionWriter,
@@ -59,266 +37,75 @@ public class InventoryPostingService {
             ProductMapper productMapper,
             InventoryLotBalanceMapper inventoryLotBalanceMapper
     ) {
-        this(
-                inventoryBalanceMapper,
-                inventoryTransactionWriter,
-                inventoryReservationPostingService,
-                productMapper,
-                new InventoryLotPostingService(
-                        inventoryBalanceMapper,
-                        inventoryLotBalanceMapper,
-                        inventoryTransactionWriter
-                ),
-                null
+        InventoryLotPostingService lotPostingService = new InventoryLotPostingService(
+                inventoryBalanceMapper, inventoryLotBalanceMapper, inventoryTransactionWriter
         );
+        this.balancePostingService = new InventoryBalancePostingService(
+                inventoryBalanceMapper, inventoryTransactionWriter, productMapper, lotPostingService, null
+        );
+        this.queryService = new InventoryPostingQueryService(inventoryBalanceMapper);
+        this.reservationPostingService = inventoryReservationPostingService;
     }
 
     @Transactional
     public void postInbound(InventoryPostingCommand command, AuditMetadata audit) {
-        BigDecimal scaledQty = requirePositiveQuantity(command);
-        BigDecimal scaledAmount = ScalePrecision.amount(command.amount());
-        ProductEntity product = requireProduct(audit.companyId(), audit.accountBookId(), command.productId());
-        inventoryLotPostingService.validateInboundCommand(product, command);
-        command = command.withLocationId(resolveLocationId(command, audit));
-        Long locationId = command.locationId();
-        String normalizedLotNo = inventoryLotPostingService.normalizeLotNo(command.lotNo());
-        String lotKey = inventoryLotPostingService.lotKey(
-                inventoryLotPostingService.isLotControlled(product) ? normalizedLotNo : null
-        );
-        if (inventoryTransactionWriter.findPostedTransaction(command, audit.companyId(), audit.accountBookId(), "IN", lotKey) != null) {
-            return;
-        }
-        LocalDateTime now = audit.now();
-
-        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-            boolean lotBalanceMutated = false;
-            if (inventoryLotPostingService.isLotControlled(product)) {
-                lotBalanceMutated = inventoryLotPostingService.upsertInboundBalance(
-                        command,
-                        audit,
-                        now,
-                        normalizedLotNo,
-                        scaledQty,
-                        scaledAmount
-                );
-                if (!lotBalanceMutated) {
-                    continue;
-                }
-            }
-            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId(), locationId);
-            if (balance == null) {
-                InventoryBalanceEntity newBalance = new InventoryBalanceEntity();
-                newBalance.setCompanyId(audit.companyId());
-                newBalance.setAccountBookId(audit.accountBookId());
-                newBalance.setWarehouseId(command.warehouseId());
-                newBalance.setProductId(command.productId());
-                newBalance.setLocationId(locationId);
-                newBalance.setQtyOnHand(scaledQty);
-                newBalance.setQtyReserved(ScalePrecision.quantity(BigDecimal.ZERO));
-                newBalance.setAmountOnHand(scaledAmount);
-                newBalance.setCreatedBy(audit.userId());
-                newBalance.setCreatedTime(now);
-                newBalance.setUpdatedBy(audit.userId());
-                newBalance.setUpdatedTime(now);
-                newBalance.setVersion(0);
-                try {
-                    inventoryBalanceMapper.insert(newBalance);
-                } catch (DuplicateKeyException ex) {
-                    if (lotBalanceMutated) {
-                        throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
-                    }
-                    continue;
-                }
-                inventoryTransactionWriter.insert(command, "IN", audit, now, command.qty(), scaledAmount,
-                        normalizedLotNo, command.productionDate(), command.expiryDate(), lotKey);
-                return;
-            }
-
-            balance.setQtyOnHand(ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyOnHand()).add(scaledQty)));
-            balance.setAmountOnHand(ScalePrecision.amount(ScalePrecision.zeroDefault(balance.getAmountOnHand()).add(scaledAmount)));
-            balance.setUpdatedBy(audit.userId());
-            balance.setUpdatedTime(now);
-            if (inventoryBalanceMapper.updateById(balance) == 1) {
-                inventoryTransactionWriter.insert(command, "IN", audit, now, command.qty(), scaledAmount,
-                        normalizedLotNo, command.productionDate(), command.expiryDate(), lotKey);
-                return;
-            }
-            if (inventoryLotPostingService.isLotControlled(product)) {
-                throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
-            }
-        }
-
-        throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
+        balancePostingService.postInbound(command, audit);
     }
 
     @Transactional
     public BigDecimal postOutbound(InventoryPostingCommand command, AuditMetadata audit, String shortageMessage) {
-        return ScalePrecision.amount(postOutboundWithAllocations(command, audit, shortageMessage).stream()
-                .map(LotAllocation::amount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        return balancePostingService.postOutbound(command, audit, shortageMessage);
     }
 
     @Transactional
-    public List<LotAllocation> postOutboundWithAllocations(InventoryPostingCommand command, AuditMetadata audit, String shortageMessage) {
-        BigDecimal scaledQty = requirePositiveQuantity(command);
-        ProductEntity product = requireProduct(audit.companyId(), audit.accountBookId(), command.productId());
-        inventoryLotPostingService.validateOutboundCommand(product, command);
-        String normalizedLotNo = inventoryLotPostingService.normalizeLotNo(command.lotNo());
-        List<LotAllocation> postedAllocations = inventoryTransactionWriter.postedAllocations(command, audit.companyId(), audit.accountBookId(), "OUT");
-        if (!postedAllocations.isEmpty()) {
-            return postedAllocations;
-        }
-        command = command.withLocationId(resolveLocationId(command, audit));
-        Long locationId = command.locationId();
-        if (inventoryLotPostingService.isLotControlled(product)) {
-            return inventoryLotPostingService.postOutbound(
-                    command,
-                    audit,
-                    shortageMessage,
-                    product,
-                    normalizedLotNo,
-                    scaledQty
-            );
-        }
-
-        LocalDateTime now = audit.now();
-
-        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-            InventoryBalanceEntity balance = selectBalance(audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId(), locationId);
-            if (balance == null) {
-                throw new IllegalArgumentException(shortageMessage);
-            }
-            if (qtyAvailable(balance).compareTo(scaledQty) < 0) {
-                throw new IllegalArgumentException(shortageMessage);
-            }
-
-            balance.setQtyOnHand(ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyOnHand()).subtract(scaledQty)));
-            BigDecimal outboundCostAmount = outboundCostAmount(balance, scaledQty);
-            balance.setAmountOnHand(ScalePrecision.amount(ScalePrecision.zeroDefault(balance.getAmountOnHand()).subtract(outboundCostAmount)));
-            balance.setUpdatedBy(audit.userId());
-            balance.setUpdatedTime(now);
-            if (inventoryBalanceMapper.updateById(balance) == 1) {
-                inventoryTransactionWriter.insert(command, "OUT", audit, now, command.qty(), outboundCostAmount,
-                        null, null, null, inventoryLotPostingService.lotKey(null));
-                return List.of(new LotAllocation(null, scaledQty, outboundCostAmount));
-            }
-        }
-
-        throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
+    public List<LotAllocation> postOutboundWithAllocations(
+            InventoryPostingCommand command, AuditMetadata audit, String shortageMessage
+    ) {
+        return balancePostingService.postOutboundWithAllocations(command, audit, shortageMessage);
     }
 
     @Transactional(readOnly = true)
     public BigDecimal getQtyOnHand(Long warehouseId, Long productId, Long companyId, Long accountBookId) {
-        return getQtyOnHand(warehouseId, productId, null, companyId, accountBookId);
+        return queryService.getQtyOnHand(warehouseId, productId, companyId, accountBookId);
     }
 
     @Transactional(readOnly = true)
     public BigDecimal getQtyOnHand(Long warehouseId, Long productId, Long locationId, Long companyId, Long accountBookId) {
-        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId, locationId);
-        if (balance == null) {
-            return ScalePrecision.quantity(BigDecimal.ZERO);
-        }
-        return ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyOnHand()));
+        return queryService.getQtyOnHand(warehouseId, productId, locationId, companyId, accountBookId);
     }
 
     @Transactional(readOnly = true)
     public BigDecimal getQtyAvailable(Long warehouseId, Long productId, Long companyId, Long accountBookId) {
-        return getQtyAvailable(warehouseId, productId, null, companyId, accountBookId);
+        return queryService.getQtyAvailable(warehouseId, productId, companyId, accountBookId);
     }
 
     @Transactional(readOnly = true)
     public BigDecimal getQtyAvailable(Long warehouseId, Long productId, Long locationId, Long companyId, Long accountBookId) {
-        InventoryBalanceEntity balance = selectBalance(companyId, accountBookId, warehouseId, productId, locationId);
-        if (balance == null) {
-            return ScalePrecision.quantity(BigDecimal.ZERO);
-        }
-        return qtyAvailable(balance);
+        return queryService.getQtyAvailable(warehouseId, productId, locationId, companyId, accountBookId);
     }
 
     @Transactional
     public void reserve(InventoryReservationCommand command, AuditMetadata audit, String shortageMessage) {
-        inventoryReservationPostingService.reserve(command, audit, shortageMessage);
+        reservationPostingService.reserve(command, audit, shortageMessage);
     }
 
     @Transactional
     public void releaseReservation(String sourceType, Long sourceLineId, BigDecimal qty, AuditMetadata audit) {
-        inventoryReservationPostingService.releaseReservation(sourceType, sourceLineId, qty, audit);
+        reservationPostingService.releaseReservation(sourceType, sourceLineId, qty, audit);
     }
 
     @Transactional
     public void manualReleaseReservation(Long reservationId, BigDecimal qty, AuditMetadata audit, String reason) {
-        inventoryReservationPostingService.manualReleaseReservation(reservationId, qty, audit, reason);
+        reservationPostingService.manualReleaseReservation(reservationId, qty, audit, reason);
     }
 
     @Transactional
     public void releaseAllReservations(String sourceType, Long sourceId, AuditMetadata audit) {
-        inventoryReservationPostingService.releaseAllReservations(sourceType, sourceId, audit);
+        reservationPostingService.releaseAllReservations(sourceType, sourceId, audit);
     }
 
     @Transactional
     public void restoreReservation(String sourceType, Long sourceLineId, BigDecimal qty, AuditMetadata audit, String reason) {
-        inventoryReservationPostingService.restoreReservation(sourceType, sourceLineId, qty, audit, reason);
+        reservationPostingService.restoreReservation(sourceType, sourceLineId, qty, audit, reason);
     }
-
-    private BigDecimal requirePositiveQuantity(InventoryPostingCommand command) {
-        return requirePositiveQuantity(command.qty());
-    }
-
-    private BigDecimal requirePositiveQuantity(BigDecimal qty) {
-        BigDecimal scaledQty = ScalePrecision.quantity(ScalePrecision.zeroDefault(qty));
-        if (scaledQty.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("库存过账数量必须大于0");
-        }
-        return scaledQty;
-    }
-
-    private BigDecimal qtyAvailable(InventoryBalanceEntity balance) {
-        return ScalePrecision.quantity(
-                ScalePrecision.zeroDefault(balance.getQtyOnHand())
-                        .subtract(ScalePrecision.zeroDefault(balance.getQtyReserved()))
-        );
-    }
-
-    private InventoryBalanceEntity selectBalance(Long companyId, Long accountBookId, Long warehouseId, Long productId, Long locationId) {
-        LambdaQueryWrapper<InventoryBalanceEntity> wrapper = new LambdaQueryWrapper<InventoryBalanceEntity>()
-                .eq(InventoryBalanceEntity::getCompanyId, companyId)
-                .eq(InventoryBalanceEntity::getAccountBookId, accountBookId)
-                .eq(InventoryBalanceEntity::getWarehouseId, warehouseId)
-                .eq(InventoryBalanceEntity::getProductId, productId);
-        if (locationId != null) {
-            wrapper.eq(InventoryBalanceEntity::getLocationId, locationId);
-        }
-        return inventoryBalanceMapper.selectOne(wrapper.last("limit 1"));
-    }
-
-    private Long resolveLocationId(InventoryPostingCommand command, AuditMetadata audit) {
-        if (inventoryLocationResolver == null) {
-            return command.locationId();
-        }
-        return inventoryLocationResolver.resolveLocationId(command, audit);
-    }
-
-    private ProductEntity requireProduct(Long companyId, Long accountBookId, Long productId) {
-        ProductEntity product = productMapper.selectOne(new LambdaQueryWrapper<ProductEntity>()
-                .eq(ProductEntity::getCompanyId, companyId)
-                .eq(ProductEntity::getAccountBookId, accountBookId)
-                .eq(ProductEntity::getId, productId)
-                .eq(ProductEntity::getDeletedFlag, 0)
-                .last("limit 1"));
-        if (product == null) {
-            throw new IllegalArgumentException("商品不存在");
-        }
-        return product;
-    }
-
-    private BigDecimal outboundCostAmount(InventoryBalanceEntity balance, BigDecimal outboundQty) {
-        BigDecimal qtyOnHand = ScalePrecision.quantity(ScalePrecision.zeroDefault(balance.getQtyOnHand()).add(outboundQty));
-        BigDecimal amountOnHand = ScalePrecision.amount(ScalePrecision.zeroDefault(balance.getAmountOnHand()));
-        if (qtyOnHand.compareTo(outboundQty) == 0) {
-            return amountOnHand;
-        }
-        BigDecimal unitCost = ScalePrecision.unitCost(amountOnHand, qtyOnHand);
-        return ScalePrecision.amount(unitCost.multiply(outboundQty));
-    }
-
 }

@@ -7,6 +7,7 @@ import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.production.operation.service.ProductionOperationService;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMaterialMapper;
+import com.tuowei.erp.production.order.service.ProductionOrderCommandService;
 import com.tuowei.erp.production.order.service.ProductionOrderPostingService;
 import com.tuowei.erp.production.order.service.ProductionOrderQueryService;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
@@ -29,9 +30,15 @@ class ProductionOrderServiceDecompositionTest {
 
     @Test
     void facadeKeepsReadAndPostingOrchestrationBehindCollaborators() {
-        assertThat(constructorDependencies(ProductionOrderService.class))
-                .contains(ProductionOrderQueryService.class, ProductionOrderPostingService.class)
+        assertThat(autowiredDependencies(ProductionOrderService.class))
+                .containsExactlyInAnyOrder(
+                        ProductionOrderQueryService.class,
+                        ProductionOrderCommandService.class,
+                        ProductionOrderPostingService.class
+                )
                 .doesNotContain(
+                        ProductionOrderMapper.class,
+                        ProductionOrderMaterialMapper.class,
                         CurrentUserContext.class,
                         DataScopeService.class,
                         ScopedUserResolver.class,
@@ -40,6 +47,13 @@ class ProductionOrderServiceDecompositionTest {
                         ProductionOperationService.class,
                         AttachmentService.class
                 );
+        assertThat(constructorDependencies(ProductionOrderCommandService.class))
+                .contains(
+                        ProductionOrderMapper.class,
+                        ProductionOrderMaterialMapper.class,
+                        ProductionOrderQueryService.class
+                )
+                .doesNotContain(ProductionOrderService.class, ProductionOrderPostingService.class);
         assertThat(constructorDependencies(ProductionOrderQueryService.class))
                 .contains(
                         ProductionOrderMapper.class,
@@ -75,6 +89,15 @@ class ProductionOrderServiceDecompositionTest {
                 "create",
                 ProductionOrderCreateRequest.class
         ));
+        assertRequiredWriteTransaction(ProductionOrderCommandService.class.getDeclaredMethod(
+                "create",
+                ProductionOrderCreateRequest.class
+        ));
+        assertRequiredWriteTransaction(ProductionOrderCommandService.class.getDeclaredMethod(
+                "update",
+                Long.class,
+                com.tuowei.erp.production.order.web.ProductionOrderUpdateRequest.class
+        ));
         assertRequiredWriteTransaction(ProductionOrderService.class.getDeclaredMethod("release", Long.class));
         assertRequiredWriteTransaction(ProductionOrderService.class.getDeclaredMethod("cancel", Long.class));
         assertRequiredWriteTransaction(ProductionOrderPostingService.class.getDeclaredMethod("release", Long.class));
@@ -83,6 +106,13 @@ class ProductionOrderServiceDecompositionTest {
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {
         return Arrays.stream(type.getDeclaredConstructors())
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
+                .collect(Collectors.toSet());
+    }
+
+    private Set<Class<?>> autowiredDependencies(Class<?> type) {
+        return Arrays.stream(type.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(org.springframework.beans.factory.annotation.Autowired.class))
                 .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
                 .collect(Collectors.toSet());
     }
