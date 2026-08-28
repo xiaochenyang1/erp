@@ -6,7 +6,7 @@
 
 **分支**：`refactor/e1-workflow-split`
 
-**当前 HEAD**：`900b090`（相对远端同名分支领先 9 个提交）
+**当前 HEAD**：`d8340b2`（相对远端同名分支领先 10 个提交）
 
 ## 结论
 
@@ -59,7 +59,7 @@ cd backend
 
 结果：
 
-- 2104 项测试；
+- 2105 项测试；
 - 0 failures；
 - 0 errors；
 - 2 skipped；
@@ -96,16 +96,18 @@ git diff --check
 
 结果通过，没有空白错误。
 
-以上结果覆盖提交前工作区；提交收口后的当前 HEAD 已再次通过 `git diff --check`，但尚未重新生成独立发布证据包。
+以上结果覆盖提交收口后的当前 HEAD；全量测试在 disposable MySQL 8.4 上通过，当前 HEAD 已再次通过 `git diff --check`，但尚未重新生成独立发布证据包。
 
 ## 当前提交收口
 
-本轮新增的两个收口提交：
+本轮新增的收口提交：
 
 - `94f490c feat: harden data scope operations`：业务追踪数据范围、双账号 API smoke、运营验收矩阵和设计说明；
 - `ecd3e34 test: cover period close tenant and evidence guards`：月结检查跨账套拒绝、快照回归及测试清理。
+- `900b090 fix: mark production cost report constructor for injection`：修复报表服务 Spring 构造器注入，恢复完整上下文测试；
+- `b9d4839`、`d8340b2`：同步提交状态、readiness 证据回填说明和最终验证结果。
 
-`git status --short -uall` 当前为空；相对远端同名分支共领先 9 个提交。
+`git status --short -uall` 当前为空；相对远端同名分支共领先 10 个提交。
 
 ## 建议提交序列
 
