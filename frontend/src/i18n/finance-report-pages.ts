@@ -498,7 +498,13 @@ export const financeReportPageMessages = {
         department: '部门', subject: '会计科目', amount: '预算金额', totalBudget: '预算总额', committed: '已占用', actual: '已执行', available: '可用余额',
         addLine: '新增明细', periodSource: '额度来源', projectedAvailable: '预计可用', overrun: '预计超预算', withinBudget: '预算额度充足',
         policyValue: { reject: '超预算拒绝', approval: '超预算转审批' },
-        status: { draft: '草稿', submitted: '待审批', approved: '已审批', closed: '已关闭', cancelled: '已作废' }
+        status: { draft: '草稿', submitted: '待审批', approved: '已审批', closed: '已关闭', cancelled: '已作废' },
+        validation: { completeForm: '请完整填写预算名称、科目和明细', subject: '请选择科目' },
+        message: {
+          loadFailed: '加载预算失败', saved: '预算已保存', saveFailed: '保存预算失败',
+          confirmAction: '确认“{action}”预算“{name}”吗？', prompt: '确认', actionDone: '预算操作成功',
+          actionFailed: '预算操作失败', executionLoadFailed: '加载预算执行失败'
+        }
       },
       payments: {
         tabs: { receipts: '收款管理', payments: '付款管理' },
@@ -1018,7 +1024,13 @@ export const financeReportPageMessages = {
         department: 'Department', subject: 'Account', amount: 'Budget amount', totalBudget: 'Total budget', committed: 'Committed', actual: 'Actual', available: 'Available',
         addLine: 'Add line', periodSource: 'Allocation source', projectedAvailable: 'Projected available', overrun: 'Projected over budget', withinBudget: 'Within budget',
         policyValue: { reject: 'Reject overrun', approval: 'Route overrun for approval' },
-        status: { draft: 'Draft', submitted: 'Pending approval', approved: 'Approved', closed: 'Closed', cancelled: 'Voided' }
+        status: { draft: 'Draft', submitted: 'Pending approval', approved: 'Approved', closed: 'Closed', cancelled: 'Voided' },
+        validation: { completeForm: 'Complete the budget name, account, and line information', subject: 'Select an account' },
+        message: {
+          loadFailed: 'Failed to load budgets', saved: 'Budget saved', saveFailed: 'Failed to save the budget',
+          confirmAction: 'Confirm “{action}” for budget “{name}”?', prompt: 'Confirmation', actionDone: 'Budget operation completed',
+          actionFailed: 'Budget operation failed', executionLoadFailed: 'Failed to load budget execution'
+        }
       },
       payments: {
         tabs: { receipts: 'Receipts', payments: 'Payments' }, customer: 'Customer', supplier: 'Supplier',

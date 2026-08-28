@@ -56,10 +56,10 @@
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">{{ $t('financeReportPages.common.view') }}</el-button>
             <el-button v-if="['DRAFT', 'SUBMITTED'].includes(row.status)" v-permission="'finance:budget:manage'" link type="primary" @click="openEdit(row)">{{ $t('financeReportPages.common.edit') }}</el-button>
-            <el-button v-if="row.status === 'DRAFT'" v-permission="'finance:budget:manage'" link type="success" @click="runAction(submitBudget, row, 'submitted')">{{ $t('financeReportPages.common.submit') }}</el-button>
-            <el-button v-if="row.status === 'SUBMITTED'" v-permission="'finance:budget:approve'" link type="success" @click="runAction(approveBudget, row, 'approved')">{{ $t('financeReportPages.common.approve') }}</el-button>
-            <el-button v-if="row.status === 'APPROVED'" v-permission="'finance:budget:manage'" link type="warning" @click="runAction(closeBudget, row, 'closed')">{{ $t('financeReportPages.budgets.close') }}</el-button>
-            <el-button v-if="['DRAFT', 'SUBMITTED'].includes(row.status)" v-permission="'finance:budget:manage'" link type="danger" @click="runAction(cancelBudget, row, 'cancelled')">{{ $t('financeReportPages.common.void') }}</el-button>
+            <el-button v-if="row.status === 'DRAFT'" v-permission="'finance:budget:manage'" link type="success" @click="runAction(submitBudget, row, 'financeReportPages.common.submit')">{{ $t('financeReportPages.common.submit') }}</el-button>
+            <el-button v-if="row.status === 'SUBMITTED'" v-permission="'finance:budget:approve'" link type="success" @click="runAction(approveBudget, row, 'financeReportPages.common.approve')">{{ $t('financeReportPages.common.approve') }}</el-button>
+            <el-button v-if="row.status === 'APPROVED'" v-permission="'finance:budget:manage'" link type="warning" @click="runAction(closeBudget, row, 'financeReportPages.budgets.close')">{{ $t('financeReportPages.budgets.close') }}</el-button>
+            <el-button v-if="['DRAFT', 'SUBMITTED'].includes(row.status)" v-permission="'finance:budget:manage'" link type="danger" @click="runAction(cancelBudget, row, 'financeReportPages.common.void')">{{ $t('financeReportPages.common.void') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -118,11 +118,13 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DataAnalysis, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { approveBudget, cancelBudget, closeBudget, createBudget, getBudget, getBudgetExecution, getBudgets, submitBudget, updateBudget, type Budget, type BudgetExecution, type BudgetLineSaveRequest } from '@/api/finance'
 import { getAccountSubjectTree, type AccountSubject } from '@/api/finance'
 import { getDeptTree, type Dept } from '@/api/system'
 import { formatLocalizedNumber } from '@/utils/locale'
 
+const { t } = useI18n()
 const statuses = ['DRAFT', 'SUBMITTED', 'APPROVED', 'CLOSED', 'CANCELLED']
 const query = reactive({ budgetYear: new Date().getFullYear(), status: '', keyword: '' })
 const pagination = reactive({ pageNo: 1, pageSize: 20, total: 0 })
@@ -160,16 +162,16 @@ const loadBudgets = async () => {
     const page = await getBudgets({ ...query, pageNo: pagination.pageNo, pageSize: pagination.pageSize, status: query.status || undefined, keyword: query.keyword || undefined })
     records.value = page.records
     pagination.total = page.total
-  } catch { ElMessage.error('加载预算失败') } finally { loading.value = false }
+  } catch { ElMessage.error(t('financeReportPages.budgets.message.loadFailed')) } finally { loading.value = false }
 }
 const resetQuery = () => { Object.assign(query, { budgetYear: new Date().getFullYear(), status: '', keyword: '' }); pagination.pageNo = 1; loadBudgets() }
 const addLine = () => editor.lines.push({ periodMonth: 0, deptId: undefined, subjectId: '', budgetAmount: 0, remark: '' })
 const openCreate = () => { editorId.value = undefined; Object.assign(editor, { budgetYear: new Date().getFullYear(), budgetName: '', controlPolicy: 'REJECT', remark: '', lines: [] }); addLine(); editorVisible.value = true }
 const openEdit = async (row: Budget) => { const detail = await getBudget(row.id); editorId.value = detail.id; Object.assign(editor, { budgetYear: detail.budgetYear, budgetName: detail.budgetName, controlPolicy: detail.controlPolicy, remark: detail.remark || '', lines: detail.lines.map((line) => ({ periodMonth: line.periodMonth, deptId: line.deptId, subjectId: line.subjectId, budgetAmount: line.budgetAmount, remark: line.remark })) }); editorVisible.value = true }
 const openDetail = async (row: Budget) => { selected.value = await getBudget(row.id); detailVisible.value = true }
-const saveEditor = async () => { if (!editor.budgetName.trim() || !editor.lines.length || editor.lines.some((line) => !line.subjectId)) { ElMessage.warning('请完整填写预算名称、科目和明细'); return } saving.value = true; try { const payload = { budgetYear: editor.budgetYear, budgetName: editor.budgetName, controlPolicy: editor.controlPolicy, remark: editor.remark, lines: editor.lines }; if (editorId.value) await updateBudget(editorId.value, payload); else await createBudget(payload); ElMessage.success('保存成功'); editorVisible.value = false; await loadBudgets() } catch { ElMessage.error('保存预算失败') } finally { saving.value = false } }
-const runAction = async (action: (id: string) => Promise<Budget>, row: Budget, key: string) => { try { await ElMessageBox.confirm(`确认${key}预算“${row.budgetName}”吗？`, '提示', { type: 'warning' }); await action(row.id); ElMessage.success('操作成功'); await loadBudgets() } catch { /* cancelled or failed */ } }
-const loadExecution = async () => { if (!executionQuery.subjectId) { ElMessage.warning('请选择科目'); return } executionLoading.value = true; try { execution.value = await getBudgetExecution({ ...executionQuery, amount: executionQuery.amount || undefined }) } catch { ElMessage.error('加载预算执行失败') } finally { executionLoading.value = false } }
+const saveEditor = async () => { if (!editor.budgetName.trim() || !editor.lines.length || editor.lines.some((line) => !line.subjectId)) { ElMessage.warning(t('financeReportPages.budgets.validation.completeForm')); return } saving.value = true; try { const payload = { budgetYear: editor.budgetYear, budgetName: editor.budgetName, controlPolicy: editor.controlPolicy, remark: editor.remark, lines: editor.lines }; if (editorId.value) await updateBudget(editorId.value, payload); else await createBudget(payload); ElMessage.success(t('financeReportPages.budgets.message.saved')); editorVisible.value = false; await loadBudgets() } catch { ElMessage.error(t('financeReportPages.budgets.message.saveFailed')) } finally { saving.value = false } }
+const runAction = async (action: (id: string) => Promise<Budget>, row: Budget, actionLabelKey: string) => { try { await ElMessageBox.confirm(t('financeReportPages.budgets.message.confirmAction', { action: t(actionLabelKey), name: row.budgetName }), t('financeReportPages.budgets.message.prompt'), { type: 'warning' }); await action(row.id); ElMessage.success(t('financeReportPages.budgets.message.actionDone')); await loadBudgets() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(t('financeReportPages.budgets.message.actionFailed')) } }
+const loadExecution = async () => { if (!executionQuery.subjectId) { ElMessage.warning(t('financeReportPages.budgets.validation.subject')); return } executionLoading.value = true; try { execution.value = await getBudgetExecution({ ...executionQuery, amount: executionQuery.amount || undefined }) } catch { ElMessage.error(t('financeReportPages.budgets.message.executionLoadFailed')) } finally { executionLoading.value = false } }
 onMounted(async () => { await loadResources(); await loadBudgets() })
 </script>
 

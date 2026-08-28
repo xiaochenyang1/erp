@@ -93,7 +93,8 @@ public class ContractQueryService {
         Map<Long, String> customers = customerNames(result.getRecords());
         Map<Long, String> suppliers = supplierNames(result.getRecords());
         List<ContractResponse> records = result.getRecords().stream()
-                .map(entity -> toResponse(entity, List.of(), customers.get(entity.getCustomerId()), suppliers.get(entity.getSupplierId()), Map.of()))
+                .map(entity -> toResponse(entity, List.of(), nameFor(customers, entity.getCustomerId()),
+                        nameFor(suppliers, entity.getSupplierId()), Map.of()))
                 .toList();
         return new PageResponse<>(result.getCurrent(), result.getSize(), result.getTotal(), records);
     }
@@ -253,6 +254,7 @@ public class ContractQueryService {
 
     private String customerName(Long id) { CustomerEntity entity = id == null ? null : customerMapper.selectById(id); return entity != null && inTenant(entity.getCompanyId(), entity.getAccountBookId(), entity.getDeletedFlag()) ? entity.getCustomerName() : null; }
     private String supplierName(Long id) { SupplierEntity entity = id == null ? null : supplierMapper.selectById(id); return entity != null && inTenant(entity.getCompanyId(), entity.getAccountBookId(), entity.getDeletedFlag()) ? entity.getSupplierName() : null; }
+    private String nameFor(Map<Long, String> names, Long id) { return id == null ? null : names.get(id); }
     private boolean inTenant(Long companyId, Long accountBookId, Integer deletedFlag) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Objects.equals(companyId, user.companyId()) && Objects.equals(accountBookId, user.accountBookId())

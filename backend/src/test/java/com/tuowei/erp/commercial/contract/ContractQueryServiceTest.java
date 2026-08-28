@@ -91,6 +91,29 @@ class ContractQueryServiceTest {
     }
 
     @Test
+    void listHydratesSalesCustomerWithoutLookingUpNullSupplier() {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.all();
+        when(currentUserContext.requireCurrentUser()).thenReturn(USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
+        ContractEntity entity = contract("ACTIVE");
+        when(contractMapper.selectPage(any(Page.class), any())).thenAnswer(invocation -> {
+            Page<ContractEntity> page = invocation.getArgument(0);
+            page.setTotal(1L); page.setRecords(List.of(entity)); return page;
+        });
+        CustomerEntity customer = new CustomerEntity(); customer.setId(101L); customer.setCompanyId(1L); customer.setAccountBookId(2L);
+        customer.setDeletedFlag(0); customer.setCustomerName("客户A");
+        when(customerMapper.selectBatchIds(any())).thenReturn(List.of(customer));
+
+        var result = service().list(new ContractPageQuery());
+
+        assertThat(result.records()).singleElement().satisfies(item -> {
+            assertThat(item.customerName()).isEqualTo("客户A");
+            assertThat(item.supplierName()).isNull();
+        });
+        verifyNoInteractions(supplierMapper);
+    }
+
+    @Test
     void detailRejectsCrossAccountBookBeforeLoadingLines() {
         when(currentUserContext.requireCurrentUser()).thenReturn(USER);
         ContractEntity entity = contract("ACTIVE"); entity.setAccountBookId(999L);
