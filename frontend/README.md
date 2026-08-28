@@ -161,7 +161,7 @@ npm run openapi:check
 
 ## 开发进度
 
-查看 [frontend-development-progress.md](../erpServer/docs/frontend-development-progress.md)
+查看 [项目当前完成度与缺口盘点](../backend/docs/WHAT_IS_MISSING.md) 和 [未完成功能执行板](../backend/docs/未完成.md)。
 
 ## License
 
