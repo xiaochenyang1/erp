@@ -478,6 +478,9 @@ class SalesDeliveryPostingServiceTest {
                 null,
                 null,
                 "PENDING_SHIP",
+                null,
+                null,
+                null,
                 List.of()
         );
     }

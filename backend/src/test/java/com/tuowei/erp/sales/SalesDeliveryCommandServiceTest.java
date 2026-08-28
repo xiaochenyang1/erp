@@ -27,6 +27,7 @@ import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -92,6 +93,7 @@ class SalesDeliveryCommandServiceTest {
     @Mock private SalesDeliveryQueryService salesDeliveryQueryService;
     @Mock private AuditMetadataFactory auditMetadataFactory;
     @Mock private ProductValidator productValidator;
+    @Mock private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -405,7 +407,6 @@ class SalesDeliveryCommandServiceTest {
     void createRejectsUnsupportedLogisticsStatusBeforeWriting() {
         stubCreateCalculation(List.of(orderLine(
                 FIRST_ORDER_LINE_ID, FIRST_PRODUCT_ID, "5.0000", "0.0000", "10.00", "0.0000")), "5.0000");
-        when(salesDeliveryNumberService.nextDeliveryNo(DELIVERY_DATE)).thenReturn("SD-20260608-003");
 
         assertThatThrownBy(() -> service().create(createRequest(
                 List.of(simpleLine(FIRST_ORDER_LINE_ID, "1.0000")), "SHIPPED")))
@@ -603,10 +604,7 @@ class SalesDeliveryCommandServiceTest {
             "PENDING_SHIP, PENDING_SHIP",
             "PENDING_SHIP, PICKED_UP",
             "PENDING_SHIP, IN_TRANSIT",
-            "PENDING_SHIP, DELIVERED",
             "PICKED_UP, IN_TRANSIT",
-            "PICKED_UP, DELIVERED",
-            "IN_TRANSIT, DELIVERED",
             "DELIVERED, DELIVERED"
     }, nullValues = "<null>")
     void updateLogisticsAllowsSameOrForwardState(String current, String next) {
@@ -645,6 +643,56 @@ class SalesDeliveryCommandServiceTest {
         assertThat(delivery.getCarrierName()).isEqualTo("顺丰速运");
         assertThat(delivery.getTrackingNo()).isNull();
         assertThat(delivery.getRemark()).isEqualTo("  remark keeps spaces  ");
+    }
+
+    @Test
+    void updateLogisticsRequiresRecipientAndProofWhenDeliveryIsAccepted() {
+        SalesDeliveryEntity delivery = delivery(DELIVERY_ID, "DRAFT", "IN_TRANSIT");
+        when(salesDeliveryMapper.selectById(DELIVERY_ID)).thenReturn(delivery);
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+
+        assertThatThrownBy(() -> service().updateLogistics(
+                DELIVERY_ID, new SalesDeliveryLogisticsUpdateRequest("DELIVERED", null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("物流状态变更为 DELIVERED 时必须提供签收凭证");
+
+        verify(salesDeliveryMapper, never()).updateById(any(SalesDeliveryEntity.class));
+        verify(attachmentService, never()).requireForBusiness(any(), any(), any());
+    }
+
+    @Test
+    void updateLogisticsPersistsAcceptedByTimeAndProof() {
+        SalesDeliveryEntity delivery = delivery(DELIVERY_ID, "POSTED", "IN_TRANSIT");
+        SalesDeliveryResponse expected = mock(SalesDeliveryResponse.class);
+        when(salesDeliveryMapper.selectById(DELIVERY_ID)).thenReturn(delivery);
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(salesDeliveryMapper.updateById(delivery)).thenReturn(1);
+        when(salesDeliveryQueryService.getById(DELIVERY_ID)).thenReturn(expected);
+
+        SalesDeliveryResponse result = service().updateLogistics(
+                DELIVERY_ID,
+                new SalesDeliveryLogisticsUpdateRequest("DELIVERED", null, null, "  张三  ", 8801L, null));
+
+        assertThat(result).isSameAs(expected);
+        assertThat(delivery.getLogisticsStatus()).isEqualTo("DELIVERED");
+        assertThat(delivery.getDeliveredBy()).isEqualTo("张三");
+        assertThat(delivery.getDeliveredTime()).isEqualTo(AUDIT.now());
+        assertThat(delivery.getDeliveryProofAttachmentId()).isEqualTo(8801L);
+        verify(attachmentService).requireForBusiness(8801L, "SALES_DELIVERY", DELIVERY_ID);
+        verify(salesDeliveryMapper).updateById(delivery);
+    }
+
+    @Test
+    void createRejectsDirectDeliveredStatus() {
+        stubCreateCalculation(List.of(orderLine(
+                FIRST_ORDER_LINE_ID, FIRST_PRODUCT_ID, "5.0000", "0.0000", "10.00", "0.0000")), "5.0000");
+        SalesDeliveryCreateRequest request = createRequest(List.of(simpleLine(FIRST_ORDER_LINE_ID, "1.0000")), "DELIVERED");
+
+        assertThatThrownBy(() -> service().create(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("请通过物流推进完成签收");
+
+        verify(salesDeliveryMapper, never()).insert(any(SalesDeliveryEntity.class));
     }
 
     @Test
@@ -759,7 +807,8 @@ class SalesDeliveryCommandServiceTest {
                 salesDeliveryNumberService,
                 salesDeliveryQueryService,
                 auditMetadataFactory,
-                productValidator
+                productValidator,
+                attachmentService
         );
     }
 

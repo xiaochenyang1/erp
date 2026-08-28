@@ -25,8 +25,11 @@ import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
 import com.tuowei.erp.sales.support.SalesAmountCalculator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -54,7 +57,36 @@ public class SalesDeliveryCommandService {
     private final SalesDeliveryQueryService salesDeliveryQueryService;
     private final AuditMetadataFactory auditMetadataFactory;
     private final ProductValidator productValidator;
+    private final AttachmentService attachmentService;
 
+    @Autowired
+    public SalesDeliveryCommandService(
+            SalesDeliveryMapper salesDeliveryMapper,
+            SalesDeliveryLineMapper salesDeliveryLineMapper,
+            SalesOrderMapper salesOrderMapper,
+            SalesOrderLineMapper salesOrderLineMapper,
+            WarehouseMapper warehouseMapper,
+            InventoryReservationMapper inventoryReservationMapper,
+            SalesDeliveryNumberService salesDeliveryNumberService,
+            SalesDeliveryQueryService salesDeliveryQueryService,
+            AuditMetadataFactory auditMetadataFactory,
+            ProductValidator productValidator,
+            AttachmentService attachmentService
+    ) {
+        this.salesDeliveryMapper = salesDeliveryMapper;
+        this.salesDeliveryLineMapper = salesDeliveryLineMapper;
+        this.salesOrderMapper = salesOrderMapper;
+        this.salesOrderLineMapper = salesOrderLineMapper;
+        this.warehouseMapper = warehouseMapper;
+        this.inventoryReservationMapper = inventoryReservationMapper;
+        this.salesDeliveryNumberService = salesDeliveryNumberService;
+        this.salesDeliveryQueryService = salesDeliveryQueryService;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.productValidator = productValidator;
+        this.attachmentService = attachmentService;
+    }
+
+    /** Keeps direct construction in existing non-Spring tests compatible. */
     public SalesDeliveryCommandService(
             SalesDeliveryMapper salesDeliveryMapper,
             SalesDeliveryLineMapper salesDeliveryLineMapper,
@@ -67,16 +99,19 @@ public class SalesDeliveryCommandService {
             AuditMetadataFactory auditMetadataFactory,
             ProductValidator productValidator
     ) {
-        this.salesDeliveryMapper = salesDeliveryMapper;
-        this.salesDeliveryLineMapper = salesDeliveryLineMapper;
-        this.salesOrderMapper = salesOrderMapper;
-        this.salesOrderLineMapper = salesOrderLineMapper;
-        this.warehouseMapper = warehouseMapper;
-        this.inventoryReservationMapper = inventoryReservationMapper;
-        this.salesDeliveryNumberService = salesDeliveryNumberService;
-        this.salesDeliveryQueryService = salesDeliveryQueryService;
-        this.auditMetadataFactory = auditMetadataFactory;
-        this.productValidator = productValidator;
+        this(
+                salesDeliveryMapper,
+                salesDeliveryLineMapper,
+                salesOrderMapper,
+                salesOrderLineMapper,
+                warehouseMapper,
+                inventoryReservationMapper,
+                salesDeliveryNumberService,
+                salesDeliveryQueryService,
+                auditMetadataFactory,
+                productValidator,
+                null
+        );
     }
 
     @Transactional
@@ -96,6 +131,8 @@ public class SalesDeliveryCommandService {
                 audit.accountBookId(),
                 CREATE_RESERVATION_SHORTAGE_MESSAGE
         );
+        String logisticsStatus = normalizeLogisticsStatus(request.logisticsStatus());
+        assertDraftLogisticsStatus(logisticsStatus);
         LocalDateTime now = audit.now();
 
         SalesDeliveryEntity delivery = new SalesDeliveryEntity();
@@ -113,7 +150,9 @@ public class SalesDeliveryCommandService {
         delivery.setRemark(request.remark());
         delivery.setCarrierName(request.carrierName());
         delivery.setTrackingNo(request.trackingNo());
-        delivery.setLogisticsStatus(normalizeLogisticsStatus(request.logisticsStatus()));
+        delivery.setLogisticsStatus(logisticsStatus);
+        delivery.setDeliveredBy(null);
+        delivery.setDeliveryProofAttachmentId(null);
         delivery.setCreatedBy(audit.userId());
         delivery.setCreatedTime(now);
         delivery.setUpdatedBy(audit.userId());
@@ -149,6 +188,8 @@ public class SalesDeliveryCommandService {
                 audit.accountBookId(),
                 CREATE_RESERVATION_SHORTAGE_MESSAGE
         );
+        String logisticsStatus = normalizeLogisticsStatus(request.logisticsStatus());
+        assertDraftLogisticsStatus(logisticsStatus);
         LocalDateTime now = audit.now();
 
         delivery.setOrderId(order.getId());
@@ -160,7 +201,9 @@ public class SalesDeliveryCommandService {
         delivery.setRemark(request.remark());
         delivery.setCarrierName(request.carrierName());
         delivery.setTrackingNo(request.trackingNo());
-        delivery.setLogisticsStatus(normalizeLogisticsStatus(request.logisticsStatus()));
+        delivery.setLogisticsStatus(logisticsStatus);
+        delivery.setDeliveredBy(null);
+        delivery.setDeliveryProofAttachmentId(null);
         delivery.setUpdatedBy(audit.userId());
         delivery.setUpdatedTime(now);
         assertCanView(delivery);
@@ -214,6 +257,24 @@ public class SalesDeliveryCommandService {
         if (request.remark() != null) {
             delivery.setRemark(request.remark());
         }
+        if ("DELIVERED".equals(next) && !"DELIVERED".equals(current)) {
+            if (attachmentService != null && request.deliveryProofAttachmentId() == null) {
+                throw new IllegalArgumentException("物流状态变更为 DELIVERED 时必须提供签收凭证");
+            }
+            if (attachmentService != null && (request.deliveredBy() == null || request.deliveredBy().isBlank())) {
+                throw new IllegalArgumentException("物流状态变更为 DELIVERED 时必须填写签收人");
+            }
+            if (attachmentService != null && request.deliveryProofAttachmentId() != null) {
+                attachmentService.requireForBusiness(request.deliveryProofAttachmentId(), AttachmentBusinessType.SALES_DELIVERY, delivery.getId());
+            }
+            if (request.deliveredBy() != null && !request.deliveredBy().isBlank()) {
+                delivery.setDeliveredBy(request.deliveredBy().trim());
+            }
+            delivery.setDeliveredTime(audit.now());
+            if (request.deliveryProofAttachmentId() != null) {
+                delivery.setDeliveryProofAttachmentId(request.deliveryProofAttachmentId());
+            }
+        }
         delivery.setUpdatedBy(audit.userId());
         delivery.setUpdatedTime(audit.now());
         OptimisticLockGuard.requireUpdated(
@@ -221,6 +282,12 @@ public class SalesDeliveryCommandService {
                 "销售出库单已被其他操作修改，请刷新后重试"
         );
         return salesDeliveryQueryService.getById(id);
+    }
+
+    private void assertDraftLogisticsStatus(String logisticsStatus) {
+        if ("DELIVERED".equals(logisticsStatus)) {
+            throw new IllegalArgumentException("请通过物流推进完成签收");
+        }
     }
 
     private SalesOrderEntity requireApprovedOrder(Long id, String message) {
