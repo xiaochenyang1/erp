@@ -13,6 +13,7 @@ import com.tuowei.erp.production.order.web.ProductionOrderResponse;
 import com.tuowei.erp.report.web.ProductionCostReportQuery;
 import com.tuowei.erp.report.web.ProductionCostReportResponse;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -32,6 +33,7 @@ public class ProductionCostReportService {
     private final ReportProperties reportProperties;
     private final CurrentUserContext currentUserContext;
 
+    @Autowired
     public ProductionCostReportService(ProductionOrderQueryService productionOrderQueryService, ProductMapper productMapper,
                                        ReportProperties reportProperties, CurrentUserContext currentUserContext) {
         this.productionOrderQueryService = productionOrderQueryService;
