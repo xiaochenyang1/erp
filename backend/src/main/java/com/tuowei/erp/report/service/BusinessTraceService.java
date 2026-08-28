@@ -3,6 +3,9 @@ package com.tuowei.erp.report.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.security.CurrentUser;
 import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -40,6 +43,8 @@ public class BusinessTraceService {
 
     private static final int SOURCE_LIMIT = 20;
     private final CurrentUserContext currentUserContext;
+    private final DataScopeService dataScopeService;
+    private final ScopedUserResolver scopedUserResolver;
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final SalesOrderMapper salesOrderMapper;
     private final PurchaseReceiptMapper purchaseReceiptMapper;
@@ -55,6 +60,8 @@ public class BusinessTraceService {
 
     public BusinessTraceService(
             CurrentUserContext currentUserContext,
+            DataScopeService dataScopeService,
+            ScopedUserResolver scopedUserResolver,
             PurchaseOrderMapper purchaseOrderMapper,
             SalesOrderMapper salesOrderMapper,
             PurchaseReceiptMapper purchaseReceiptMapper,
@@ -69,6 +76,8 @@ public class BusinessTraceService {
             BusinessTraceAssemblyService assemblyService
     ) {
         this.currentUserContext = currentUserContext;
+        this.dataScopeService = dataScopeService;
+        this.scopedUserResolver = scopedUserResolver;
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.salesOrderMapper = salesOrderMapper;
         this.purchaseReceiptMapper = purchaseReceiptMapper;
@@ -92,8 +101,9 @@ public class BusinessTraceService {
         }
 
         CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        List<SalesOrderEntity> salesOrders = listSalesOrders(keyword, currentUser);
-        List<PurchaseOrderEntity> purchaseOrders = listPurchaseOrders(keyword, currentUser);
+        ScopedUsers scopedUsers = scopedUsers(currentUser);
+        List<SalesOrderEntity> salesOrders = listSalesOrders(keyword, scopedUsers);
+        List<PurchaseOrderEntity> purchaseOrders = listPurchaseOrders(keyword, scopedUsers);
 
         Set<Long> salesOrderIds = ids(salesOrders);
         Set<Long> purchaseOrderIds = ids(purchaseOrders);
@@ -101,22 +111,22 @@ public class BusinessTraceService {
         salesOrders.stream().map(SalesOrderEntity::getOrderNo).forEach(knownBizNos::add);
         purchaseOrders.stream().map(PurchaseOrderEntity::getOrderNo).forEach(knownBizNos::add);
 
-        List<SalesDeliveryEntity> salesDeliveries = listSalesDeliveries(keyword, salesOrderIds, currentUser);
-        List<PurchaseReceiptEntity> purchaseReceipts = listPurchaseReceipts(keyword, purchaseOrderIds, currentUser);
+        List<SalesDeliveryEntity> salesDeliveries = listSalesDeliveries(keyword, salesOrderIds, scopedUsers);
+        List<PurchaseReceiptEntity> purchaseReceipts = listPurchaseReceipts(keyword, purchaseOrderIds, scopedUsers);
         salesDeliveries.stream().map(SalesDeliveryEntity::getDeliveryNo).forEach(knownBizNos::add);
         purchaseReceipts.stream().map(PurchaseReceiptEntity::getReceiptNo).forEach(knownBizNos::add);
 
-        List<ReceivableEntity> receivables = listReceivables(keyword, knownBizNos, currentUser);
-        List<PayableEntity> payables = listPayables(keyword, knownBizNos, currentUser);
+        List<ReceivableEntity> receivables = listReceivables(keyword, knownBizNos, scopedUsers);
+        List<PayableEntity> payables = listPayables(keyword, knownBizNos, scopedUsers);
         receivables.stream().map(ReceivableEntity::getReceivableNo).forEach(knownBizNos::add);
         payables.stream().map(PayableEntity::getPayableNo).forEach(knownBizNos::add);
 
-        List<InventoryTransactionEntity> inventoryTransactions = listInventoryTransactions(keyword, knownBizNos, currentUser);
+        List<InventoryTransactionEntity> inventoryTransactions = listInventoryTransactions(keyword, knownBizNos, scopedUsers);
         inventoryTransactions.stream().map(InventoryTransactionEntity::getBizNo).forEach(knownBizNos::add);
 
-        List<WorkflowTaskEntity> workflowTasks = listWorkflowTasks(keyword, knownBizNos, currentUser);
-        List<OperationLogEntity> operationLogs = listOperationLogs(keyword, knownBizNos, currentUser);
-        List<ExceptionTicketEntity> exceptionTickets = listExceptionTickets(keyword, knownBizNos, currentUser);
+        List<WorkflowTaskEntity> workflowTasks = listWorkflowTasks(keyword, knownBizNos, scopedUsers);
+        List<OperationLogEntity> operationLogs = listOperationLogs(keyword, knownBizNos, scopedUsers);
+        List<ExceptionTicketEntity> exceptionTickets = listExceptionTickets(keyword, knownBizNos, scopedUsers);
 
         return assemblyService.assemble(
                 keyword,
@@ -136,8 +146,8 @@ public class BusinessTraceService {
         );
     }
 
-    private List<SalesOrderEntity> listSalesOrders(String keyword, CurrentUser currentUser) {
-        return salesOrderMapper.selectList(salesOrderWrapper(currentUser)
+    private List<SalesOrderEntity> listSalesOrders(String keyword, ScopedUsers scopedUsers) {
+        return salesOrderMapper.selectList(salesOrderWrapper(scopedUsers)
                 .eq(SalesOrderEntity::getDeletedFlag, 0)
                 .like(SalesOrderEntity::getOrderNo, keyword)
                 .orderByDesc(SalesOrderEntity::getOrderDate)
@@ -145,8 +155,8 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<PurchaseOrderEntity> listPurchaseOrders(String keyword, CurrentUser currentUser) {
-        return purchaseOrderMapper.selectList(purchaseOrderWrapper(currentUser)
+    private List<PurchaseOrderEntity> listPurchaseOrders(String keyword, ScopedUsers scopedUsers) {
+        return purchaseOrderMapper.selectList(purchaseOrderWrapper(scopedUsers)
                 .eq(PurchaseOrderEntity::getDeletedFlag, 0)
                 .like(PurchaseOrderEntity::getOrderNo, keyword)
                 .orderByDesc(PurchaseOrderEntity::getOrderDate)
@@ -154,8 +164,8 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<SalesDeliveryEntity> listSalesDeliveries(String keyword, Set<Long> orderIds, CurrentUser currentUser) {
-        LambdaQueryWrapper<SalesDeliveryEntity> wrapper = salesDeliveryWrapper(currentUser)
+    private List<SalesDeliveryEntity> listSalesDeliveries(String keyword, Set<Long> orderIds, ScopedUsers scopedUsers) {
+        LambdaQueryWrapper<SalesDeliveryEntity> wrapper = salesDeliveryWrapper(scopedUsers)
                 .eq(SalesDeliveryEntity::getDeletedFlag, 0);
         if (orderIds.isEmpty()) {
             wrapper.like(SalesDeliveryEntity::getDeliveryNo, keyword);
@@ -164,14 +174,19 @@ public class BusinessTraceService {
                     .or()
                     .in(SalesDeliveryEntity::getOrderId, orderIds));
         }
-        return salesDeliveryMapper.selectList(wrapper
+        return salesDeliveryMapper.selectList(dataScopeService.applySalesDeliveryScope(
+                        wrapper,
+                        scopedUsers.currentUser(),
+                        scopedUsers.snapshot(),
+                        scopedUsers.deptUserIds(),
+                        scopedUsers.postUserIds())
                 .orderByDesc(SalesDeliveryEntity::getDeliveryDate)
                 .orderByDesc(SalesDeliveryEntity::getId)
                 .last(limitSql()));
     }
 
-    private List<PurchaseReceiptEntity> listPurchaseReceipts(String keyword, Set<Long> orderIds, CurrentUser currentUser) {
-        LambdaQueryWrapper<PurchaseReceiptEntity> wrapper = purchaseReceiptWrapper(currentUser)
+    private List<PurchaseReceiptEntity> listPurchaseReceipts(String keyword, Set<Long> orderIds, ScopedUsers scopedUsers) {
+        LambdaQueryWrapper<PurchaseReceiptEntity> wrapper = purchaseReceiptWrapper(scopedUsers)
                 .eq(PurchaseReceiptEntity::getDeletedFlag, 0);
         if (orderIds.isEmpty()) {
             wrapper.like(PurchaseReceiptEntity::getReceiptNo, keyword);
@@ -180,127 +195,184 @@ public class BusinessTraceService {
                     .or()
                     .in(PurchaseReceiptEntity::getOrderId, orderIds));
         }
-        return purchaseReceiptMapper.selectList(wrapper
+        return purchaseReceiptMapper.selectList(dataScopeService.applyPurchaseReceiptScope(
+                        wrapper,
+                        scopedUsers.currentUser(),
+                        scopedUsers.snapshot(),
+                        scopedUsers.deptUserIds(),
+                        scopedUsers.postUserIds())
                 .orderByDesc(PurchaseReceiptEntity::getReceiptDate)
                 .orderByDesc(PurchaseReceiptEntity::getId)
                 .last(limitSql()));
     }
 
-    private List<ReceivableEntity> listReceivables(String keyword, Set<String> knownBizNos, CurrentUser currentUser) {
-        LambdaQueryWrapper<ReceivableEntity> wrapper = receivableWrapper(currentUser)
+    private List<ReceivableEntity> listReceivables(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+        if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
+            return List.of();
+        }
+        LambdaQueryWrapper<ReceivableEntity> wrapper = receivableWrapper(scopedUsers.currentUser())
                 .eq(ReceivableEntity::getDeletedFlag, 0);
-        wrapper.and(nested -> {
-            nested.like(ReceivableEntity::getReceivableNo, keyword)
-                    .or()
-                    .like(ReceivableEntity::getSourceNo, keyword);
-            if (!knownBizNos.isEmpty()) {
-                nested.or().in(ReceivableEntity::getSourceNo, knownBizNos);
-            }
-        });
+        if (scopedUsers.snapshot().hasAllScope()) {
+            wrapper.and(nested -> {
+                nested.like(ReceivableEntity::getReceivableNo, keyword)
+                        .or()
+                        .like(ReceivableEntity::getSourceNo, keyword);
+                if (!knownBizNos.isEmpty()) {
+                    nested.or().in(ReceivableEntity::getSourceNo, knownBizNos);
+                }
+            });
+        } else {
+            // A restricted user may only follow a visible source document. Direct
+            // lookup by a hidden receivable number must not become a side channel.
+            wrapper.in(ReceivableEntity::getSourceNo, knownBizNos);
+        }
         return receivableMapper.selectList(wrapper
                 .orderByDesc(ReceivableEntity::getBizDate)
                 .orderByDesc(ReceivableEntity::getId)
                 .last(limitSql()));
     }
 
-    private List<PayableEntity> listPayables(String keyword, Set<String> knownBizNos, CurrentUser currentUser) {
-        LambdaQueryWrapper<PayableEntity> wrapper = payableWrapper(currentUser)
+    private List<PayableEntity> listPayables(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+        if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
+            return List.of();
+        }
+        LambdaQueryWrapper<PayableEntity> wrapper = payableWrapper(scopedUsers.currentUser())
                 .eq(PayableEntity::getDeletedFlag, 0);
-        wrapper.and(nested -> {
-            nested.like(PayableEntity::getPayableNo, keyword)
-                    .or()
-                    .like(PayableEntity::getSourceNo, keyword);
-            if (!knownBizNos.isEmpty()) {
-                nested.or().in(PayableEntity::getSourceNo, knownBizNos);
-            }
-        });
+        if (scopedUsers.snapshot().hasAllScope()) {
+            wrapper.and(nested -> {
+                nested.like(PayableEntity::getPayableNo, keyword)
+                        .or()
+                        .like(PayableEntity::getSourceNo, keyword);
+                if (!knownBizNos.isEmpty()) {
+                    nested.or().in(PayableEntity::getSourceNo, knownBizNos);
+                }
+            });
+        } else {
+            // A restricted user may only follow a visible source document. Direct
+            // lookup by a hidden payable number must not become a side channel.
+            wrapper.in(PayableEntity::getSourceNo, knownBizNos);
+        }
         return payableMapper.selectList(wrapper
                 .orderByDesc(PayableEntity::getBizDate)
                 .orderByDesc(PayableEntity::getId)
                 .last(limitSql()));
     }
 
-    private List<InventoryTransactionEntity> listInventoryTransactions(String keyword, Set<String> knownBizNos, CurrentUser currentUser) {
-        LambdaQueryWrapper<InventoryTransactionEntity> wrapper = inventoryTransactionWrapper(currentUser);
+    private List<InventoryTransactionEntity> listInventoryTransactions(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+        LambdaQueryWrapper<InventoryTransactionEntity> wrapper = inventoryTransactionWrapper(scopedUsers.currentUser());
         wrapper.and(nested -> {
             nested.like(InventoryTransactionEntity::getBizNo, keyword);
             if (!knownBizNos.isEmpty()) {
                 nested.or().in(InventoryTransactionEntity::getBizNo, knownBizNos);
             }
         });
-        return inventoryTransactionMapper.selectList(wrapper
+        return inventoryTransactionMapper.selectList(dataScopeService.applyInventoryTransactionScope(
+                        wrapper,
+                        scopedUsers.snapshot())
                 .orderByDesc(InventoryTransactionEntity::getOccurredTime)
                 .orderByDesc(InventoryTransactionEntity::getId)
                 .last(limitSql()));
     }
 
-    private List<WorkflowTaskEntity> listWorkflowTasks(String keyword, Set<String> knownBizNos, CurrentUser currentUser) {
-        LambdaQueryWrapper<WorkflowTaskEntity> wrapper = workflowTaskWrapper(currentUser);
-        wrapper.and(nested -> {
-            nested.like(WorkflowTaskEntity::getBusinessNo, keyword);
-            if (!knownBizNos.isEmpty()) {
-                nested.or().in(WorkflowTaskEntity::getBusinessNo, knownBizNos);
-            }
-        });
+    private List<WorkflowTaskEntity> listWorkflowTasks(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+        if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
+            return List.of();
+        }
+        LambdaQueryWrapper<WorkflowTaskEntity> wrapper = workflowTaskWrapper(scopedUsers.currentUser());
+        if (scopedUsers.snapshot().hasAllScope()) {
+            wrapper.and(nested -> {
+                nested.like(WorkflowTaskEntity::getBusinessNo, keyword);
+                if (!knownBizNos.isEmpty()) {
+                    nested.or().in(WorkflowTaskEntity::getBusinessNo, knownBizNos);
+                }
+            });
+        } else {
+            // Workflow tasks are secondary data; only visible source numbers may
+            // be followed by a restricted user.
+            wrapper.in(WorkflowTaskEntity::getBusinessNo, knownBizNos);
+        }
         return workflowTaskMapper.selectList(wrapper
                 .orderByDesc(WorkflowTaskEntity::getCreatedTime)
                 .orderByDesc(WorkflowTaskEntity::getId)
                 .last(limitSql()));
     }
 
-    private List<OperationLogEntity> listOperationLogs(String keyword, Set<String> knownBizNos, CurrentUser currentUser) {
-        LambdaQueryWrapper<OperationLogEntity> wrapper = operationLogWrapper(currentUser);
-        wrapper.and(nested -> {
-            nested.like(OperationLogEntity::getBizNo, keyword);
-            if (!knownBizNos.isEmpty()) {
-                nested.or().in(OperationLogEntity::getBizNo, knownBizNos);
-            }
-        });
+    private List<OperationLogEntity> listOperationLogs(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+        if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
+            return List.of();
+        }
+        LambdaQueryWrapper<OperationLogEntity> wrapper = operationLogWrapper(scopedUsers.currentUser());
+        if (scopedUsers.snapshot().hasAllScope()) {
+            wrapper.and(nested -> {
+                nested.like(OperationLogEntity::getBizNo, keyword);
+                if (!knownBizNos.isEmpty()) {
+                    nested.or().in(OperationLogEntity::getBizNo, knownBizNos);
+                }
+            });
+        } else {
+            // Do not expose an operation log merely because its business number
+            // was supplied directly. The source document must already be visible.
+            wrapper.in(OperationLogEntity::getBizNo, knownBizNos);
+        }
         return operationLogMapper.selectList(wrapper
                 .orderByDesc(OperationLogEntity::getOperationTime)
                 .orderByDesc(OperationLogEntity::getId)
                 .last(limitSql()));
     }
 
-    private List<ExceptionTicketEntity> listExceptionTickets(String keyword, Set<String> knownBizNos, CurrentUser currentUser) {
-        LambdaQueryWrapper<ExceptionTicketEntity> wrapper = exceptionTicketWrapper(currentUser)
+    private List<ExceptionTicketEntity> listExceptionTickets(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+        if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
+            return List.of();
+        }
+        LambdaQueryWrapper<ExceptionTicketEntity> wrapper = exceptionTicketWrapper(scopedUsers.currentUser())
                 .eq(ExceptionTicketEntity::getDeletedFlag, 0);
-        wrapper.and(nested -> {
-            nested.like(ExceptionTicketEntity::getTicketNo, keyword)
-                    .or()
-                    .like(ExceptionTicketEntity::getSourceNo, keyword);
-            if (!knownBizNos.isEmpty()) {
-                nested.or().in(ExceptionTicketEntity::getSourceNo, knownBizNos);
-            }
-        });
+        if (scopedUsers.snapshot().hasAllScope()) {
+            wrapper.and(nested -> {
+                nested.like(ExceptionTicketEntity::getTicketNo, keyword)
+                        .or()
+                        .like(ExceptionTicketEntity::getSourceNo, keyword);
+                if (!knownBizNos.isEmpty()) {
+                    nested.or().in(ExceptionTicketEntity::getSourceNo, knownBizNos);
+                }
+            });
+        } else {
+            // Exception tickets are secondary data; follow only visible sources.
+            wrapper.in(ExceptionTicketEntity::getSourceNo, knownBizNos);
+        }
         return exceptionTicketMapper.selectList(wrapper
                 .orderByDesc(ExceptionTicketEntity::getUpdatedTime)
                 .orderByDesc(ExceptionTicketEntity::getId)
                 .last(limitSql()));
     }
 
-    private LambdaQueryWrapper<SalesOrderEntity> salesOrderWrapper(CurrentUser currentUser) {
-        return new LambdaQueryWrapper<SalesOrderEntity>()
-                .eq(SalesOrderEntity::getCompanyId, currentUser.companyId())
-                .eq(SalesOrderEntity::getAccountBookId, currentUser.accountBookId());
+    private LambdaQueryWrapper<SalesOrderEntity> salesOrderWrapper(ScopedUsers scopedUsers) {
+        return dataScopeService.applySalesOrderScope(
+                new LambdaQueryWrapper<SalesOrderEntity>(),
+                scopedUsers.currentUser(),
+                scopedUsers.snapshot(),
+                scopedUsers.deptUserIds(),
+                scopedUsers.postUserIds());
     }
 
-    private LambdaQueryWrapper<PurchaseOrderEntity> purchaseOrderWrapper(CurrentUser currentUser) {
-        return new LambdaQueryWrapper<PurchaseOrderEntity>()
-                .eq(PurchaseOrderEntity::getCompanyId, currentUser.companyId())
-                .eq(PurchaseOrderEntity::getAccountBookId, currentUser.accountBookId());
+    private LambdaQueryWrapper<PurchaseOrderEntity> purchaseOrderWrapper(ScopedUsers scopedUsers) {
+        return dataScopeService.applyPurchaseOrderScope(
+                new LambdaQueryWrapper<PurchaseOrderEntity>(),
+                scopedUsers.currentUser(),
+                scopedUsers.snapshot(),
+                scopedUsers.deptUserIds(),
+                scopedUsers.postUserIds());
     }
 
-    private LambdaQueryWrapper<SalesDeliveryEntity> salesDeliveryWrapper(CurrentUser currentUser) {
+    private LambdaQueryWrapper<SalesDeliveryEntity> salesDeliveryWrapper(ScopedUsers scopedUsers) {
         return new LambdaQueryWrapper<SalesDeliveryEntity>()
-                .eq(SalesDeliveryEntity::getCompanyId, currentUser.companyId())
-                .eq(SalesDeliveryEntity::getAccountBookId, currentUser.accountBookId());
+                .eq(SalesDeliveryEntity::getCompanyId, scopedUsers.currentUser().companyId())
+                .eq(SalesDeliveryEntity::getAccountBookId, scopedUsers.currentUser().accountBookId());
     }
 
-    private LambdaQueryWrapper<PurchaseReceiptEntity> purchaseReceiptWrapper(CurrentUser currentUser) {
+    private LambdaQueryWrapper<PurchaseReceiptEntity> purchaseReceiptWrapper(ScopedUsers scopedUsers) {
         return new LambdaQueryWrapper<PurchaseReceiptEntity>()
-                .eq(PurchaseReceiptEntity::getCompanyId, currentUser.companyId())
-                .eq(PurchaseReceiptEntity::getAccountBookId, currentUser.accountBookId());
+                .eq(PurchaseReceiptEntity::getCompanyId, scopedUsers.currentUser().companyId())
+                .eq(PurchaseReceiptEntity::getAccountBookId, scopedUsers.currentUser().accountBookId());
     }
 
     private LambdaQueryWrapper<ReceivableEntity> receivableWrapper(CurrentUser currentUser) {
@@ -360,5 +432,19 @@ public class BusinessTraceService {
 
     private String limitSql() {
         return "limit " + SOURCE_LIMIT;
+    }
+
+    private ScopedUsers scopedUsers(CurrentUser currentUser) {
+        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+        ScopedUserResolver.ScopedUserIds ids = scopedUserResolver.resolve(currentUser, snapshot);
+        return new ScopedUsers(currentUser, snapshot, ids.deptUserIds(), ids.postUserIds());
+    }
+
+    private record ScopedUsers(
+            CurrentUser currentUser,
+            DataScopeSnapshot snapshot,
+            Set<Long> deptUserIds,
+            Set<Long> postUserIds
+    ) {
     }
 }
