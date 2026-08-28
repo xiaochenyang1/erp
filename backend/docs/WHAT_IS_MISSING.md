@@ -6,7 +6,7 @@
 
 **分支**：`refactor/e1-workflow-split`
 
-**当前 HEAD**：`ecd3e34`（相对远端同名分支领先 8 个提交）
+**当前 HEAD**：`900b090`（相对远端同名分支领先 9 个提交）
 
 ## 结论
 
@@ -105,7 +105,7 @@ git diff --check
 - `94f490c feat: harden data scope operations`：业务追踪数据范围、双账号 API smoke、运营验收矩阵和设计说明；
 - `ecd3e34 test: cover period close tenant and evidence guards`：月结检查跨账套拒绝、快照回归及测试清理。
 
-`git status --short -uall` 当前为空；相对远端同名分支共领先 8 个提交。
+`git status --short -uall` 当前为空；相对远端同名分支共领先 9 个提交。
 
 ## 建议提交序列
 
@@ -135,6 +135,8 @@ git diff --check
 2. 在干净 HEAD 上重新执行后端全量测试、Testcontainers 发布构建、前端全量检查和 `git diff --check`；
 3. 基于该 HEAD 重新生成 JAR、SBOM、迁移报告、smoke 报告和发布门禁报告；
 4. 将证据保存到独立归档目录，不能只放在会被 Maven `clean` 删除的 `backend/target`。
+
+对既有 readiness 运行单补录人工证据时使用 `.\scripts\register-readiness-item-result.ps1`；可回填 `FINANCE_LEDGER`、`PERIOD_LOCK`、`INVENTORY_FINANCE_RECONCILIATION`、`INITIAL_IMPORT`、`BACKUP_ROLLBACK`，无法证明的项目保持 `BLOCKED`。
 
 ### 人工和环境门禁
 
