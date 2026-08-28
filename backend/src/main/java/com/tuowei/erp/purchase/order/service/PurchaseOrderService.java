@@ -65,6 +65,7 @@ public class PurchaseOrderService {
                 auditMetadataFactory,
                 purchaseOrderQueryService,
                 purchasePriceEvaluator,
+                null,
                 null
         );
         this.purchaseOrderTraceService = purchaseOrderTraceService;

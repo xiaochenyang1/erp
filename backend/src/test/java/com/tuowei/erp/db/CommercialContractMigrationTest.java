@@ -63,6 +63,16 @@ class CommercialContractMigrationTest {
         assertThat(jdbcTemplate.queryForObject("select count(*) from information_schema.columns where table_name='biz_contract_version' and column_name in ('contract_id','version_no','event_type','contract_snapshot_json','line_snapshot_json')", Integer.class)).isEqualTo(5);
     }
 
+    @Test
+    void v151CreatesPartyProductRelationTables() {
+        assertThat(tableCount("md_customer_product_relation")).isEqualTo(1);
+        assertThat(tableCount("md_supplier_product_relation")).isEqualTo(1);
+        assertThat(indexCount("uk_md_customer_product_relation_scope")).isEqualTo(1);
+        assertThat(indexCount("uk_md_supplier_product_relation_scope")).isEqualTo(1);
+        assertThat(columnCount("md_supplier_product_relation", "min_purchase_qty")).isEqualTo(1);
+        assertThat(columnCount("md_supplier_product_relation", "lead_time_days")).isEqualTo(1);
+    }
+
     private int tableCount(String table) {
         return jdbcTemplate.queryForObject("select count(*) from information_schema.tables where table_name=?", Integer.class, table);
     }

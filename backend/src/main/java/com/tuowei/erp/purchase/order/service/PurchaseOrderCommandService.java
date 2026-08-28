@@ -8,6 +8,8 @@ import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
+import com.tuowei.erp.masterdata.supplierproduct.model.SupplierProductRelationEntity;
+import com.tuowei.erp.masterdata.supplierproduct.service.SupplierProductRelationService;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
@@ -40,6 +42,7 @@ public class PurchaseOrderCommandService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final PurchaseOrderQueryService purchaseOrderQueryService;
     private final PurchasePriceEvaluator purchasePriceEvaluator;
+    private final SupplierProductRelationService supplierProductRelationService;
     private final ContractOrderBindingService contractOrderBindingService;
 
     public PurchaseOrderCommandService(
@@ -51,6 +54,7 @@ public class PurchaseOrderCommandService {
             AuditMetadataFactory auditMetadataFactory,
             PurchaseOrderQueryService purchaseOrderQueryService,
             PurchasePriceEvaluator purchasePriceEvaluator,
+            SupplierProductRelationService supplierProductRelationService,
             ContractOrderBindingService contractOrderBindingService
     ) {
         this.purchaseOrderMapper = purchaseOrderMapper;
@@ -61,6 +65,7 @@ public class PurchaseOrderCommandService {
         this.auditMetadataFactory = auditMetadataFactory;
         this.purchaseOrderQueryService = purchaseOrderQueryService;
         this.purchasePriceEvaluator = purchasePriceEvaluator;
+        this.supplierProductRelationService = supplierProductRelationService;
         this.contractOrderBindingService = contractOrderBindingService;
     }
 
@@ -94,6 +99,7 @@ public class PurchaseOrderCommandService {
         }
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = requireActiveSupplier(request.supplierId(), audit.companyId(), audit.accountBookId());
+        assertSupplierProductRules(supplier.getId(), request.orderDate(), request.deliveryDate(), request.lines(), audit);
         if (request.contractId() == null) {
             purchasePriceEvaluator.assertLinesWithinMaxPrice(
                     audit.companyId(), audit.accountBookId(), supplier.getId(), request.orderDate(), request.lines()
@@ -133,6 +139,7 @@ public class PurchaseOrderCommandService {
     ) {
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = requireActiveSupplier(request.supplierId(), audit.companyId(), audit.accountBookId());
+        assertSupplierProductRules(supplier.getId(), request.orderDate(), request.deliveryDate(), request.lines(), audit);
         if (request.contractId() == null) {
             purchasePriceEvaluator.assertLinesWithinMaxPrice(
                     audit.companyId(), audit.accountBookId(), supplier.getId(), request.orderDate(), request.lines()
@@ -193,6 +200,29 @@ public class PurchaseOrderCommandService {
             totals = totals.add(PurchaseAmountCalculator.line(line.qty(), line.price(), line.taxRate()));
         }
         return new OrderTotals(totals.totalQuantity(), totals.totalAmount(), totals.totalTaxAmount());
+    }
+
+    private void assertSupplierProductRules(
+            Long supplierId,
+            java.time.LocalDate orderDate,
+            java.time.LocalDate deliveryDate,
+            List<PurchaseOrderLineRequest> lines,
+            AuditMetadata audit
+    ) {
+        for (int i = 0; i < lines.size(); i++) {
+            PurchaseOrderLineRequest line = lines.get(i);
+            SupplierProductRelationEntity relation = supplierProductRelationService == null
+                    ? null : supplierProductRelationService.find(supplierId, line.productId(), audit);
+            if (relation == null) continue;
+            BigDecimal minimum = relation.getMinPurchaseQty() == null ? BigDecimal.ZERO : relation.getMinPurchaseQty();
+            if (minimum.signum() > 0 && line.qty().compareTo(minimum) < 0) {
+                throw new IllegalArgumentException("第 " + (i + 1) + " 行采购数量低于供应商最小采购量 " + minimum.stripTrailingZeros().toPlainString());
+            }
+            int leadDays = relation.getLeadTimeDays() == null ? 0 : relation.getLeadTimeDays();
+            if (deliveryDate != null && orderDate != null && deliveryDate.isBefore(orderDate.plusDays(leadDays))) {
+                throw new IllegalArgumentException("第 " + (i + 1) + " 行交期早于供应商交期要求 " + leadDays + " 天");
+            }
+        }
     }
 
     private List<PurchaseOrderLineEntity> saveOrderLines(

@@ -95,6 +95,8 @@ public class MybatisPlusConfig {
             "biz_contract",
             "biz_contract_line",
             "biz_contract_version",
+            "md_customer_product_relation",
+            "md_supplier_product_relation",
             "wf_approval_config",
             "wf_approval_node",
             "wf_approval_node_approver",
