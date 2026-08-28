@@ -10,6 +10,7 @@ import com.tuowei.erp.common.persistence.NativeSqlTenantScoped;
 import com.tuowei.erp.dashboard.web.OperationsDashboardTopSkuResponse;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 @Mapper
@@ -47,5 +48,68 @@ public interface SalesDeliveryLineMapper extends BaseMapper<SalesDeliveryLineEnt
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
             @Param("limit") int limit
+    );
+
+    @InterceptorIgnore(tenantLine = "true")
+    @Select({
+            "<script>",
+            "SELECT l.product_id AS productId,",
+            "       p.product_code AS productCode,",
+            "       p.product_name AS productName,",
+            "       p.unit_name AS unitName,",
+            "       SUM(l.qty) AS quantity,",
+            "       SUM(l.amount) AS amount",
+            "FROM sal_delivery_line l",
+            "JOIN sal_delivery d ON d.id = l.delivery_id",
+            "JOIN md_product p ON p.id = l.product_id",
+            "WHERE d.company_id = #{companyId}",
+            "  AND d.account_book_id = #{accountBookId}",
+            "  AND l.company_id = #{companyId}",
+            "  AND l.account_book_id = #{accountBookId}",
+            "  AND p.company_id = #{companyId}",
+            "  AND p.account_book_id = #{accountBookId}",
+            "  AND d.deleted_flag = 0",
+            "  AND p.deleted_flag = 0",
+            "  AND d.status = 'POSTED'",
+            "  AND d.delivery_date BETWEEN #{startDate} AND #{endDate}",
+            "<choose>",
+            "  <when test='creatorIds == null and warehouseIds == null'>",
+            "  </when>",
+            "  <when test='creatorIds != null and !creatorIds.isEmpty()'>",
+            "    AND (d.created_by IN",
+            "    <foreach collection='creatorIds' item='creatorId' open='(' separator=',' close=')'>",
+            "      #{creatorId}",
+            "    </foreach>",
+            "    <if test='warehouseIds != null and !warehouseIds.isEmpty()'>",
+            "      OR d.warehouse_id IN",
+            "      <foreach collection='warehouseIds' item='warehouseId' open='(' separator=',' close=')'>",
+            "        #{warehouseId}",
+            "      </foreach>",
+            "    </if>",
+            "    )",
+            "  </when>",
+            "  <when test='warehouseIds != null and !warehouseIds.isEmpty()'>",
+            "    AND d.warehouse_id IN",
+            "    <foreach collection='warehouseIds' item='warehouseId' open='(' separator=',' close=')'>",
+            "      #{warehouseId}",
+            "    </foreach>",
+            "  </when>",
+            "  <otherwise>",
+            "    AND 1 = 0",
+            "  </otherwise>",
+            "</choose>",
+            "GROUP BY l.product_id, p.product_code, p.product_name, p.unit_name",
+            "ORDER BY SUM(l.qty) DESC, SUM(l.amount) DESC, l.product_id",
+            "LIMIT #{limit}",
+            "</script>"
+    })
+    List<OperationsDashboardTopSkuResponse> selectTopSkusScoped(
+            @Param("companyId") Long companyId,
+            @Param("accountBookId") Long accountBookId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("limit") int limit,
+            @Param("creatorIds") Collection<Long> creatorIds,
+            @Param("warehouseIds") Collection<Long> warehouseIds
     );
 }

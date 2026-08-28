@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -171,6 +172,32 @@ class InventoryAlertQueryServiceTest {
             assertThat(response.productCode()).isNull();
             assertThat(response.productName()).isNull();
         });
+    }
+
+    @Test
+    void listLowStockAppliesWarehouseScopeBeforeRuleQuery() {
+        stubAudit();
+        when(alertRuleMapper.selectList(any())).thenReturn(List.of());
+
+        assertThat(service().listLowStock(null, null, AUDIT, Set.of(WAREHOUSE_ID))).isEmpty();
+
+        ArgumentCaptor<LambdaQueryWrapper<InventoryAlertRuleEntity>> wrapperCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(alertRuleMapper).selectList(wrapperCaptor.capture());
+        assertThat(wrapperCaptor.getValue().getSqlSegment().toLowerCase(Locale.ROOT))
+                .contains("warehouse_id");
+    }
+
+    @Test
+    void listLowStockRejectsEmptyWarehouseScopeBeforeRuleQuery() {
+        stubAudit();
+
+        assertThat(service().listLowStock(null, null, AUDIT, Set.of())).isEmpty();
+
+        ArgumentCaptor<LambdaQueryWrapper<InventoryAlertRuleEntity>> wrapperCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(alertRuleMapper).selectList(wrapperCaptor.capture());
+        assertThat(wrapperCaptor.getValue().getSqlSegment()).contains("1 = 0");
     }
 
     private InventoryAlertQueryService service() {

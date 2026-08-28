@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -99,6 +100,16 @@ public class InventoryAlertQueryService {
             Long productId,
             AuditMetadata audit
     ) {
+        return listLowStock(warehouseId, productId, audit, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<InventoryLowStockResponse> listLowStock(
+            Long warehouseId,
+            Long productId,
+            AuditMetadata audit,
+            Collection<Long> scopedWarehouseIds
+    ) {
         LambdaQueryWrapper<InventoryAlertRuleEntity> wrapper = new LambdaQueryWrapper<InventoryAlertRuleEntity>()
                 .eq(InventoryAlertRuleEntity::getCompanyId, audit.companyId())
                 .eq(InventoryAlertRuleEntity::getAccountBookId, audit.accountBookId())
@@ -109,6 +120,13 @@ public class InventoryAlertQueryService {
         }
         if (productId != null) {
             wrapper.eq(InventoryAlertRuleEntity::getProductId, productId);
+        }
+        if (scopedWarehouseIds != null) {
+            if (scopedWarehouseIds.isEmpty()) {
+                wrapper.apply("1 = 0");
+            } else {
+                wrapper.in(InventoryAlertRuleEntity::getWarehouseId, scopedWarehouseIds);
+            }
         }
 
         Map<String, InventoryAlertDispositionEntity> dispositions = loadDispositions(audit);

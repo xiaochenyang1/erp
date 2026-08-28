@@ -3,11 +3,17 @@ package com.tuowei.erp.dashboard.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.dashboard.web.OperationsDashboardTopSkuResponse;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
+import com.tuowei.erp.finance.settlement.service.FinanceSettlementScopeSupport;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.alert.web.InventoryLowStockResponse;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
@@ -25,7 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Tenant-scoped read model loader for the operations dashboard. */
 @Service
@@ -35,6 +43,10 @@ public class OperationsDashboardQueryService {
     private static final int PREVIEW_LIMIT = 5;
 
     private final AuditMetadataFactory auditMetadataFactory;
+    private final CurrentUserContext currentUserContext;
+    private final DataScopeService dataScopeService;
+    private final ScopedUserResolver scopedUserResolver;
+    private final FinanceSettlementScopeSupport financeSettlementScopeSupport;
     private final WorkflowTaskMapper workflowTaskMapper;
     private final InventoryAlertService inventoryAlertService;
     private final ReceivableMapper receivableMapper;
@@ -47,6 +59,10 @@ public class OperationsDashboardQueryService {
 
     public OperationsDashboardQueryService(
             AuditMetadataFactory auditMetadataFactory,
+            CurrentUserContext currentUserContext,
+            DataScopeService dataScopeService,
+            ScopedUserResolver scopedUserResolver,
+            FinanceSettlementScopeSupport financeSettlementScopeSupport,
             WorkflowTaskMapper workflowTaskMapper,
             InventoryAlertService inventoryAlertService,
             ReceivableMapper receivableMapper,
@@ -58,6 +74,10 @@ public class OperationsDashboardQueryService {
             Clock clock
     ) {
         this.auditMetadataFactory = auditMetadataFactory;
+        this.currentUserContext = currentUserContext;
+        this.dataScopeService = dataScopeService;
+        this.scopedUserResolver = scopedUserResolver;
+        this.financeSettlementScopeSupport = financeSettlementScopeSupport;
         this.workflowTaskMapper = workflowTaskMapper;
         this.inventoryAlertService = inventoryAlertService;
         this.receivableMapper = receivableMapper;
@@ -72,6 +92,9 @@ public class OperationsDashboardQueryService {
     @Transactional(readOnly = true)
     public OperationsDashboardSnapshot load() {
         AuditMetadata audit = auditMetadataFactory.current();
+        CurrentUser currentUser = currentUserContext.requireCurrentUser();
+        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+        ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
         LocalDate today = LocalDate.now(clock);
         LocalDateTime generatedAt = LocalDateTime.now(clock);
 
@@ -81,24 +104,36 @@ public class OperationsDashboardQueryService {
                 .orderByAsc(WorkflowTaskEntity::getCreatedTime)
                 .last("limit " + TODO_LIMIT));
 
-        List<InventoryLowStockResponse> lowStock = inventoryAlertService.listLowStock(null, null);
+        List<InventoryLowStockResponse> lowStock = snapshot.hasAllScope()
+                ? inventoryAlertService.listLowStock(null, null)
+                : inventoryAlertService.listLowStock(null, null, audit, snapshot.warehouseIds());
 
         LambdaQueryWrapper<ReceivableEntity> openReceivableQuery = openReceivableQuery(audit);
+        openReceivableQuery = financeSettlementScopeSupport.applyReceivableScope(openReceivableQuery);
         long openReceivableCount = receivableMapper.selectCount(openReceivableQuery);
-        List<ReceivableEntity> openReceivables = receivableMapper.selectList(openReceivableQuery(audit));
+        List<ReceivableEntity> openReceivables = receivableMapper.selectList(
+                financeSettlementScopeSupport.applyReceivableScope(openReceivableQuery(audit)));
 
         LambdaQueryWrapper<PayableEntity> openPayableQuery = openPayableQuery(audit);
+        openPayableQuery = financeSettlementScopeSupport.applyPayableScope(openPayableQuery);
         long openPayableCount = payableMapper.selectCount(openPayableQuery);
-        List<PayableEntity> openPayables = payableMapper.selectList(openPayableQuery(audit));
+        List<PayableEntity> openPayables = payableMapper.selectList(
+                financeSettlementScopeSupport.applyPayableScope(openPayableQuery(audit)));
 
-        long todayPurchaseOrders = purchaseOrderMapper.selectCount(todayPurchaseOrderQuery(audit, today));
-        List<SalesOrderEntity> todaySales = salesOrderMapper.selectList(todaySalesOrderQuery(audit, today));
+        long todayPurchaseOrders = purchaseOrderMapper.selectCount(dataScopeService.applyPurchaseOrderScope(
+                todayPurchaseOrderQuery(audit, today), currentUser, snapshot,
+                scopedUserIds.deptUserIds(), scopedUserIds.postUserIds()));
+        List<SalesOrderEntity> todaySales = salesOrderMapper.selectList(dataScopeService.applySalesOrderScope(
+                todaySalesOrderQuery(audit, today), currentUser, snapshot,
+                scopedUserIds.deptUserIds(), scopedUserIds.postUserIds()));
 
         List<OperationLogEntity> failedOperations = operationLogMapper.selectList(failedOperationQuery(audit)
                 .orderByDesc(OperationLogEntity::getOperationTime)
                 .last("limit " + PREVIEW_LIMIT));
-        List<OperationsDashboardTopSkuResponse> topSkus = salesDeliveryLineMapper.selectTopSkus(
-                audit.companyId(), audit.accountBookId(), today.minusDays(29), today, PREVIEW_LIMIT);
+        List<OperationsDashboardTopSkuResponse> topSkus = salesDeliveryLineMapper.selectTopSkusScoped(
+                audit.companyId(), audit.accountBookId(), today.minusDays(29), today, PREVIEW_LIMIT,
+                snapshot.hasAllScope() ? null : visibleCreatorIds(currentUser, snapshot, scopedUserIds),
+                snapshot.hasAllScope() ? null : snapshot.warehouseIds());
 
         return new OperationsDashboardSnapshot(
                 generatedAt,
@@ -168,5 +203,23 @@ public class OperationsDashboardQueryService {
                 .eq(OperationLogEntity::getCompanyId, audit.companyId())
                 .eq(OperationLogEntity::getAccountBookId, audit.accountBookId())
                 .in(OperationLogEntity::getResult, "FAILURE", "FAIL");
+    }
+
+    private Set<Long> visibleCreatorIds(
+            CurrentUser currentUser,
+            DataScopeSnapshot snapshot,
+            ScopedUserResolver.ScopedUserIds scopedUserIds
+    ) {
+        Set<Long> ids = new LinkedHashSet<>();
+        if (snapshot.selfScoped()) {
+            ids.add(currentUser.userId());
+        }
+        if (snapshot.deptScoped()) {
+            ids.addAll(scopedUserIds.deptUserIds());
+        }
+        if (snapshot.postScoped()) {
+            ids.addAll(scopedUserIds.postUserIds());
+        }
+        return ids;
     }
 }

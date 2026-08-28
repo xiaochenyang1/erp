@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Collection;
 
 /** Compatibility facade for inventory alert queries and commands. */
 @Service
@@ -58,6 +59,16 @@ public class InventoryAlertService {
     @Transactional(readOnly = true)
     public List<InventoryLowStockResponse> listLowStock(Long warehouseId, Long productId, AuditMetadata audit) {
         return alertQueryService.listLowStock(warehouseId, productId, audit);
+    }
+
+    @Transactional(readOnly = true)
+    public List<InventoryLowStockResponse> listLowStock(
+            Long warehouseId,
+            Long productId,
+            AuditMetadata audit,
+            Collection<Long> scopedWarehouseIds
+    ) {
+        return alertQueryService.listLowStock(warehouseId, productId, audit, scopedWarehouseIds);
     }
 
     @Transactional
