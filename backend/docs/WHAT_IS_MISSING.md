@@ -6,7 +6,7 @@
 
 **分支**：`refactor/e1-workflow-split`
 
-**当前 HEAD**：`d8340b2`（相对远端同名分支领先 10 个提交）
+**当前 HEAD**：以 `git rev-parse --short HEAD` 为准；相对远端同名分支的领先数以 `git rev-list --count origin/refactor/e1-workflow-split..HEAD` 为准。
 
 ## 结论
 
@@ -105,9 +105,9 @@ git diff --check
 - `94f490c feat: harden data scope operations`：业务追踪数据范围、双账号 API smoke、运营验收矩阵和设计说明；
 - `ecd3e34 test: cover period close tenant and evidence guards`：月结检查跨账套拒绝、快照回归及测试清理。
 - `900b090 fix: mark production cost report constructor for injection`：修复报表服务 Spring 构造器注入，恢复完整上下文测试；
-- `b9d4839`、`d8340b2`：同步提交状态、readiness 证据回填说明和最终验证结果。
+- `b9d4839`、`d8340b2`、`6dd6476`：同步提交状态、readiness 证据回填说明和最终验证结果。
 
-`git status --short -uall` 当前为空；相对远端同名分支共领先 10 个提交。
+`git status --short -uall` 当前为空；提交领先数请使用上述命令实时确认。
 
 ## 建议提交序列
 
