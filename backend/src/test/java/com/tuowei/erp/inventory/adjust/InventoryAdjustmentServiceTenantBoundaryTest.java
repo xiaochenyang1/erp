@@ -3,8 +3,15 @@ package com.tuowei.erp.inventory.adjust;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ErpPrincipal;
+import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.adjust.mapper.InventoryAdjustmentLineMapper;
@@ -12,9 +19,12 @@ import com.tuowei.erp.inventory.adjust.mapper.InventoryAdjustmentMapper;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentLineEntity;
 import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentNumberService;
+import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentCommandService;
+import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentQueryService;
 import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentService;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentCreateRequest;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentLineRequest;
+import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentPageQuery;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -22,11 +32,13 @@ import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -34,14 +46,17 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class InventoryAdjustmentServiceTenantBoundaryTest {
@@ -90,8 +105,20 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
     @Mock
     private AttachmentService attachmentService;
 
+    @Mock
+    private CurrentUserContext currentUserContext;
+
+    @Mock
+    private ScopedUserResolver scopedUserResolver;
+
+    @Mock
+    private UserMapper userMapper;
+
+    private final DataScopeService dataScopeService = new DataScopeService(null, null, null, null);
+
     @BeforeAll
     static void initTableInfo() {
+        initTableInfo(InventoryAdjustmentEntity.class);
         initTableInfo(InventoryAdjustmentLineEntity.class);
         initTableInfo(WarehouseEntity.class);
         initTableInfo(ProductEntity.class);
@@ -233,6 +260,49 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
         verify(financePostingService, never()).recordInventoryAdjustment(any(), any(), any());
     }
 
+    @Test
+    void listAppliesWarehouseDataScope() {
+        stubScope(new DataScopeSnapshot(false, false, false, false, Set.of(WAREHOUSE_ID)));
+        Page<InventoryAdjustmentEntity> page = new Page<>(1, 20);
+        page.setRecords(List.of());
+        when(adjustmentMapper.selectPage(any(Page.class), any())).thenReturn(page);
+
+        secureQueryService().list(new InventoryAdjustmentPageQuery());
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<InventoryAdjustmentEntity>> wrapperCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(adjustmentMapper).selectPage(any(Page.class), wrapperCaptor.capture());
+        assertThat(wrapperCaptor.getValue().getSqlSegment().toLowerCase(Locale.ROOT))
+                .contains("warehouse_id");
+    }
+
+    @Test
+    void getByIdRejectsNoneScopeBeforeLoadingLines() {
+        stubScope(DataScopeSnapshot.none());
+        when(adjustmentMapper.selectById(ADJUSTMENT_ID)).thenReturn(adjustment(AUDIT.accountBookId()));
+
+        assertThatThrownBy(() -> secureQueryService().getById(ADJUSTMENT_ID))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("无权访问该库存调整单");
+
+        verify(lineMapper, never()).selectList(any());
+    }
+
+    @Test
+    void createRejectsNoneScopeBeforeInsertingAdjustment() {
+        stubScope(DataScopeSnapshot.none());
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(warehouseMapper.selectById(WAREHOUSE_ID)).thenReturn(activeWarehouse(AUDIT.accountBookId()));
+
+        assertThatThrownBy(() -> secureCommandService().create(createRequest()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("无权访问该库存调整单");
+
+        verify(adjustmentMapper, never()).insert(any(InventoryAdjustmentEntity.class));
+        verify(lineMapper, never()).insert(any(InventoryAdjustmentLineEntity.class));
+    }
+
     private InventoryAdjustmentService service() {
         return new InventoryAdjustmentService(
                 adjustmentMapper,
@@ -247,6 +317,34 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
                 accountPeriodGuard,
                 attachmentService
         );
+    }
+
+    private InventoryAdjustmentQueryService secureQueryService() {
+        return new InventoryAdjustmentQueryService(
+                adjustmentMapper, lineMapper, auditMetadataFactory, currentUserContext,
+                dataScopeService, scopedUserResolver, userMapper);
+    }
+
+    private InventoryAdjustmentCommandService secureCommandService() {
+        return new InventoryAdjustmentCommandService(
+                adjustmentMapper, lineMapper, numberService, inventoryPostingService,
+                inventorySerialNumberService, financePostingService, auditMetadataFactory, warehouseMapper,
+                productValidator, accountPeriodGuard, attachmentService, currentUserContext,
+                dataScopeService, userMapper);
+    }
+
+    private void stubScope(DataScopeSnapshot snapshot) {
+        CurrentUser currentUser = new CurrentUser(
+                AUDIT.userId(), AUDIT.companyId(), AUDIT.accountBookId(), 11L, 12L,
+                "adjustment_user", "库存调整用户");
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(currentUserContext.requireCurrentUser()).thenReturn(currentUser);
+        when(currentUserContext.requirePrincipal()).thenReturn(new ErpPrincipal(
+                currentUser.userId(), currentUser.companyId(), currentUser.accountBookId(),
+                currentUser.deptId(), currentUser.postId(), currentUser.username(), currentUser.realName(),
+                "N/A", Set.of(), snapshot));
+        lenient().when(scopedUserResolver.resolve(currentUser, snapshot))
+                .thenReturn(new ScopedUserResolver.ScopedUserIds(Set.of(), Set.of()));
     }
 
     private InventoryAdjustmentCreateRequest createRequest() {

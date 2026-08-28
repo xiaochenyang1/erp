@@ -5,6 +5,10 @@ import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentService;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentCreateRequest;
@@ -24,6 +28,9 @@ import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.user.mapper.UserMapper;
+import com.tuowei.erp.system.user.model.UserEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +59,40 @@ public class InventoryStockCheckCommandService {
     private final ProductValidator productValidator;
     private final AccountPeriodGuard accountPeriodGuard;
     private final AttachmentService attachmentService;
+    private final CurrentUserContext currentUserContext;
+    private final DataScopeService dataScopeService;
+    private final UserMapper userMapper;
+
+    @Autowired
+    public InventoryStockCheckCommandService(
+            InventoryStockCheckMapper checkMapper,
+            InventoryStockCheckLineMapper lineMapper,
+            InventoryStockCheckNumberService numberService,
+            InventoryPostingService inventoryPostingService,
+            InventoryAdjustmentService adjustmentService,
+            AuditMetadataFactory auditMetadataFactory,
+            WarehouseMapper warehouseMapper,
+            ProductValidator productValidator,
+            AccountPeriodGuard accountPeriodGuard,
+            AttachmentService attachmentService,
+            CurrentUserContext currentUserContext,
+            DataScopeService dataScopeService,
+            UserMapper userMapper
+    ) {
+        this.checkMapper = checkMapper;
+        this.lineMapper = lineMapper;
+        this.numberService = numberService;
+        this.inventoryPostingService = inventoryPostingService;
+        this.adjustmentService = adjustmentService;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.warehouseMapper = warehouseMapper;
+        this.productValidator = productValidator;
+        this.accountPeriodGuard = accountPeriodGuard;
+        this.attachmentService = attachmentService;
+        this.currentUserContext = currentUserContext;
+        this.dataScopeService = dataScopeService;
+        this.userMapper = userMapper;
+    }
 
     public InventoryStockCheckCommandService(
             InventoryStockCheckMapper checkMapper,
@@ -65,16 +106,8 @@ public class InventoryStockCheckCommandService {
             AccountPeriodGuard accountPeriodGuard,
             AttachmentService attachmentService
     ) {
-        this.checkMapper = checkMapper;
-        this.lineMapper = lineMapper;
-        this.numberService = numberService;
-        this.inventoryPostingService = inventoryPostingService;
-        this.adjustmentService = adjustmentService;
-        this.auditMetadataFactory = auditMetadataFactory;
-        this.warehouseMapper = warehouseMapper;
-        this.productValidator = productValidator;
-        this.accountPeriodGuard = accountPeriodGuard;
-        this.attachmentService = attachmentService;
+        this(checkMapper, lineMapper, numberService, inventoryPostingService, adjustmentService, auditMetadataFactory,
+                warehouseMapper, productValidator, accountPeriodGuard, attachmentService, null, null, null);
     }
 
     @Transactional
@@ -94,6 +127,7 @@ public class InventoryStockCheckCommandService {
         check.setDeletedFlag(0);
         check.setRemark(request.remark());
         fillCreateAudit(check, audit, now);
+        assertCanView(check);
         checkMapper.insert(check);
 
         int lineNo = 1;
@@ -243,7 +277,21 @@ public class InventoryStockCheckCommandService {
                 || !Objects.equals(check.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("库存盘点单不存在");
         }
+        assertCanView(check);
         return check;
+    }
+
+    private void assertCanView(InventoryStockCheckEntity check) {
+        if (currentUserContext == null) {
+            return;
+        }
+        CurrentUser currentUser = currentUserContext.requireCurrentUser();
+        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+        UserEntity creator = check.getCreatedBy() == null ? null : userMapper.selectById(check.getCreatedBy());
+        dataScopeService.assertCanViewInventoryStockCheck(
+                check, currentUser, snapshot,
+                creator == null ? null : creator.getDeptId(),
+                creator == null ? null : creator.getPostId());
     }
 
     private WarehouseEntity requireWarehouse(Long id, Long companyId, Long accountBookId) {

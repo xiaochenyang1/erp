@@ -5,6 +5,11 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.inventory.adjust.mapper.InventoryAdjustmentLineMapper;
 import com.tuowei.erp.inventory.adjust.mapper.InventoryAdjustmentMapper;
@@ -13,6 +18,9 @@ import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentLineEntity;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentLineResponse;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentPageQuery;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentResponse;
+import com.tuowei.erp.system.user.mapper.UserMapper;
+import com.tuowei.erp.system.user.model.UserEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,15 +35,36 @@ public class InventoryAdjustmentQueryService {
     private final InventoryAdjustmentMapper adjustmentMapper;
     private final InventoryAdjustmentLineMapper lineMapper;
     private final AuditMetadataFactory auditMetadataFactory;
+    private final CurrentUserContext currentUserContext;
+    private final DataScopeService dataScopeService;
+    private final ScopedUserResolver scopedUserResolver;
+    private final UserMapper userMapper;
+
+    @Autowired
+    public InventoryAdjustmentQueryService(
+            InventoryAdjustmentMapper adjustmentMapper,
+            InventoryAdjustmentLineMapper lineMapper,
+            AuditMetadataFactory auditMetadataFactory,
+            CurrentUserContext currentUserContext,
+            DataScopeService dataScopeService,
+            ScopedUserResolver scopedUserResolver,
+            UserMapper userMapper
+    ) {
+        this.adjustmentMapper = adjustmentMapper;
+        this.lineMapper = lineMapper;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.currentUserContext = currentUserContext;
+        this.dataScopeService = dataScopeService;
+        this.scopedUserResolver = scopedUserResolver;
+        this.userMapper = userMapper;
+    }
 
     public InventoryAdjustmentQueryService(
             InventoryAdjustmentMapper adjustmentMapper,
             InventoryAdjustmentLineMapper lineMapper,
             AuditMetadataFactory auditMetadataFactory
     ) {
-        this.adjustmentMapper = adjustmentMapper;
-        this.lineMapper = lineMapper;
-        this.auditMetadataFactory = auditMetadataFactory;
+        this(adjustmentMapper, lineMapper, auditMetadataFactory, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -60,6 +89,13 @@ public class InventoryAdjustmentQueryService {
         }
         if (safeQuery.getDateTo() != null) {
             wrapper.le(InventoryAdjustmentEntity::getAdjustmentDate, safeQuery.getDateTo());
+        }
+        if (currentUserContext != null) {
+            CurrentUser currentUser = currentUserContext.requireCurrentUser();
+            DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+            ScopedUserResolver.ScopedUserIds scoped = scopedUserResolver.resolve(currentUser, snapshot);
+            wrapper = dataScopeService.applyInventoryAdjustmentScope(
+                    wrapper, currentUser, snapshot, scoped.deptUserIds(), scoped.postUserIds());
         }
         wrapper.orderByDesc(InventoryAdjustmentEntity::getCreatedTime);
 
@@ -92,7 +128,21 @@ public class InventoryAdjustmentQueryService {
                 || !Objects.equals(adjustment.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("库存调整单不存在");
         }
+        assertCanView(adjustment);
         return adjustment;
+    }
+
+    private void assertCanView(InventoryAdjustmentEntity adjustment) {
+        if (currentUserContext == null) {
+            return;
+        }
+        CurrentUser currentUser = currentUserContext.requireCurrentUser();
+        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+        UserEntity creator = adjustment.getCreatedBy() == null ? null : userMapper.selectById(adjustment.getCreatedBy());
+        dataScopeService.assertCanViewInventoryAdjustment(
+                adjustment, currentUser, snapshot,
+                creator == null ? null : creator.getDeptId(),
+                creator == null ? null : creator.getPostId());
     }
 
     private List<InventoryAdjustmentLineEntity> selectLines(InventoryAdjustmentEntity adjustment) {

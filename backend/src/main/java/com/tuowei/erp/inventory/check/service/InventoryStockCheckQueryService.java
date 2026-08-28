@@ -5,6 +5,11 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.inventory.check.mapper.InventoryStockCheckLineMapper;
 import com.tuowei.erp.inventory.check.mapper.InventoryStockCheckMapper;
@@ -13,6 +18,9 @@ import com.tuowei.erp.inventory.check.model.InventoryStockCheckLineEntity;
 import com.tuowei.erp.inventory.check.web.InventoryStockCheckLineResponse;
 import com.tuowei.erp.inventory.check.web.InventoryStockCheckPageQuery;
 import com.tuowei.erp.inventory.check.web.InventoryStockCheckResponse;
+import com.tuowei.erp.system.user.mapper.UserMapper;
+import com.tuowei.erp.system.user.model.UserEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,15 +35,36 @@ public class InventoryStockCheckQueryService {
     private final InventoryStockCheckMapper checkMapper;
     private final InventoryStockCheckLineMapper lineMapper;
     private final AuditMetadataFactory auditMetadataFactory;
+    private final CurrentUserContext currentUserContext;
+    private final DataScopeService dataScopeService;
+    private final ScopedUserResolver scopedUserResolver;
+    private final UserMapper userMapper;
+
+    @Autowired
+    public InventoryStockCheckQueryService(
+            InventoryStockCheckMapper checkMapper,
+            InventoryStockCheckLineMapper lineMapper,
+            AuditMetadataFactory auditMetadataFactory,
+            CurrentUserContext currentUserContext,
+            DataScopeService dataScopeService,
+            ScopedUserResolver scopedUserResolver,
+            UserMapper userMapper
+    ) {
+        this.checkMapper = checkMapper;
+        this.lineMapper = lineMapper;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.currentUserContext = currentUserContext;
+        this.dataScopeService = dataScopeService;
+        this.scopedUserResolver = scopedUserResolver;
+        this.userMapper = userMapper;
+    }
 
     public InventoryStockCheckQueryService(
             InventoryStockCheckMapper checkMapper,
             InventoryStockCheckLineMapper lineMapper,
             AuditMetadataFactory auditMetadataFactory
     ) {
-        this.checkMapper = checkMapper;
-        this.lineMapper = lineMapper;
-        this.auditMetadataFactory = auditMetadataFactory;
+        this(checkMapper, lineMapper, auditMetadataFactory, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -62,6 +91,13 @@ public class InventoryStockCheckQueryService {
         if (safeQuery.getDateTo() != null) {
             wrapper.le(InventoryStockCheckEntity::getCheckDate, safeQuery.getDateTo());
         }
+        if (currentUserContext != null) {
+            CurrentUser currentUser = currentUserContext.requireCurrentUser();
+            DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+            ScopedUserResolver.ScopedUserIds scoped = scopedUserResolver.resolve(currentUser, snapshot);
+            wrapper = dataScopeService.applyInventoryStockCheckScope(
+                    wrapper, currentUser, snapshot, scoped.deptUserIds(), scoped.postUserIds());
+        }
         wrapper.orderByDesc(InventoryStockCheckEntity::getCreatedTime);
 
         Page<InventoryStockCheckEntity> page = new Page<>(safeQuery.getPageNo(), safeQuery.getPageSize());
@@ -82,7 +118,21 @@ public class InventoryStockCheckQueryService {
                 || !Objects.equals(check.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("库存盘点单不存在");
         }
+        assertCanView(check);
         return toResponse(check, selectLines(check));
+    }
+
+    private void assertCanView(InventoryStockCheckEntity check) {
+        if (currentUserContext == null) {
+            return;
+        }
+        CurrentUser currentUser = currentUserContext.requireCurrentUser();
+        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+        UserEntity creator = check.getCreatedBy() == null ? null : userMapper.selectById(check.getCreatedBy());
+        dataScopeService.assertCanViewInventoryStockCheck(
+                check, currentUser, snapshot,
+                creator == null ? null : creator.getDeptId(),
+                creator == null ? null : creator.getPostId());
     }
 
     private List<InventoryStockCheckLineEntity> selectLines(InventoryStockCheckEntity check) {

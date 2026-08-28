@@ -12,6 +12,7 @@
 | 销售 | 销售出库 | scope wrapper | `assertCanViewSalesDelivery` | 页面列表 | 空列表或 403 | 销售查询测试、API smoke S6SD |
 | 销售 | 销售退货 | scope wrapper | `assertCanViewSalesReturn` | 页面列表 | 空列表或 403 | 销售查询测试、API smoke S6ST |
 | 库存 | 库存余额/流水 | 仓库 scope wrapper | 仓库断言 | 库存报表/CSV | 未授权仓库不得出现 | `ReportQueryServiceInventoryScopeTest`、API smoke S9BA/S9TX/S9BD/S9TD |
+| 库存 | 库存调整/盘点 | 创建人或仓库 scope wrapper | 创建人或仓库断言 | 页面列表 | 未授权创建人/仓库返回空结果或 403 | `InventoryAdjustmentServiceTenantBoundaryTest`、`InventoryStockCheckServiceTenantBoundaryTest` |
 | 报表 | 订单报表 | 与页面相同 wrapper | 不提供隐藏详情 | CSV 与分页同口径 | 不得通过导出绕过 | `OrderReportQueryServiceTest` |
 | 报表 | 业务追踪 | 可见业务号关联 | 关联对象逐项受限 | 不新增绕过入口 | 输入隐藏编号返回空 | `BusinessTraceServiceTest` |
 | 首页 | 运营看板 | 复用订单/财务 scope wrapper，库存预警与 TOP SKU 下推仓库/创建人范围 | N/A | 聚合指标 | SELF/DEPT/POST/WAREHOUSE/ALL 按当前 principal 快照过滤；无范围默认空结果 | `OperationsDashboardServiceTest`、`InventoryAlertQueryServiceTest` |

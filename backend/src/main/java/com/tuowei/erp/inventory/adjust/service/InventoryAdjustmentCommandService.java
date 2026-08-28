@@ -5,6 +5,10 @@ import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.adjust.mapper.InventoryAdjustmentLineMapper;
@@ -22,6 +26,9 @@ import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.user.mapper.UserMapper;
+import com.tuowei.erp.system.user.model.UserEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +56,42 @@ public class InventoryAdjustmentCommandService {
     private final ProductValidator productValidator;
     private final AccountPeriodGuard accountPeriodGuard;
     private final AttachmentService attachmentService;
+    private final CurrentUserContext currentUserContext;
+    private final DataScopeService dataScopeService;
+    private final UserMapper userMapper;
+
+    @Autowired
+    public InventoryAdjustmentCommandService(
+            InventoryAdjustmentMapper adjustmentMapper,
+            InventoryAdjustmentLineMapper lineMapper,
+            InventoryAdjustmentNumberService numberService,
+            InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService,
+            FinancePostingService financePostingService,
+            AuditMetadataFactory auditMetadataFactory,
+            WarehouseMapper warehouseMapper,
+            ProductValidator productValidator,
+            AccountPeriodGuard accountPeriodGuard,
+            AttachmentService attachmentService,
+            CurrentUserContext currentUserContext,
+            DataScopeService dataScopeService,
+            UserMapper userMapper
+    ) {
+        this.adjustmentMapper = adjustmentMapper;
+        this.lineMapper = lineMapper;
+        this.numberService = numberService;
+        this.inventoryPostingService = inventoryPostingService;
+        this.inventorySerialNumberService = inventorySerialNumberService;
+        this.financePostingService = financePostingService;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.warehouseMapper = warehouseMapper;
+        this.productValidator = productValidator;
+        this.accountPeriodGuard = accountPeriodGuard;
+        this.attachmentService = attachmentService;
+        this.currentUserContext = currentUserContext;
+        this.dataScopeService = dataScopeService;
+        this.userMapper = userMapper;
+    }
 
     public InventoryAdjustmentCommandService(
             InventoryAdjustmentMapper adjustmentMapper,
@@ -63,17 +106,9 @@ public class InventoryAdjustmentCommandService {
             AccountPeriodGuard accountPeriodGuard,
             AttachmentService attachmentService
     ) {
-        this.adjustmentMapper = adjustmentMapper;
-        this.lineMapper = lineMapper;
-        this.numberService = numberService;
-        this.inventoryPostingService = inventoryPostingService;
-        this.inventorySerialNumberService = inventorySerialNumberService;
-        this.financePostingService = financePostingService;
-        this.auditMetadataFactory = auditMetadataFactory;
-        this.warehouseMapper = warehouseMapper;
-        this.productValidator = productValidator;
-        this.accountPeriodGuard = accountPeriodGuard;
-        this.attachmentService = attachmentService;
+        this(adjustmentMapper, lineMapper, numberService, inventoryPostingService, inventorySerialNumberService,
+                financePostingService, auditMetadataFactory, warehouseMapper, productValidator, accountPeriodGuard,
+                attachmentService, null, null, null);
     }
 
     @Transactional
@@ -104,6 +139,7 @@ public class InventoryAdjustmentCommandService {
         adjustment.setDeletedFlag(0);
         adjustment.setRemark(request.remark());
         fillCreateAudit(adjustment, audit, now);
+        assertCanView(adjustment);
         adjustmentMapper.insert(adjustment);
         int lineNo = 1;
         for (InventoryAdjustmentLineEntity line : lines) {
@@ -192,7 +228,21 @@ public class InventoryAdjustmentCommandService {
                 || !Objects.equals(adjustment.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("库存调整单不存在");
         }
+        assertCanView(adjustment);
         return adjustment;
+    }
+
+    private void assertCanView(InventoryAdjustmentEntity adjustment) {
+        if (currentUserContext == null) {
+            return;
+        }
+        CurrentUser currentUser = currentUserContext.requireCurrentUser();
+        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+        UserEntity creator = adjustment.getCreatedBy() == null ? null : userMapper.selectById(adjustment.getCreatedBy());
+        dataScopeService.assertCanViewInventoryAdjustment(
+                adjustment, currentUser, snapshot,
+                creator == null ? null : creator.getDeptId(),
+                creator == null ? null : creator.getPostId());
     }
 
     private InventoryAdjustmentLineEntity calculateLine(

@@ -1,6 +1,9 @@
 package com.tuowei.erp.inventory.check;
 
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentService;
 import com.tuowei.erp.inventory.check.mapper.InventoryStockCheckLineMapper;
@@ -16,6 +19,7 @@ import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
@@ -41,7 +45,11 @@ class InventoryStockCheckServiceDecompositionTest {
                 .containsExactlyInAnyOrder(
                         InventoryStockCheckMapper.class,
                         InventoryStockCheckLineMapper.class,
-                        AuditMetadataFactory.class
+                        AuditMetadataFactory.class,
+                        CurrentUserContext.class,
+                        DataScopeService.class,
+                        ScopedUserResolver.class,
+                        UserMapper.class
                 )
                 .doesNotContain(InventoryStockCheckService.class, InventoryStockCheckCommandService.class);
         assertThat(constructorDependencies(InventoryStockCheckCommandService.class))
@@ -55,7 +63,10 @@ class InventoryStockCheckServiceDecompositionTest {
                         WarehouseMapper.class,
                         ProductValidator.class,
                         AccountPeriodGuard.class,
-                        AttachmentService.class
+                        AttachmentService.class,
+                        CurrentUserContext.class,
+                        DataScopeService.class,
+                        UserMapper.class
                 )
                 .doesNotContain(InventoryStockCheckService.class, InventoryStockCheckQueryService.class);
     }

@@ -10,6 +10,8 @@ import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.transfer.model.InventoryTransferEntity;
+import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentEntity;
+import com.tuowei.erp.inventory.check.model.InventoryStockCheckEntity;
 import com.tuowei.erp.production.order.model.ProductionOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
@@ -435,6 +437,76 @@ public class DataScopeService {
                 .or(nested -> nested
                         .in(InventoryTransferEntity::getFromWarehouseId, snapshot.warehouseIds())
                         .in(InventoryTransferEntity::getToWarehouseId, snapshot.warehouseIds())));
+    }
+
+    public LambdaQueryWrapper<InventoryAdjustmentEntity> applyInventoryAdjustmentScope(
+            LambdaQueryWrapper<InventoryAdjustmentEntity> wrapper,
+            CurrentUser currentUser,
+            DataScopeSnapshot snapshot,
+            Set<Long> deptUserIds,
+            Set<Long> postUserIds
+    ) {
+        wrapper.eq(InventoryAdjustmentEntity::getCompanyId, currentUser.companyId())
+                .eq(InventoryAdjustmentEntity::getAccountBookId, currentUser.accountBookId());
+        if (snapshot.hasAllScope()) {
+            return wrapper;
+        }
+        return applyCreatedByAndWarehouseScope(
+                wrapper,
+                visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds),
+                snapshot.warehouseIds(),
+                InventoryAdjustmentEntity::getCreatedBy,
+                InventoryAdjustmentEntity::getWarehouseId
+        );
+    }
+
+    public void assertCanViewInventoryAdjustment(
+            InventoryAdjustmentEntity entity,
+            CurrentUser currentUser,
+            DataScopeSnapshot snapshot,
+            Long creatorDeptId,
+            Long creatorPostId
+    ) {
+        assertSameTenant(entity.getCompanyId(), entity.getAccountBookId(), currentUser, "无权访问该库存调整单");
+        if (canViewByCreatorOrWarehouse(entity.getCreatedBy(), entity.getWarehouseId(), currentUser, snapshot, creatorDeptId, creatorPostId)) {
+            return;
+        }
+        throw new AccessDeniedException("无权访问该库存调整单");
+    }
+
+    public LambdaQueryWrapper<InventoryStockCheckEntity> applyInventoryStockCheckScope(
+            LambdaQueryWrapper<InventoryStockCheckEntity> wrapper,
+            CurrentUser currentUser,
+            DataScopeSnapshot snapshot,
+            Set<Long> deptUserIds,
+            Set<Long> postUserIds
+    ) {
+        wrapper.eq(InventoryStockCheckEntity::getCompanyId, currentUser.companyId())
+                .eq(InventoryStockCheckEntity::getAccountBookId, currentUser.accountBookId());
+        if (snapshot.hasAllScope()) {
+            return wrapper;
+        }
+        return applyCreatedByAndWarehouseScope(
+                wrapper,
+                visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds),
+                snapshot.warehouseIds(),
+                InventoryStockCheckEntity::getCreatedBy,
+                InventoryStockCheckEntity::getWarehouseId
+        );
+    }
+
+    public void assertCanViewInventoryStockCheck(
+            InventoryStockCheckEntity entity,
+            CurrentUser currentUser,
+            DataScopeSnapshot snapshot,
+            Long creatorDeptId,
+            Long creatorPostId
+    ) {
+        assertSameTenant(entity.getCompanyId(), entity.getAccountBookId(), currentUser, "无权访问该库存盘点单");
+        if (canViewByCreatorOrWarehouse(entity.getCreatedBy(), entity.getWarehouseId(), currentUser, snapshot, creatorDeptId, creatorPostId)) {
+            return;
+        }
+        throw new AccessDeniedException("无权访问该库存盘点单");
     }
 
     public void assertCanViewProductionOrder(
