@@ -63,10 +63,11 @@ class MigrationHistoryDocumentationTest {
                     .filter(path -> path.getFileName().toString().endsWith(".sql"))
                     .filter(path -> migrationVersion(path) > LEGACY_MYSQL_VALUES_MAX_VERSION)
                     .toList()) {
-                assertThat(Files.readString(path, StandardCharsets.UTF_8))
+                String migration = Files.readString(path, StandardCharsets.UTF_8);
+                assertThat(DEPRECATED_MYSQL_VALUES_FUNCTION_PATTERN.matcher(migration).find())
                         .as("New migration %s must use MySQL row aliases instead of deprecated VALUES(column)",
                                 path.getFileName())
-                        .doesNotMatch(DEPRECATED_MYSQL_VALUES_FUNCTION_PATTERN);
+                        .isFalse();
             }
         }
     }

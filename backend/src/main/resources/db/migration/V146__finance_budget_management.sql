@@ -64,25 +64,25 @@ VALUES
     (5491, 5490, 'BUTTON', 'FINANCE_BUDGET_MANAGE', '预算维护', NULL,
      NULL, 'finance:budget:manage', 1, 1, 'ACTIVE', 0, 0, 0, 0),
     (5492, 5490, 'BUTTON', 'FINANCE_BUDGET_APPROVE', '预算审批', NULL,
-     NULL, 'finance:budget:approve', 2, 1, 'ACTIVE', 0, 0, 0, 0)
+     NULL, 'finance:budget:approve', 2, 1, 'ACTIVE', 0, 0, 0, 0) AS new
 ON DUPLICATE KEY UPDATE
-    parent_id = VALUES(parent_id),
-    menu_type = VALUES(menu_type),
-    menu_name = VALUES(menu_name),
-    path = VALUES(path),
-    component = VALUES(component),
-    permission = VALUES(permission),
-    sort_no = VALUES(sort_no),
-    visible_flag = VALUES(visible_flag),
-    status = VALUES(status),
-    deleted_flag = VALUES(deleted_flag),
-    updated_by = VALUES(updated_by);
+    parent_id = new.parent_id,
+    menu_type = new.menu_type,
+    menu_name = new.menu_name,
+    path = new.path,
+    component = new.component,
+    permission = new.permission,
+    sort_no = new.sort_no,
+    visible_flag = new.visible_flag,
+    status = new.status,
+    deleted_flag = new.deleted_flag,
+    updated_by = new.updated_by;
 
 INSERT INTO sys_role_menu (id, role_id, menu_id, created_by)
 VALUES
     (7500, 3002, 5490, 0),
     (7501, 3002, 5491, 0),
-    (7502, 3002, 5492, 0)
+    (7502, 3002, 5492, 0) AS new
 ON DUPLICATE KEY UPDATE
-    role_id = VALUES(role_id),
-    menu_id = VALUES(menu_id);
+    role_id = new.role_id,
+    menu_id = new.menu_id;
