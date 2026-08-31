@@ -71,7 +71,15 @@ function failMsg(res) {
 
 async function ensureOpenPeriod(token, bizDate) {
   const year = Number(String(bizDate).slice(0, 4))
-  await request(token, 'POST', `/api/finance/periods/generate?year=${year}`)
+  const periodMonth = String(bizDate).slice(0, 7)
+  const periods = await must(token, 'POST', '/api/finance/periods/generate', { year }, 'generate accounting periods')
+  const period = (periods || []).find((item) => item.periodMonth === periodMonth)
+  if (!period) {
+    throw new Error(`generated accounting periods did not include ${periodMonth}`)
+  }
+  if (period.status !== 'OPEN') {
+    throw new Error(`accounting period ${periodMonth} is ${period.status}, expected OPEN`)
+  }
 }
 
 async function request(token, method, urlPath, body) {

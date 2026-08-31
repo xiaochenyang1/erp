@@ -71,6 +71,20 @@ class BusinessSmokeScriptConfigurationTest {
     }
 
     @Test
+    void extensionFeatureSmokeGeneratesAndVerifiesOpenAccountingPeriod() throws IOException {
+        String script = Files.readString(
+                Path.of("scripts", "extension-features-api-smoke.cjs"),
+                StandardCharsets.UTF_8
+        );
+
+        assertThat(script)
+                .contains("const periods = await must(token, 'POST', '/api/finance/periods/generate', { year }, 'generate accounting periods')")
+                .contains("item.periodMonth === periodMonth")
+                .contains("period.status !== 'OPEN'")
+                .doesNotContain("/api/finance/periods/generate?year=");
+    }
+
+    @Test
     void releaseDocumentsReferenceBusinessSmokeScript() throws IOException {
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
