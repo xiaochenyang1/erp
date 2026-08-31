@@ -246,13 +246,18 @@ async function smokePurchaseInquiry(adminToken, submitterToken) {
         && convertedInquiry.convertedOrderNo === order.orderNo,
       retryOrder.orderNo,
     )
+    return order
   } catch (e) {
     row('B3', '采购询价闭环', false, e.message)
+    return null
   }
 }
 
-async function smokeInvoice(adminToken) {
+async function smokeInvoice(adminToken, purchaseOrder) {
   try {
+    if (!purchaseOrder?.id) {
+      throw new Error('purchase order fixture is unavailable')
+    }
     const created = await must(adminToken, 'POST', '/api/finance/invoices', {
       invoiceType: 'INPUT',
       partnerName: `扩展供应商${SUFFIX}`,
@@ -260,6 +265,7 @@ async function smokeInvoice(adminToken) {
       amount: 100,
       taxAmount: 13,
       relatedBizType: 'PURCHASE_ORDER',
+      relatedBizId: purchaseOrder.id,
       remark: `invoice-smoke-${SUFFIX}`,
     }, 'create invoice')
     row('B6-1', '创建发票登记草稿', created.status === 'DRAFT', created.invoiceNo)
@@ -279,6 +285,7 @@ async function smokeSalesCredit(adminToken, submitterToken) {
     const customer = await must(adminToken, 'POST', '/api/masterdata/customers', {
       customerCode: `EXC${SUFFIX}`,
       customerName: `扩展信用客户${SUFFIX}`,
+      customerType: 'ENTERPRISE',
       contactName: 'smoke',
       contactPhone: '13800000002',
       creditLimit: 1,
@@ -327,9 +334,24 @@ async function smokeSalesCredit(adminToken, submitterToken) {
       }],
     }, 'create large sales order')
 
-    await must(submitterToken, 'POST', `/api/sales/orders/${order.id}/submit`, { remark: 'submit credit order' }, 'submit sales order')
+    const submit = await request(
+      submitterToken,
+      'POST',
+      `/api/sales/orders/${order.id}/submit`,
+      { remark: 'submit credit order' },
+    )
+    if (!ok(submit)) {
+      const blocked = /信用|额度|超限|credit/i.test(String(failMsg(submit)))
+      row('B2-1', '超信用额度提交拦截', blocked, failMsg(submit))
+      return
+    }
 
-    const approve = await request(adminToken, 'POST', `/api/sales/orders/${order.id}/approve`, { remark: 'should fail credit' })
+    const approve = await request(
+      adminToken,
+      'POST',
+      `/api/sales/orders/${order.id}/approve`,
+      { remark: 'should fail credit' },
+    )
     const blocked = !ok(approve) && /信用|额度|超限|credit/i.test(String(failMsg(approve)))
     row('B2-1', '超信用额度审批拦截', blocked, failMsg(approve))
   } catch (e) {
@@ -343,6 +365,7 @@ async function smokeOqc(adminToken, submitterToken) {
     const customer = await must(adminToken, 'POST', '/api/masterdata/customers', {
       customerCode: `EXO${SUFFIX}`,
       customerName: `扩展OQC客户${SUFFIX}`,
+      customerType: 'ENTERPRISE',
       contactName: 'smoke',
       contactPhone: '13800000003',
       creditLimit: 0,
@@ -449,8 +472,11 @@ async function main() {
     process.exit(1)
   }
 
-  await smokePurchaseInquiry(admin.accessToken || admin.token, submitter.accessToken || submitter.token)
-  await smokeInvoice(admin.accessToken || admin.token)
+  const purchaseOrder = await smokePurchaseInquiry(
+    admin.accessToken || admin.token,
+    submitter.accessToken || submitter.token,
+  )
+  await smokeInvoice(admin.accessToken || admin.token, purchaseOrder)
   await smokeSalesCredit(admin.accessToken || admin.token, submitter.accessToken || submitter.token)
   await smokeOqc(admin.accessToken || admin.token, submitter.accessToken || submitter.token)
 

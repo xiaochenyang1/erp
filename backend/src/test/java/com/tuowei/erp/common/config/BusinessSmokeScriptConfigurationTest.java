@@ -55,6 +55,22 @@ class BusinessSmokeScriptConfigurationTest {
     }
 
     @Test
+    void extensionFeatureSmokeUsesCurrentCustomerInvoiceAndCreditContracts() throws IOException {
+        String script = Files.readString(
+                Path.of("scripts", "extension-features-api-smoke.cjs"),
+                StandardCharsets.UTF_8
+        );
+
+        assertThat(script)
+                .contains("return order")
+                .contains("relatedBizType: 'PURCHASE_ORDER'")
+                .contains("relatedBizId: purchaseOrder.id")
+                .contains("customerType: 'ENTERPRISE'")
+                .contains("const submit = await request(")
+                .contains("'超信用额度提交拦截'");
+    }
+
+    @Test
     void releaseDocumentsReferenceBusinessSmokeScript() throws IOException {
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
