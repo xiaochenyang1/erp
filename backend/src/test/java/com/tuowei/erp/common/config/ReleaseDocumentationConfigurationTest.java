@@ -68,6 +68,31 @@ class ReleaseDocumentationConfigurationTest {
     }
 
     @Test
+    void productionEnvironmentGeneratorKeepsDatasourcePasswordInSyncWithMysqlUser() throws IOException {
+        String envTemplate = Files.readString(Path.of(".env.prod.example"), StandardCharsets.UTF_8);
+        String generator = Files.readString(Path.of("scripts", "new-prod-env.ps1"), StandardCharsets.UTF_8);
+        String deployment = readDoc("production-deployment.md");
+
+        var placeholderKeys = envTemplate.lines()
+                .filter(line -> line.contains("=CHANGE_ME"))
+                .map(line -> line.substring(0, line.indexOf('=')))
+                .toList();
+
+        assertThat(placeholderKeys).isNotEmpty();
+        placeholderKeys.forEach(key -> assertThat(generator).contains("\"" + key + "\" ="));
+
+        assertThat(generator)
+                .contains("$applicationDatabasePassword = New-Secret 40")
+                .contains("\"MYSQL_PASSWORD\" = $applicationDatabasePassword")
+                .contains("\"ERP_DATASOURCE_PASSWORD\" = $applicationDatabasePassword");
+
+        assertThat(deployment)
+                .contains("`MYSQL_PASSWORD`、`ERP_DATASOURCE_PASSWORD`")
+                .contains("必须保持一致")
+                .contains("同一个随机应用数据库密码");
+    }
+
+    @Test
     void releaseDocumentationDocumentsCiReleaseCheckArtifacts() throws IOException {
         String deployment = readDoc("production-deployment.md");
         String checklist = readDoc("business-readiness-checklist.md");
