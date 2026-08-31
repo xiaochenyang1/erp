@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,8 +55,12 @@ class NewProdEnvScriptBehaviorTest {
 
         String generated = Files.readString(output, StandardCharsets.UTF_8);
         Map<String, String> values = readEnvironmentValues(generated);
+        List<String> unresolvedKeys = values.entrySet().stream()
+                .filter(entry -> entry.getValue().contains("CHANGE_ME"))
+                .map(Map.Entry::getKey)
+                .toList();
 
-        assertThat(generated).doesNotContain("CHANGE_ME");
+        assertThat(unresolvedKeys).isEmpty();
         assertThat(values.get("MYSQL_PASSWORD"))
                 .hasSizeGreaterThanOrEqualTo(32)
                 .isEqualTo(values.get("ERP_DATASOURCE_PASSWORD"));
