@@ -14,6 +14,7 @@ import com.tuowei.erp.finance.settlement.service.FinanceSettlementScopeSupport;
 import com.tuowei.erp.report.mapper.FinanceSettlementReportMapper;
 import com.tuowei.erp.report.web.FinanceSettlementReportQuery;
 import com.tuowei.erp.report.web.FinanceSettlementReportResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,9 +32,25 @@ public class FinanceSettlementReportQueryService {
     private final PayableMapper payableMapper;
     private final ReceivableMapper receivableMapper;
     private final FinanceSettlementReportMapper financeSettlementReportMapper;
-    private final FinanceSettlementScopeSupport financeSettlementScopeSupport;
+    private final FinanceSettlementReportDataScopeService financeSettlementReportDataScopeService;
     private final ReportProperties reportProperties;
 
+    @Autowired
+    public FinanceSettlementReportQueryService(
+            PayableMapper payableMapper,
+            ReceivableMapper receivableMapper,
+            FinanceSettlementReportMapper financeSettlementReportMapper,
+            FinanceSettlementReportDataScopeService financeSettlementReportDataScopeService,
+            ReportProperties reportProperties
+    ) {
+        this.payableMapper = payableMapper;
+        this.receivableMapper = receivableMapper;
+        this.financeSettlementReportMapper = financeSettlementReportMapper;
+        this.financeSettlementReportDataScopeService = financeSettlementReportDataScopeService;
+        this.reportProperties = reportProperties;
+    }
+
+    /** Backward-compatible constructor for isolated report tests and integrations. */
     public FinanceSettlementReportQueryService(
             PayableMapper payableMapper,
             ReceivableMapper receivableMapper,
@@ -41,11 +58,8 @@ public class FinanceSettlementReportQueryService {
             FinanceSettlementScopeSupport financeSettlementScopeSupport,
             ReportProperties reportProperties
     ) {
-        this.payableMapper = payableMapper;
-        this.receivableMapper = receivableMapper;
-        this.financeSettlementReportMapper = financeSettlementReportMapper;
-        this.financeSettlementScopeSupport = financeSettlementScopeSupport;
-        this.reportProperties = reportProperties;
+        this(payableMapper, receivableMapper, financeSettlementReportMapper,
+                new FinanceSettlementReportDataScopeService(financeSettlementScopeSupport), reportProperties);
     }
 
     @Transactional(readOnly = true)
@@ -188,7 +202,7 @@ public class FinanceSettlementReportQueryService {
         if (query.getBizDateTo() != null) {
             wrapper.le(PayableEntity::getBizDate, query.getBizDateTo());
         }
-        return financeSettlementScopeSupport.applyPayableScope(wrapper);
+        return financeSettlementReportDataScopeService.applyPayableScope(wrapper);
     }
 
     private LambdaQueryWrapper<ReceivableEntity> receivableWrapper(FinanceSettlementReportQuery query) {
@@ -221,7 +235,7 @@ public class FinanceSettlementReportQueryService {
         if (query.getBizDateTo() != null) {
             wrapper.le(ReceivableEntity::getBizDate, query.getBizDateTo());
         }
-        return financeSettlementScopeSupport.applyReceivableScope(wrapper);
+        return financeSettlementReportDataScopeService.applyReceivableScope(wrapper);
     }
 
     private FinanceSettlementReportResponse toPayableReport(PayableEntity entity) {
