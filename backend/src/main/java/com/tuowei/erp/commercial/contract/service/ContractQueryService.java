@@ -11,6 +11,7 @@ import com.tuowei.erp.commercial.contract.web.ContractPageQuery;
 import com.tuowei.erp.commercial.contract.web.ContractResponse;
 import com.tuowei.erp.common.security.CurrentUser;
 import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.ContractDataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageQueryNormalizer;
@@ -31,12 +32,11 @@ import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderLineMapper;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderLineEntity;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,16 +56,19 @@ public class ContractQueryService {
     private final UserMapper userMapper;
     private final CurrentUserContext currentUserContext;
     private final ScopedUserResolver scopedUserResolver;
+    private final ContractDataScopeService contractDataScopeService;
     private final SalesOrderMapper salesOrderMapper;
     private final SalesOrderLineMapper salesOrderLineMapper;
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
 
+    @Autowired
     public ContractQueryService(ContractMapper contractMapper, ContractLineMapper contractLineMapper,
                                 CustomerMapper customerMapper, SupplierMapper supplierMapper, ProductMapper productMapper,
                                 UserMapper userMapper, CurrentUserContext currentUserContext, ScopedUserResolver scopedUserResolver,
                                 SalesOrderMapper salesOrderMapper, SalesOrderLineMapper salesOrderLineMapper,
-                                PurchaseOrderMapper purchaseOrderMapper, PurchaseOrderLineMapper purchaseOrderLineMapper) {
+                                PurchaseOrderMapper purchaseOrderMapper, PurchaseOrderLineMapper purchaseOrderLineMapper,
+                                ContractDataScopeService contractDataScopeService) {
         this.contractMapper = contractMapper;
         this.contractLineMapper = contractLineMapper;
         this.customerMapper = customerMapper;
@@ -74,10 +77,22 @@ public class ContractQueryService {
         this.userMapper = userMapper;
         this.currentUserContext = currentUserContext;
         this.scopedUserResolver = scopedUserResolver;
+        this.contractDataScopeService = contractDataScopeService;
         this.salesOrderMapper = salesOrderMapper;
         this.salesOrderLineMapper = salesOrderLineMapper;
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
+    }
+
+    /** Backward-compatible constructor for isolated query tests and integrations. */
+    public ContractQueryService(ContractMapper contractMapper, ContractLineMapper contractLineMapper,
+                                CustomerMapper customerMapper, SupplierMapper supplierMapper, ProductMapper productMapper,
+                                UserMapper userMapper, CurrentUserContext currentUserContext, ScopedUserResolver scopedUserResolver,
+                                SalesOrderMapper salesOrderMapper, SalesOrderLineMapper salesOrderLineMapper,
+                                PurchaseOrderMapper purchaseOrderMapper, PurchaseOrderLineMapper purchaseOrderLineMapper) {
+        this(contractMapper, contractLineMapper, customerMapper, supplierMapper, productMapper, userMapper,
+                currentUserContext, scopedUserResolver, salesOrderMapper, salesOrderLineMapper,
+                purchaseOrderMapper, purchaseOrderLineMapper, new ContractDataScopeService());
     }
 
     @Transactional(readOnly = true)
@@ -88,7 +103,11 @@ public class ContractQueryService {
         long pageNo = PageQueryNormalizer.normalizePageNo(safeQuery.getPageNo() == null ? null : safeQuery.getPageNo().intValue());
         long pageSize = PageQueryNormalizer.normalizePageSize(safeQuery.getPageSize() == null ? null : safeQuery.getPageSize().intValue());
         LambdaQueryWrapper<ContractEntity> wrapper = listWrapper(safeQuery, user);
-        applyCreatorScope(wrapper, user, snapshot);
+        ScopedUserResolver.ScopedUserIds scopedUserIds = snapshot.hasAllScope()
+                ? new ScopedUserResolver.ScopedUserIds(Set.of(), Set.of())
+                : scopedUserResolver.resolve(user, snapshot);
+        wrapper = contractDataScopeService.applyContractScope(
+                wrapper, user, snapshot, scopedUserIds.deptUserIds(), scopedUserIds.postUserIds());
         Page<ContractEntity> result = contractMapper.selectPage(new Page<>(pageNo, pageSize), wrapper);
         Map<Long, String> customers = customerNames(result.getRecords());
         Map<Long, String> suppliers = supplierNames(result.getRecords());
@@ -115,7 +134,18 @@ public class ContractQueryService {
                 || !Objects.equals(entity.getAccountBookId(), user.accountBookId())) {
             throw new IllegalArgumentException("合同不存在");
         }
-        assertVisible(entity, user, currentUserContext.requirePrincipal().dataScopeSnapshot());
+        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
+        boolean visibleBySelf = snapshot.selfScoped() && Objects.equals(entity.getCreatedBy(), user.userId());
+        UserEntity creator = snapshot.hasAllScope() || visibleBySelf || entity.getCreatedBy() == null
+                ? null
+                : userMapper.selectById(entity.getCreatedBy());
+        contractDataScopeService.assertCanViewContract(
+                entity,
+                user,
+                snapshot,
+                creator == null ? null : creator.getDeptId(),
+                creator == null ? null : creator.getPostId()
+        );
         return entity;
     }
 
@@ -144,26 +174,6 @@ public class ContractQueryService {
         if (query.getEffectiveFrom() != null) wrapper.and(w -> w.isNull(ContractEntity::getEffectiveTo).or().ge(ContractEntity::getEffectiveTo, query.getEffectiveFrom()));
         if (query.getEffectiveTo() != null) wrapper.le(ContractEntity::getEffectiveFrom, query.getEffectiveTo());
         return wrapper.orderByDesc(ContractEntity::getSignedDate).orderByDesc(ContractEntity::getId);
-    }
-
-    private void applyCreatorScope(LambdaQueryWrapper<ContractEntity> wrapper, CurrentUser user, DataScopeSnapshot snapshot) {
-        if (snapshot.hasAllScope()) return;
-        ScopedUserResolver.ScopedUserIds ids = scopedUserResolver.resolve(user, snapshot);
-        Set<Long> visible = new LinkedHashSet<>();
-        if (snapshot.selfScoped()) visible.add(user.userId());
-        visible.addAll(ids.deptUserIds());
-        visible.addAll(ids.postUserIds());
-        if (visible.isEmpty()) wrapper.apply("1 = 0");
-        else wrapper.in(ContractEntity::getCreatedBy, visible);
-    }
-
-    private void assertVisible(ContractEntity entity, CurrentUser user, DataScopeSnapshot snapshot) {
-        if (snapshot.hasAllScope()) return;
-        if (snapshot.selfScoped() && Objects.equals(entity.getCreatedBy(), user.userId())) return;
-        UserEntity creator = entity.getCreatedBy() == null ? null : userMapper.selectById(entity.getCreatedBy());
-        if (creator != null && snapshot.deptScoped() && Objects.equals(creator.getDeptId(), user.deptId())) return;
-        if (creator != null && snapshot.postScoped() && Objects.equals(creator.getPostId(), user.postId())) return;
-        throw new AccessDeniedException("无权访问该合同");
     }
 
     private ContractResponse toResponse(ContractEntity entity, List<ContractLineEntity> lines, String customerName,
