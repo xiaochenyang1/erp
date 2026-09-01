@@ -116,6 +116,8 @@ class ProductionOrderServiceTenantBoundaryTest {
         stubCurrentUser();
         when(scopedUserResolver.resolve(CURRENT_USER, PRINCIPAL.dataScopeSnapshot()))
                 .thenReturn(new ScopedUserResolver.ScopedUserIds(Set.of(), Set.of()));
+        when(dataScopeService.applyProductionOrderScope(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         when(orderMapper.selectPage(any(), any())).thenAnswer(invocation -> {
             Page<ProductionOrderEntity> page = invocation.getArgument(0);
             page.setRecords(List.of());

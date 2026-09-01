@@ -9,6 +9,8 @@ import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ErpPrincipal;
+import com.tuowei.erp.common.security.InventoryDataScopeService;
+import com.tuowei.erp.common.security.SalesPurchaseDataScopeService;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMaterialMapper;
@@ -38,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,7 +65,8 @@ class ProductionOrderQueryServiceTest {
     private final ProductionOrderMapper orderMapper = mock(ProductionOrderMapper.class);
     private final ProductionOrderMaterialMapper materialMapper = mock(ProductionOrderMaterialMapper.class);
     private final CurrentUserContext currentUserContext = mock(CurrentUserContext.class);
-    private final DataScopeService dataScopeService = mock(DataScopeService.class);
+    private final DataScopeService dataScopeService = spy(new DataScopeService(
+            null, new InventoryDataScopeService(), new SalesPurchaseDataScopeService()));
     private final ScopedUserResolver scopedUserResolver = mock(ScopedUserResolver.class);
     private final UserMapper userMapper = mock(UserMapper.class);
 
