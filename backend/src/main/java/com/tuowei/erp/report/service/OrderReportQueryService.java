@@ -17,13 +17,13 @@ import com.tuowei.erp.report.web.PurchaseOrderReportQuery;
 import com.tuowei.erp.report.web.SalesOrderReportQuery;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -34,10 +34,28 @@ public class OrderReportQueryService {
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final SalesOrderMapper salesOrderMapper;
     private final CurrentUserContext currentUserContext;
-    private final DataScopeService dataScopeService;
+    private final OrderReportDataScopeService orderReportDataScopeService;
     private final ScopedUserResolver scopedUserResolver;
     private final ReportProperties reportProperties;
 
+    @Autowired
+    public OrderReportQueryService(
+            PurchaseOrderMapper purchaseOrderMapper,
+            SalesOrderMapper salesOrderMapper,
+            CurrentUserContext currentUserContext,
+            OrderReportDataScopeService orderReportDataScopeService,
+            ScopedUserResolver scopedUserResolver,
+            ReportProperties reportProperties
+    ) {
+        this.purchaseOrderMapper = purchaseOrderMapper;
+        this.salesOrderMapper = salesOrderMapper;
+        this.currentUserContext = currentUserContext;
+        this.orderReportDataScopeService = orderReportDataScopeService;
+        this.scopedUserResolver = scopedUserResolver;
+        this.reportProperties = reportProperties;
+    }
+
+    /** Backward-compatible constructor for isolated report tests and integrations. */
     public OrderReportQueryService(
             PurchaseOrderMapper purchaseOrderMapper,
             SalesOrderMapper salesOrderMapper,
@@ -46,12 +64,8 @@ public class OrderReportQueryService {
             ScopedUserResolver scopedUserResolver,
             ReportProperties reportProperties
     ) {
-        this.purchaseOrderMapper = purchaseOrderMapper;
-        this.salesOrderMapper = salesOrderMapper;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.scopedUserResolver = scopedUserResolver;
-        this.reportProperties = reportProperties;
+        this(purchaseOrderMapper, salesOrderMapper, currentUserContext,
+                new OrderReportDataScopeService(dataScopeService), scopedUserResolver, reportProperties);
     }
 
     @Transactional(readOnly = true)
@@ -152,12 +166,11 @@ public class OrderReportQueryService {
         }
 
         ScopedUsers scopedUsers = scopedUsers();
-        wrapper = dataScopeService.applyPurchaseOrderScope(
+        wrapper = orderReportDataScopeService.applyPurchaseOrderScope(
                 wrapper,
                 scopedUsers.currentUser(),
                 scopedUsers.snapshot(),
-                scopedUsers.deptUserIds(),
-                scopedUsers.postUserIds()
+                scopedUsers.scopedUserIds()
         );
         if (ordered) {
             wrapper.orderByDesc(PurchaseOrderEntity::getOrderDate).orderByDesc(PurchaseOrderEntity::getId);
@@ -195,12 +208,11 @@ public class OrderReportQueryService {
         }
 
         ScopedUsers scopedUsers = scopedUsers();
-        wrapper = dataScopeService.applySalesOrderScope(
+        wrapper = orderReportDataScopeService.applySalesOrderScope(
                 wrapper,
                 scopedUsers.currentUser(),
                 scopedUsers.snapshot(),
-                scopedUsers.deptUserIds(),
-                scopedUsers.postUserIds()
+                scopedUsers.scopedUserIds()
         );
         if (ordered) {
             wrapper.orderByDesc(SalesOrderEntity::getOrderDate).orderByDesc(SalesOrderEntity::getId);
@@ -212,7 +224,7 @@ public class OrderReportQueryService {
         CurrentUser currentUser = currentUserContext.requireCurrentUser();
         DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
         ScopedUserResolver.ScopedUserIds scopedUserIds = scopedUserResolver.resolve(currentUser, snapshot);
-        return new ScopedUsers(currentUser, snapshot, scopedUserIds.deptUserIds(), scopedUserIds.postUserIds());
+        return new ScopedUsers(currentUser, snapshot, scopedUserIds);
     }
 
     private OrderReportResponse toPurchaseOrderReport(PurchaseOrderEntity entity) {
@@ -307,8 +319,7 @@ public class OrderReportQueryService {
     private record ScopedUsers(
             CurrentUser currentUser,
             DataScopeSnapshot snapshot,
-            Set<Long> deptUserIds,
-            Set<Long> postUserIds
+            ScopedUserResolver.ScopedUserIds scopedUserIds
     ) {
     }
 }
