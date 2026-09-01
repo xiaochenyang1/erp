@@ -8,6 +8,7 @@ import com.tuowei.erp.inventory.stock.model.InventoryLotBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.transfer.model.InventoryTransferEntity;
+import com.tuowei.erp.production.order.model.ProductionOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
@@ -39,7 +40,8 @@ class DataScopeServiceDecompositionTest {
                 .containsExactlyInAnyOrder(
                         DataScopeSnapshotService.class,
                         InventoryDataScopeService.class,
-                        SalesPurchaseDataScopeService.class
+                        SalesPurchaseDataScopeService.class,
+                        ProductionDataScopeService.class
                 );
         assertThat(constructorDependencies(DataScopeSnapshotService.class))
                 .containsExactlyInAnyOrder(
@@ -51,6 +53,7 @@ class DataScopeServiceDecompositionTest {
                 .doesNotContain(DataScopeService.class);
         assertThat(constructorDependencies(InventoryDataScopeService.class)).isEmpty();
         assertThat(constructorDependencies(SalesPurchaseDataScopeService.class)).isEmpty();
+        assertThat(constructorDependencies(ProductionDataScopeService.class)).isEmpty();
     }
 
     @Test
@@ -245,11 +248,44 @@ class DataScopeServiceDecompositionTest {
                 InventoryDataScopeService.class
         )).isNotNull();
         assertThat(DataScopeService.class.getDeclaredConstructor(
+                DataScopeSnapshotService.class,
+                InventoryDataScopeService.class,
+                SalesPurchaseDataScopeService.class
+        )).isNotNull();
+        assertThat(DataScopeService.class.getDeclaredConstructor(
                 UserRoleMapper.class,
                 RoleMapper.class,
                 RoleDataScopeMapper.class,
                 UserDataScopeMapper.class
         )).isNotNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void facadeDelegatesAllProductionPolicyApis() {
+        DataScopeSnapshotService snapshotService = mock(DataScopeSnapshotService.class);
+        InventoryDataScopeService inventoryService = mock(InventoryDataScopeService.class);
+        SalesPurchaseDataScopeService salesPurchaseService = mock(SalesPurchaseDataScopeService.class);
+        ProductionDataScopeService productionService = mock(ProductionDataScopeService.class);
+        DataScopeService facade = new DataScopeService(
+                snapshotService, inventoryService, salesPurchaseService, productionService);
+        CurrentUser currentUser = new CurrentUser(7L, 11L, 13L, 17L, 19L, "scope", "Scope");
+        DataScopeSnapshot snapshot = DataScopeSnapshot.none();
+        Set<Long> deptUserIds = Set.of(23L);
+        Set<Long> postUserIds = Set.of(29L);
+        LambdaQueryWrapper<ProductionOrderEntity> wrapper = mock(LambdaQueryWrapper.class);
+        ProductionOrderEntity order = mock(ProductionOrderEntity.class);
+        when(productionService.applyProductionOrderScope(
+                wrapper, currentUser, snapshot, deptUserIds, postUserIds)).thenReturn(wrapper);
+
+        assertThat(facade.applyProductionOrderScope(
+                wrapper, currentUser, snapshot, deptUserIds, postUserIds)).isSameAs(wrapper);
+        facade.assertCanViewProductionOrder(order, currentUser, snapshot, 31L, 37L);
+
+        verify(productionService).applyProductionOrderScope(
+                wrapper, currentUser, snapshot, deptUserIds, postUserIds);
+        verify(productionService).assertCanViewProductionOrder(
+                order, currentUser, snapshot, 31L, 37L);
     }
 
     private Set<Class<?>> autowiredConstructorDependencies(Class<?> type) {

@@ -13,6 +13,7 @@ import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.returnorder.model.SalesReturnEntity;
+import com.tuowei.erp.system.user.mapper.UserRoleMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,8 @@ class DataScopeServiceTenantBoundaryTest {
     );
     private static final DataScopeSnapshot ALL_SCOPE = DataScopeSnapshot.all();
 
-    private final DataScopeService dataScopeService = new DataScopeService(null, null, null, null);
+    private final DataScopeService dataScopeService = new DataScopeService(
+            (UserRoleMapper) null, null, null, null);
 
     @BeforeAll
     static void initTableInfo() {
