@@ -9,6 +9,7 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.system.attachment.mapper.AttachmentMapper;
 import com.tuowei.erp.system.attachment.model.AttachmentEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentQueryService;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
 import com.tuowei.erp.system.attachment.web.AttachmentResponse;
@@ -194,6 +195,70 @@ class AttachmentServiceStreamingTest {
     }
 
     @Test
+    void countActiveScopesConfiguredGateByTenantAndBusiness() {
+        AttachmentMapper mapper = mock(AttachmentMapper.class);
+        AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(mapper.selectCount(any())).thenReturn(2L);
+        AttachmentService service = newService(mapper, auditMetadataFactory);
+
+        long count = service.countActive(" expense ", 9001L);
+
+        assertThat(count).isEqualTo(2L);
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<AttachmentEntity>> wrapperCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(mapper).selectCount(wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment().toLowerCase(Locale.ROOT);
+        assertThat(sql)
+                .contains("company_id")
+                .contains("account_book_id")
+                .contains("business_type")
+                .contains("business_id")
+                .contains("deleted_flag")
+                .contains("status");
+        assertThat(wrapperCaptor.getValue().getParamNameValuePairs().values())
+                .contains(AUDIT.companyId(), AUDIT.accountBookId(), "EXPENSE", 9001L, 0, "ACTIVE");
+    }
+
+    @Test
+    void requireIfConfiguredRejectsWhenActiveAttachmentCountIsBelowMinimum() {
+        AttachmentMapper mapper = mock(AttachmentMapper.class);
+        AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(mapper.selectCount(any())).thenReturn(1L);
+        AttachmentProperties properties = new AttachmentProperties(
+                storageRoot.toString(), 1024L, "SALES_ORDER", 2);
+        AttachmentService service = newService(mapper, auditMetadataFactory, properties);
+
+        assertThatThrownBy(() -> service.requireIfConfigured("sales_order", 9001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("至少上传 2 个附件，当前 1 个");
+    }
+
+    @Test
+    void requireForBusinessRejectsAttachmentOwnedByAnotherBusinessRecord() {
+        AttachmentEntity entity = new AttachmentEntity();
+        entity.setId(1009L);
+        entity.setCompanyId(AUDIT.companyId());
+        entity.setAccountBookId(AUDIT.accountBookId());
+        entity.setBusinessType("SALES_ORDER");
+        entity.setBusinessId(9001L);
+        entity.setStatus("ACTIVE");
+        entity.setDeletedFlag(0);
+
+        AttachmentMapper mapper = mock(AttachmentMapper.class);
+        when(mapper.selectById(1009L)).thenReturn(entity);
+        AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        AttachmentService service = newService(mapper, auditMetadataFactory);
+
+        assertThatThrownBy(() -> service.requireForBusiness(1009L, "SALES_ORDER", 9002L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("附件不存在");
+    }
+
+    @Test
     void downloadReturnsFileResourceInsteadOfByteArrayResource() throws Exception {
         Path storedFile = storageRoot.resolve(Path.of("1", "1", "2026-06-02", "download.txt"));
         Files.createDirectories(storedFile.getParent());
@@ -356,12 +421,23 @@ class AttachmentServiceStreamingTest {
     }
 
     private AttachmentService newService(AttachmentMapper mapper, AuditMetadataFactory auditMetadataFactory) {
+        AttachmentProperties properties = new AttachmentProperties(storageRoot.toString(), 1024L, "EXPENSE", 1);
+        return newService(mapper, auditMetadataFactory, properties);
+    }
+
+    private AttachmentService newService(
+            AttachmentMapper mapper,
+            AuditMetadataFactory auditMetadataFactory,
+            AttachmentProperties properties
+    ) {
+        AttachmentQueryService queryService = new AttachmentQueryService(mapper, auditMetadataFactory, properties);
         return new AttachmentService(
                 mapper,
                 auditMetadataFactory,
-                new AttachmentProperties(storageRoot.toString(), 1024L, "EXPENSE", 1),
+                properties,
                 mock(BusinessTimelineService.class),
-                CLOCK
+                CLOCK,
+                queryService
         );
     }
 
