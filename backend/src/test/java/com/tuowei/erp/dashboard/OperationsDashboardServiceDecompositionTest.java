@@ -1,11 +1,15 @@
 package com.tuowei.erp.dashboard;
 
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.dashboard.service.OperationsDashboardDataScopeService;
 import com.tuowei.erp.dashboard.service.OperationsDashboardPresentationService;
 import com.tuowei.erp.dashboard.service.OperationsDashboardQueryService;
 import com.tuowei.erp.dashboard.service.OperationsDashboardService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,6 +31,19 @@ class OperationsDashboardServiceDecompositionTest {
     void facadeAndQueryServiceKeepReadOnlyTransactions() throws NoSuchMethodException {
         assertReadOnly(OperationsDashboardService.class.getDeclaredMethod("getOperationsDashboard"));
         assertReadOnly(OperationsDashboardQueryService.class.getDeclaredMethod("load"));
+    }
+
+    @Test
+    void queryUsesDashboardScopePolicyAndKeepsPreviousConstructor() {
+        assertThat(Arrays.stream(OperationsDashboardQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes())))
+                .contains(OperationsDashboardDataScopeService.class)
+                .doesNotContain(DataScopeService.class);
+        assertThat(Arrays.stream(OperationsDashboardQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> !constructor.isAnnotationPresent(Autowired.class))
+                .map(Constructor::getParameterCount))
+                .contains(14);
     }
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {

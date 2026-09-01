@@ -25,15 +25,14 @@ import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
 import com.tuowei.erp.workflow.model.WorkflowTaskEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /** Tenant-scoped read model loader for the operations dashboard. */
 @Service
@@ -44,7 +43,7 @@ public class OperationsDashboardQueryService {
 
     private final AuditMetadataFactory auditMetadataFactory;
     private final CurrentUserContext currentUserContext;
-    private final DataScopeService dataScopeService;
+    private final OperationsDashboardDataScopeService dashboardDataScopeService;
     private final ScopedUserResolver scopedUserResolver;
     private final FinanceSettlementScopeSupport financeSettlementScopeSupport;
     private final WorkflowTaskMapper workflowTaskMapper;
@@ -57,6 +56,40 @@ public class OperationsDashboardQueryService {
     private final SalesDeliveryLineMapper salesDeliveryLineMapper;
     private final Clock clock;
 
+    @Autowired
+    public OperationsDashboardQueryService(
+            AuditMetadataFactory auditMetadataFactory,
+            CurrentUserContext currentUserContext,
+            OperationsDashboardDataScopeService dashboardDataScopeService,
+            ScopedUserResolver scopedUserResolver,
+            FinanceSettlementScopeSupport financeSettlementScopeSupport,
+            WorkflowTaskMapper workflowTaskMapper,
+            InventoryAlertService inventoryAlertService,
+            ReceivableMapper receivableMapper,
+            PayableMapper payableMapper,
+            PurchaseOrderMapper purchaseOrderMapper,
+            SalesOrderMapper salesOrderMapper,
+            OperationLogMapper operationLogMapper,
+            SalesDeliveryLineMapper salesDeliveryLineMapper,
+            Clock clock
+    ) {
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.currentUserContext = currentUserContext;
+        this.dashboardDataScopeService = dashboardDataScopeService;
+        this.scopedUserResolver = scopedUserResolver;
+        this.financeSettlementScopeSupport = financeSettlementScopeSupport;
+        this.workflowTaskMapper = workflowTaskMapper;
+        this.inventoryAlertService = inventoryAlertService;
+        this.receivableMapper = receivableMapper;
+        this.payableMapper = payableMapper;
+        this.purchaseOrderMapper = purchaseOrderMapper;
+        this.salesOrderMapper = salesOrderMapper;
+        this.operationLogMapper = operationLogMapper;
+        this.salesDeliveryLineMapper = salesDeliveryLineMapper;
+        this.clock = clock;
+    }
+
+    /** Backward-compatible constructor for isolated dashboard tests and integrations. */
     public OperationsDashboardQueryService(
             AuditMetadataFactory auditMetadataFactory,
             CurrentUserContext currentUserContext,
@@ -73,20 +106,10 @@ public class OperationsDashboardQueryService {
             SalesDeliveryLineMapper salesDeliveryLineMapper,
             Clock clock
     ) {
-        this.auditMetadataFactory = auditMetadataFactory;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.scopedUserResolver = scopedUserResolver;
-        this.financeSettlementScopeSupport = financeSettlementScopeSupport;
-        this.workflowTaskMapper = workflowTaskMapper;
-        this.inventoryAlertService = inventoryAlertService;
-        this.receivableMapper = receivableMapper;
-        this.payableMapper = payableMapper;
-        this.purchaseOrderMapper = purchaseOrderMapper;
-        this.salesOrderMapper = salesOrderMapper;
-        this.operationLogMapper = operationLogMapper;
-        this.salesDeliveryLineMapper = salesDeliveryLineMapper;
-        this.clock = clock;
+        this(auditMetadataFactory, currentUserContext, new OperationsDashboardDataScopeService(dataScopeService),
+                scopedUserResolver, financeSettlementScopeSupport, workflowTaskMapper, inventoryAlertService,
+                receivableMapper, payableMapper, purchaseOrderMapper, salesOrderMapper, operationLogMapper,
+                salesDeliveryLineMapper, clock);
     }
 
     @Transactional(readOnly = true)
@@ -120,20 +143,19 @@ public class OperationsDashboardQueryService {
         List<PayableEntity> openPayables = payableMapper.selectList(
                 financeSettlementScopeSupport.applyPayableScope(openPayableQuery(audit)));
 
-        long todayPurchaseOrders = purchaseOrderMapper.selectCount(dataScopeService.applyPurchaseOrderScope(
-                todayPurchaseOrderQuery(audit, today), currentUser, snapshot,
-                scopedUserIds.deptUserIds(), scopedUserIds.postUserIds()));
-        List<SalesOrderEntity> todaySales = salesOrderMapper.selectList(dataScopeService.applySalesOrderScope(
-                todaySalesOrderQuery(audit, today), currentUser, snapshot,
-                scopedUserIds.deptUserIds(), scopedUserIds.postUserIds()));
+        long todayPurchaseOrders = purchaseOrderMapper.selectCount(dashboardDataScopeService.applyPurchaseOrderScope(
+                todayPurchaseOrderQuery(audit, today), currentUser, snapshot, scopedUserIds));
+        List<SalesOrderEntity> todaySales = salesOrderMapper.selectList(dashboardDataScopeService.applySalesOrderScope(
+                todaySalesOrderQuery(audit, today), currentUser, snapshot, scopedUserIds));
 
         List<OperationLogEntity> failedOperations = operationLogMapper.selectList(failedOperationQuery(audit)
                 .orderByDesc(OperationLogEntity::getOperationTime)
                 .last("limit " + PREVIEW_LIMIT));
+        OperationsDashboardDataScopeService.AggregationScope aggregationScope =
+                dashboardDataScopeService.resolveAggregationScope(currentUser, snapshot, scopedUserIds);
         List<OperationsDashboardTopSkuResponse> topSkus = salesDeliveryLineMapper.selectTopSkusScoped(
                 audit.companyId(), audit.accountBookId(), today.minusDays(29), today, PREVIEW_LIMIT,
-                snapshot.hasAllScope() ? null : visibleCreatorIds(currentUser, snapshot, scopedUserIds),
-                snapshot.hasAllScope() ? null : snapshot.warehouseIds());
+                aggregationScope.visibleCreatorIds(), aggregationScope.warehouseIds());
 
         return new OperationsDashboardSnapshot(
                 generatedAt,
@@ -205,21 +227,4 @@ public class OperationsDashboardQueryService {
                 .in(OperationLogEntity::getResult, "FAILURE", "FAIL");
     }
 
-    private Set<Long> visibleCreatorIds(
-            CurrentUser currentUser,
-            DataScopeSnapshot snapshot,
-            ScopedUserResolver.ScopedUserIds scopedUserIds
-    ) {
-        Set<Long> ids = new LinkedHashSet<>();
-        if (snapshot.selfScoped()) {
-            ids.add(currentUser.userId());
-        }
-        if (snapshot.deptScoped()) {
-            ids.addAll(scopedUserIds.deptUserIds());
-        }
-        if (snapshot.postScoped()) {
-            ids.addAll(scopedUserIds.postUserIds());
-        }
-        return ids;
-    }
 }
