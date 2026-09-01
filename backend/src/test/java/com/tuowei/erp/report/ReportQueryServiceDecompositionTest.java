@@ -3,6 +3,7 @@ package com.tuowei.erp.report;
 import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
+import com.tuowei.erp.report.service.InventoryReportDataScopeService;
 import com.tuowei.erp.report.service.InventoryReportQueryService;
 import com.tuowei.erp.report.service.OrderReportDataScopeService;
 import com.tuowei.erp.report.service.OrderReportQueryService;
@@ -77,6 +78,23 @@ class ReportQueryServiceDecompositionTest {
                 .map(Constructor::getParameterCount))
                 .contains(6);
         assertThat(Arrays.stream(OrderReportDataScopeService.class.getDeclaredFields())
+                .map(Field::getType)
+                .map(Class::getName))
+                .noneMatch(type -> type.endsWith("Mapper"));
+    }
+
+    @Test
+    void inventoryReportQueryUsesDedicatedScopePolicyAndKeepsPreviousConstructor() {
+        assertThat(Arrays.stream(InventoryReportQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes())))
+                .contains(InventoryReportDataScopeService.class)
+                .doesNotContain(DataScopeService.class);
+        assertThat(Arrays.stream(InventoryReportQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> !constructor.isAnnotationPresent(Autowired.class))
+                .map(Constructor::getParameterCount))
+                .contains(5);
+        assertThat(Arrays.stream(InventoryReportDataScopeService.class.getDeclaredFields())
                 .map(Field::getType)
                 .map(Class::getName))
                 .noneMatch(type -> type.endsWith("Mapper"));
