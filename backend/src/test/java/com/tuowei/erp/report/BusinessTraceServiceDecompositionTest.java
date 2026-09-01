@@ -1,12 +1,16 @@
 package com.tuowei.erp.report;
 
 import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.report.service.BusinessTraceAssemblyService;
+import com.tuowei.erp.report.service.BusinessTraceDataScopeService;
 import com.tuowei.erp.report.service.BusinessTraceService;
 import com.tuowei.erp.report.web.BusinessTraceQuery;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -30,6 +34,23 @@ class BusinessTraceServiceDecompositionTest {
                 .noneMatch(type -> type.endsWith("Mapper"))
                 .noneMatch(type -> type.equals(CurrentUserContext.class.getName()))
                 .noneMatch(type -> type.equals(BusinessTraceService.class.getName()));
+    }
+
+    @Test
+    void springQueryUsesTraceScopePolicyAndKeepsPreviousConstructor() {
+        assertThat(Arrays.stream(BusinessTraceService.class.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes())))
+                .contains(BusinessTraceDataScopeService.class)
+                .doesNotContain(DataScopeService.class);
+        assertThat(Arrays.stream(BusinessTraceService.class.getDeclaredConstructors())
+                .filter(constructor -> !constructor.isAnnotationPresent(Autowired.class))
+                .map(Constructor::getParameterCount))
+                .contains(15);
+        assertThat(Arrays.stream(BusinessTraceDataScopeService.class.getDeclaredFields())
+                .map(Field::getType)
+                .map(Class::getName))
+                .noneMatch(type -> type.endsWith("Mapper"));
     }
 
     @Test
