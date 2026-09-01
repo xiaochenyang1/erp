@@ -26,29 +26,37 @@ import org.springframework.stereotype.Service;
 import java.util.Objects;
 import java.util.Set;
 
-import static com.tuowei.erp.common.security.DataScopePolicySupport.applyCreatedByAndWarehouseScope;
 import static com.tuowei.erp.common.security.DataScopePolicySupport.assertSameTenant;
-import static com.tuowei.erp.common.security.DataScopePolicySupport.canViewByCreatorOrWarehouse;
-import static com.tuowei.erp.common.security.DataScopePolicySupport.visibleCreatorIds;
 
 @Service
 public class DataScopeService {
 
     private final DataScopeSnapshotService snapshotService;
     private final InventoryDataScopeService inventoryDataScopeService;
+    private final SalesPurchaseDataScopeService salesPurchaseDataScopeService;
 
     @Autowired
     public DataScopeService(
             DataScopeSnapshotService snapshotService,
-            InventoryDataScopeService inventoryDataScopeService
+            InventoryDataScopeService inventoryDataScopeService,
+            SalesPurchaseDataScopeService salesPurchaseDataScopeService
     ) {
         this.snapshotService = snapshotService;
         this.inventoryDataScopeService = inventoryDataScopeService;
+        this.salesPurchaseDataScopeService = salesPurchaseDataScopeService;
+    }
+
+    /** Keeps direct construction introduced with the inventory policy split compatible. */
+    public DataScopeService(
+            DataScopeSnapshotService snapshotService,
+            InventoryDataScopeService inventoryDataScopeService
+    ) {
+        this(snapshotService, inventoryDataScopeService, new SalesPurchaseDataScopeService());
     }
 
     /** Keeps direct construction introduced with the snapshot split compatible. */
     public DataScopeService(DataScopeSnapshotService snapshotService) {
-        this(snapshotService, new InventoryDataScopeService());
+        this(snapshotService, new InventoryDataScopeService(), new SalesPurchaseDataScopeService());
     }
 
     /** Keeps direct construction in existing non-Spring tests and integrations compatible. */
@@ -77,17 +85,8 @@ public class DataScopeService {
             Set<Long> deptUserIds,
             Set<Long> postUserIds
     ) {
-        wrapper.eq(PurchaseOrderEntity::getCompanyId, currentUser.companyId())
-                .eq(PurchaseOrderEntity::getAccountBookId, currentUser.accountBookId());
-        if (snapshot.hasAllScope()) {
-            return wrapper;
-        }
-
-        Set<Long> visibleCreatorIds = visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds);
-        if (visibleCreatorIds.isEmpty()) {
-            return wrapper.apply("1 = 0");
-        }
-        return wrapper.in(PurchaseOrderEntity::getCreatedBy, visibleCreatorIds);
+        return salesPurchaseDataScopeService.applyPurchaseOrderScope(
+                wrapper, currentUser, snapshot, deptUserIds, postUserIds);
     }
 
     public void assertCanViewPurchaseOrder(
@@ -97,20 +96,8 @@ public class DataScopeService {
             Long creatorDeptId,
             Long creatorPostId
     ) {
-        assertSameTenant(entity.getCompanyId(), entity.getAccountBookId(), currentUser, "无权访问该采购订单");
-        if (snapshot.hasAllScope()) {
-            return;
-        }
-        if (snapshot.selfScoped() && Objects.equals(entity.getCreatedBy(), currentUser.userId())) {
-            return;
-        }
-        if (snapshot.deptScoped() && Objects.equals(creatorDeptId, currentUser.deptId())) {
-            return;
-        }
-        if (snapshot.postScoped() && Objects.equals(creatorPostId, currentUser.postId())) {
-            return;
-        }
-        throw new AccessDeniedException("无权访问该采购订单");
+        salesPurchaseDataScopeService.assertCanViewPurchaseOrder(
+                entity, currentUser, snapshot, creatorDeptId, creatorPostId);
     }
 
     public LambdaQueryWrapper<SalesOrderEntity> applySalesOrderScope(
@@ -120,17 +107,8 @@ public class DataScopeService {
             Set<Long> deptUserIds,
             Set<Long> postUserIds
     ) {
-        wrapper.eq(SalesOrderEntity::getCompanyId, currentUser.companyId())
-                .eq(SalesOrderEntity::getAccountBookId, currentUser.accountBookId());
-        if (snapshot.hasAllScope()) {
-            return wrapper;
-        }
-
-        Set<Long> visibleCreatorIds = visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds);
-        if (visibleCreatorIds.isEmpty()) {
-            return wrapper.apply("1 = 0");
-        }
-        return wrapper.in(SalesOrderEntity::getCreatedBy, visibleCreatorIds);
+        return salesPurchaseDataScopeService.applySalesOrderScope(
+                wrapper, currentUser, snapshot, deptUserIds, postUserIds);
     }
 
     public void assertCanViewSalesOrder(
@@ -140,20 +118,8 @@ public class DataScopeService {
             Long creatorDeptId,
             Long creatorPostId
     ) {
-        assertSameTenant(entity.getCompanyId(), entity.getAccountBookId(), currentUser, "无权访问该销售订单");
-        if (snapshot.hasAllScope()) {
-            return;
-        }
-        if (snapshot.selfScoped() && Objects.equals(entity.getCreatedBy(), currentUser.userId())) {
-            return;
-        }
-        if (snapshot.deptScoped() && Objects.equals(creatorDeptId, currentUser.deptId())) {
-            return;
-        }
-        if (snapshot.postScoped() && Objects.equals(creatorPostId, currentUser.postId())) {
-            return;
-        }
-        throw new AccessDeniedException("无权访问该销售订单");
+        salesPurchaseDataScopeService.assertCanViewSalesOrder(
+                entity, currentUser, snapshot, creatorDeptId, creatorPostId);
     }
 
     public LambdaQueryWrapper<SalesDeliveryEntity> applySalesDeliveryScope(
@@ -163,19 +129,8 @@ public class DataScopeService {
             Set<Long> deptUserIds,
             Set<Long> postUserIds
     ) {
-        wrapper.eq(SalesDeliveryEntity::getCompanyId, currentUser.companyId())
-                .eq(SalesDeliveryEntity::getAccountBookId, currentUser.accountBookId());
-        if (snapshot.hasAllScope()) {
-            return wrapper;
-        }
-        Set<Long> visibleCreatorIds = visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds);
-        return applyCreatedByAndWarehouseScope(
-                wrapper,
-                visibleCreatorIds,
-                snapshot.warehouseIds(),
-                SalesDeliveryEntity::getCreatedBy,
-                SalesDeliveryEntity::getWarehouseId
-        );
+        return salesPurchaseDataScopeService.applySalesDeliveryScope(
+                wrapper, currentUser, snapshot, deptUserIds, postUserIds);
     }
 
     public void assertCanViewSalesDelivery(
@@ -185,11 +140,8 @@ public class DataScopeService {
             Long creatorDeptId,
             Long creatorPostId
     ) {
-        assertSameTenant(entity.getCompanyId(), entity.getAccountBookId(), currentUser, "无权访问该销售出库单");
-        if (canViewByCreatorOrWarehouse(entity.getCreatedBy(), entity.getWarehouseId(), currentUser, snapshot, creatorDeptId, creatorPostId)) {
-            return;
-        }
-        throw new AccessDeniedException("无权访问该销售出库单");
+        salesPurchaseDataScopeService.assertCanViewSalesDelivery(
+                entity, currentUser, snapshot, creatorDeptId, creatorPostId);
     }
 
     public LambdaQueryWrapper<SalesReturnEntity> applySalesReturnScope(
@@ -199,19 +151,8 @@ public class DataScopeService {
             Set<Long> deptUserIds,
             Set<Long> postUserIds
     ) {
-        wrapper.eq(SalesReturnEntity::getCompanyId, currentUser.companyId())
-                .eq(SalesReturnEntity::getAccountBookId, currentUser.accountBookId());
-        if (snapshot.hasAllScope()) {
-            return wrapper;
-        }
-        Set<Long> visibleCreatorIds = visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds);
-        return applyCreatedByAndWarehouseScope(
-                wrapper,
-                visibleCreatorIds,
-                snapshot.warehouseIds(),
-                SalesReturnEntity::getCreatedBy,
-                SalesReturnEntity::getWarehouseId
-        );
+        return salesPurchaseDataScopeService.applySalesReturnScope(
+                wrapper, currentUser, snapshot, deptUserIds, postUserIds);
     }
 
     public void assertCanViewSalesReturn(
@@ -221,11 +162,8 @@ public class DataScopeService {
             Long creatorDeptId,
             Long creatorPostId
     ) {
-        assertSameTenant(entity.getCompanyId(), entity.getAccountBookId(), currentUser, "无权访问该销售退货单");
-        if (canViewByCreatorOrWarehouse(entity.getCreatedBy(), entity.getWarehouseId(), currentUser, snapshot, creatorDeptId, creatorPostId)) {
-            return;
-        }
-        throw new AccessDeniedException("无权访问该销售退货单");
+        salesPurchaseDataScopeService.assertCanViewSalesReturn(
+                entity, currentUser, snapshot, creatorDeptId, creatorPostId);
     }
 
     public LambdaQueryWrapper<PurchaseReceiptEntity> applyPurchaseReceiptScope(
@@ -235,19 +173,8 @@ public class DataScopeService {
             Set<Long> deptUserIds,
             Set<Long> postUserIds
     ) {
-        wrapper.eq(PurchaseReceiptEntity::getCompanyId, currentUser.companyId())
-                .eq(PurchaseReceiptEntity::getAccountBookId, currentUser.accountBookId());
-        if (snapshot.hasAllScope()) {
-            return wrapper;
-        }
-        Set<Long> visibleCreatorIds = visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds);
-        return applyCreatedByAndWarehouseScope(
-                wrapper,
-                visibleCreatorIds,
-                snapshot.warehouseIds(),
-                PurchaseReceiptEntity::getCreatedBy,
-                PurchaseReceiptEntity::getWarehouseId
-        );
+        return salesPurchaseDataScopeService.applyPurchaseReceiptScope(
+                wrapper, currentUser, snapshot, deptUserIds, postUserIds);
     }
 
     public void assertCanViewPurchaseReceipt(
@@ -257,11 +184,8 @@ public class DataScopeService {
             Long creatorDeptId,
             Long creatorPostId
     ) {
-        assertSameTenant(entity.getCompanyId(), entity.getAccountBookId(), currentUser, "无权访问该采购入库单");
-        if (canViewByCreatorOrWarehouse(entity.getCreatedBy(), entity.getWarehouseId(), currentUser, snapshot, creatorDeptId, creatorPostId)) {
-            return;
-        }
-        throw new AccessDeniedException("无权访问该采购入库单");
+        salesPurchaseDataScopeService.assertCanViewPurchaseReceipt(
+                entity, currentUser, snapshot, creatorDeptId, creatorPostId);
     }
 
     public LambdaQueryWrapper<PurchaseReturnEntity> applyPurchaseReturnScope(
@@ -271,19 +195,8 @@ public class DataScopeService {
             Set<Long> deptUserIds,
             Set<Long> postUserIds
     ) {
-        wrapper.eq(PurchaseReturnEntity::getCompanyId, currentUser.companyId())
-                .eq(PurchaseReturnEntity::getAccountBookId, currentUser.accountBookId());
-        if (snapshot.hasAllScope()) {
-            return wrapper;
-        }
-        Set<Long> visibleCreatorIds = visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds);
-        return applyCreatedByAndWarehouseScope(
-                wrapper,
-                visibleCreatorIds,
-                snapshot.warehouseIds(),
-                PurchaseReturnEntity::getCreatedBy,
-                PurchaseReturnEntity::getWarehouseId
-        );
+        return salesPurchaseDataScopeService.applyPurchaseReturnScope(
+                wrapper, currentUser, snapshot, deptUserIds, postUserIds);
     }
 
     public void assertCanViewPurchaseReturn(
@@ -293,11 +206,8 @@ public class DataScopeService {
             Long creatorDeptId,
             Long creatorPostId
     ) {
-        assertSameTenant(entity.getCompanyId(), entity.getAccountBookId(), currentUser, "无权访问该采购退货单");
-        if (canViewByCreatorOrWarehouse(entity.getCreatedBy(), entity.getWarehouseId(), currentUser, snapshot, creatorDeptId, creatorPostId)) {
-            return;
-        }
-        throw new AccessDeniedException("无权访问该采购退货单");
+        salesPurchaseDataScopeService.assertCanViewPurchaseReturn(
+                entity, currentUser, snapshot, creatorDeptId, creatorPostId);
     }
 
     public LambdaQueryWrapper<InventoryBalanceEntity> applyInventoryBalanceScope(

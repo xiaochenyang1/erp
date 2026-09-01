@@ -8,6 +8,12 @@ import com.tuowei.erp.inventory.stock.model.InventoryLotBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.inventory.transfer.model.InventoryTransferEntity;
+import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
+import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
+import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
+import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
+import com.tuowei.erp.sales.order.model.SalesOrderEntity;
+import com.tuowei.erp.sales.returnorder.model.SalesReturnEntity;
 import com.tuowei.erp.system.datascope.mapper.RoleDataScopeMapper;
 import com.tuowei.erp.system.datascope.mapper.UserDataScopeMapper;
 import com.tuowei.erp.system.role.mapper.RoleMapper;
@@ -28,11 +34,12 @@ import static org.mockito.Mockito.when;
 class DataScopeServiceDecompositionTest {
 
     @Test
-    void policyFacadeDependsOnSnapshotAndInventoryServicesWhileSnapshotServiceOwnsPersistence() {
+    void policyFacadeDependsOnDomainServicesWhileSnapshotServiceOwnsPersistence() {
         assertThat(autowiredConstructorDependencies(DataScopeService.class))
                 .containsExactlyInAnyOrder(
                         DataScopeSnapshotService.class,
-                        InventoryDataScopeService.class
+                        InventoryDataScopeService.class,
+                        SalesPurchaseDataScopeService.class
                 );
         assertThat(constructorDependencies(DataScopeSnapshotService.class))
                 .containsExactlyInAnyOrder(
@@ -43,17 +50,19 @@ class DataScopeServiceDecompositionTest {
                 )
                 .doesNotContain(DataScopeService.class);
         assertThat(constructorDependencies(InventoryDataScopeService.class)).isEmpty();
+        assertThat(constructorDependencies(SalesPurchaseDataScopeService.class)).isEmpty();
     }
 
     @Test
     void facadeDelegatesSnapshotConstruction() {
         DataScopeSnapshotService snapshotService = mock(DataScopeSnapshotService.class);
         InventoryDataScopeService inventoryDataScopeService = mock(InventoryDataScopeService.class);
+        SalesPurchaseDataScopeService salesPurchaseDataScopeService = mock(SalesPurchaseDataScopeService.class);
         DataScopeSnapshot expected = DataScopeSnapshot.all();
         when(snapshotService.buildSnapshot(7L, 11L, 13L)).thenReturn(expected);
 
         DataScopeSnapshot actual = new DataScopeService(
-                snapshotService, inventoryDataScopeService
+                snapshotService, inventoryDataScopeService, salesPurchaseDataScopeService
         ).buildSnapshot(7L, 11L, 13L);
 
         assertThat(actual).isSameAs(expected);
@@ -65,7 +74,8 @@ class DataScopeServiceDecompositionTest {
     void facadeDelegatesAllInventoryPolicyApis() {
         DataScopeSnapshotService snapshotService = mock(DataScopeSnapshotService.class);
         InventoryDataScopeService inventoryService = mock(InventoryDataScopeService.class);
-        DataScopeService facade = new DataScopeService(snapshotService, inventoryService);
+        SalesPurchaseDataScopeService salesPurchaseService = mock(SalesPurchaseDataScopeService.class);
+        DataScopeService facade = new DataScopeService(snapshotService, inventoryService, salesPurchaseService);
         CurrentUser currentUser = new CurrentUser(7L, 11L, 13L, 17L, 19L, "scope", "Scope");
         DataScopeSnapshot snapshot = DataScopeSnapshot.none();
         Set<Long> deptUserIds = Set.of(23L);
@@ -134,8 +144,106 @@ class DataScopeServiceDecompositionTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void facadeDelegatesAllSalesPurchasePolicyApis() {
+        DataScopeSnapshotService snapshotService = mock(DataScopeSnapshotService.class);
+        InventoryDataScopeService inventoryService = mock(InventoryDataScopeService.class);
+        SalesPurchaseDataScopeService salesPurchaseService = mock(SalesPurchaseDataScopeService.class);
+        DataScopeService facade = new DataScopeService(snapshotService, inventoryService, salesPurchaseService);
+        CurrentUser currentUser = new CurrentUser(7L, 11L, 13L, 17L, 19L, "scope", "Scope");
+        DataScopeSnapshot snapshot = DataScopeSnapshot.none();
+        Set<Long> deptUserIds = Set.of(23L);
+        Set<Long> postUserIds = Set.of(29L);
+
+        LambdaQueryWrapper<PurchaseOrderEntity> purchaseOrderWrapper = mock(LambdaQueryWrapper.class);
+        LambdaQueryWrapper<SalesOrderEntity> salesOrderWrapper = mock(LambdaQueryWrapper.class);
+        LambdaQueryWrapper<SalesDeliveryEntity> salesDeliveryWrapper = mock(LambdaQueryWrapper.class);
+        LambdaQueryWrapper<SalesReturnEntity> salesReturnWrapper = mock(LambdaQueryWrapper.class);
+        LambdaQueryWrapper<PurchaseReceiptEntity> purchaseReceiptWrapper = mock(LambdaQueryWrapper.class);
+        LambdaQueryWrapper<PurchaseReturnEntity> purchaseReturnWrapper = mock(LambdaQueryWrapper.class);
+        PurchaseOrderEntity purchaseOrder = mock(PurchaseOrderEntity.class);
+        SalesOrderEntity salesOrder = mock(SalesOrderEntity.class);
+        SalesDeliveryEntity salesDelivery = mock(SalesDeliveryEntity.class);
+        SalesReturnEntity salesReturn = mock(SalesReturnEntity.class);
+        PurchaseReceiptEntity purchaseReceipt = mock(PurchaseReceiptEntity.class);
+        PurchaseReturnEntity purchaseReturn = mock(PurchaseReturnEntity.class);
+        when(salesPurchaseService.applyPurchaseOrderScope(
+                purchaseOrderWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .thenReturn(purchaseOrderWrapper);
+        when(salesPurchaseService.applySalesOrderScope(
+                salesOrderWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .thenReturn(salesOrderWrapper);
+        when(salesPurchaseService.applySalesDeliveryScope(
+                salesDeliveryWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .thenReturn(salesDeliveryWrapper);
+        when(salesPurchaseService.applySalesReturnScope(
+                salesReturnWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .thenReturn(salesReturnWrapper);
+        when(salesPurchaseService.applyPurchaseReceiptScope(
+                purchaseReceiptWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .thenReturn(purchaseReceiptWrapper);
+        when(salesPurchaseService.applyPurchaseReturnScope(
+                purchaseReturnWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .thenReturn(purchaseReturnWrapper);
+
+        assertThat(facade.applyPurchaseOrderScope(
+                purchaseOrderWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .isSameAs(purchaseOrderWrapper);
+        facade.assertCanViewPurchaseOrder(purchaseOrder, currentUser, snapshot, 31L, 37L);
+        assertThat(facade.applySalesOrderScope(
+                salesOrderWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .isSameAs(salesOrderWrapper);
+        facade.assertCanViewSalesOrder(salesOrder, currentUser, snapshot, 31L, 37L);
+        assertThat(facade.applySalesDeliveryScope(
+                salesDeliveryWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .isSameAs(salesDeliveryWrapper);
+        facade.assertCanViewSalesDelivery(salesDelivery, currentUser, snapshot, 31L, 37L);
+        assertThat(facade.applySalesReturnScope(
+                salesReturnWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .isSameAs(salesReturnWrapper);
+        facade.assertCanViewSalesReturn(salesReturn, currentUser, snapshot, 31L, 37L);
+        assertThat(facade.applyPurchaseReceiptScope(
+                purchaseReceiptWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .isSameAs(purchaseReceiptWrapper);
+        facade.assertCanViewPurchaseReceipt(purchaseReceipt, currentUser, snapshot, 31L, 37L);
+        assertThat(facade.applyPurchaseReturnScope(
+                purchaseReturnWrapper, currentUser, snapshot, deptUserIds, postUserIds))
+                .isSameAs(purchaseReturnWrapper);
+        facade.assertCanViewPurchaseReturn(purchaseReturn, currentUser, snapshot, 31L, 37L);
+
+        verify(salesPurchaseService).applyPurchaseOrderScope(
+                purchaseOrderWrapper, currentUser, snapshot, deptUserIds, postUserIds);
+        verify(salesPurchaseService).assertCanViewPurchaseOrder(
+                purchaseOrder, currentUser, snapshot, 31L, 37L);
+        verify(salesPurchaseService).applySalesOrderScope(
+                salesOrderWrapper, currentUser, snapshot, deptUserIds, postUserIds);
+        verify(salesPurchaseService).assertCanViewSalesOrder(
+                salesOrder, currentUser, snapshot, 31L, 37L);
+        verify(salesPurchaseService).applySalesDeliveryScope(
+                salesDeliveryWrapper, currentUser, snapshot, deptUserIds, postUserIds);
+        verify(salesPurchaseService).assertCanViewSalesDelivery(
+                salesDelivery, currentUser, snapshot, 31L, 37L);
+        verify(salesPurchaseService).applySalesReturnScope(
+                salesReturnWrapper, currentUser, snapshot, deptUserIds, postUserIds);
+        verify(salesPurchaseService).assertCanViewSalesReturn(
+                salesReturn, currentUser, snapshot, 31L, 37L);
+        verify(salesPurchaseService).applyPurchaseReceiptScope(
+                purchaseReceiptWrapper, currentUser, snapshot, deptUserIds, postUserIds);
+        verify(salesPurchaseService).assertCanViewPurchaseReceipt(
+                purchaseReceipt, currentUser, snapshot, 31L, 37L);
+        verify(salesPurchaseService).applyPurchaseReturnScope(
+                purchaseReturnWrapper, currentUser, snapshot, deptUserIds, postUserIds);
+        verify(salesPurchaseService).assertCanViewPurchaseReturn(
+                purchaseReturn, currentUser, snapshot, 31L, 37L);
+    }
+
+    @Test
     void compatibilityConstructorsRemainAvailable() throws NoSuchMethodException {
         assertThat(DataScopeService.class.getDeclaredConstructor(DataScopeSnapshotService.class)).isNotNull();
+        assertThat(DataScopeService.class.getDeclaredConstructor(
+                DataScopeSnapshotService.class,
+                InventoryDataScopeService.class
+        )).isNotNull();
         assertThat(DataScopeService.class.getDeclaredConstructor(
                 UserRoleMapper.class,
                 RoleMapper.class,
