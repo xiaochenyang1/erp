@@ -1,12 +1,12 @@
 # 项目当前完成度与缺口盘点
 
-**更新时间**：2026-08-28（预算/合同 smoke 收尾后）
+**更新时间**：2026-09-02（库存/主数据收口及完整发布构建后）
 
 **范围**：本仓库 `backend` + `frontend`
 
-**分支**：`refactor/e1-workflow-split`
+**分支**：`refactor/e1-inventory-reservation-query-assembly-split`
 
-**当前 HEAD**：以 `git rev-parse --short HEAD` 为准；相对远端同名分支的领先数以 `git rev-list --count origin/refactor/e1-workflow-split..HEAD` 为准。
+**当前 HEAD**：`cd5558f`（`refactor: close inventory and masterdata WIP`）；当前分支已推送并跟踪同名远端分支。
 
 ## 结论
 
@@ -15,7 +15,7 @@ ERP 主干业务和本轮新增功能已形成可追溯提交，功能实现阶�
 当前状态是：
 
 - **功能验证通过**；
-- **本轮可编码收尾已实现并验证，当前工作区含待提交变更**；
+- **本轮可编码收尾已实现、提交并推送，当前工作区干净**；
 - **不是正式 RC，也不能创建 release tag**；
 - **财务、质检、运维和真实预生产人工门禁仍未完成**。
 
@@ -49,7 +49,7 @@ ERP 主干业务和本轮新增功能已形成可追溯提交，功能实现阶�
 - 合同列表纯销售/纯采购往来方映射修复，合同预警调度改为显式发现租户作用域并逐账套建立系统身份；
 - 预算、合同 API smoke 接入本地扩展回归，统一 UI smoke 增加预算、合同和新报表路由。
 
-## 2026-08-28 自动化验证
+## 2026-09-02 自动化验证
 
 ### 后端
 
@@ -57,16 +57,17 @@ ERP 主干业务和本轮新增功能已形成可追溯提交，功能实现阶�
 
 ```bash
 cd backend
-./scripts/test-local.sh test
+./scripts/test-local.sh -Ptestcontainers -Derp.testcontainers.enabled=true clean package
 ```
 
 结果：
 
-- 2124 项测试；
+- 2224 项测试；
 - 0 failures；
 - 0 errors；
-- 2 skipped；
-- 一次性 MySQL 8.4 环境验证通过。
+- 3 skipped；
+- 一次性 MySQL 8.4 环境验证通过；
+- 生成 `target/erp-server-1.0.0.jar`、`target/bom.json` 和嵌入式 SBOM。
 
 另在本轮专用 MySQL 8.4 联调库启动本地后端后执行：
 
@@ -90,7 +91,7 @@ npm run build
 结果：
 
 - TypeScript 类型检查通过；
-- 219 个测试文件、950 个测试全部通过；
+- 224 个测试文件、1007 个测试全部通过；
 - OpenAPI/前后端契约检查通过；
 - ESLint 通过；
 - 生产构建通过。
@@ -103,25 +104,20 @@ git diff --check
 
 结果通过，没有空白错误。`test-new-pages.sh` 已改为仓库相对路径的 12 页静态注册检查，12/12 通过；PowerShell 7.5 容器解析 `local-extension-regression.ps1` 通过。
 
-以上结果覆盖当前工作区，但这些变更尚未提交，也未重新生成独立发布证据包。`backend/target` 下的本地 smoke 报告会被 Maven `clean` 删除，只能作为开发联调证据，不能代替正式发布归档。
+以上结果覆盖当前候选提交 `cd5558f`，提交已推送且工作树干净。`backend/target` 下的构建产物仅是本地验证结果；正式发布仍需将证据复制到独立归档目录，不能只依赖会被 Maven `clean` 删除的目录。
 
 ## 提交状态
 
 最近已提交的收口包括：
+
+- `cd5558f refactor: close inventory and masterdata WIP`：库存预占 Query/Assembly 拆分、客户/供应商商品关系前端与回归测试、附件策略认证契约及前端类型兼容修复。
 
 - `94f490c feat: harden data scope operations`：业务追踪数据范围、双账号 API smoke、运营验收矩阵和设计说明；
 - `ecd3e34 test: cover period close tenant and evidence guards`：月结检查跨账套拒绝、快照回归及测试清理。
 - `900b090 fix: mark production cost report constructor for injection`：修复报表服务 Spring 构造器注入，恢复完整上下文测试；
 - `b9d4839`、`d8340b2`、`6dd6476`：同步提交状态、readiness 证据回填说明和最终验证结果。
 
-当前工作区包含本轮预算/合同国际化、API/UI smoke、合同运行时修复及文档更新，尚未提交。提交领先数请使用上述命令实时确认。
-
-## 建议提交序列
-
-1. `fix: close contract runtime and localization gaps`
-   - 合同列表/导出、预警调度租户身份、合同与预算页面国际化及回归测试。
-2. `test: add budget and contract smoke coverage`
-   - 合同 API smoke、本地扩展回归接线、UI 路由、可移植页面检查脚本和状态文档。
+当前候选提交已完成推送；后续只需完成独立证据归档及人工/环境门禁，不再把本地未提交变更作为当前状态。
 
 ## 正式发布仍缺什么
 
