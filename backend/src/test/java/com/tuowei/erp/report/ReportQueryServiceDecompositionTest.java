@@ -1,8 +1,12 @@
 package com.tuowei.erp.report;
 
+import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
+import com.tuowei.erp.report.service.FinanceSettlementReportDataScopeService;
+import com.tuowei.erp.report.service.InventoryReportDataScopeService;
 import com.tuowei.erp.report.service.InventoryReportQueryService;
+import com.tuowei.erp.report.service.OrderReportDataScopeService;
 import com.tuowei.erp.report.service.OrderReportQueryService;
 import com.tuowei.erp.report.service.FinanceSettlementReportQueryService;
 import com.tuowei.erp.report.service.ReportQueryService;
@@ -12,8 +16,11 @@ import com.tuowei.erp.report.web.InventoryBalanceReportQuery;
 import com.tuowei.erp.report.web.InventoryTransactionReportQuery;
 import com.tuowei.erp.report.web.FinanceSettlementReportQuery;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Set;
@@ -58,6 +65,57 @@ class ReportQueryServiceDecompositionTest {
                         com.tuowei.erp.common.security.ScopedUserResolver.class
                 )
                 .doesNotContain(ReportQueryService.class);
+    }
+
+    @Test
+    void orderReportQueryUsesDedicatedScopePolicyAndKeepsPreviousConstructor() {
+        assertThat(Arrays.stream(OrderReportQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes())))
+                .contains(OrderReportDataScopeService.class)
+                .doesNotContain(DataScopeService.class);
+        assertThat(Arrays.stream(OrderReportQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> !constructor.isAnnotationPresent(Autowired.class))
+                .map(Constructor::getParameterCount))
+                .contains(6);
+        assertThat(Arrays.stream(OrderReportDataScopeService.class.getDeclaredFields())
+                .map(Field::getType)
+                .map(Class::getName))
+                .noneMatch(type -> type.endsWith("Mapper"));
+    }
+
+    @Test
+    void inventoryReportQueryUsesDedicatedScopePolicyAndKeepsPreviousConstructor() {
+        assertThat(Arrays.stream(InventoryReportQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes())))
+                .contains(InventoryReportDataScopeService.class)
+                .doesNotContain(DataScopeService.class);
+        assertThat(Arrays.stream(InventoryReportQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> !constructor.isAnnotationPresent(Autowired.class))
+                .map(Constructor::getParameterCount))
+                .contains(5);
+        assertThat(Arrays.stream(InventoryReportDataScopeService.class.getDeclaredFields())
+                .map(Field::getType)
+                .map(Class::getName))
+                .noneMatch(type -> type.endsWith("Mapper"));
+    }
+
+    @Test
+    void financeSettlementReportQueryUsesDedicatedScopePolicyAndKeepsPreviousConstructor() {
+        assertThat(Arrays.stream(FinanceSettlementReportQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes())))
+                .contains(FinanceSettlementReportDataScopeService.class)
+                .doesNotContain(com.tuowei.erp.finance.settlement.service.FinanceSettlementScopeSupport.class);
+        assertThat(Arrays.stream(FinanceSettlementReportQueryService.class.getDeclaredConstructors())
+                .filter(constructor -> !constructor.isAnnotationPresent(Autowired.class))
+                .map(Constructor::getParameterCount))
+                .contains(5);
+        assertThat(Arrays.stream(FinanceSettlementReportDataScopeService.class.getDeclaredFields())
+                .map(Field::getType)
+                .map(Class::getName))
+                .noneMatch(type -> type.endsWith("Mapper"));
     }
 
     @Test

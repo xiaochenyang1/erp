@@ -21,7 +21,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -74,7 +73,7 @@ public class ProductionOrderQueryService {
                 currentUser.companyId(),
                 currentUser.accountBookId()
         );
-        wrapper = applyProductionOrderScope(
+        wrapper = dataScopeService.applyProductionOrderScope(
                 wrapper,
                 currentUser,
                 snapshot,
@@ -190,54 +189,6 @@ public class ProductionOrderQueryService {
             wrapper.le(ProductionOrderEntity::getPlannedStartDate, query.getPlannedStartDateTo());
         }
         return wrapper.orderByDesc(ProductionOrderEntity::getId);
-    }
-
-    private LambdaQueryWrapper<ProductionOrderEntity> applyProductionOrderScope(
-            LambdaQueryWrapper<ProductionOrderEntity> wrapper,
-            CurrentUser currentUser,
-            DataScopeSnapshot snapshot,
-            Set<Long> deptUserIds,
-            Set<Long> postUserIds
-    ) {
-        if (snapshot.hasAllScope()) {
-            return wrapper;
-        }
-        Set<Long> visibleCreatorIds = visibleCreatorIds(currentUser, snapshot, deptUserIds, postUserIds);
-        Set<Long> warehouseIds = snapshot.warehouseIds();
-        if (visibleCreatorIds.isEmpty() && warehouseIds.isEmpty()) {
-            return wrapper.apply("1 = 0");
-        }
-        if (visibleCreatorIds.isEmpty()) {
-            return wrapper.in(ProductionOrderEntity::getMaterialWarehouseId, warehouseIds)
-                    .in(ProductionOrderEntity::getFinishedWarehouseId, warehouseIds);
-        }
-        if (warehouseIds.isEmpty()) {
-            return wrapper.in(ProductionOrderEntity::getCreatedBy, visibleCreatorIds);
-        }
-        return wrapper.and(query -> query
-                .in(ProductionOrderEntity::getCreatedBy, visibleCreatorIds)
-                .or(scope -> scope
-                        .in(ProductionOrderEntity::getMaterialWarehouseId, warehouseIds)
-                        .in(ProductionOrderEntity::getFinishedWarehouseId, warehouseIds)));
-    }
-
-    private Set<Long> visibleCreatorIds(
-            CurrentUser currentUser,
-            DataScopeSnapshot snapshot,
-            Set<Long> deptUserIds,
-            Set<Long> postUserIds
-    ) {
-        Set<Long> visibleCreatorIds = new LinkedHashSet<>();
-        if (snapshot.selfScoped()) {
-            visibleCreatorIds.add(currentUser.userId());
-        }
-        if (snapshot.deptScoped()) {
-            visibleCreatorIds.addAll(deptUserIds);
-        }
-        if (snapshot.postScoped()) {
-            visibleCreatorIds.addAll(postUserIds);
-        }
-        return visibleCreatorIds;
     }
 
     private String normalizeNullableText(String value) {

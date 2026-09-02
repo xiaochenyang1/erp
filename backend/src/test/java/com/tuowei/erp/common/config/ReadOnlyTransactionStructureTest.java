@@ -3,6 +3,7 @@ package com.tuowei.erp.common.config;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertQueryService;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.attachment.service.AttachmentQueryService;
 import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
 import com.tuowei.erp.system.auth.service.UserSessionService;
 import com.tuowei.erp.system.auth.web.UserSessionPageQuery;
@@ -80,6 +81,8 @@ class ReadOnlyTransactionStructureTest {
     void attachmentQueriesUseReadOnlyTransactions() throws NoSuchMethodException {
         assertReadOnly(AttachmentService.class, "list", AttachmentPageQuery.class);
         assertReadOnly(AttachmentService.class, "download", Long.class);
+        assertReadOnly(AttachmentQueryService.class, "list", AttachmentPageQuery.class);
+        assertReadOnly(AttachmentQueryService.class, "download", Long.class);
     }
 
     @Test

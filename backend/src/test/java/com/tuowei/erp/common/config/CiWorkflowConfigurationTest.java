@@ -21,7 +21,7 @@ class CiWorkflowConfigurationTest {
         assertThat(content)
                 .contains("pull_request:")
                 .contains("push:")
-                .contains("actions/checkout@v4")
+                .contains("actions/checkout@v7")
                 .contains("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}")
                 .contains("detect-backend-changes:")
                 .contains("name: Detect Backend Changes")
@@ -34,7 +34,7 @@ class CiWorkflowConfigurationTest {
                 .contains("git cat-file -e")
                 .contains("git diff --name-only \"$base_sha\" \"$TARGET_SHA\"")
                 .contains("backend/*|.github/workflows/pr-verify.yml")
-                .contains("actions/setup-java@v4")
+                .contains("actions/setup-java@v6")
                 .contains("distribution: temurin")
                 .contains("java-version: '17'")
                 .contains("cache: maven")
@@ -46,7 +46,7 @@ class CiWorkflowConfigurationTest {
                 .contains("./scripts/release-check.ps1 -IncludeTestcontainers")
                 .contains("name: Verify release check report")
                 .contains("./scripts/verify-release-check-report.ps1 -ReportDirectory target")
-                .contains("actions/upload-artifact@v4")
+                .contains("actions/upload-artifact@v7")
                 .contains("if: always()")
                 .contains("backend/target/erp-server-1.0.0.jar")
                 .contains("backend/target/classes/META-INF/sbom/application.cdx.json")
@@ -57,11 +57,14 @@ class CiWorkflowConfigurationTest {
                 .contains("if-no-files-found: warn");
         assertThat(content)
                 .doesNotContain("verify-release-check-report.ps1 -ReportDirectory target -AllowFailed")
-                .doesNotContain("Report skipped backend verification");
+                .doesNotContain("Report skipped backend verification")
+                .doesNotContain("actions/checkout@v4")
+                .doesNotContain("actions/setup-java@v4")
+                .doesNotContain("actions/upload-artifact@v4");
 
         int releaseCheckStep = content.indexOf("./scripts/release-check.ps1 -IncludeTestcontainers");
         int verifyReportStep = content.indexOf("./scripts/verify-release-check-report.ps1 -ReportDirectory target");
-        int uploadArtifactStep = content.indexOf("actions/upload-artifact@v4");
+        int uploadArtifactStep = content.indexOf("actions/upload-artifact@v7");
 
         assertThat(releaseCheckStep).isLessThan(verifyReportStep);
         assertThat(verifyReportStep).isLessThan(uploadArtifactStep);
@@ -77,7 +80,7 @@ class CiWorkflowConfigurationTest {
         assertThat(content)
                 .contains("pull_request:")
                 .contains("push:")
-                .contains("actions/checkout@v4")
+                .contains("actions/checkout@v7")
                 .contains("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}")
                 .contains("detect-frontend-changes:")
                 .contains("name: Detect Frontend Changes")
@@ -90,7 +93,7 @@ class CiWorkflowConfigurationTest {
                 .contains("git cat-file -e")
                 .contains("git diff --name-only \"$base_sha\" \"$TARGET_SHA\"")
                 .contains("frontend/*|.github/workflows/frontend-verify.yml")
-                .contains("actions/setup-node@v4")
+                .contains("actions/setup-node@v7")
                 .contains("node-version-file: frontend/.nvmrc")
                 .contains("cache-dependency-path: frontend/package-lock.json")
                 .contains("working-directory: frontend")
@@ -100,7 +103,9 @@ class CiWorkflowConfigurationTest {
                 .contains("npm test")
                 .contains("npm run check:contracts")
                 .contains("npm run build")
-                .contains("npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org");
+                .contains("npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org")
+                .doesNotContain("actions/checkout@v4")
+                .doesNotContain("actions/setup-node@v4");
         assertThat(Path.of(".github", "workflows", "pr-verify.yml")).doesNotExist();
         assertThat(Path.of("..", "frontend", ".github", "workflows", "frontend-verify.yml")).doesNotExist();
     }

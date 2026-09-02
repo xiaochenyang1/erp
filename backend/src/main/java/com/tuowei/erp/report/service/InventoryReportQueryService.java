@@ -18,6 +18,7 @@ import com.tuowei.erp.report.web.InventoryBalanceReportQuery;
 import com.tuowei.erp.report.web.InventoryBalanceReportResponse;
 import com.tuowei.erp.report.web.InventoryTransactionReportQuery;
 import com.tuowei.erp.report.web.InventoryTransactionReportResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -35,9 +36,25 @@ public class InventoryReportQueryService {
     private final InventoryBalanceMapper inventoryBalanceMapper;
     private final InventoryTransactionMapper inventoryTransactionMapper;
     private final CurrentUserContext currentUserContext;
-    private final DataScopeService dataScopeService;
+    private final InventoryReportDataScopeService inventoryReportDataScopeService;
     private final ReportProperties reportProperties;
 
+    @Autowired
+    public InventoryReportQueryService(
+            InventoryBalanceMapper inventoryBalanceMapper,
+            InventoryTransactionMapper inventoryTransactionMapper,
+            CurrentUserContext currentUserContext,
+            InventoryReportDataScopeService inventoryReportDataScopeService,
+            ReportProperties reportProperties
+    ) {
+        this.inventoryBalanceMapper = inventoryBalanceMapper;
+        this.inventoryTransactionMapper = inventoryTransactionMapper;
+        this.currentUserContext = currentUserContext;
+        this.inventoryReportDataScopeService = inventoryReportDataScopeService;
+        this.reportProperties = reportProperties;
+    }
+
+    /** Backward-compatible constructor for isolated report tests and integrations. */
     public InventoryReportQueryService(
             InventoryBalanceMapper inventoryBalanceMapper,
             InventoryTransactionMapper inventoryTransactionMapper,
@@ -45,11 +62,8 @@ public class InventoryReportQueryService {
             DataScopeService dataScopeService,
             ReportProperties reportProperties
     ) {
-        this.inventoryBalanceMapper = inventoryBalanceMapper;
-        this.inventoryTransactionMapper = inventoryTransactionMapper;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.reportProperties = reportProperties;
+        this(inventoryBalanceMapper, inventoryTransactionMapper, currentUserContext,
+                new InventoryReportDataScopeService(dataScopeService), reportProperties);
     }
 
     @Transactional(readOnly = true)
@@ -154,7 +168,7 @@ public class InventoryReportQueryService {
                     .orderByAsc(InventoryBalanceEntity::getProductId)
                     .orderByDesc(InventoryBalanceEntity::getId);
         }
-        return dataScopeService.applyInventoryBalanceScope(wrapper, currentSnapshot());
+        return inventoryReportDataScopeService.applyInventoryBalanceScope(wrapper, currentSnapshot());
     }
 
     private LambdaQueryWrapper<InventoryTransactionEntity> inventoryTransactionWrapper(
@@ -193,7 +207,7 @@ public class InventoryReportQueryService {
             wrapper.orderByDesc(InventoryTransactionEntity::getOccurredTime)
                     .orderByDesc(InventoryTransactionEntity::getId);
         }
-        return dataScopeService.applyInventoryTransactionScope(wrapper, currentSnapshot());
+        return inventoryReportDataScopeService.applyInventoryTransactionScope(wrapper, currentSnapshot());
     }
 
     private DataScopeSnapshot currentSnapshot() {

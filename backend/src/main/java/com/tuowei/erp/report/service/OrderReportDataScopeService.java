@@ -1,0 +1,50 @@
+package com.tuowei.erp.report.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ScopedUserResolver;
+import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
+import com.tuowei.erp.sales.order.model.SalesOrderEntity;
+import org.springframework.stereotype.Service;
+
+@Service
+public class OrderReportDataScopeService {
+
+    private final DataScopeService dataScopeService;
+
+    public OrderReportDataScopeService(DataScopeService dataScopeService) {
+        this.dataScopeService = dataScopeService;
+    }
+
+    public LambdaQueryWrapper<PurchaseOrderEntity> applyPurchaseOrderScope(
+            LambdaQueryWrapper<PurchaseOrderEntity> wrapper,
+            CurrentUser currentUser,
+            DataScopeSnapshot snapshot,
+            ScopedUserResolver.ScopedUserIds scopedUserIds
+    ) {
+        return dataScopeService.applyPurchaseOrderScope(
+                wrapper,
+                currentUser,
+                snapshot,
+                scopedUserIds.deptUserIds(),
+                scopedUserIds.postUserIds()
+        );
+    }
+
+    public LambdaQueryWrapper<SalesOrderEntity> applySalesOrderScope(
+            LambdaQueryWrapper<SalesOrderEntity> wrapper,
+            CurrentUser currentUser,
+            DataScopeSnapshot snapshot,
+            ScopedUserResolver.ScopedUserIds scopedUserIds
+    ) {
+        return dataScopeService.applySalesOrderScope(
+                wrapper,
+                currentUser,
+                snapshot,
+                scopedUserIds.deptUserIds(),
+                scopedUserIds.postUserIds()
+        );
+    }
+}
