@@ -116,7 +116,7 @@ Docker 构建阶段使用仓库内 Maven Wrapper，并依赖 `.gitattributes` �
 
 业务健康摘要也会输出 Prometheus Gauge：`erp_business_health_overall_status` 表示整体状态，`erp_business_health_check_count` 按 `check` 标签输出 readiness、导入、库存和期间检查数量，`erp_business_health_check_status` 输出每个检查项状态。预生产验收要确认 `/actuator/prometheus` 响应包含 `erp_business_health_overall_status` 和 `erp_business_health_check_count`。
 
-仓库提供最小告警规则模板 `docs/monitoring/prometheus-alert-rules.yml`，覆盖 P0/P1 readiness 未通过、最近导入失败、负库存、无开放会计期间和整体业务健康 WARN。该文件是基础模板，不负责部署 Prometheus、Alertmanager 或通知渠道；生产环境加载后还要按平台规范补充接收人和路由。
+仓库提供最小告警规则模板 `docs/monitoring/prometheus-alert-rules.yml`，以及 `monitoring/prometheus.yml` 和 `monitoring/alertmanager.yml` 部署模板。Prometheus 通过认证抓取 `/actuator/prometheus`，Alertmanager 对 critical 告警单独路由。生产环境必须通过 secret/overlay 替换指标凭证、TLS、目标地址和真实通知接收人，模板不包含生产密钥或通知地址。
 
 建议按下面顺序记录预生产启动证据：
 
