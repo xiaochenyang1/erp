@@ -3,6 +3,7 @@ package com.tuowei.erp.system.attachment;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
+import com.tuowei.erp.system.attachment.web.AttachmentPolicyResponse;
 import com.tuowei.erp.system.attachment.web.AttachmentResponse;
 import com.tuowei.erp.testsupport.WithErpUser;
 import org.junit.jupiter.api.Test;
@@ -115,6 +116,27 @@ class AttachmentControllerSecurityContractTest {
         assertThat(query.getBusinessType()).isEqualTo("SALES_ORDER");
         assertThat(query.getBusinessId()).isEqualTo(910001L);
         assertThat(query.getBusinessNo()).isEqualTo("SO-ATT-001");
+    }
+
+    @Test
+    @WithErpUser
+    void policyRequiresAuthenticationOnly() throws Exception {
+        when(attachmentService.policy()).thenReturn(new AttachmentPolicyResponse(
+                20L * 1024 * 1024,
+                1,
+                List.of("EXPENSE"),
+                List.of("EXPENSE", "SALES_ORDER")
+        ));
+
+        mockMvc.perform(get("/api/system/attachments/policy"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("0"))
+                .andExpect(jsonPath("$.data.maxFileSizeBytes").value(20L * 1024 * 1024))
+                .andExpect(jsonPath("$.data.minRequiredCount").value(1))
+                .andExpect(jsonPath("$.data.requiredBusinessTypes[0]").value("EXPENSE"))
+                .andExpect(jsonPath("$.data.gatedBusinessTypes[1]").value("SALES_ORDER"));
+
+        verify(attachmentService).policy();
     }
 
     @Test

@@ -139,10 +139,12 @@ public class SupplierProductRelationService {
     }
 
     private SupplierProductRelationResponse response(SupplierProductRelationEntity entity, AuditMetadata metadata) {
+        // 商品可能在关系建立之后被停用或软删除，此时仍要返回关系本身，商品编码/名称留空由前端提示。
         ProductEntity product = findActiveProduct(entity.getProductId(), metadata);
         return new SupplierProductRelationResponse(
                 entity.getId(), entity.getSupplierId(), entity.getProductId(),
-                product.getProductCode(), product.getProductName(),
+                product == null ? null : product.getProductCode(),
+                product == null ? null : product.getProductName(),
                 entity.getSupplierProductCode(), entity.getSupplierProductName(),
                 entity.getMinPurchaseQty(), entity.getLeadTimeDays(),
                 Integer.valueOf(1).equals(entity.getDefaultSupplierFlag()),

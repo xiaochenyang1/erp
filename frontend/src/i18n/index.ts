@@ -5,6 +5,7 @@ import { operationsPageMessages } from './operations-pages'
 import { platformPageMessages } from './platform-pages'
 import { salesCommercialPageMessages } from './sales-commercial-pages'
 import { contractPageMessages } from './contract-pages'
+import { documentAttachmentMessages } from './document-attachment'
 
 export const SUPPORTED_LOCALES = ['zh-CN', 'en-US'] as const
 export type SupportedLocale = typeof SUPPORTED_LOCALES[number]
@@ -450,7 +451,8 @@ const messages = {
     ...adminWorkflowPageMessages['zh-CN'],
     ...platformPageMessages['zh-CN'],
     ...salesCommercialPageMessages['zh-CN'],
-    ...contractPageMessages['zh-CN']
+    ...contractPageMessages['zh-CN'],
+    ...documentAttachmentMessages['zh-CN']
   },
   'en-US': {
     ...coreMessages['en-US'],
@@ -459,7 +461,8 @@ const messages = {
     ...adminWorkflowPageMessages['en-US'],
     ...platformPageMessages['en-US'],
     ...salesCommercialPageMessages['en-US'],
-    ...contractPageMessages['en-US']
+    ...contractPageMessages['en-US'],
+    ...documentAttachmentMessages['en-US']
   }
 } as const
 

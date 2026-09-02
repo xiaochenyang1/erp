@@ -2,7 +2,6 @@ package com.tuowei.erp.inventory.stock.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.CurrentUser;
 import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.security.DataScopeService;
@@ -15,27 +14,20 @@ import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEventEntity;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationDetailResponse;
-import com.tuowei.erp.inventory.stock.web.InventoryReservationEventResponse;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationPageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationResponse;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationSourceQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationSourceResponse;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationSummaryQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationSummaryResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 public class InventoryReservationQueryService {
@@ -45,7 +37,26 @@ public class InventoryReservationQueryService {
     private final InventoryBalanceMapper balanceMapper;
     private final CurrentUserContext currentUserContext;
     private final DataScopeService dataScopeService;
+    private final InventoryReservationAssemblyService assemblyService;
 
+    @Autowired
+    public InventoryReservationQueryService(
+            InventoryReservationMapper reservationMapper,
+            InventoryReservationEventMapper reservationEventMapper,
+            InventoryBalanceMapper balanceMapper,
+            CurrentUserContext currentUserContext,
+            DataScopeService dataScopeService,
+            InventoryReservationAssemblyService assemblyService
+    ) {
+        this.reservationMapper = reservationMapper;
+        this.reservationEventMapper = reservationEventMapper;
+        this.balanceMapper = balanceMapper;
+        this.currentUserContext = currentUserContext;
+        this.dataScopeService = dataScopeService;
+        this.assemblyService = assemblyService;
+    }
+
+    /** Keeps direct construction in existing non-Spring tests and integrations compatible. */
     public InventoryReservationQueryService(
             InventoryReservationMapper reservationMapper,
             InventoryReservationEventMapper reservationEventMapper,
@@ -53,11 +64,14 @@ public class InventoryReservationQueryService {
             CurrentUserContext currentUserContext,
             DataScopeService dataScopeService
     ) {
-        this.reservationMapper = reservationMapper;
-        this.reservationEventMapper = reservationEventMapper;
-        this.balanceMapper = balanceMapper;
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
+        this(
+                reservationMapper,
+                reservationEventMapper,
+                balanceMapper,
+                currentUserContext,
+                dataScopeService,
+                new InventoryReservationAssemblyService()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -76,13 +90,14 @@ public class InventoryReservationQueryService {
                 result.getCurrent(),
                 result.getSize(),
                 result.getTotal(),
-                result.getRecords().stream().map(this::toReservationResponse).toList()
+                result.getRecords().stream().map(assemblyService::toReservationResponse).toList()
         );
     }
 
     @Transactional(readOnly = true)
     public InventoryReservationDetailResponse getReservation(Long id) {
-        return toDetailResponse(requireVisibleReservation(id));
+        InventoryReservationEntity reservation = requireVisibleReservation(id);
+        return assemblyService.toDetailResponse(reservation, loadEvents(reservation));
     }
 
     @Transactional(readOnly = true)
@@ -94,45 +109,13 @@ public class InventoryReservationQueryService {
                         currentSnapshot()
                 )
         );
-        Map<BalanceKey, InventoryBalanceEntity> balances = balanceMapper.selectList(
-                        dataScopeService.applyInventoryBalanceScope(
-                                buildBalanceQuery(safeQuery.getWarehouseId(), safeQuery.getProductId()),
-                                currentSnapshot()
-                        ))
-                .stream()
-                .collect(Collectors.toMap(
-                        balance -> new BalanceKey(balance.getWarehouseId(), balance.getProductId()),
-                        Function.identity(),
-                        (left, right) -> left,
-                        LinkedHashMap::new
-                ));
-
-        Map<SummaryKey, SummaryAccumulator> summaries = new LinkedHashMap<>();
-        for (InventoryReservationEntity reservation : reservations) {
-            SummaryKey key = new SummaryKey(
-                    reservation.getWarehouseId(),
-                    reservation.getProductId(),
-                    normalizeUpper(reservation.getSourceType()),
-                    normalizeUpper(reservation.getStatus())
-            );
-            summaries.computeIfAbsent(key, SummaryAccumulator::new).add(reservation);
-        }
-
-        return summaries.values().stream()
-                .map(accumulator -> accumulator.toResponse(
-                        balances.get(new BalanceKey(accumulator.key.warehouseId(), accumulator.key.productId()))
-                ))
-                .sorted(Comparator.comparing(InventoryReservationSummaryResponse::warehouseId)
-                        .thenComparing(InventoryReservationSummaryResponse::productId)
-                        .thenComparing(
-                                InventoryReservationSummaryResponse::sourceType,
-                                Comparator.nullsLast(String::compareTo)
-                        )
-                        .thenComparing(
-                                InventoryReservationSummaryResponse::status,
-                                Comparator.nullsLast(String::compareTo)
-                        ))
-                .toList();
+        List<InventoryBalanceEntity> balances = balanceMapper.selectList(
+                dataScopeService.applyInventoryBalanceScope(
+                        buildBalanceQuery(safeQuery.getWarehouseId(), safeQuery.getProductId()),
+                        currentSnapshot()
+                )
+        );
+        return assemblyService.summarize(reservations, balances);
     }
 
     @Transactional(readOnly = true)
@@ -165,18 +148,12 @@ public class InventoryReservationQueryService {
         String responseSourceType = reservations.isEmpty() ? sourceType : reservations.get(0).getSourceType();
         Long responseSourceId = reservations.isEmpty() ? safeQuery.getSourceId() : reservations.get(0).getSourceId();
         String responseSourceNo = reservations.isEmpty() ? sourceNo : reservations.get(0).getSourceNo();
-        Map<Long, List<InventoryReservationEventResponse>> eventsByReservationId =
-                loadEventsByReservationId(reservations);
-        return new InventoryReservationSourceResponse(
+        return assemblyService.toSourceResponse(
                 responseSourceType,
                 responseSourceId,
                 responseSourceNo,
-                reservations.stream()
-                        .map(reservation -> toDetailResponse(
-                                reservation,
-                                eventsByReservationId.getOrDefault(reservation.getId(), List.of())
-                        ))
-                        .toList()
+                reservations,
+                loadEvents(reservations)
         );
     }
 
@@ -270,37 +247,20 @@ public class InventoryReservationQueryService {
         return reservation;
     }
 
-    private InventoryReservationDetailResponse toDetailResponse(InventoryReservationEntity reservation) {
-        return new InventoryReservationDetailResponse(
-                toReservationResponse(reservation),
-                loadEvents(reservation)
-        );
-    }
-
-    private InventoryReservationDetailResponse toDetailResponse(
-            InventoryReservationEntity reservation,
-            List<InventoryReservationEventResponse> events
-    ) {
-        return new InventoryReservationDetailResponse(toReservationResponse(reservation), events);
-    }
-
-    private List<InventoryReservationEventResponse> loadEvents(InventoryReservationEntity reservation) {
+    private List<InventoryReservationEventEntity> loadEvents(InventoryReservationEntity reservation) {
         return reservationEventMapper.selectList(new LambdaQueryWrapper<InventoryReservationEventEntity>()
                         .eq(InventoryReservationEventEntity::getCompanyId, reservation.getCompanyId())
                         .eq(InventoryReservationEventEntity::getAccountBookId, reservation.getAccountBookId())
                         .eq(InventoryReservationEventEntity::getReservationId, reservation.getId())
                         .orderByAsc(InventoryReservationEventEntity::getCreatedTime)
-                        .orderByAsc(InventoryReservationEventEntity::getId))
-                .stream()
-                .map(this::toEventResponse)
-                .toList();
+                        .orderByAsc(InventoryReservationEventEntity::getId));
     }
 
-    private Map<Long, List<InventoryReservationEventResponse>> loadEventsByReservationId(
+    private List<InventoryReservationEventEntity> loadEvents(
             List<InventoryReservationEntity> reservations
     ) {
         if (reservations.isEmpty()) {
-            return Collections.emptyMap();
+            return List.of();
         }
         InventoryReservationEntity first = reservations.get(0);
         List<Long> reservationIds = reservations.stream().map(InventoryReservationEntity::getId).toList();
@@ -309,43 +269,7 @@ public class InventoryReservationQueryService {
                         .eq(InventoryReservationEventEntity::getAccountBookId, first.getAccountBookId())
                         .in(InventoryReservationEventEntity::getReservationId, reservationIds)
                         .orderByAsc(InventoryReservationEventEntity::getCreatedTime)
-                        .orderByAsc(InventoryReservationEventEntity::getId))
-                .stream()
-                .map(this::toEventResponse)
-                .collect(Collectors.groupingBy(InventoryReservationEventResponse::reservationId));
-    }
-
-    private InventoryReservationResponse toReservationResponse(InventoryReservationEntity reservation) {
-        return new InventoryReservationResponse(
-                reservation.getId(),
-                reservation.getWarehouseId(),
-                reservation.getProductId(),
-                reservation.getSourceType(),
-                reservation.getSourceId(),
-                reservation.getSourceNo(),
-                reservation.getSourceLineId(),
-                quantity(reservation.getReservedQty()),
-                quantity(reservation.getReleasedQty()),
-                quantity(reservation.getRemainingQty()),
-                reservation.getStatus(),
-                reservation.getRemark(),
-                reservation.getCreatedTime(),
-                reservation.getUpdatedTime()
-        );
-    }
-
-    private InventoryReservationEventResponse toEventResponse(InventoryReservationEventEntity event) {
-        return new InventoryReservationEventResponse(
-                event.getId(),
-                event.getReservationId(),
-                event.getEventType(),
-                quantity(event.getEventQty()),
-                quantity(event.getRemainingQtyBefore()),
-                quantity(event.getRemainingQtyAfter()),
-                event.getReason(),
-                event.getCreatedBy(),
-                event.getCreatedTime()
-        );
+                        .orderByAsc(InventoryReservationEventEntity::getId));
     }
 
     private CurrentUser currentUser() {
@@ -373,52 +297,4 @@ public class InventoryReservationQueryService {
         return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
-    private BigDecimal quantity(BigDecimal value) {
-        return ScalePrecision.quantity(ScalePrecision.zeroDefault(value));
-    }
-
-    private record BalanceKey(Long warehouseId, Long productId) {
-    }
-
-    private record SummaryKey(Long warehouseId, Long productId, String sourceType, String status) {
-    }
-
-    private class SummaryAccumulator {
-
-        private final SummaryKey key;
-        private BigDecimal reservedQty = quantity(BigDecimal.ZERO);
-        private BigDecimal releasedQty = quantity(BigDecimal.ZERO);
-        private BigDecimal remainingQty = quantity(BigDecimal.ZERO);
-        private long count;
-
-        private SummaryAccumulator(SummaryKey key) {
-            this.key = key;
-        }
-
-        private void add(InventoryReservationEntity reservation) {
-            reservedQty = quantity(reservedQty.add(quantity(reservation.getReservedQty())));
-            releasedQty = quantity(releasedQty.add(quantity(reservation.getReleasedQty())));
-            remainingQty = quantity(remainingQty.add(quantity(reservation.getRemainingQty())));
-            count++;
-        }
-
-        private InventoryReservationSummaryResponse toResponse(InventoryBalanceEntity balance) {
-            BigDecimal qtyOnHand = balance == null ? quantity(BigDecimal.ZERO) : quantity(balance.getQtyOnHand());
-            BigDecimal qtyReserved = balance == null ? quantity(BigDecimal.ZERO) : quantity(balance.getQtyReserved());
-            BigDecimal qtyAvailable = quantity(qtyOnHand.subtract(qtyReserved));
-            return new InventoryReservationSummaryResponse(
-                    key.warehouseId(),
-                    key.productId(),
-                    key.sourceType(),
-                    key.status(),
-                    reservedQty,
-                    releasedQty,
-                    remainingQty,
-                    qtyOnHand,
-                    qtyReserved,
-                    qtyAvailable,
-                    count
-            );
-        }
-    }
 }

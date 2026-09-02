@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { contractPageMessages } from './contract-pages'
 
 const componentPath = 'src/views/commercial/contracts/index.vue'
+const composablePath = 'src/composables/useContractVersions.ts'
 
 const leafPaths = (source: unknown, prefix = ''): string[] => {
   if (!source || typeof source !== 'object') return [prefix]
@@ -26,7 +27,9 @@ describe('contract page localization', () => {
   })
 
   it('defines every component-referenced key in both locales', () => {
-    const source = readFileSync(resolve(process.cwd(), componentPath), 'utf8')
+    const source = [componentPath, composablePath]
+      .map((path) => readFileSync(resolve(process.cwd(), path), 'utf8'))
+      .join('\n')
     const keys = new Set([...source.matchAll(/contractPage(?:\.[A-Za-z0-9_]+)+/g)]
       .filter((match) => !source.slice((match.index || 0) + match[0].length).startsWith('.${'))
       .map((match) => match[0]))

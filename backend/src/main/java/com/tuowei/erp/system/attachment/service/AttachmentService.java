@@ -9,6 +9,7 @@ import com.tuowei.erp.common.web.SafeFilename;
 import com.tuowei.erp.system.attachment.mapper.AttachmentMapper;
 import com.tuowei.erp.system.attachment.model.AttachmentEntity;
 import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
+import com.tuowei.erp.system.attachment.web.AttachmentPolicyResponse;
 import com.tuowei.erp.system.attachment.web.AttachmentResponse;
 import com.tuowei.erp.system.timeline.service.BusinessTimelineService;
 import org.springframework.core.io.Resource;
@@ -115,6 +116,25 @@ public class AttachmentService {
     public PageResponse<AttachmentResponse> list(AttachmentPageQuery query) {
         AttachmentPageQuery safeQuery = query == null ? new AttachmentPageQuery() : query;
         return queryService.list(safeQuery);
+    }
+
+    /**
+     * 附件闸门策略，纯配置读取，不落库也不需要事务。
+     *
+     * requiredBusinessTypes 只回未被 {@link AttachmentBusinessType#GATED} 排除的类型：
+     * 配置里出现未挂闸门的类型时 {@code AttachmentRequiredTypeValidator} 已在启动期拒绝，
+     * 这里再过一次是为了保证响应绝不承诺一个并不存在的闸门。
+     */
+    public AttachmentPolicyResponse policy() {
+        return new AttachmentPolicyResponse(
+                attachmentProperties.maxFileSizeBytes(),
+                attachmentProperties.requiredMinCount(),
+                attachmentProperties.requiredBusinessTypeSet().stream()
+                        .filter(AttachmentBusinessType::isGated)
+                        .sorted()
+                        .toList(),
+                AttachmentBusinessType.GATED.stream().sorted().toList()
+        );
     }
 
     @Transactional(readOnly = true)

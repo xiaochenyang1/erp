@@ -5,6 +5,7 @@ import com.tuowei.erp.common.web.ApiResponse;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
+import com.tuowei.erp.system.attachment.web.AttachmentPolicyResponse;
 import com.tuowei.erp.system.attachment.web.AttachmentResponse;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
@@ -44,6 +45,17 @@ public class AttachmentController {
     @GetMapping
     public ApiResponse<PageResponse<AttachmentResponse>> list(AttachmentPageQuery query) {
         return ApiResponse.success(attachmentService.list(query));
+    }
+
+    /**
+     * 附件闸门策略。只读配置、无业务数据，因此只要求登录：
+     * 页内附件面板要靠它判断当前单据是否「必传」以及体积上限，
+     * 没有 system:attachment:view 的用户同样需要看到被拦原因。
+     */
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/policy")
+    public ApiResponse<AttachmentPolicyResponse> policy() {
+        return ApiResponse.success(attachmentService.policy());
     }
 
     @PreAuthorize(PermissionCodes.HAS_SYSTEM_ATTACHMENT_VIEW)
