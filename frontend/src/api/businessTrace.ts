@@ -9,6 +9,7 @@ export interface BusinessTraceDocument {
   documentType: string
   documentLabel: string
   documentId: string
+  documentNo?: string
   bizNo: string
   title?: string
   status?: string

@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Customer } from '@/api/masterdata'
@@ -12,13 +12,40 @@ const texts = computed(() => ({
   confirmEnable: 'Enable {name}?',
   delete: 'Delete',
   enable: 'Enable',
+  confirm: 'OK',
+  cancel: 'Cancel',
   deleteSuccess: 'deleted',
   deleteFailed: 'delete failed',
   enableSuccess: 'enabled',
   enableFailed: 'enable failed',
   exportSuccess: 'exported',
   exportFailed: 'export failed',
-  exportFilename: 'customers'
+  exportFilename: 'customers',
+  selectedExportFilename: 'customers-{count}',
+  batchEnable: 'Batch enable',
+  batchDisable: 'Batch disable',
+  exportSelected: 'Export selected',
+  batchEnableTitle: 'Batch enable',
+  batchDisableTitle: 'Batch disable',
+  batchEnableConfirm: 'Enable {count}?',
+  batchDisableConfirm: 'Disable {count}?',
+  batchEnableSuccess: 'enabled {count}',
+  batchDisableSuccess: 'disabled {count}',
+  batchEnablePartial: 'enabled {success}, failed {failedCount}: {failed}',
+  batchDisablePartial: 'disabled {success}, failed {failedCount}: {failed}',
+  customerCode: 'Code',
+  customerName: 'Name',
+  customerType: 'Type',
+  company: 'Company',
+  individual: 'Individual',
+  contact: 'Contact',
+  phone: 'Phone',
+  email: 'Email',
+  creditLimit: 'Credit limit',
+  creditPeriod: 'Credit period',
+  status: 'Status',
+  active: 'Active',
+  inactive: 'Inactive'
 }))
 
 describe('customer list', () => {
@@ -58,8 +85,12 @@ describe('customer list', () => {
       confirm: vi.fn(async () => true),
       cancelLabel: () => 'Cancel',
       interpolate: (template, params) => template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? '')),
+      joinNames: (items: string[]) => items.join(', '),
+      formatCurrency: (value?: number | string | null) => String(value ?? ''),
+      locale: ref('en-US'),
       onSuccess: vi.fn(),
       onError: vi.fn(),
+      onWarning: vi.fn(),
       ...overrides
     })
 
@@ -117,5 +148,21 @@ describe('customer list', () => {
     await list.handleExport()
     expect(exportCustomers).toHaveBeenCalled()
     expect(onSuccess).toHaveBeenCalledWith('exported')
+  })
+
+  it('runs batch enable and export-selected actions', async () => {
+    const enableCustomer = vi.fn(async () => ({}))
+    const onSuccess = vi.fn()
+    const list = createList({ enableCustomer, onSuccess })
+
+    list.selectedRows.value = [
+      { id: '1', name: 'Acme', code: 'C001' } as Customer,
+      { id: '2', name: 'Globex', code: 'C002' } as Customer
+    ]
+
+    await list.handleBatchEnable()
+    expect(enableCustomer).toHaveBeenCalledWith('1')
+    expect(enableCustomer).toHaveBeenCalledWith('2')
+    expect(onSuccess).toHaveBeenCalledWith('enabled 2')
   })
 })

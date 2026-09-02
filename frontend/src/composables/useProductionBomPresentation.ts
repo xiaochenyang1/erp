@@ -4,7 +4,7 @@ import type { BOMItem } from '@/api/production'
 import type { Product } from '@/api/masterdata'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
-type TagType = 'success' | 'warning' | 'info' | 'danger' | 'primary' | ''
+type TagType = 'success' | 'warning' | 'info' | 'danger' | 'primary'
 
 const STATUS_KEYS: Record<string, string> = {
   ACTIVE: 'productionBom.status.active',
@@ -66,7 +66,7 @@ export const useProductionBomPresentation = (
   }
 
   const getStatusType = (status?: string): TagType =>
-    (status && STATUS_TAG_TYPES[status]) || ''
+    (status && STATUS_TAG_TYPES[status]) || 'info'
 
   return {
     getStatusLabel,

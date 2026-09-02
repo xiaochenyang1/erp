@@ -6,7 +6,8 @@
 
 从 `.env.prod.example` 复制出 `.env.prod` 后替换所有 `CHANGE_ME` 值：
 
-- `MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`：MySQL root 和应用账号密码。
+- `MYSQL_ROOT_PASSWORD`：MySQL root 密码。
+- `MYSQL_PASSWORD`、`ERP_DATASOURCE_PASSWORD`：MySQL 应用账号密码；使用仓库 Compose 创建数据库时两者必须保持一致。
 - `ERP_REDIS_PASSWORD`：Redis 密码。
 - `ERP_REDIS_TIMEOUT`：后端访问 Redis 的连接/命令超时时间，默认 `5s`。
 - `ERP_JWT_SECRET`：生产 JWT 签名密钥，至少 48 字节，不要使用可猜测短语。
@@ -35,7 +36,7 @@
 .\scripts\new-prod-env.ps1 -CorsAllowedOrigins https://erp.example.com
 ```
 
-脚本会拒绝覆盖已有 `.env.prod`，除非显式加 `-Force`。生成后的文件仍然不能提交到 Git。
+脚本会为 `MYSQL_PASSWORD` 和 `ERP_DATASOURCE_PASSWORD` 写入同一个随机应用数据库密码，并拒绝覆盖已有 `.env.prod`，除非显式加 `-Force`。生成后的文件仍然不能提交到 Git。
 
 ## 本地构建
 

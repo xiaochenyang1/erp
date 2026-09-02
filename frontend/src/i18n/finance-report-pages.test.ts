@@ -14,6 +14,7 @@ const componentPaths = [
   'src/views/finance/periods/index.vue',
   'src/views/finance/funds/index.vue',
   'src/views/finance/expenses/index.vue',
+  'src/views/finance/budgets/index.vue',
   'src/views/finance/payments/index.vue',
   'src/views/finance/vouchers/manual/index.vue',
   'src/views/reports/index.vue',
@@ -44,6 +45,7 @@ describe('finance and report page localization', () => {
     for (const path of componentPaths) {
       const source = readFileSync(resolve(process.cwd(), path), 'utf8')
       for (const match of source.matchAll(/financeReportPages(?:\.[A-Za-z0-9_]+)+/g)) {
+        if (source.slice((match.index || 0) + match[0].length).startsWith('.${')) continue
         keys.add(match[0])
       }
     }
@@ -67,6 +69,7 @@ describe('finance and report page localization', () => {
     expect(readNestedValue(english, 'financeReportPages.periods.status.locked')).toBe('Locked')
     expect(readNestedValue(english, 'financeReportPages.funds.message.unmatchTitle')).toBe('Unmatch')
     expect(readNestedValue(english, 'financeReportPages.expenses.status.posted')).toBe('Posted')
+    expect(readNestedValue(english, 'financeReportPages.budgets.message.executionLoadFailed')).toBe('Failed to load budget execution')
     expect(readNestedValue(english, 'financeReportPages.payments.validation.allocationRequired')).toBe('Enter at least one allocation amount')
     expect(readNestedValue(english, 'financeReportPages.manualVouchers.message.posted')).toBe('Voucher posted')
     expect(readNestedValue(english, 'financeReportPages.reports.fileName')).toBe('{report}-{timestamp}.csv')

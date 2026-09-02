@@ -106,6 +106,28 @@ class FinanceAgingServiceTest {
         assertThat(summary.overdueReceivables().get(0).bucketCode()).isEqualTo("D90_PLUS");
     }
 
+    @Test
+    void doesNotHydrateCounterpartyNameFromAnotherAccountBook() {
+        LocalDate asOf = LocalDate.of(2026, 7, 17);
+        when(auditMetadataFactory.current()).thenReturn(new AuditMetadata(
+                COMPANY_ID, BOOK_ID, 9L, LocalDateTime.now()));
+        when(receivableMapper.selectList(any())).thenReturn(List.of(
+                ar(10L, 11L, asOf.minusDays(5), "100.00", "0.00")
+        ));
+        when(payableMapper.selectList(any())).thenReturn(List.of());
+        CustomerEntity foreign = new CustomerEntity();
+        foreign.setId(11L);
+        foreign.setCompanyId(COMPANY_ID);
+        foreign.setAccountBookId(999L);
+        foreign.setCustomerName("其他账套客户");
+        when(customerMapper.selectBatchIds(any())).thenReturn(List.of(foreign));
+
+        FinanceAgingSummaryResponse summary = service().summary(asOf);
+
+        assertThat(summary.overdueReceivables()).isNotEmpty();
+        assertThat(summary.overdueReceivables().get(0).partnerName()).isNull();
+    }
+
     private ReceivableEntity ar(Long id, Long customerId, LocalDate bizDate, String original, String settled) {
         ReceivableEntity entity = new ReceivableEntity();
         entity.setId(id);

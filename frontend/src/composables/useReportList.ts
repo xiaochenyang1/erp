@@ -4,7 +4,9 @@ import type {
   FinanceSettlementReportRow,
   InventoryBalanceReportRow,
   InventoryTransactionReportRow,
+  InventoryValuationReportRow,
   OrderReportRow,
+  ProductionCostReportRow,
   ReportQuery
 } from '@/api/workflow'
 import type { PageResponse } from '@/types/common'
@@ -50,6 +52,14 @@ export const buildReportParams = (
   } else if (key === 'financeSettlement') {
     params.bizDateFrom = dateRange?.[0]
     params.bizDateTo = dateRange?.[1]
+  } else if (key === 'inventoryValuation') {
+    params.keyword = normalizedKeyword || undefined
+    params.periodStart = dateRange?.[0]
+    params.asOfDate = dateRange?.[1]
+  } else if (key === 'productionCost') {
+    params.keyword = normalizedKeyword || undefined
+    params.plannedStartDateFrom = dateRange?.[0]
+    params.plannedStartDateTo = dateRange?.[1]
   }
   return params
 }
@@ -62,11 +72,15 @@ export const useReportList = (
     getInventoryBalanceReport: (params: ReportQuery) => Promise<PageResponse<InventoryBalanceReportRow>>
     getInventoryTransactionReport: (params: ReportQuery) => Promise<PageResponse<InventoryTransactionReportRow>>
     getFinanceSettlementReport: (params: ReportQuery) => Promise<PageResponse<FinanceSettlementReportRow>>
+    getInventoryValuationReport: (params: ReportQuery) => Promise<PageResponse<InventoryValuationReportRow>>
+    getProductionCostReport: (params: ReportQuery) => Promise<PageResponse<ProductionCostReportRow>>
     exportPurchaseOrderReport: ExportReport
     exportSalesOrderReport: ExportReport
     exportInventoryBalanceReport: ExportReport
     exportInventoryTransactionReport: ExportReport
     exportFinanceSettlementReport: ExportReport
+    exportInventoryValuationReport: ExportReport
+    exportProductionCostReport: ExportReport
     downloadBlob: (blob: Blob, fileName: string) => void
     now?: () => number
     onError?: Notify
@@ -86,14 +100,18 @@ export const useReportList = (
     sales: options.getSalesOrderReport,
     inventoryBalance: options.getInventoryBalanceReport,
     inventoryTransaction: options.getInventoryTransactionReport,
-    financeSettlement: options.getFinanceSettlementReport
+    financeSettlement: options.getFinanceSettlementReport,
+    inventoryValuation: options.getInventoryValuationReport,
+    productionCost: options.getProductionCostReport
   }
   const exporters: Record<ReportKey, ExportReport> = {
     purchase: options.exportPurchaseOrderReport,
     sales: options.exportSalesOrderReport,
     inventoryBalance: options.exportInventoryBalanceReport,
     inventoryTransaction: options.exportInventoryTransactionReport,
-    financeSettlement: options.exportFinanceSettlementReport
+    financeSettlement: options.exportFinanceSettlementReport,
+    inventoryValuation: options.exportInventoryValuationReport,
+    productionCost: options.exportProductionCostReport
   }
 
   const buildParams = (key = activeKey.value, state = reportStates[key]) =>

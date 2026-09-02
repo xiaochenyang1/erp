@@ -32,6 +32,7 @@ class InventoryPostingMysqlIntegrationTest extends MysqlSpringBootIntegrationTes
     private static final long ACCOUNT_BOOK_ID = 1L;
     private static final long USER_ID = 1L;
     private static final long WAREHOUSE_ID = 897101L;
+    private static final long LOCATION_ID = WAREHOUSE_ID + 500000000000000000L;
     private static final long LOT_PRODUCT_ID = 897201L;
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 5, 25, 10, 0);
 
@@ -44,6 +45,7 @@ class InventoryPostingMysqlIntegrationTest extends MysqlSpringBootIntegrationTes
     @BeforeEach
     void setup() {
         cleanup();
+        seedDefaultLocation();
         seedLotProduct();
     }
 
@@ -56,7 +58,19 @@ class InventoryPostingMysqlIntegrationTest extends MysqlSpringBootIntegrationTes
                 """, LOT_PRODUCT_ID);
         jdbcTemplate.update("delete from inv_lot_balance where product_id = ?", LOT_PRODUCT_ID);
         jdbcTemplate.update("delete from inv_balance where product_id = ?", LOT_PRODUCT_ID);
+        jdbcTemplate.update("delete from md_location where id = ? or warehouse_id = ?", LOCATION_ID, WAREHOUSE_ID);
         jdbcTemplate.update("delete from md_product where id = ?", LOT_PRODUCT_ID);
+    }
+
+    private void seedDefaultLocation() {
+        jdbcTemplate.update("""
+                insert into md_location
+                (id, company_id, account_book_id, warehouse_id, location_code, location_name,
+                 is_default, status, deleted_flag, remark, created_by, created_time, updated_by, updated_time, version)
+                values (?, ?, ?, ?, 'MAIN', 'Default Location', 1, 'ACTIVE', 0,
+                        'mysql lot posting test default location', ?, ?, ?, ?, 0)
+                """, LOCATION_ID, COMPANY_ID, ACCOUNT_BOOK_ID, WAREHOUSE_ID,
+                USER_ID, NOW, USER_ID, NOW);
     }
 
     @Test

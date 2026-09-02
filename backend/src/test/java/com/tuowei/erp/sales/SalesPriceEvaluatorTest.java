@@ -11,6 +11,8 @@ import com.tuowei.erp.sales.order.web.SalesOrderLineRequest;
 import com.tuowei.erp.sales.price.mapper.SalesPriceMapper;
 import com.tuowei.erp.sales.price.model.SalesPriceEntity;
 import com.tuowei.erp.sales.price.service.SalesPriceService;
+import com.tuowei.erp.sales.price.service.SalesPriceCommandService;
+import com.tuowei.erp.sales.price.service.SalesPriceQueryService;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -145,12 +147,22 @@ class SalesPriceEvaluatorTest {
     }
 
     private SalesPriceService priceService() {
-        return new SalesPriceService(
+        SalesPriceQueryService queryService = new SalesPriceQueryService(
                 salesPriceMapper,
                 productMapper,
                 customerMapper,
                 productValidator,
                 auditMetadataFactory
+        );
+        return new SalesPriceService(
+                queryService,
+                new SalesPriceCommandService(
+                        salesPriceMapper,
+                        customerMapper,
+                        productValidator,
+                        auditMetadataFactory,
+                        queryService
+                )
         );
     }
 

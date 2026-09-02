@@ -1,7 +1,5 @@
 package com.tuowei.erp.system.attachment.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.config.AttachmentProperties;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.security.AuditMetadata;
@@ -11,18 +9,13 @@ import com.tuowei.erp.common.web.SafeFilename;
 import com.tuowei.erp.system.attachment.mapper.AttachmentMapper;
 import com.tuowei.erp.system.attachment.model.AttachmentEntity;
 import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
+import com.tuowei.erp.system.attachment.web.AttachmentPolicyResponse;
 import com.tuowei.erp.system.attachment.web.AttachmentResponse;
 import com.tuowei.erp.system.timeline.service.BusinessTimelineService;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.InvalidMediaTypeException;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -51,25 +44,28 @@ public class AttachmentService {
     private final AttachmentProperties attachmentProperties;
     private final BusinessTimelineService timelineService;
     private final Clock clock;
+    private final AttachmentQueryService queryService;
 
     public AttachmentService(
             AttachmentMapper attachmentMapper,
             AuditMetadataFactory auditMetadataFactory,
             AttachmentProperties attachmentProperties,
             BusinessTimelineService timelineService,
-            Clock clock
+            Clock clock,
+            AttachmentQueryService queryService
     ) {
         this.attachmentMapper = attachmentMapper;
         this.auditMetadataFactory = auditMetadataFactory;
         this.attachmentProperties = attachmentProperties;
         this.timelineService = timelineService;
         this.clock = clock;
+        this.queryService = queryService;
     }
 
     @Transactional
     public AttachmentResponse upload(String businessType, Long businessId, String businessNo, MultipartFile file) {
         AuditMetadata audit = auditMetadataFactory.current();
-        String normalizedBusinessType = normalizeRequired(businessType, "业务类型不能为空").toUpperCase(Locale.ROOT);
+        String normalizedBusinessType = queryService.normalizeRequired(businessType, "业务类型不能为空").toUpperCase(Locale.ROOT);
         if (businessId == null) {
             throw new IllegalArgumentException("业务ID不能为空");
         }
@@ -80,9 +76,9 @@ public class AttachmentService {
             throw new IllegalArgumentException("附件大小超过限制");
         }
 
-        String originalFilename = normalizeFilename(file.getOriginalFilename());
+        String originalFilename = queryService.normalizeFilename(file.getOriginalFilename());
         String relativePath = buildRelativePath(audit, originalFilename);
-        Path target = resolveStoragePath(relativePath);
+        Path target = queryService.resolveStoragePath(relativePath);
 
         try {
             StoredFile storedFile = writeFile(target, file);
@@ -92,10 +88,10 @@ public class AttachmentService {
             entity.setAccountBookId(audit.accountBookId());
             entity.setBusinessType(normalizedBusinessType);
             entity.setBusinessId(businessId);
-            entity.setBusinessNo(normalizeNullable(businessNo));
+            entity.setBusinessNo(queryService.normalizeNullable(businessNo));
             entity.setOriginalFilename(originalFilename);
             entity.setStoragePath(relativePath);
-            entity.setContentType(resolveContentType(file));
+            entity.setContentType(queryService.resolveContentType(file.getContentType()));
             entity.setFileSize(storedFile.fileSize());
             entity.setChecksumSha256(storedFile.checksumSha256());
             entity.setStatus(STATUS_ACTIVE);
@@ -109,7 +105,7 @@ public class AttachmentService {
                 throw new IllegalStateException("保存附件记录失败");
             }
             timelineService.recordAttachmentUploaded(entity, audit);
-            return toResponse(entity);
+            return queryService.toResponse(entity);
         } catch (RuntimeException ex) {
             deleteFileQuietly(target);
             throw ex;
@@ -118,36 +114,60 @@ public class AttachmentService {
 
     @Transactional(readOnly = true)
     public PageResponse<AttachmentResponse> list(AttachmentPageQuery query) {
-        AuditMetadata audit = auditMetadataFactory.current();
         AttachmentPageQuery safeQuery = query == null ? new AttachmentPageQuery() : query;
-        Page<AttachmentEntity> page = new Page<>(normalizePageNo(safeQuery.getPageNo()), normalizePageSize(safeQuery.getPageSize()));
-        Page<AttachmentEntity> result = attachmentMapper.selectPage(page, buildQuery(audit, safeQuery));
-        return new PageResponse<>(
-                result.getCurrent(),
-                result.getSize(),
-                result.getTotal(),
-                result.getRecords().stream().map(this::toResponse).toList()
+        return queryService.list(safeQuery);
+    }
+
+    /**
+     * 附件闸门策略，纯配置读取，不落库也不需要事务。
+     *
+     * requiredBusinessTypes 只回未被 {@link AttachmentBusinessType#GATED} 排除的类型：
+     * 配置里出现未挂闸门的类型时 {@code AttachmentRequiredTypeValidator} 已在启动期拒绝，
+     * 这里再过一次是为了保证响应绝不承诺一个并不存在的闸门。
+     */
+    public AttachmentPolicyResponse policy() {
+        return new AttachmentPolicyResponse(
+                attachmentProperties.maxFileSizeBytes(),
+                attachmentProperties.requiredMinCount(),
+                attachmentProperties.requiredBusinessTypeSet().stream()
+                        .filter(AttachmentBusinessType::isGated)
+                        .sorted()
+                        .toList(),
+                AttachmentBusinessType.GATED.stream().sorted().toList()
         );
     }
 
     @Transactional(readOnly = true)
     public ResponseEntity<Resource> download(Long id) {
-        AttachmentEntity entity = requireActive(id);
-        Path path = resolveStoragePath(entity.getStoragePath());
-        long fileSize = requireFileSize(path);
-        String downloadFilename = normalizeFilename(entity.getOriginalFilename());
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(resolveContentType(entity.getContentType())))
-                .contentLength(fileSize)
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment().filename(downloadFilename, java.nio.charset.StandardCharsets.UTF_8).build().toString())
-                .body(new FileSystemResource(path));
+        return queryService.download(id);
+    }
+
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> downloadForBusiness(Long id, String businessType, Long businessId) {
+        return queryService.downloadForBusiness(id, businessType, businessId);
+    }
+
+    @Transactional(readOnly = true)
+    public void requireForBusiness(Long id, String businessType, Long businessId) {
+        queryService.requireForBusiness(id, businessType, businessId);
     }
 
     @Transactional
     public void delete(Long id) {
         AuditMetadata audit = auditMetadataFactory.current();
-        AttachmentEntity entity = requireActive(id);
+        AttachmentEntity entity = queryService.requireActive(id);
+        delete(entity, audit);
+    }
+
+    @Transactional
+    public void deleteForBusiness(Long id, String businessType, Long businessId) {
+        AuditMetadata audit = auditMetadataFactory.current();
+        AttachmentEntity entity = queryService.requireActive(id);
+        queryService.requireBusiness(entity, businessType, businessId);
+        delete(entity, audit);
+    }
+
+    private void delete(AttachmentEntity entity, AuditMetadata audit) {
         entity.setDeletedFlag(1);
         entity.setStatus("DELETED");
         entity.setUpdatedBy(audit.userId());
@@ -158,19 +178,7 @@ public class AttachmentService {
 
     @Transactional(readOnly = true)
     public long countActive(String businessType, Long businessId) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        String type = normalizeRequired(businessType, "业务类型不能为空").toUpperCase(Locale.ROOT);
-        if (businessId == null) {
-            throw new IllegalArgumentException("业务ID不能为空");
-        }
-        Long count = attachmentMapper.selectCount(new LambdaQueryWrapper<AttachmentEntity>()
-                .eq(AttachmentEntity::getCompanyId, audit.companyId())
-                .eq(AttachmentEntity::getAccountBookId, audit.accountBookId())
-                .eq(AttachmentEntity::getBusinessType, type)
-                .eq(AttachmentEntity::getBusinessId, businessId)
-                .eq(AttachmentEntity::getDeletedFlag, 0)
-                .eq(AttachmentEntity::getStatus, STATUS_ACTIVE));
-        return count == null ? 0L : count;
+        return queryService.countActive(businessType, businessId);
     }
 
     /**
@@ -178,66 +186,7 @@ public class AttachmentService {
      */
     @Transactional(readOnly = true)
     public void requireIfConfigured(String businessType, Long businessId) {
-        String type = normalizeRequired(businessType, "业务类型不能为空").toUpperCase(Locale.ROOT);
-        if (!attachmentProperties.requiredBusinessTypeSet().contains(type)) {
-            return;
-        }
-        long count = countActive(type, businessId);
-        int min = attachmentProperties.requiredMinCount();
-        if (count < min) {
-            throw new IllegalArgumentException(
-                    "业务类型 " + type + " 要求至少上传 " + min + " 个附件，当前 " + count + " 个"
-            );
-        }
-    }
-
-    private LambdaQueryWrapper<AttachmentEntity> buildQuery(AuditMetadata audit, AttachmentPageQuery query) {
-        LambdaQueryWrapper<AttachmentEntity> wrapper = new LambdaQueryWrapper<AttachmentEntity>()
-                .eq(AttachmentEntity::getCompanyId, audit.companyId())
-                .eq(AttachmentEntity::getAccountBookId, audit.accountBookId())
-                .eq(AttachmentEntity::getDeletedFlag, 0);
-
-        String businessType = normalizeNullable(query.getBusinessType());
-        if (StringUtils.hasText(businessType)) {
-            wrapper.eq(AttachmentEntity::getBusinessType, businessType.toUpperCase(Locale.ROOT));
-        }
-        if (query.getBusinessId() != null) {
-            wrapper.eq(AttachmentEntity::getBusinessId, query.getBusinessId());
-        }
-        String businessNo = normalizeNullable(query.getBusinessNo());
-        if (StringUtils.hasText(businessNo)) {
-            wrapper.eq(AttachmentEntity::getBusinessNo, businessNo);
-        }
-        return wrapper.orderByDesc(AttachmentEntity::getCreatedTime).orderByDesc(AttachmentEntity::getId);
-    }
-
-    private AttachmentEntity requireActive(Long id) {
-        AuditMetadata audit = auditMetadataFactory.current();
-        AttachmentEntity entity = attachmentMapper.selectById(id);
-        if (entity == null
-                || entity.getDeletedFlag() == null
-                || entity.getDeletedFlag() != 0
-                || !STATUS_ACTIVE.equals(entity.getStatus())
-                || !audit.companyId().equals(entity.getCompanyId())
-                || !audit.accountBookId().equals(entity.getAccountBookId())) {
-            throw new IllegalArgumentException("附件不存在");
-        }
-        return entity;
-    }
-
-    private AttachmentResponse toResponse(AttachmentEntity entity) {
-        return new AttachmentResponse(
-                entity.getId(),
-                entity.getBusinessType(),
-                entity.getBusinessId(),
-                entity.getBusinessNo(),
-                entity.getOriginalFilename(),
-                entity.getContentType(),
-                entity.getFileSize(),
-                entity.getChecksumSha256(),
-                entity.getCreatedTime(),
-                entity.getCreatedBy()
-        );
+        queryService.requireIfConfigured(businessType, businessId);
     }
 
     private StoredFile writeFile(Path target, MultipartFile file) {
@@ -265,34 +214,11 @@ public class AttachmentService {
         }
     }
 
-    private long requireFileSize(Path path) {
-        try {
-            if (!Files.exists(path) || !Files.isRegularFile(path)) {
-                throw new IllegalArgumentException("附件文件不存在");
-            }
-            return Files.size(path);
-        } catch (IOException ex) {
-            throw new UncheckedIOException("读取附件失败", ex);
-        }
-    }
-
     private void deleteFileQuietly(Path path) {
         try {
             Files.deleteIfExists(path);
         } catch (IOException ignored) {
         }
-    }
-
-    private Path resolveStoragePath(String relativePath) {
-        if (!StringUtils.hasText(relativePath)) {
-            throw new IllegalArgumentException("附件路径无效");
-        }
-        Path root = Path.of(attachmentProperties.storageRoot()).toAbsolutePath().normalize();
-        Path target = root.resolve(relativePath).normalize();
-        if (!target.startsWith(root)) {
-            throw new IllegalArgumentException("附件路径无效");
-        }
-        return target;
     }
 
     private String buildRelativePath(AuditMetadata audit, String originalFilename) {
@@ -304,45 +230,6 @@ public class AttachmentService {
                 today.toString(),
                 UUID.randomUUID() + suffix
         ).toString().replace('\\', '/');
-    }
-
-    private String normalizeFilename(String filename) {
-        return SafeFilename.normalize(filename, "attachment", 255);
-    }
-
-    private String resolveContentType(MultipartFile file) {
-        return resolveContentType(file.getContentType());
-    }
-
-    private String resolveContentType(String contentType) {
-        if (!StringUtils.hasText(contentType)) {
-            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
-        }
-        try {
-            return MediaType.parseMediaType(contentType.trim()).toString();
-        } catch (InvalidMediaTypeException ex) {
-            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
-        }
-    }
-
-    private String normalizeRequired(String value, String message) {
-        String normalized = normalizeNullable(value);
-        if (!StringUtils.hasText(normalized)) {
-            throw new IllegalArgumentException(message);
-        }
-        return normalized;
-    }
-
-    private String normalizeNullable(String value) {
-        return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        return pageNo == null || pageNo < 1 ? 1L : pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        return pageSize == null || pageSize < 1 ? 20L : Math.min(pageSize, 200);
     }
 
     private record StoredFile(long fileSize, String checksumSha256) {

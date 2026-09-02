@@ -69,8 +69,8 @@ class PayableQueryServiceExportTest {
         service.exportPayables(query).writeTo(outputStream);
 
         String csv = outputStream.toString(StandardCharsets.UTF_8);
-        assertThat(csv).startsWith("\uFEFFpayableNo,supplierId,bizDate,sourceType,sourceNo,direction,originalAmount,settledAmount,remainingAmount,status,remark\r\n");
-        assertThat(csv).contains("AP-2026-001,6001,2026-06-18,PURCHASE_ORDER,PO-2026-001,INCREASE,200.00,80.00,120.00,UNSETTLED,export test\r\n");
+        assertThat(csv).startsWith("\uFEFFpayableNo,supplierId,bizDate,dueDate,sourceType,sourceNo,direction,originalAmount,settledAmount,remainingAmount,status,remark\r\n");
+        assertThat(csv).contains("AP-2026-001,6001,2026-06-18,2026-06-18,PURCHASE_ORDER,PO-2026-001,INCREASE,200.00,80.00,120.00,UNSETTLED,export test\r\n");
         verify(financeSettlementScopeSupport).applyPayableScope(any());
         verify(payableMapper).selectList(any());
     }

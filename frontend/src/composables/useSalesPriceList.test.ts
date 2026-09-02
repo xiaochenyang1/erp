@@ -19,14 +19,29 @@ const price = (overrides: Partial<SalesPrice> = {}): SalesPrice => ({
 
 const createList = (overrides: Partial<Parameters<typeof useSalesPriceList>[1]> = {}) =>
   useSalesPriceList(t, {
-    getSalesPrices: vi.fn(async () => ({ records: [price()], total: 1 })),
+    getSalesPrices: vi.fn(async () => ({
+      records: [price()],
+      total: 1,
+      pageNo: 1,
+      pageSize: 20
+    })),
     getSalesPrice: vi.fn(async () => price({ listPrice: 120 })),
     createSalesPrice: vi.fn(async () => ({})),
     updateSalesPrice: vi.fn(async () => ({})),
     enableSalesPrice: vi.fn(async () => ({})),
     disableSalesPrice: vi.fn(async () => ({})),
-    getCustomers: vi.fn(async () => ({ records: [{ id: 'c1', customerName: 'Acme' } as any], total: 1 })),
-    getProducts: vi.fn(async () => ({ records: [{ id: 'p1', productCode: 'SKU', productName: 'Item' } as any], total: 1 })),
+    getCustomers: vi.fn(async () => ({
+      records: [{ id: 'c1', customerName: 'Acme' } as any],
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
+    })),
+    getProducts: vi.fn(async () => ({
+      records: [{ id: 'p1', productCode: 'SKU', productName: 'Item' } as any],
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
+    })),
     printSalesPrice: vi.fn(),
     confirm: vi.fn(async () => true),
     onError: vi.fn(),

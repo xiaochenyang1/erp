@@ -76,8 +76,39 @@
       @export="handleExport"
       @refresh="loadData"
       @page-change="handlePageChange"
+      @selection-change="handleSelectionChange"
       class="customer-table"
     >
+      <template #toolbar-left>
+        <el-button v-permission="'masterdata:customer:create'" type="primary" :icon="Plus" @click="handleCreate">
+          {{ texts.createCustomer }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:customer:enable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="CircleCheck"
+          @click="handleBatchEnable"
+        >
+          {{ labelWithCount(texts.batchEnable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:customer:disable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="Delete"
+          @click="handleBatchDisable"
+        >
+          {{ labelWithCount(texts.batchDisable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          :disabled="selectedRows.length === 0"
+          :icon="Download"
+          @click="handleExportSelected"
+        >
+          {{ labelWithCount(texts.exportSelected, selectedRows.length) }}
+        </el-button>
+      </template>
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="code" :label="texts.customerCode" width="140" fixed>
         <template #default="{ row }">
@@ -122,12 +153,16 @@
           <status-tag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column :label="texts.actions" width="180" fixed="right" align="center">
+      <el-table-column :label="texts.actions" width="260" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" @click="handleView(row)">
               <el-icon><View /></el-icon>
               {{ texts.view }}
+            </el-button>
+            <el-button link type="primary" @click="openRelations(row)">
+              <el-icon><Goods /></el-icon>
+              {{ texts.relations }}
             </el-button>
             <el-button v-permission="'masterdata:customer:update'" link type="primary" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
@@ -364,6 +399,130 @@
         </div>
       </detail-card>
     </el-dialog>
+
+    <!-- 客户商品关系对话框 -->
+    <el-dialog
+      v-model="relationVisible"
+      :title="relationDialogTitle"
+      width="960px"
+      :close-on-click-modal="false"
+      class="elegant-dialog customer-dialog"
+      @closed="closeRelations"
+    >
+      <div class="relation-panel">
+        <div class="relation-toolbar">
+          <span class="relation-hint">{{ texts.relationHint }}</span>
+          <el-button
+            v-permission="'masterdata:customer:update'"
+            type="primary"
+            :icon="Plus"
+            @click="handleRelationCreate"
+          >
+            {{ texts.createRelation }}
+          </el-button>
+        </div>
+        <el-table
+          v-loading="relationLoading"
+          :data="relationRows"
+          border
+          size="small"
+          class="relation-table"
+          :empty-text="texts.relationEmpty"
+        >
+          <el-table-column prop="productCode" :label="texts.productCode" width="140">
+            <template #default="{ row }">
+              <span v-if="row.productCode" class="code-badge customer">{{ row.productCode }}</span>
+              <el-tag v-else type="warning" size="small">{{ texts.productMissing }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="productName" :label="texts.productName" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.productName || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="customerProductCode" :label="texts.customerProductCode" width="140">
+            <template #default="{ row }">{{ row.customerProductCode || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="customerProductName" :label="texts.customerProductName" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.customerProductName || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="deliveryPreference" :label="texts.deliveryPreference" min-width="130" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.deliveryPreference || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="packagingPreference" :label="texts.packagingPreference" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.packagingPreference || '-' }}</template>
+          </el-table-column>
+          <el-table-column :label="texts.actions" width="140" align="center">
+            <template #default="{ row }">
+              <div class="action-buttons">
+                <el-button v-permission="'masterdata:customer:update'" link type="primary" @click="handleRelationEdit(row)">
+                  <el-icon><Edit /></el-icon>
+                  {{ texts.edit }}
+                </el-button>
+                <el-button v-permission="'masterdata:customer:update'" link type="danger" @click="handleRelationDelete(row)">
+                  <el-icon><Delete /></el-icon>
+                  {{ texts.delete }}
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
+
+    <!-- 客户商品关系表单 -->
+    <el-dialog
+      v-model="relationFormVisible"
+      :title="relationFormTitle"
+      width="560px"
+      :close-on-click-modal="false"
+      class="elegant-dialog customer-dialog"
+    >
+      <el-form :model="relationForm" :rules="relationFormRules" label-width="120px" class="relation-form">
+        <el-form-item :label="texts.productName" prop="productId">
+          <el-select
+            v-model="relationForm.productId"
+            :placeholder="texts.selectProduct"
+            filterable
+            :disabled="Boolean(relationForm.id)"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="product in relationProducts"
+              :key="product.id"
+              :label="`${product.productCode} / ${product.productName}`"
+              :value="String(product.id)"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="texts.customerProductCode" prop="customerProductCode">
+          <el-input v-model="relationForm.customerProductCode" :placeholder="texts.enterCustomerProductCode" maxlength="50" />
+        </el-form-item>
+        <el-form-item :label="texts.customerProductName" prop="customerProductName">
+          <el-input v-model="relationForm.customerProductName" :placeholder="texts.enterCustomerProductName" maxlength="100" />
+        </el-form-item>
+        <el-form-item :label="texts.deliveryPreference" prop="deliveryPreference">
+          <el-input v-model="relationForm.deliveryPreference" :placeholder="texts.enterDeliveryPreference" maxlength="100" />
+        </el-form-item>
+        <el-form-item :label="texts.packagingPreference" prop="packagingPreference">
+          <el-input v-model="relationForm.packagingPreference" :placeholder="texts.enterPackagingPreference" maxlength="100" />
+        </el-form-item>
+        <el-form-item :label="texts.remark" prop="remark">
+          <el-input
+            v-model="relationForm.remark"
+            type="textarea"
+            :rows="2"
+            :placeholder="texts.enterRemark"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="relationFormVisible = false">{{ texts.cancel }}</el-button>
+        <el-button type="primary" :loading="relationSubmitting" @click="handleRelationSubmit">
+          {{ texts.confirm }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -381,7 +540,10 @@ import {
   Phone,
   Wallet,
   Clock,
-  Notebook
+  Notebook,
+  Plus,
+  Download,
+  Goods
 } from '@element-plus/icons-vue'
 import {
   getCustomers,
@@ -391,7 +553,11 @@ import {
   updateCustomer,
   deleteCustomer,
   enableCustomer,
-  exportCustomers
+  exportCustomers,
+  getProducts,
+  getCustomerProductRelations,
+  saveCustomerProductRelation,
+  deleteCustomerProductRelation
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { useAppStore } from '@/store/modules/app'
@@ -399,6 +565,7 @@ import { useUserStore } from '@/store/modules/user'
 import { useCustomerPresentation } from '@/composables/useCustomerPresentation'
 import { useCustomerList } from '@/composables/useCustomerList'
 import { useCustomerForm } from '@/composables/useCustomerForm'
+import { useCustomerProductRelations } from '@/composables/useCustomerProductRelations'
 
 const appStore = useAppStore()
 const userStore = useUserStore()
@@ -482,6 +649,22 @@ const CUSTOMER_TEXTS = {
     exportSuccess: '导出成功',
     exportFailed: '导出失败',
     exportFilename: '客户列表',
+    export: '导出',
+    refresh: '刷新',
+    confirm: '确定',
+    cancel: '取消',
+    batchEnable: '批量启用',
+    batchDisable: '批量停用',
+    exportSelected: '导出选中',
+    selectedExportFilename: '客户_选中{count}条',
+    batchEnableTitle: '批量启用',
+    batchDisableTitle: '批量停用',
+    batchEnableConfirm: '确认启用选中的 {count} 条客户吗？',
+    batchDisableConfirm: '确认停用选中的 {count} 个客户吗？',
+    batchEnableSuccess: '已启用 {count} 条',
+    batchDisableSuccess: '已停用 {count} 条',
+    batchEnablePartial: '已启用 {success} 条，失败 {failedCount} 条：{failed}',
+    batchDisablePartial: '已停用 {success} 条，失败 {failedCount} 条：{failed}',
     validationEnterCode: '请输入客户编码',
     validationCodeLength: '长度在 2 到 50 个字符',
     validationEnterName: '请输入客户名称',
@@ -489,7 +672,33 @@ const CUSTOMER_TEXTS = {
     validationSettlementMethod: '请选择结算方式',
     validationCreditLimit: '请输入信用额度（0=不限额）',
     validationMobile: '请输入正确的手机号码',
-    validationEmail: '请输入正确的邮箱地址'
+    validationEmail: '请输入正确的邮箱地址',
+    relations: '商品',
+    relationDialogTitle: '客户商品关系 - {name}',
+    relationHint: '维护客户专属料号与交付偏好，销售单据和对外单据会引用这里的口径。',
+    relationEmpty: '该客户暂无商品关系',
+    createRelation: '新增商品关系',
+    editRelation: '编辑商品关系',
+    productCode: '商品编码',
+    productName: '商品名称',
+    productMissing: '商品已停用',
+    customerProductCode: '客户料号',
+    customerProductName: '客户品名',
+    deliveryPreference: '交付偏好',
+    packagingPreference: '包装偏好',
+    selectProduct: '请选择商品',
+    enterCustomerProductCode: '请输入客户料号',
+    enterCustomerProductName: '请输入客户品名',
+    enterDeliveryPreference: '例如：每周二送货',
+    enterPackagingPreference: '例如：纸箱、托盘',
+    relationLoadFailed: '加载客户商品关系失败',
+    relationOptionsLoadFailed: '加载商品列表失败',
+    relationSaveSuccess: '商品关系已保存',
+    relationSaveFailed: '保存商品关系失败',
+    relationDeleteSuccess: '商品关系已删除',
+    relationDeleteFailed: '删除商品关系失败',
+    confirmDeleteRelation: '确认删除商品关系“{product}”吗？',
+    validationSelectProduct: '请选择商品'
   },
   'en-US': {
     pageTitle: 'Customer Management',
@@ -569,6 +778,22 @@ const CUSTOMER_TEXTS = {
     exportSuccess: 'Export completed',
     exportFailed: 'Failed to export customers',
     exportFilename: 'customer-list',
+    export: 'Export',
+    refresh: 'Refresh',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    batchEnable: 'Enable selected',
+    batchDisable: 'Disable selected',
+    exportSelected: 'Export selected',
+    selectedExportFilename: 'customers-selected-{count}',
+    batchEnableTitle: 'Enable Selected',
+    batchDisableTitle: 'Disable Selected',
+    batchEnableConfirm: 'Enable {count} selected customers?',
+    batchDisableConfirm: 'Disable {count} selected customers?',
+    batchEnableSuccess: 'Enabled {count} customers',
+    batchDisableSuccess: 'Disabled {count} customers',
+    batchEnablePartial: 'Enabled {success} customers, failed {failedCount}: {failed}',
+    batchDisablePartial: 'Disabled {success} customers, failed {failedCount}: {failed}',
     validationEnterCode: 'Enter customer code',
     validationCodeLength: 'Length must be between 2 and 50 characters',
     validationEnterName: 'Enter customer name',
@@ -576,7 +801,33 @@ const CUSTOMER_TEXTS = {
     validationSettlementMethod: 'Select a settlement method',
     validationCreditLimit: 'Enter a credit limit (0 = unlimited)',
     validationMobile: 'Enter a valid mobile number',
-    validationEmail: 'Enter a valid email address'
+    validationEmail: 'Enter a valid email address',
+    relations: 'Products',
+    relationDialogTitle: 'Customer product relations - {name}',
+    relationHint: 'Maintain customer-specific part numbers and delivery preferences used by sales documents.',
+    relationEmpty: 'No product relations for this customer yet',
+    createRelation: 'Add relation',
+    editRelation: 'Edit relation',
+    productCode: 'Product code',
+    productName: 'Product name',
+    productMissing: 'Product inactive',
+    customerProductCode: 'Customer part no.',
+    customerProductName: 'Customer part name',
+    deliveryPreference: 'Delivery preference',
+    packagingPreference: 'Packaging preference',
+    selectProduct: 'Select a product',
+    enterCustomerProductCode: 'Enter customer part number',
+    enterCustomerProductName: 'Enter customer part name',
+    enterDeliveryPreference: 'For example: delivery every Tuesday',
+    enterPackagingPreference: 'For example: carton, pallet',
+    relationLoadFailed: 'Failed to load customer product relations',
+    relationOptionsLoadFailed: 'Failed to load products',
+    relationSaveSuccess: 'Product relation saved',
+    relationSaveFailed: 'Failed to save product relation',
+    relationDeleteSuccess: 'Product relation removed',
+    relationDeleteFailed: 'Failed to remove product relation',
+    confirmDeleteRelation: 'Remove product relation "{product}"?',
+    validationSelectProduct: 'Select a product'
   }
 } as const
 const texts = computed(() => CUSTOMER_TEXTS[appStore.locale as keyof typeof CUSTOMER_TEXTS])
@@ -593,23 +844,31 @@ const {
   formatDateTime,
   hasCreditPeriod,
   individualCount: countIndividual,
-  interpolate
+  interpolate,
+  joinNames,
+  labelWithCount
 } = useCustomerPresentation(texts, displayPreferences)
 
 const {
+  batchRunning,
   creditExposure,
   currentRow,
   detailVisible,
+  handleBatchDisable,
+  handleBatchEnable,
   handleDelete,
   handleEnable,
   handleExport,
+  handleExportSelected,
   handlePageChange,
   handleReset,
   handleSearch,
+  handleSelectionChange,
   handleView,
   loadData,
   loading,
   searchForm,
+  selectedRows,
   tableData,
   total
 } = useCustomerList(texts, {
@@ -619,11 +878,15 @@ const {
   enableCustomer,
   deleteCustomer,
   exportCustomers,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   cancelLabel: () => (appStore.locale === 'en-US' ? 'Cancel' : '取消'),
   interpolate,
+  joinNames: (items, locale) => joinNames(items, locale),
+  formatCurrency,
+  locale: computed(() => appStore.locale),
   onError: (message) => ElMessage.error(message),
-  onSuccess: (message) => ElMessage.success(message)
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
 const companyCount = computed(() => countCompany(tableData.value))
@@ -645,6 +908,39 @@ const {
   onError: (message) => ElMessage.error(message),
   onCompleted: () => loadData()
 })
+
+const {
+  closeRelations,
+  handleRelationCreate,
+  handleRelationDelete,
+  handleRelationEdit,
+  handleRelationSubmit,
+  openRelations,
+  relationForm,
+  relationFormRules,
+  relationFormTitle,
+  relationFormVisible,
+  relationLoading,
+  relationOwner,
+  relationProducts,
+  relationRows,
+  relationSubmitting,
+  relationVisible
+} = useCustomerProductRelations(texts, {
+  getCustomerProductRelations,
+  saveCustomerProductRelation,
+  deleteCustomerProductRelation,
+  getProducts,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
+  interpolate,
+  cancelLabel: () => texts.value.cancel,
+  onSuccess: (message) => ElMessage.success(message),
+  onError: (message) => ElMessage.error(message)
+})
+
+const relationDialogTitle = computed(() => interpolate(texts.value.relationDialogTitle, {
+  name: relationOwner.value?.customerName || relationOwner.value?.name || ''
+}))
 
 onMounted(() => {
   loadData()
@@ -952,5 +1248,31 @@ onMounted(() => {
 .credit-exceeded {
   color: var(--el-color-danger);
   font-weight: 600;
+}
+
+.relation-panel {
+  padding: 24px 32px;
+}
+
+.relation-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.relation-hint {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.6;
+}
+
+.relation-table {
+  width: 100%;
+}
+
+.relation-form {
+  padding: 24px 32px 0;
 }
 </style>

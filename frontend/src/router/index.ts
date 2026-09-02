@@ -224,6 +224,16 @@ const routes: RouteRecordRaw[] = [
           }
         ]
       },
+      {
+        path: '/contracts',
+        name: 'Contracts',
+        component: () => import('@/views/commercial/contracts/index.vue'),
+        meta: {
+          title: '合同管理',
+          icon: 'Files',
+          permission: 'contract:view'
+        }
+      },
       // 库存管理
       {
         path: '/inventory',
@@ -311,6 +321,16 @@ const routes: RouteRecordRaw[] = [
               title: '补货建议',
               icon: 'ShoppingCart',
               permission: 'inventory:replenishment:view'
+            }
+          },
+          {
+            path: 'lot-genealogy',
+            name: 'InventoryLotGenealogy',
+            component: () => import('@/views/inventory/lot-genealogy/index.vue'),
+            meta: {
+              title: '批次谱系',
+              icon: 'Share',
+              permission: 'inventory:lot:genealogy'
             }
           }
         ]
@@ -634,6 +654,16 @@ const routes: RouteRecordRaw[] = [
               title: '费用管理',
               icon: 'Wallet',
               permission: 'finance:expense:manage'
+            }
+          },
+          {
+            path: 'budgets',
+            name: 'FinanceBudgets',
+            component: () => import('@/views/finance/budgets/index.vue'),
+            meta: {
+              title: '预算管理',
+              icon: 'PieChart',
+              permission: 'finance:budget:view'
             }
           },
           {

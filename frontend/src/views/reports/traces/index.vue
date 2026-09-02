@@ -326,7 +326,6 @@ const {
   eventTagType,
   formatDateTime,
   formatMoney,
-  formatNumber,
   priorityLabel,
   priorityTagType,
   ticketStatusLabel,

@@ -24,11 +24,14 @@ import com.tuowei.erp.production.order.mapper.ProductionOrderMaterialMapper;
 import com.tuowei.erp.production.order.model.ProductionOrderEntity;
 import com.tuowei.erp.production.order.model.ProductionOrderMaterialEntity;
 import com.tuowei.erp.production.order.service.ProductionOrderNumberService;
+import com.tuowei.erp.production.order.service.ProductionOrderPostingService;
+import com.tuowei.erp.production.order.service.ProductionOrderQueryService;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.production.operation.service.ProductionOperationService;
 import com.tuowei.erp.production.order.web.ProductionOrderCreateRequest;
 import com.tuowei.erp.production.order.web.ProductionOrderPageQuery;
 import com.tuowei.erp.production.order.web.ProductionOrderUpdateRequest;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,7 +49,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -98,6 +103,7 @@ class ProductionOrderServiceTenantBoundaryTest {
     private final ScopedUserResolver scopedUserResolver = mock(ScopedUserResolver.class);
     private final UserMapper userMapper = mock(UserMapper.class);
     private final ProductionOperationService productionOperationService = mock(ProductionOperationService.class);
+    private final AttachmentService attachmentService = mock(AttachmentService.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -110,6 +116,8 @@ class ProductionOrderServiceTenantBoundaryTest {
         stubCurrentUser();
         when(scopedUserResolver.resolve(CURRENT_USER, PRINCIPAL.dataScopeSnapshot()))
                 .thenReturn(new ScopedUserResolver.ScopedUserIds(Set.of(), Set.of()));
+        when(dataScopeService.applyProductionOrderScope(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         when(orderMapper.selectPage(any(), any())).thenAnswer(invocation -> {
             Page<ProductionOrderEntity> page = invocation.getArgument(0);
             page.setRecords(List.of());
@@ -234,21 +242,53 @@ class ProductionOrderServiceTenantBoundaryTest {
         when(currentUserContext.requirePrincipal()).thenReturn(PRINCIPAL);
     }
 
+    @Test
+    void releaseStopsAtAttachmentGateBeforeReservingMaterials() {
+        stubAudit();
+        stubCurrentUser();
+        ProductionOrderEntity order = activeOrder(6001L, AUDIT.companyId(), AUDIT.accountBookId());
+        when(orderMapper.selectById(6001L)).thenReturn(order);
+        doThrow(new IllegalArgumentException("业务类型 PRODUCTION_ORDER 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("PRODUCTION_ORDER", 6001L);
+
+        assertThatThrownBy(() -> service().release(6001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PRODUCTION_ORDER");
+
+        assertThat(order.getStatus()).isEqualTo(ProductionOrderService.STATUS_DRAFT);
+        verify(materialMapper, never()).selectList(any());
+        verify(inventoryPostingService, never()).reserve(any(), any(), any());
+        verify(orderMapper, never()).updateById(any(ProductionOrderEntity.class));
+    }
+
     private ProductionOrderService service() {
+        ProductionOrderQueryService queryService = new ProductionOrderQueryService(
+                orderMapper,
+                materialMapper,
+                currentUserContext,
+                dataScopeService,
+                scopedUserResolver,
+                userMapper
+        );
+        ProductionOrderPostingService postingService = new ProductionOrderPostingService(
+                orderMapper,
+                inventoryPostingService,
+                auditMetadataFactory,
+                queryService,
+                productionOperationService,
+                attachmentService
+        );
         return new ProductionOrderService(
                 orderMapper,
                 materialMapper,
                 numberService,
                 bomService,
-                inventoryPostingService,
                 productValidator,
                 warehouseMapper,
                 auditMetadataFactory,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                userMapper,
-                productionOperationService
+                queryService,
+                postingService
         );
     }
 

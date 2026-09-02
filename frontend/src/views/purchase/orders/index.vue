@@ -91,7 +91,6 @@
       @page-change="handlePageChange"
       class="purchase-table"
     >
-      <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="orderNo" :label="t('purchaseOrder.orderNo')" width="160" fixed>
         <template #default="{ row }">
           <span class="order-no">{{ row.orderNo }}</span>
@@ -127,31 +126,31 @@
             <el-button v-permission="'purchase:order:create'" link type="primary" size="small" @click="handleCopy(row)">
               {{ t('purchaseOrder.copy') }}
             </el-button>
-            <el-button v-if="row.status === 'DRAFT'" v-permission="'purchase:order:update'" link type="primary" size="small" @click="handleEdit(row)">
+            <el-button v-if="canEdit(row)" v-permission="'purchase:order:update'" link type="primary" size="small" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
               {{ t('purchaseOrder.edit') }}
             </el-button>
-            <el-button v-if="row.status === 'DRAFT'" v-permission="'purchase:order:submit'" link type="success" size="small" @click="handleSubmit(row)">
+            <el-button v-if="canSubmit(row)" v-permission="'purchase:order:submit'" link type="success" size="small" @click="handleSubmit(row)">
               <el-icon><Check /></el-icon>
               {{ t('purchaseOrder.submit') }}
             </el-button>
-            <el-button v-if="row.status === 'SUBMITTED' || row.status === 'PENDING' || row.approvalStatus === 'IN_APPROVAL'" v-permission="'purchase:order:approve'" link type="success" size="small" @click="handleApprove(row)">
+            <el-button v-if="canApprove(row)" v-permission="'purchase:order:approve'" link type="success" size="small" @click="handleApprove(row)">
               <el-icon><CircleCheck /></el-icon>
               {{ t('purchaseOrder.approve') }}
             </el-button>
-            <el-button v-if="row.status === 'SUBMITTED' || row.status === 'PENDING' || row.approvalStatus === 'IN_APPROVAL'" v-permission="'purchase:order:reject'" link type="warning" size="small" @click="handleReject(row)">
+            <el-button v-if="canReject(row)" v-permission="'purchase:order:reject'" link type="warning" size="small" @click="handleReject(row)">
               <el-icon><CircleClose /></el-icon>
               {{ t('purchaseOrder.reject') }}
             </el-button>
-            <el-button v-if="canUnapproveOrder(row)" v-permission="'purchase:order:unapprove'" link type="warning" size="small" @click="handleUnapprove(row)">
+            <el-button v-if="canUnapprove(row)" v-permission="'purchase:order:unapprove'" link type="warning" size="small" @click="handleUnapprove(row)">
               <el-icon><RefreshLeft /></el-icon>
               {{ t('purchaseOrder.unapprove') }}
             </el-button>
-            <el-button v-if="canCloseOrder(row)" v-permission="'purchase:order:close'" link type="warning" size="small" @click="handleCloseOrder(row)">
+            <el-button v-if="canClose(row)" v-permission="'purchase:order:close'" link type="warning" size="small" @click="handleCloseOrder(row)">
               <el-icon><CircleClose /></el-icon>
               {{ t('purchaseOrder.close') }}
             </el-button>
-            <el-button v-if="canCancelOrder(row)" v-permission="'purchase:order:cancel'" link type="danger" size="small" @click="handleCancelOrder(row)">
+            <el-button v-if="canCancel(row)" v-permission="'purchase:order:cancel'" link type="danger" size="small" @click="handleCancelOrder(row)">
               <el-icon><Delete /></el-icon>
               {{ t('purchaseOrder.cancel') }}
             </el-button>
@@ -177,8 +176,15 @@
           <div class="section-title">{{ t('purchaseOrder.basicInfo') }}</div>
           <el-row :gutter="20">
             <el-col :span="12">
+              <el-form-item :label="t('purchaseOrder.contract')">
+                <el-select :model-value="form.contractId" :placeholder="t('purchaseOrder.selectContract')" clearable filterable style="width: 100%" :disabled="Boolean(form.contractId && editId)" @change="selectPurchaseContract">
+                  <el-option v-for="contract in purchaseContracts" :key="contract.id" :label="`${contract.contractNo} - ${contract.contractName}`" :value="contract.id" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
               <el-form-item :label="t('purchaseOrder.supplier')" prop="supplierId">
-                <el-select v-model="form.supplierId" :placeholder="t('purchaseOrder.selectSupplier')" style="width: 100%">
+                <el-select v-model="form.supplierId" :placeholder="t('purchaseOrder.selectSupplier')" style="width: 100%" :disabled="contractBound">
                   <el-option
                     v-for="supplier in suppliers"
                     :key="supplier.id"
@@ -213,10 +219,12 @@
           </el-row>
         </div>
 
+        <el-alert v-if="contractBound" class="contract-order-notice" type="info" :closable="false" show-icon :title="t('purchaseOrder.contractOrderNotice')" />
+
         <div class="form-section">
           <div class="section-title">
             {{ t('purchaseOrder.details') }}
-            <el-button type="primary" size="small" :icon="Plus" @click="handleAddItem" style="margin-left: 12px">
+            <el-button v-if="!contractBound" type="primary" size="small" :icon="Plus" @click="handleAddItem" style="margin-left: 12px">
               {{ t('purchaseOrder.addProduct') }}
             </el-button>
           </div>
@@ -224,7 +232,7 @@
             <el-table-column :label="t('purchaseOrder.sequence')" type="index" width="60" align="center" />
             <el-table-column :label="t('purchaseOrder.productName')" width="200">
               <template #default="{ row, $index }">
-                <el-select v-model="row.productId" :placeholder="t('purchaseOrder.selectProduct')" @change="handleProductChange($index)">
+                <el-select v-model="row.productId" :placeholder="t('purchaseOrder.selectProduct')" :disabled="contractBound" @change="handleProductChange($index)">
                   <el-option
                     v-for="product in products"
                     :key="product.id"
@@ -250,12 +258,12 @@
             </el-table-column>
             <el-table-column :label="t('purchaseOrder.quantity')" width="140">
               <template #default="{ row }">
-                <el-input-number v-model="row.quantity" :min="1" :controls="false" style="width: 100%" @change="calculateAmount(row)" />
+                <el-input-number v-model="row.quantity" :min="1" :controls="false" :disabled="contractBound" style="width: 100%" @change="calculateAmount(row)" />
               </template>
             </el-table-column>
             <el-table-column :label="t('purchaseOrder.unitPriceCny')" width="140">
               <template #default="{ row }">
-                <el-input-number v-model="row.price" :min="0" :precision="2" :controls="false" style="width: 100%" @change="calculateAmount(row)" />
+                <el-input-number v-model="row.price" :min="0" :precision="2" :controls="false" :disabled="contractBound" style="width: 100%" @change="calculateAmount(row)" />
                 <div v-if="row.maxPrice != null" class="price-hint">
                   {{ t('purchaseOrder.maximumPrice', { amount: formatMoney(row.maxPrice) }) }}
                   <span v-if="row.priceLevel">· {{ row.priceLevel === 'SUPPLIER' ? t('purchaseOrder.supplierPrice') : t('purchaseOrder.generalPrice') }}</span>
@@ -267,12 +275,17 @@
                 <span class="item-amount">{{ formatMoney(row.amount) }}</span>
               </template>
             </el-table-column>
-            <el-table-column :label="t('purchaseOrder.remark')">
+            <el-table-column v-if="contractBound" :label="t('purchaseOrder.contractExecution')" width="190">
               <template #default="{ row }">
-                <el-input v-model="row.remark" :placeholder="t('purchaseOrder.optional')" />
+                {{ t('purchaseOrder.contractExecutionValue', { committed: row.committedQuantity || 0, fulfilled: row.fulfilledQuantity || 0, total: row.contractQuantity || 0 }) }}
               </template>
             </el-table-column>
-            <el-table-column :label="t('purchaseOrder.actions')" width="80" align="center">
+            <el-table-column :label="t('purchaseOrder.remark')">
+              <template #default="{ row }">
+                <el-input v-model="row.remark" :placeholder="t('purchaseOrder.optional')" :disabled="contractBound" />
+              </template>
+            </el-table-column>
+            <el-table-column v-if="!contractBound" :label="t('purchaseOrder.actions')" width="80" align="center">
               <template #default="{ $index }">
                 <el-button link type="danger" @click="handleRemoveItem($index)">
                   <el-icon><Delete /></el-icon>
@@ -436,7 +449,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -468,8 +481,10 @@ import {
   tracePurchaseOrder,
   exportPurchaseOrders,
   resolvePurchasePrice,
+  type PurchaseOrderItem,
   type PurchaseOrderRelatedDocs
 } from '@/api/purchase'
+import { getContract, getContracts, type ContractRecord } from '@/api/contracts'
 import { printPurchaseOrder } from '@/utils/bizPrint'
 import { getProducts, getSuppliers } from '@/api/masterdata'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
@@ -483,6 +498,7 @@ import { usePurchaseOrderForm } from '@/composables/usePurchaseOrderForm'
 const userStore = useUserStore()
 const { t } = useI18n()
 const canCreate = computed(() => userStore.hasPermission('purchase:order:create'))
+const purchaseContracts = ref<ContractRecord[]>([])
 
 const route = useRoute()
 const readQueryString = (key: string) => {
@@ -532,7 +548,7 @@ const {
   getProducts,
   printOrder: printPurchaseOrder,
   downloadBlob,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   prompt: (message, title, opts) => ElMessageBox.prompt(message, title, opts) as any,
   initialOrderNo: readQueryString('keyword'),
   onError: (message) => ElMessage.error(message),
@@ -541,9 +557,13 @@ const {
 
 const {
   approvedCount,
-  canCancelOrder,
-  canCloseOrder,
-  canUnapproveOrder,
+  canApprove,
+  canCancel,
+  canClose,
+  canEdit,
+  canReject,
+  canSubmit,
+  canUnapprove,
   formatMoney,
   pendingCount
 } = usePurchaseOrderSummary(tableData)
@@ -555,6 +575,7 @@ const {
   form,
   formRef,
   formRules,
+  calculateAmount,
   handleAdd,
   handleAddItem,
   handleAuxQtyChange,
@@ -578,6 +599,39 @@ const {
   onCompleted: () => handleQuery()
 })
 
+const contractBound = computed(() => Boolean(form.contractId))
+
+const loadPurchaseContracts = async () => {
+  const page = await getContracts({ pageNo: 1, pageSize: 200, contractType: 'PURCHASE', status: 'ACTIVE' })
+  purchaseContracts.value = page.records
+}
+
+const selectPurchaseContract = async (contractId?: string | number) => {
+  if (!contractId) {
+    form.contractId = undefined
+    form.items.forEach((item) => { item.contractLineId = undefined })
+    return
+  }
+  const contract = await getContract(contractId)
+  form.contractId = contract.id
+  form.supplierId = contract.supplierId || ''
+  form.items = contract.lines.map((line) => ({
+    contractLineId: line.id,
+    productId: line.productId,
+    productCode: line.productCode,
+    productName: line.productName,
+    quantity: Number(line.quantity || 0),
+    contractQuantity: Number(line.quantity || 0),
+    committedQuantity: Number(line.committedQuantity || 0),
+    fulfilledQuantity: Number(line.fulfilledQuantity || 0),
+    qty: Number(line.quantity || 0),
+    price: Number(line.unitPrice || 0),
+    taxRate: 0,
+    amount: Number(line.amount || 0),
+    remark: line.remark || ''
+  } as PurchaseOrderItem))
+}
+
 const traceDocSections = computed<Array<{ key: keyof PurchaseOrderRelatedDocs; title: string }>>(() => [
   { key: 'receipts', title: t('purchaseOrder.traceSections.receipts') },
   { key: 'returns', title: t('purchaseOrder.traceSections.returns') },
@@ -589,6 +643,7 @@ const traceDocSections = computed<Array<{ key: keyof PurchaseOrderRelatedDocs; t
 onMounted(() => {
   handleQuery()
   loadOptions()
+  loadPurchaseContracts()
 })
 </script>
 

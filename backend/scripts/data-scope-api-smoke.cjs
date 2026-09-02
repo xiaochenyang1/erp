@@ -3,8 +3,10 @@
  *
  * 验证：
  * 1) 用户/角色 data-scope GET/PUT 可用
- * 2) 受限角色去掉 ALL 后仅 SELF：列表和 CSV 仅见自己创建的采购单；他人单据详情 403
- * 3) 仓库范围 WAREHOUSE：库存余额仅见授权仓
+ * 2) 受限角色仅 SELF：采购/销售六类核心单据的列表、详情、CSV/报表口径一致
+ * 3) 业务追踪不能通过隐藏业务号泄漏单据、工作流、日志、往来或异常信息
+ * 4) 越权作废在业务副作用前拒绝，单据状态与库存流水不变
+ * 5) 仓库范围 WAREHOUSE：库存余额、流水、详情与报表仅见授权仓
  *
  * 用法：
  *   node scripts/data-scope-api-smoke.cjs
@@ -19,6 +21,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'LocalAdmin123'
 const SUFFIX = String(Date.now()).slice(-8)
 const ROLE_CODE = `DS_SMOKE_${SUFFIX}`
 const USER_NAME = `ds_smoke_${SUFFIX}`
+const CONTROL_USER_NAME = `ds_control_${SUFFIX}`
 const USER_PASSWORD = 'DataScopeSmoke123'
 
 const results = []
@@ -93,6 +96,83 @@ function recordsOf(res) {
 
 function isForbidden(res) {
   return res.status === 403 || String(res.body?.code) === '403'
+}
+
+function bizDate() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' })
+}
+
+function requireOk(res, label) {
+  if (!ok(res)) {
+    throw new Error(`${label}: ${res.status} ${res.body?.message || JSON.stringify(res.body).slice(0, 300)}`)
+  }
+  return dataOf(res)
+}
+
+function containsId(res, id) {
+  return recordsOf(res).some((record) => String(record?.id) === String(id))
+}
+
+function csvDataRows(text) {
+  return String(text || '')
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .filter((line) => line.trim() !== '')
+    .slice(1)
+}
+
+async function verifySelfDocument({
+  idPrefix,
+  title,
+  limitedToken,
+  controlToken,
+  listPath,
+  own,
+  foreign,
+  exportPath,
+}) {
+  const ownList = await api(
+    limitedToken,
+    'GET',
+    `${listPath}?pageNo=1&pageSize=50&keyword=${encodeURIComponent(own.no)}`
+  )
+  const foreignList = await api(
+    limitedToken,
+    'GET',
+    `${listPath}?pageNo=1&pageSize=50&keyword=${encodeURIComponent(foreign.no)}`
+  )
+  const controlForeignList = await api(
+    controlToken,
+    'GET',
+    `${listPath}?pageNo=1&pageSize=50&keyword=${encodeURIComponent(foreign.no)}`
+  )
+  row(`${idPrefix}a`, `${title} SELF 列表仅见本人单`,
+    ok(ownList) && containsId(ownList, own.id)
+      && ok(foreignList) && !containsId(foreignList, foreign.id)
+      && ok(controlForeignList) && containsId(controlForeignList, foreign.id),
+    `ownVisible=${containsId(ownList, own.id)} foreignVisible=${containsId(foreignList, foreign.id)} controlVisible=${containsId(controlForeignList, foreign.id)}`)
+
+  const hiddenDetail = await api(limitedToken, 'GET', `${listPath}/${foreign.id}`)
+  row(`${idPrefix}b`, `${title} 他人详情被拒绝`, isForbidden(hiddenDetail),
+    `status=${hiddenDetail.status} code=${hiddenDetail.body?.code} msg=${hiddenDetail.body?.message || ''}`)
+
+  if (exportPath) {
+    const ownExport = await textApi(
+      limitedToken,
+      `${exportPath}?keyword=${encodeURIComponent(own.no)}`
+    )
+    const foreignExport = await textApi(
+      limitedToken,
+      `${exportPath}?keyword=${encodeURIComponent(foreign.no)}`
+    )
+    row(`${idPrefix}c`, `${title} CSV 不导出他人单`,
+      ownExport.status < 400
+        && ownExport.contentType.includes('text/csv')
+        && ownExport.text.includes(String(own.no))
+        && foreignExport.status < 400
+        && !foreignExport.text.includes(String(foreign.no)),
+      `ownRows=${csvDataRows(ownExport.text).length} foreignRows=${csvDataRows(foreignExport.text).length}`)
+  }
 }
 
 function collectMenuIds(nodes, out = []) {
@@ -235,115 +315,365 @@ async function main() {
     row('S4', '受限用户可登录', !!limitedToken, `username=${USER_NAME}`)
   }
 
-  // 3) 采购订单 SELF：admin 有 1 条历史单；受限用户列表不应包含他人单；他人详情 403
-  let foreignOrderId
-  let foreignOrderNo
-  let ownOrderId
-  let ownOrderNo
+  // 2b) 创建同角色的非管理员对照账号，用用户级 ALL 形成稳定对照
+  let controlUserId
+  let controlToken
   {
-    const adminList = await api(adminToken, 'GET', '/api/purchase/orders?pageNo=1&pageSize=20')
-    const adminOrders = recordsOf(adminList)
-    const foreignOrder = adminOrders.find((o) => String(o.createdBy || o.createdById || '') !== limitedUserId)
-      || adminOrders[0]
-    foreignOrderId = foreignOrder?.id
-    foreignOrderNo = foreignOrder?.orderNo
-    row('S5', 'admin 可列出采购订单作为对照',
-      ok(adminList) && adminOrders.length > 0,
-      `total=${dataOf(adminList)?.total} sampleId=${foreignOrderId || '-'}`)
-
-    // 受限用户建一张自己的草稿单（若无供应商可跳过 create，仅测列表为空/详情拒绝）
-    const suppliers = await api(adminToken, 'GET', '/api/masterdata/suppliers?pageNo=1&pageSize=5&status=ACTIVE')
-    const products = await api(adminToken, 'GET', '/api/masterdata/products?pageNo=1&pageSize=5&status=ACTIVE')
-    const supplierId = recordsOf(suppliers)[0]?.id
-    const productId = recordsOf(products)[0]?.id
-    if (supplierId && productId) {
-      // 用 admin 代建会记 createdBy=admin；改用受限用户自己创建
-      const createPo = await api(limitedToken, 'POST', '/api/purchase/orders', {
-        supplierId,
-        orderDate: new Date().toISOString().slice(0, 10),
-        remark: `data-scope-smoke-${SUFFIX}`,
-        lines: [{ productId, qty: 1, price: 1, taxRate: 0 }],
-      })
-      if (ok(createPo)) {
-        ownOrderId = String(dataOf(createPo).id)
-        ownOrderNo = String(dataOf(createPo).orderNo)
-      } else {
-        console.log('  note: create PO as limited user failed:', createPo.body?.message || createPo.status)
-      }
+    const createControl = await api(adminToken, 'POST', '/api/system/users', {
+      username: CONTROL_USER_NAME,
+      password: USER_PASSWORD,
+      employeeNo: `DC${SUFFIX}`,
+      realName: `数据范围对照${SUFFIX}`,
+      mobile: '1380000' + SUFFIX.slice(-4),
+      deptId: 3501,
+      postId: 3601,
+      remark: 'data-scope-api-smoke-control',
+    })
+    if (!ok(createControl)) {
+      row('S4b', '创建非管理员 ALL 对照账号', false, createControl.body?.message || createControl.status)
+      throw new Error('create control user failed')
     }
-
-    const limitedList = await api(limitedToken, 'GET', '/api/purchase/orders?pageNo=1&pageSize=50')
-    const limitedOrders = recordsOf(limitedList)
-    const seesForeign = foreignOrderId
-      ? limitedOrders.some((o) => String(o.id) === String(foreignOrderId))
-      : false
-    const seesOwn = ownOrderId
-      ? limitedOrders.some((o) => String(o.id) === String(ownOrderId))
-      : false
-
-    // 空列表 + 不看见他人单 = SELF 过滤有效；若成功创建本单则必须出现
-    row('S6', 'SELF 列表不出现他人采购单',
-      ok(limitedList) && !seesForeign,
-      `limitedCount=${limitedOrders.length} seesForeign=${seesForeign} ownId=${ownOrderId || '-'}`)
-
-    row('S6b', 'SELF 列表可见本人创建单',
-      !!ownOrderId && seesOwn,
-      ownOrderId ? `ownId=${ownOrderId} seesOwn=${seesOwn}` : 'create own PO failed')
-
-    const limitedExport = await textApi(limitedToken, '/api/purchase/orders/export')
-    const exportSeesForeign = !!foreignOrderNo && limitedExport.text.includes(String(foreignOrderNo))
-    const exportSeesOwn = !!ownOrderNo && limitedExport.text.includes(String(ownOrderNo))
-    row('S6c', 'SELF CSV 仅导出本人采购单',
-      limitedExport.status < 400
-        && limitedExport.contentType.includes('text/csv')
-        && !!ownOrderNo
-        && exportSeesOwn
-        && !exportSeesForeign,
-      `status=${limitedExport.status} ownNo=${ownOrderNo || '-'} seesOwn=${exportSeesOwn} foreignNo=${foreignOrderNo || '-'} seesForeign=${exportSeesForeign}`)
-
-    if (foreignOrderId) {
-      const detail = await api(limitedToken, 'GET', `/api/purchase/orders/${foreignOrderId}`)
-      row('S7', 'SELF 详情访问他人采购单被拒绝',
-        isForbidden(detail) || (ok(detail) === false && String(detail.body?.message || '').includes('权')),
-        `status=${detail.status} code=${detail.body?.code} msg=${detail.body?.message || ''}`)
-    } else {
-      row('S7', 'SELF 详情访问他人采购单被拒绝', false, 'no foreign order id')
-    }
-  }
-
-  // 4) 仓库范围：角色改为仅 MAIN_WH(4501)，库存余额不应含其它仓
-  {
-    const scopeWh = await api(adminToken, 'PUT', `/api/system/roles/${roleId}/data-scope`, {
-      hasAllScope: false,
+    controlUserId = String(dataOf(createControl).id)
+    const assignRoles = await api(adminToken, 'PUT', `/api/system/users/${controlUserId}/roles`, {
+      roleIds: [roleId],
+    })
+    const assignAll = await api(adminToken, 'PUT', `/api/system/users/${controlUserId}/data-scope`, {
+      hasAllScope: true,
       deptScoped: false,
       postScoped: false,
       selfScoped: false,
-      warehouseIds: [4501],
+      warehouseIds: [],
     })
-    // 重新登录以刷新 principal（虽有 evictAll，稳妥起见 re-login）
-    const reLogin = await login(USER_NAME, USER_PASSWORD)
-    limitedToken = reLogin.accessToken
-
-    const adminBal = await api(adminToken, 'GET', '/api/inventory/balances?pageNo=1&pageSize=100')
-    const limitedBal = await api(limitedToken, 'GET', '/api/inventory/balances?pageNo=1&pageSize=100')
-    const adminRecs = recordsOf(adminBal)
-    const limitedRecs = recordsOf(limitedBal)
-    const foreignWhExists = adminRecs.some((r) => String(r.warehouseId) !== '4501')
-    const limitedOnly4501 = limitedRecs.every((r) => String(r.warehouseId) === '4501')
-    const limitedHasOther = limitedRecs.some((r) => String(r.warehouseId) !== '4501')
-
-    // only4501：有数据时全部为 4501；无数据时也算通过（主仓可能无余额行），但不能出现其它仓
-    row('S8', '角色 WAREHOUSE=4501 后库存余额仅主仓',
-      ok(scopeWh) && ok(limitedBal) && !limitedHasOther && (limitedRecs.length === 0 || limitedOnly4501),
-      `adminWhMix=${foreignWhExists} adminCount=${adminRecs.length} limitedCount=${limitedRecs.length} only4501=${limitedOnly4501} roleScopeOk=${ok(scopeWh)}`)
-
-    // 若 admin 侧存在非 4501 余额，受限侧不得出现这些 id
-    if (foreignWhExists && limitedRecs.length > 0) {
-      row('S8b', '受限库存不含非授权仓行', !limitedHasOther, `limitedHasOther=${limitedHasOther}`)
-    }
+    const controlScope = await api(adminToken, 'GET', `/api/system/users/${controlUserId}/data-scope`)
+    const controlLogin = await login(CONTROL_USER_NAME, USER_PASSWORD)
+    controlToken = controlLogin.accessToken
+    row('S4b', '非管理员对照账号生效范围为 ALL',
+      ok(assignRoles) && ok(assignAll) && ok(controlScope)
+        && dataOf(controlScope)?.effectiveHasAllScope === true && !!controlToken,
+      `userId=${controlUserId} effectiveAll=${dataOf(controlScope)?.effectiveHasAllScope}`)
   }
 
-  // 5) 恢复：受限角色改回 ALL，避免污染联调库长期缺范围（用户可留）
+  // 3) 构造采购/销售六类单据和库存流水。两账号权限相同，仅 data-scope 不同。
+  const date = bizDate()
+  const mainWarehouseId = '4501'
+  const suppliers = requireOk(
+    await api(adminToken, 'GET', '/api/masterdata/suppliers?pageNo=1&pageSize=100&status=ACTIVE'),
+    'load suppliers'
+  )
+  const products = requireOk(
+    await api(adminToken, 'GET', '/api/masterdata/products?pageNo=1&pageSize=200&status=ACTIVE'),
+    'load products'
+  )
+  const customers = requireOk(
+    await api(adminToken, 'GET', '/api/masterdata/customers?pageNo=1&pageSize=100&status=ACTIVE'),
+    'load customers'
+  )
+  const supplierId = (suppliers.records || [])[0]?.id
+  const product = (products.records || []).find((item) =>
+    item.lotControlled !== true
+      && item.serialControlled !== true
+      && item.inspectionRequired !== true
+      && String(item.productType || '').toUpperCase() !== 'SERVICE')
+  const customer = (customers.records || []).find((item) => Number(item.creditLimit || 0) >= 100)
+    || (customers.records || [])[0]
+  if (!supplierId || !product?.id || !customer?.id) {
+    throw new Error('active supplier/product/customer fixture not found')
+  }
+
+  async function createPurchaseOrder(token, marker) {
+    const created = requireOk(await api(token, 'POST', '/api/purchase/orders', {
+      supplierId,
+      orderDate: date,
+      deliveryDate: date,
+      remark: marker,
+      lines: [{ productId: product.id, qty: 5, price: 1, taxRate: 0, remark: marker }],
+    }), `create purchase order ${marker}`)
+    return { id: String(created.id), no: String(created.orderNo), data: created }
+  }
+
+  async function approvePurchaseOrder(ownerToken, document) {
+    requireOk(await api(ownerToken, 'POST', `/api/purchase/orders/${document.id}/submit`, {
+      remark: `submit-${SUFFIX}`,
+    }), `submit purchase order ${document.no}`)
+    requireOk(await api(adminToken, 'POST', `/api/purchase/orders/${document.id}/approve`, {
+      remark: `approve-${SUFFIX}`,
+    }), `approve purchase order ${document.no}`)
+  }
+
+  async function createPurchaseReceipt(token, order, marker) {
+    const orderLineId = order.data.lines?.[0]?.id
+    const created = requireOk(await api(token, 'POST', '/api/purchase/receipts', {
+      orderId: order.id,
+      warehouseId: mainWarehouseId,
+      receiptDate: date,
+      remark: marker,
+      lines: [{ orderLineId, qty: 5, remark: marker }],
+    }), `create purchase receipt ${marker}`)
+    const posted = requireOk(
+      await api(token, 'POST', `/api/purchase/receipts/${created.id}/post`),
+      `post purchase receipt ${created.receiptNo}`
+    )
+    return { id: String(posted.id), no: String(posted.receiptNo), data: posted }
+  }
+
+  async function createPurchaseReturn(token, receipt, marker) {
+    const receiptLineId = receipt.data.lines?.[0]?.id
+    const created = requireOk(await api(token, 'POST', '/api/purchase/returns', {
+      receiptId: receipt.id,
+      returnDate: date,
+      remark: marker,
+      lines: [{ receiptLineId, qty: 1, remark: marker }],
+    }), `create purchase return ${marker}`)
+    return { id: String(created.id), no: String(created.returnNo), data: created }
+  }
+
+  async function createSalesOrder(token, marker) {
+    const created = requireOk(await api(token, 'POST', '/api/sales/orders', {
+      customerId: customer.id,
+      warehouseId: mainWarehouseId,
+      orderDate: date,
+      deliveryDate: date,
+      remark: marker,
+      lines: [{ productId: product.id, qty: 1, price: 0, taxRate: 0, remark: marker }],
+    }), `create sales order ${marker}`)
+    return { id: String(created.id), no: String(created.orderNo), data: created }
+  }
+
+  async function approveSalesOrder(ownerToken, document) {
+    requireOk(await api(ownerToken, 'POST', `/api/sales/orders/${document.id}/submit`, {
+      remark: `submit-${SUFFIX}`,
+    }), `submit sales order ${document.no}`)
+    requireOk(await api(adminToken, 'POST', `/api/sales/orders/${document.id}/approve`, {
+      remark: `approve-${SUFFIX}`,
+    }), `approve sales order ${document.no}`)
+  }
+
+  async function createSalesDelivery(token, order, marker) {
+    const orderLineId = order.data.lines?.[0]?.id
+    const created = requireOk(await api(token, 'POST', '/api/sales/deliveries', {
+      orderId: order.id,
+      warehouseId: mainWarehouseId,
+      deliveryDate: date,
+      remark: marker,
+      logisticsStatus: 'PENDING_SHIP',
+      lines: [{ orderLineId, qty: 1, remark: marker }],
+    }), `create sales delivery ${marker}`)
+    const posted = requireOk(
+      await api(token, 'POST', `/api/sales/deliveries/${created.id}/post`),
+      `post sales delivery ${created.deliveryNo}`
+    )
+    return { id: String(posted.id), no: String(posted.deliveryNo), data: posted }
+  }
+
+  async function createSalesReturn(token, delivery, marker) {
+    const deliveryLineId = delivery.data.lines?.[0]?.id
+    const created = requireOk(await api(token, 'POST', '/api/sales/returns', {
+      deliveryId: delivery.id,
+      returnDate: date,
+      remark: marker,
+      lines: [{ deliveryLineId, qty: 1, remark: marker }],
+    }), `create sales return ${marker}`)
+    return { id: String(created.id), no: String(created.returnNo), data: created }
+  }
+
+  const foreignPurchaseOrder = await createPurchaseOrder(controlToken, `foreign-po-${SUFFIX}`)
+  const ownPurchaseOrder = await createPurchaseOrder(limitedToken, `own-po-${SUFFIX}`)
+  await approvePurchaseOrder(controlToken, foreignPurchaseOrder)
+  await approvePurchaseOrder(limitedToken, ownPurchaseOrder)
+  const foreignPurchaseReceipt = await createPurchaseReceipt(controlToken, foreignPurchaseOrder, `foreign-pr-${SUFFIX}`)
+  const ownPurchaseReceipt = await createPurchaseReceipt(limitedToken, ownPurchaseOrder, `own-pr-${SUFFIX}`)
+  const foreignPurchaseReturn = await createPurchaseReturn(controlToken, foreignPurchaseReceipt, `foreign-prt-${SUFFIX}`)
+  const ownPurchaseReturn = await createPurchaseReturn(limitedToken, ownPurchaseReceipt, `own-prt-${SUFFIX}`)
+
+  const foreignSalesOrder = await createSalesOrder(controlToken, `foreign-so-${SUFFIX}`)
+  const ownSalesOrder = await createSalesOrder(limitedToken, `own-so-${SUFFIX}`)
+  await approveSalesOrder(controlToken, foreignSalesOrder)
+  await approveSalesOrder(limitedToken, ownSalesOrder)
+  const foreignSalesDelivery = await createSalesDelivery(controlToken, foreignSalesOrder, `foreign-sd-${SUFFIX}`)
+  const ownSalesDelivery = await createSalesDelivery(limitedToken, ownSalesOrder, `own-sd-${SUFFIX}`)
+  const foreignSalesReturn = await createSalesReturn(controlToken, foreignSalesDelivery, `foreign-srt-${SUFFIX}`)
+  const ownSalesReturn = await createSalesReturn(limitedToken, ownSalesDelivery, `own-srt-${SUFFIX}`)
+  row('S5', '六类核心单据及库存流水夹具创建完成', true,
+    `productId=${product.id} PO=${ownPurchaseOrder.no}/${foreignPurchaseOrder.no} SO=${ownSalesOrder.no}/${foreignSalesOrder.no}`)
+
+  // 4) SELF：六类单据列表/详情/CSV，订单报表和业务追踪使用相同口径。
+  await verifySelfDocument({
+    idPrefix: 'S6PO', title: '采购订单', limitedToken, controlToken,
+    listPath: '/api/purchase/orders', exportPath: '/api/purchase/orders/export',
+    own: ownPurchaseOrder, foreign: foreignPurchaseOrder,
+  })
+  await verifySelfDocument({
+    idPrefix: 'S6PR', title: '采购入库', limitedToken, controlToken,
+    listPath: '/api/purchase/receipts', exportPath: '/api/purchase/receipts/export',
+    own: ownPurchaseReceipt, foreign: foreignPurchaseReceipt,
+  })
+  await verifySelfDocument({
+    idPrefix: 'S6PT', title: '采购退货', limitedToken, controlToken,
+    listPath: '/api/purchase/returns', exportPath: '/api/purchase/returns/export',
+    own: ownPurchaseReturn, foreign: foreignPurchaseReturn,
+  })
+  await verifySelfDocument({
+    idPrefix: 'S6SO', title: '销售订单', limitedToken, controlToken,
+    listPath: '/api/sales/orders', own: ownSalesOrder, foreign: foreignSalesOrder,
+  })
+  await verifySelfDocument({
+    idPrefix: 'S6SD', title: '销售出库', limitedToken, controlToken,
+    listPath: '/api/sales/deliveries', own: ownSalesDelivery, foreign: foreignSalesDelivery,
+  })
+  await verifySelfDocument({
+    idPrefix: 'S6ST', title: '销售退货', limitedToken, controlToken,
+    listPath: '/api/sales/returns', own: ownSalesReturn, foreign: foreignSalesReturn,
+  })
+
+  for (const reportCase of [
+    { id: 'S7PO', title: '采购订单报表', path: '/api/reports/purchase-orders', own: ownPurchaseOrder, foreign: foreignPurchaseOrder },
+    { id: 'S7SO', title: '销售订单报表', path: '/api/reports/sales-orders', own: ownSalesOrder, foreign: foreignSalesOrder },
+  ]) {
+    const ownReport = await api(limitedToken, 'GET', `${reportCase.path}?pageNo=1&pageSize=50&keyword=${encodeURIComponent(reportCase.own.no)}`)
+    const foreignReport = await api(limitedToken, 'GET', `${reportCase.path}?pageNo=1&pageSize=50&keyword=${encodeURIComponent(reportCase.foreign.no)}`)
+    const ownCsv = await textApi(limitedToken, `${reportCase.path}/export?keyword=${encodeURIComponent(reportCase.own.no)}`)
+    const foreignCsv = await textApi(limitedToken, `${reportCase.path}/export?keyword=${encodeURIComponent(reportCase.foreign.no)}`)
+    row(reportCase.id, `${reportCase.title}与页面 SELF 口径一致`,
+      ok(ownReport) && containsId(ownReport, reportCase.own.id)
+        && ok(foreignReport) && !containsId(foreignReport, reportCase.foreign.id)
+        && ownCsv.status < 400 && ownCsv.text.includes(reportCase.own.no)
+        && foreignCsv.status < 400 && !foreignCsv.text.includes(reportCase.foreign.no),
+      `ownTotal=${dataOf(ownReport)?.total} foreignTotal=${dataOf(foreignReport)?.total} ownCsvRows=${csvDataRows(ownCsv.text).length} foreignCsvRows=${csvDataRows(foreignCsv.text).length}`)
+  }
+
+  const hiddenTrace = await api(
+    limitedToken,
+    'GET',
+    `/api/reports/business-traces?keyword=${encodeURIComponent(foreignPurchaseOrder.no)}`
+  )
+  const trace = dataOf(hiddenTrace) || {}
+  const tracePayload = JSON.stringify({
+    documents: trace.documents || [],
+    timeline: trace.timeline || [],
+    exceptionTickets: trace.exceptionTickets || [],
+  })
+  const controlTrace = await api(
+    controlToken,
+    'GET',
+    `/api/reports/business-traces?keyword=${encodeURIComponent(foreignPurchaseOrder.no)}`
+  )
+  row('S7TR', '业务追踪不通过隐藏编号泄漏单据或二级数据',
+    ok(hiddenTrace)
+      && !tracePayload.includes(foreignPurchaseOrder.no)
+      && (trace.documents || []).length === 0
+      && (trace.timeline || []).length === 0
+      && ok(controlTrace)
+      && JSON.stringify(dataOf(controlTrace) || {}).includes(foreignPurchaseOrder.no),
+    `limitedDocuments=${(trace.documents || []).length} limitedTimeline=${(trace.timeline || []).length} controlVisible=${JSON.stringify(dataOf(controlTrace) || {}).includes(foreignPurchaseOrder.no)}`)
+
+  // 5) 越权写：拒绝发生在状态修改和下游库存流水之前。
+  const foreignDraft = await createPurchaseOrder(controlToken, `foreign-write-${SUFFIX}`)
+  const beforeDraft = requireOk(
+    await api(controlToken, 'GET', `/api/purchase/orders/${foreignDraft.id}`),
+    'load foreign draft before forbidden write'
+  )
+  const beforeTransactions = await api(
+    controlToken,
+    'GET',
+    `/api/inventory/transactions?pageNo=1&pageSize=50&bizNo=${encodeURIComponent(foreignDraft.no)}`
+  )
+  const forbiddenCancel = await api(limitedToken, 'POST', `/api/purchase/orders/${foreignDraft.id}/cancel`)
+  const afterDraft = requireOk(
+    await api(controlToken, 'GET', `/api/purchase/orders/${foreignDraft.id}`),
+    'load foreign draft after forbidden write'
+  )
+  const afterTransactions = await api(
+    controlToken,
+    'GET',
+    `/api/inventory/transactions?pageNo=1&pageSize=50&bizNo=${encodeURIComponent(foreignDraft.no)}`
+  )
+  row('S8', '越权作废被拒绝且业务状态、明细和库存流水不变',
+    isForbidden(forbiddenCancel)
+      && JSON.stringify(beforeDraft) === JSON.stringify(afterDraft)
+      && ok(beforeTransactions) && ok(afterTransactions)
+      && Number(dataOf(beforeTransactions)?.total || 0) === Number(dataOf(afterTransactions)?.total || 0),
+    `status=${forbiddenCancel.status} beforeStatus=${beforeDraft.status} afterStatus=${afterDraft.status} beforeTxn=${dataOf(beforeTransactions)?.total} afterTxn=${dataOf(afterTransactions)?.total}`)
+
+  // 6) 仓库范围：余额、流水、详情、CSV 和报表均只见 MAIN_WH(4501)。
+  let foreignBalance
+  let foreignTransaction
+  const warehousePage = requireOk(
+    await api(adminToken, 'GET', '/api/masterdata/warehouses?pageNo=1&pageSize=100&status=ACTIVE'),
+    'load warehouses'
+  )
+  for (const warehouse of warehousePage.records || []) {
+    if (String(warehouse.id) === mainWarehouseId) continue
+    if (!foreignBalance) {
+      const balances = await api(controlToken, 'GET', `/api/inventory/balances?pageNo=1&pageSize=5&warehouseId=${warehouse.id}`)
+      foreignBalance = recordsOf(balances)[0]
+    }
+    if (!foreignTransaction) {
+      const transactions = await api(controlToken, 'GET', `/api/inventory/transactions?pageNo=1&pageSize=5&warehouseId=${warehouse.id}`)
+      foreignTransaction = recordsOf(transactions)[0]
+    }
+    if (foreignBalance && foreignTransaction) break
+  }
+
+  const scopeWh = await api(adminToken, 'PUT', `/api/system/roles/${roleId}/data-scope`, {
+    hasAllScope: false,
+    deptScoped: false,
+    postScoped: false,
+    selfScoped: false,
+    warehouseIds: [mainWarehouseId],
+  })
+  limitedToken = (await login(USER_NAME, USER_PASSWORD)).accessToken
+
+  const limitedBalances = await api(limitedToken, 'GET', '/api/inventory/balances?pageNo=1&pageSize=200')
+  const balanceReport = await api(limitedToken, 'GET', '/api/reports/inventory-balances?pageNo=1&pageSize=200')
+  const balanceRows = recordsOf(limitedBalances)
+  row('S9BA', 'WAREHOUSE 余额列表与报表仅见授权仓',
+    ok(scopeWh) && ok(limitedBalances) && ok(balanceReport)
+      && balanceRows.every((item) => String(item.warehouseId) === mainWarehouseId)
+      && recordsOf(balanceReport).every((item) => String(item.warehouseId) === mainWarehouseId)
+      && Number(dataOf(limitedBalances)?.total || 0) === Number(dataOf(balanceReport)?.total || 0),
+    `listTotal=${dataOf(limitedBalances)?.total} reportTotal=${dataOf(balanceReport)?.total} onlyMain=${balanceRows.every((item) => String(item.warehouseId) === mainWarehouseId)}`)
+
+  const limitedTransactions = await api(limitedToken, 'GET', '/api/inventory/transactions?pageNo=1&pageSize=200')
+  const transactionReport = await api(limitedToken, 'GET', '/api/reports/inventory-transactions?pageNo=1&pageSize=200')
+  const transactionRows = recordsOf(limitedTransactions)
+  row('S9TX', 'WAREHOUSE 流水列表与报表仅见授权仓',
+    ok(limitedTransactions) && ok(transactionReport)
+      && transactionRows.every((item) => String(item.warehouseId) === mainWarehouseId)
+      && recordsOf(transactionReport).every((item) => String(item.warehouseId) === mainWarehouseId)
+      && Number(dataOf(limitedTransactions)?.total || 0) === Number(dataOf(transactionReport)?.total || 0),
+    `listTotal=${dataOf(limitedTransactions)?.total} reportTotal=${dataOf(transactionReport)?.total} onlyMain=${transactionRows.every((item) => String(item.warehouseId) === mainWarehouseId)}`)
+
+  if (foreignBalance) {
+    const hiddenBalanceList = await api(limitedToken, 'GET', `/api/inventory/balances?pageNo=1&pageSize=20&warehouseId=${foreignBalance.warehouseId}`)
+    const hiddenBalanceDetail = await api(limitedToken, 'GET', `/api/inventory/balances/${foreignBalance.id}`)
+    const hiddenBalanceReport = await api(limitedToken, 'GET', `/api/reports/inventory-balances?pageNo=1&pageSize=20&warehouseId=${foreignBalance.warehouseId}`)
+    const hiddenBalanceCsv = await textApi(limitedToken, `/api/inventory/balances/export?warehouseId=${foreignBalance.warehouseId}`)
+    row('S9BD', '非授权仓余额列表/详情/报表/CSV 均不可见',
+      ok(hiddenBalanceList) && recordsOf(hiddenBalanceList).length === 0
+        && isForbidden(hiddenBalanceDetail)
+        && ok(hiddenBalanceReport) && recordsOf(hiddenBalanceReport).length === 0
+        && hiddenBalanceCsv.status < 400 && csvDataRows(hiddenBalanceCsv.text).length === 0,
+      `warehouseId=${foreignBalance.warehouseId} list=${recordsOf(hiddenBalanceList).length} detailStatus=${hiddenBalanceDetail.status} report=${recordsOf(hiddenBalanceReport).length} csvRows=${csvDataRows(hiddenBalanceCsv.text).length}`)
+  } else {
+    row('S9BD', '非授权仓余额列表/详情/报表/CSV 均不可见', false, 'control account has no foreign warehouse balance fixture')
+  }
+
+  if (foreignTransaction) {
+    const hiddenTxnList = await api(limitedToken, 'GET', `/api/inventory/transactions?pageNo=1&pageSize=20&warehouseId=${foreignTransaction.warehouseId}`)
+    const hiddenTxnDetail = await api(limitedToken, 'GET', `/api/inventory/transactions/${foreignTransaction.id}`)
+    const hiddenTxnReport = await api(limitedToken, 'GET', `/api/reports/inventory-transactions?pageNo=1&pageSize=20&warehouseId=${foreignTransaction.warehouseId}`)
+    const hiddenTxnCsv = await textApi(limitedToken, `/api/reports/inventory-transactions/export?warehouseId=${foreignTransaction.warehouseId}`)
+    row('S9TD', '非授权仓流水列表/详情/报表/CSV 均不可见',
+      ok(hiddenTxnList) && recordsOf(hiddenTxnList).length === 0
+        && isForbidden(hiddenTxnDetail)
+        && ok(hiddenTxnReport) && recordsOf(hiddenTxnReport).length === 0
+        && hiddenTxnCsv.status < 400 && csvDataRows(hiddenTxnCsv.text).length === 0,
+      `warehouseId=${foreignTransaction.warehouseId} list=${recordsOf(hiddenTxnList).length} detailStatus=${hiddenTxnDetail.status} report=${recordsOf(hiddenTxnReport).length} csvRows=${csvDataRows(hiddenTxnCsv.text).length}`)
+  } else {
+    row('S9TD', '非授权仓流水列表/详情/报表/CSV 均不可见', false, 'control account has no foreign warehouse transaction fixture')
+  }
+
+  // 7) 恢复：受限角色改回 ALL，避免联调账号长期保留受限配置（测试用户可留）。
   {
     const restore = await api(adminToken, 'PUT', `/api/system/roles/${roleId}/data-scope`, {
       hasAllScope: true,
@@ -352,7 +682,7 @@ async function main() {
       selfScoped: false,
       warehouseIds: [],
     })
-    row('S9', 'smoke 后角色范围恢复为 ALL', ok(restore), `roleId=${roleId}`)
+    row('S10', 'smoke 后角色范围恢复为 ALL', ok(restore), `roleId=${roleId}`)
   }
 
   const failed = results.filter((r) => !r.pass)
@@ -361,8 +691,10 @@ async function main() {
     baseUrl: BASE,
     roleCode: ROLE_CODE,
     username: USER_NAME,
+    controlUsername: CONTROL_USER_NAME,
     roleId,
     limitedUserId,
+    controlUserId,
     summary: { total: results.length, passed: results.length - failed.length, failed: failed.length },
     results,
   }

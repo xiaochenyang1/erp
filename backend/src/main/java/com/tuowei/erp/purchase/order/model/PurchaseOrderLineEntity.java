@@ -24,6 +24,8 @@ public class PurchaseOrderLineEntity {
 
     private Long productId;
 
+    private Long contractLineId;
+
     private BigDecimal qty;
 
     private BigDecimal auxQty;
@@ -105,6 +107,14 @@ public class PurchaseOrderLineEntity {
 
     public void setProductId(Long productId) {
         this.productId = productId;
+    }
+
+    public Long getContractLineId() {
+        return contractLineId;
+    }
+
+    public void setContractLineId(Long contractLineId) {
+        this.contractLineId = contractLineId;
     }
 
     public BigDecimal getQty() {

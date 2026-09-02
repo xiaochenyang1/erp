@@ -6,6 +6,7 @@ import type { PageQuery, PageResponse } from '@/types/common'
 export interface SalesOrder {
   id: string
   orderNo: string
+  contractId?: string
   customerId: string
   customerName: string
   warehouseId?: string
@@ -14,7 +15,7 @@ export interface SalesOrder {
   totalAmount: number
   totalQuantity?: number
   totalTaxAmount?: number
-  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELIVERING' | 'COMPLETED' | 'CANCELLED' | 'CONFIRMED' | 'CLOSED'
+  status: 'DRAFT' | 'SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELIVERING' | 'COMPLETED' | 'CANCELLED' | 'CONFIRMED' | 'CLOSED'
   approvalStatus?: string
   deliveryStatus?: string
   items: SalesOrderItem[]
@@ -23,6 +24,9 @@ export interface SalesOrder {
   carrierName?: string
   trackingNo?: string
   logisticsStatus?: string
+  deliveredBy?: string
+  deliveredTime?: string
+  deliveryProofAttachmentId?: string
   createdBy?: string
   createdAt?: string
   updatedAt?: string
@@ -30,6 +34,10 @@ export interface SalesOrder {
 
 export interface SalesOrderItem {
   id?: string
+  contractLineId?: string
+  contractQuantity?: number
+  committedQuantity?: number
+  fulfilledQuantity?: number
   lineNo?: number
   productId: string | number
   productCode?: string
@@ -59,12 +67,19 @@ export interface SalesOrderQuery extends PageQuery {
 }
 
 export interface SalesOrderSaveRequest {
+  contractId?: string | number
   customerId: string | number
   warehouseId?: string | number
   orderDate: string
   deliveryDate?: string
   items: SalesOrderItem[]
   remark?: string
+  carrierName?: string
+  trackingNo?: string
+  logisticsStatus?: string
+  deliveredBy?: string
+  deliveredTime?: string
+  deliveryProofAttachmentId?: string | number
 }
 
 export interface SalesOrderCreditPreview {
@@ -136,6 +151,7 @@ export const cancelSalesOrder = (id: string | number) => {
 const normalizeSalesOrderItem = (item: SalesOrderItem): SalesOrderItem => ({
   ...item,
   id: item.id != null ? String(item.id) : undefined,
+  contractLineId: item.contractLineId != null ? String(item.contractLineId) : undefined,
   productId: String(item.productId),
   quantity: item.quantity ?? item.qty ?? 0,
   auxQty: item.auxQty != null ? Number(item.auxQty) : item.auxQty,
@@ -148,6 +164,7 @@ const normalizeSalesOrder = (order: SalesOrder): SalesOrder => {
   return {
     ...order,
     id: String(order.id),
+    contractId: order.contractId != null ? String(order.contractId) : undefined,
     customerId: String(order.customerId),
     warehouseId: order.warehouseId != null ? String(order.warehouseId) : undefined,
     items,
@@ -161,6 +178,7 @@ const normalizeSalesOrderCreditPreview = (preview: SalesOrderCreditPreview): Sal
 })
 
 const toSalesOrderPayload = (data: SalesOrderSaveRequest) => ({
+  contractId: data.contractId,
   customerId: data.customerId,
   warehouseId: data.warehouseId,
   orderDate: data.orderDate,
@@ -174,6 +192,7 @@ const toSalesOrderPayload = (data: SalesOrderSaveRequest) => ({
 
 const toSalesOrderLinePayload = (items: SalesOrderItem[]) => items.map((item, index) => ({
   productId: item.productId,
+  contractLineId: item.contractLineId,
   lineNo: item.lineNo ?? index + 1,
   qty: item.quantity,
   auxQty: item.auxQty ?? undefined,
@@ -206,6 +225,9 @@ export interface SalesDelivery {
   carrierName?: string
   trackingNo?: string
   logisticsStatus?: string
+  deliveredBy?: string
+  deliveredTime?: string
+  deliveryProofAttachmentId?: string
   createdBy?: string
   createdAt?: string
   updatedAt?: string
@@ -255,6 +277,9 @@ export interface SalesDeliveryCreateRequest {
   carrierName?: string
   trackingNo?: string
   logisticsStatus?: string
+  deliveredBy?: string
+  deliveredTime?: string
+  deliveryProofAttachmentId?: string | number
 }
 
 // 销售发货API
@@ -315,6 +340,8 @@ const toSalesDeliveryPayload = (data: SalesDeliveryCreateRequest) => ({
   carrierName: data.carrierName,
   trackingNo: data.trackingNo,
   logisticsStatus: data.logisticsStatus,
+  deliveredBy: data.deliveredBy,
+  deliveryProofAttachmentId: data.deliveryProofAttachmentId,
   lines: data.items.map((item) => ({
     orderLineId: item.orderLineId ?? item.orderItemId,
     qty: item.quantity,
@@ -417,6 +444,9 @@ export interface SalesReturnCreateRequest {
   returnDate: string
   items: SalesReturnItem[]
   remark?: string
+  carrierName?: string
+  trackingNo?: string
+  logisticsStatus?: string
 }
 
 // 销售退货API
@@ -699,7 +729,16 @@ export const convertSalesQuoteToOrder = (id: string | number, warehouseId: strin
 
 export const updateSalesDeliveryLogistics = (
   id: string | number,
-  data: { logisticsStatus: string; carrierName?: string; trackingNo?: string; remark?: string }
+  data: { logisticsStatus: string; carrierName?: string; trackingNo?: string; deliveredBy?: string; deliveryProofAttachmentId?: string | number; remark?: string }
 ) => {
   return request.post<SalesDelivery>(`/sales/deliveries/${id}/logistics`, data).then(normalizeSalesDelivery)
+}
+
+export const uploadSalesDeliveryAttachment = (deliveryId: string | number, file: File, deliveryNo?: string) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('businessType', 'SALES_DELIVERY')
+  formData.append('businessId', String(deliveryId))
+  if (deliveryNo) formData.append('businessNo', deliveryNo)
+  return request.post<{ id: string }>('/system/attachments', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((attachment) => ({ ...attachment, id: String(attachment.id) }))
 }

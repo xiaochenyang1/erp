@@ -37,6 +37,7 @@ class SalesDeliveryControllerTest {
     private static final long ACCOUNT_BOOK_ID = 1L;
     private static final long USER_ID = 1L;
     private static final long WAREHOUSE_ID = 895902L;
+    private static final long LOCATION_ID = WAREHOUSE_ID + 500000000000000000L;
     private static final long AUTO_PRODUCT_ID = 895301L;
     private static final long EXPLICIT_PRODUCT_ID = 895302L;
     private static final long PERIOD_ID = 895002L;
@@ -99,6 +100,7 @@ class SalesDeliveryControllerTest {
         jdbcTemplate.update("delete from sal_order_line where order_id between 895000 and 895999 or product_id between 895300 and 895399");
         jdbcTemplate.update("delete from sal_order where id between 895000 and 895999");
         jdbcTemplate.update("delete from md_product where id between 895300 and 895399 or product_code like 'LOT-SD-%'");
+        jdbcTemplate.update("delete from md_location where id = ? or warehouse_id = ?", LOCATION_ID, WAREHOUSE_ID);
         jdbcTemplate.update("delete from md_warehouse where id = ? or warehouse_code = 'LOT-SD-WH'", WAREHOUSE_ID);
         jdbcTemplate.update("delete from fin_account_period where id = ? or period_year = 2035", PERIOD_ID);
     }
@@ -298,6 +300,14 @@ class SalesDeliveryControllerTest {
                 values (?, ?, ?, 'LOT-SD-WH', 'Sales lot warehouse', 3501, 4001,
                         'lot delivery test', 'ACTIVE', 0, 'lot delivery test', ?, ?, ?, ?, 0)
                 """, WAREHOUSE_ID, COMPANY_ID, ACCOUNT_BOOK_ID, USER_ID, NOW, USER_ID, NOW);
+        jdbcTemplate.update("""
+                insert into md_location
+                (id, company_id, account_book_id, warehouse_id, location_code, location_name,
+                 is_default, status, deleted_flag, remark, created_by, created_time, updated_by, updated_time, version)
+                values (?, ?, ?, ?, 'MAIN', 'Default Location', 1, 'ACTIVE', 0,
+                        'sales delivery test default location', ?, ?, ?, ?, 0)
+                """, LOCATION_ID, COMPANY_ID, ACCOUNT_BOOK_ID, WAREHOUSE_ID,
+                USER_ID, NOW, USER_ID, NOW);
     }
 
     private void seedProduct(long productId, String productCode) {
@@ -335,10 +345,10 @@ class SalesDeliveryControllerTest {
     private void seedAggregateStock(long id, long productId, String qtyOnHand, String amountOnHand, String qtyReserved) {
         jdbcTemplate.update("""
                 insert into inv_balance
-                (id, company_id, account_book_id, warehouse_id, product_id, qty_on_hand, qty_reserved,
+                (id, company_id, account_book_id, warehouse_id, location_id, product_id, qty_on_hand, qty_reserved,
                  amount_on_hand, created_by, created_time, updated_by, updated_time, version)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-                """, id, COMPANY_ID, ACCOUNT_BOOK_ID, WAREHOUSE_ID, productId,
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                """, id, COMPANY_ID, ACCOUNT_BOOK_ID, WAREHOUSE_ID, LOCATION_ID, productId,
                 new BigDecimal(qtyOnHand), new BigDecimal(qtyReserved), new BigDecimal(amountOnHand),
                 USER_ID, NOW, USER_ID, NOW);
     }
@@ -355,11 +365,11 @@ class SalesDeliveryControllerTest {
     ) {
         jdbcTemplate.update("""
                 insert into inv_lot_balance
-                (id, company_id, account_book_id, warehouse_id, product_id, lot_no, production_date, expiry_date,
+                (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no, production_date, expiry_date,
                  first_inbound_time, qty_on_hand, qty_reserved, amount_on_hand,
                  created_by, created_time, updated_by, updated_time, version)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0000, ?, ?, ?, ?, ?, 0)
-                """, id, COMPANY_ID, ACCOUNT_BOOK_ID, WAREHOUSE_ID, productId, lotNo, productionDate, expiryDate,
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0000, ?, ?, ?, ?, ?, 0)
+                """, id, COMPANY_ID, ACCOUNT_BOOK_ID, WAREHOUSE_ID, LOCATION_ID, productId, lotNo, productionDate, expiryDate,
                 firstInboundTime, new BigDecimal(qtyOnHand), new BigDecimal(amountOnHand), USER_ID, NOW, USER_ID, NOW);
     }
 

@@ -5,6 +5,7 @@ import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.commercial.contract.service.ContractExecutionService;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
@@ -27,6 +28,8 @@ import com.tuowei.erp.sales.returnorder.mapper.SalesReturnMapper;
 import com.tuowei.erp.sales.returnorder.model.SalesReturnEntity;
 import com.tuowei.erp.sales.returnorder.model.SalesReturnLineEntity;
 import com.tuowei.erp.sales.returnorder.web.SalesReturnResponse;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +64,9 @@ public class SalesReturnPostingService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final SalesReturnQueryService salesReturnQueryService;
     private final AccountPeriodGuard accountPeriodGuard;
+    private final AttachmentService attachmentService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ContractExecutionService contractExecutionService;
 
     public SalesReturnPostingService(
             SalesReturnMapper salesReturnMapper,
@@ -75,7 +81,8 @@ public class SalesReturnPostingService {
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
             SalesReturnQueryService salesReturnQueryService,
-            AccountPeriodGuard accountPeriodGuard
+            AccountPeriodGuard accountPeriodGuard,
+            AttachmentService attachmentService
     ) {
         this.salesReturnMapper = salesReturnMapper;
         this.salesReturnLineMapper = salesReturnLineMapper;
@@ -90,6 +97,7 @@ public class SalesReturnPostingService {
         this.auditMetadataFactory = auditMetadataFactory;
         this.salesReturnQueryService = salesReturnQueryService;
         this.accountPeriodGuard = accountPeriodGuard;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -99,6 +107,7 @@ public class SalesReturnPostingService {
         if (!"DRAFT".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前销售退货单状态不允许过账");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.SALES_RETURN, entity.getId());
         accountPeriodGuard.requireOpen(entity.getReturnDate(), "销售退货过账");
 
         SalesDeliveryEntity delivery = requirePostedDelivery(entity.getDeliveryId());
@@ -158,6 +167,9 @@ public class SalesReturnPostingService {
                     salesOrderLineMapper.updateById(orderLine),
                     "销售订单明细已被其他操作修改，请刷新后重试"
             );
+            if (contractExecutionService != null) {
+                contractExecutionService.decrease(orderLine.getContractLineId(), returnLine.getQty(), audit);
+            }
 
             inventoryPostingService.postInbound(
                     new InventoryPostingCommand(

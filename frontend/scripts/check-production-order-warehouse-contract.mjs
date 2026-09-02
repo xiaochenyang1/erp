@@ -15,6 +15,8 @@ const orderView = [
   'src/composables/useProductionOrderCompletion.ts',
   'src/composables/useProductionOrderProductControls.ts'
 ].map((path) => readFileSync(resolve(root, path), 'utf8')).join('\n')
+const productionOrderView = readFileSync(resolve(root, 'src/views/production/orders/index.vue'), 'utf8')
+const productionOrderList = readFileSync(resolve(root, 'src/composables/useProductionOrderList.ts'), 'utf8')
 // BOM 页已按 E-1 拆分为展示/列表/表单 composable，契约仍按整块特性校验
 const bomView = [
   'src/views/production/boms/index.vue',
@@ -337,9 +339,20 @@ const importsView = existsSync(importsViewPath)
   : ''
 const inventoryStockView = readFileSync(resolve(root, 'src/views/inventory/stocks/index.vue'), 'utf8')
 const inventoryStockDetails = readFileSync(resolve(root, 'src/composables/useInventoryStockDetails.ts'), 'utf8')
-const inventoryStockActions = readFileSync(resolve(root, 'src/composables/useInventoryStockActions.ts'), 'utf8')
-const inventoryStockResources = readFileSync(resolve(root, 'src/composables/useInventoryStockResources.ts'), 'utf8')
-const inventoryStockFeature = `${inventoryStockView}\n${inventoryStockDetails}\n${inventoryStockActions}\n${inventoryStockResources}`
+const inventoryStockBalanceList = readFileSync(resolve(root, 'src/composables/useInventoryStockBalanceList.ts'), 'utf8')
+const inventoryStockExpiryAlertList = readFileSync(resolve(root, 'src/composables/useInventoryStockExpiryAlertList.ts'), 'utf8')
+const inventoryStockLotBalanceList = readFileSync(resolve(root, 'src/composables/useInventoryStockLotBalanceList.ts'), 'utf8')
+const inventoryStockReservationList = readFileSync(resolve(root, 'src/composables/useInventoryStockReservationList.ts'), 'utf8')
+const inventoryStockTransactionList = readFileSync(resolve(root, 'src/composables/useInventoryStockTransactionList.ts'), 'utf8')
+const inventoryStockFeature = [
+  inventoryStockView,
+  inventoryStockBalanceList,
+  inventoryStockExpiryAlertList,
+  inventoryStockLotBalanceList,
+  inventoryStockReservationList,
+  inventoryStockTransactionList,
+  inventoryStockDetails
+].join('\n')
 // 库存预警页已按 E-1 拆分为展示/列表 composable，契约仍按整块特性校验
 const inventoryAlertView = [
   'src/views/inventory/alerts/index.vue',
@@ -769,7 +782,7 @@ for (const fragment of [
   }
 }
 
-for (const fragment of [
+for (const fragments of [
   'cancelPurchaseOrder,',
   'closePurchaseOrder,',
   'tracePurchaseOrder,',
@@ -778,14 +791,15 @@ for (const fragment of [
   'handleCancelOrder',
   'handleCloseOrder',
   'handleTraceOrder',
-  'canCancelOrder(row)',
-  'canCloseOrder(row)',
+  ['canCancelOrder(row)', 'canCancel(row)'],
+  ['canCloseOrder(row)', 'canClose(row)'],
   ':title="t(\'purchaseOrder.traceTitle\')"',
   'purchaseTrace.executionInfo',
   'purchaseTrace.relatedDocs'
 ]) {
-  if (!purchaseOrderView.includes(fragment)) {
-    errors.push(`采购订单页缺少取消/关闭/追踪真实入口片段: ${fragment}`)
+  const alternatives = Array.isArray(fragments) ? fragments : [fragments]
+  if (!alternatives.some((fragment) => purchaseOrderView.includes(fragment))) {
+    errors.push(`采购订单页缺少取消/关闭/追踪真实入口片段: ${alternatives.join(' 或 ')}`)
   }
 }
 
@@ -2894,6 +2908,53 @@ for (const fragment of forbiddenFragments) {
 }
 
 for (const fragment of [
+  'export interface ProductionOrderQuery extends PageQuery',
+  'keyword?: string',
+  'export const getProductionOrders = (params: ProductionOrderQuery)',
+  "request.get<PageResponse<ProductionOrder>>('/production/orders', { params })"
+]) {
+  if (!productionApi.includes(fragment)) {
+    errors.push(`生产订单 API 缺少真实分页或关键字查询契约片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'keyword: queryForm.orderNo || undefined',
+  'pageNo: pagination.page',
+  'pageSize: pagination.size',
+  'const handlePageChange = (page: number) =>',
+  'const handleSizeChange = (size: number) =>',
+  'let listRequestId = 0',
+  'const requestId = ++listRequestId',
+  'if (requestId !== listRequestId) return',
+  'if (requestId === listRequestId) loading.value = false'
+]) {
+  if (!productionOrderList.includes(fragment)) {
+    errors.push(`生产订单列表切片缺少分页、筛选或竞态保护片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  '@size-change="handleSizeChange"',
+  '@current-change="handlePageChange"',
+  'v-loading="viewLoading"'
+]) {
+  if (!productionOrderView.includes(fragment)) {
+    errors.push(`生产订单页缺少独立分页或详情加载绑定: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  '@size-change="handleQuery"',
+  '@current-change="handleQuery"',
+  'v-model="queryForm.priority"'
+]) {
+  if (productionOrderView.includes(fragment)) {
+    errors.push(`生产订单页仍保留共享分页回调或无效优先级筛选片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
   'export const updateProductionOrder = (id: string | number, data: ProductionOrderUpdateRequest)',
   'request.put<ProductionOrder>(`/production/orders/${id}`, toProductionOrderPayload(data)).then(normalizeProductionOrder)',
   'export interface ProductionCompletionReversalRequest',
@@ -3270,6 +3331,61 @@ for (const fragment of [
 }
 
 for (const fragment of [
+  'getInventoryReservations',
+  'getInventoryReservation',
+  'getInventoryReservationSummary',
+  'getInventoryReservationSource',
+  'manualReleaseInventoryReservation',
+  'checkInventoryReservations',
+  'handleOpenReservations',
+  'handleReservationPageChange',
+  'handleReservationSizeChange',
+  'handleViewReservation',
+  'handleViewReservationSource',
+  'submitManualRelease',
+  'handleReservationCheck',
+  'const reservationLoading = ref(false)',
+  'const reservationSummaryLoading = ref(false)',
+  'const reservationDetailLoading = ref(false)',
+  'const reservationSourceLoading = ref(false)',
+  'const releasing = ref(false)',
+  'const checkLoading = ref(false)',
+  'const checkFailed = ref(false)',
+  'checkIssues.value = []',
+  'await dependencies.manualRelease(releaseRequest.id',
+  'await Promise.all([',
+  'callbacks.reloadStockList()',
+  'await dependencies.checkReservations({',
+  "callbacks.onError('inventoryStocks.message.reservationsLoadFailed', error)",
+  "callbacks.onError('inventoryStocks.message.reservationSummaryLoadFailed', error)",
+  "callbacks.onError('inventoryStocks.message.reservationDetailLoadFailed', error)",
+  "callbacks.onError('inventoryStocks.message.sourceReservationLoadFailed', error)",
+  "callbacks.onSuccess('inventoryStocks.message.released')",
+  "callbacks.onError('inventoryStocks.message.releaseFailed', error)",
+  "callbacks.onError('inventoryStocks.message.reservationCheckFailed', error)"
+]) {
+  if (!inventoryStockReservationList.includes(fragment)) {
+    errors.push(`库存预留运营切片缺少真实查询、独立加载状态、释放/核对或错误反馈片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'v-loading="reservationSummaryLoading"',
+  'v-loading="reservationLoading"',
+  '@size-change="handleReservationSizeChange"',
+  '@current-change="handleReservationPageChange"',
+  'v-if="reservationDetailLoading"',
+  'v-if="reservationSourceLoading"',
+  ':loading="releasing"',
+  'v-loading="reservationCheckLoading"',
+  '!reservationCheckFailed'
+]) {
+  if (!inventoryStockView.includes(fragment)) {
+    errors.push(`库存预留运营页缺少独立加载或分页绑定: ${fragment}`)
+  }
+}
+
+for (const fragment of [
   'getWarehouses({ pageNo: 1, pageSize: 1000',
   'getProducts({ pageNo: 1, pageSize: 1000',
   "return Promise.reject",
@@ -3320,6 +3436,58 @@ for (const fragment of [
 ]) {
   if (!inventoryStockFeature.includes(fragment)) {
     errors.push(`库存查询页缺少批次库存/流水真实入口片段: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'getInventoryLotBalances',
+  'getInventoryLotBalance',
+  'getInventoryLotTrace',
+  'handleOpenLotBalances',
+  'handleViewLotBalance',
+  'handleOpenLotTrace',
+  'handleLotBalancePageChange',
+  'handleLotBalanceSizeChange',
+  'handleLotTracePageChange',
+  'handleLotTraceSizeChange',
+  "callbacks.onListError('inventoryStocks.message.lotStockLoadFailed', error)",
+  "callbacks.onDetailError('inventoryStocks.message.lotStockDetailLoadFailed')",
+  "callbacks.onListError('inventoryStocks.message.lotTraceLoadFailed', error)"
+]) {
+  if (!inventoryStockLotBalanceList.includes(fragment)) {
+    errors.push(`库存批次余额/追溯切片缺少真实查询、详情或分页片段: ${fragment}`)
+  }
+}
+for (const fragment of [
+  '@size-change="handleLotBalanceSizeChange"',
+  '@current-change="handleLotBalancePageChange"',
+  '@size-change="handleLotTraceSizeChange"',
+  '@current-change="handleLotTracePageChange"',
+  'v-if="lotBalanceDetailLoading"'
+]) {
+  if (!inventoryStockView.includes(fragment)) {
+    errors.push(`库存批次余额/追溯页缺少独立分页或详情加载绑定: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  'getInventoryLotExpiryAlerts',
+  'handleOpenLotAlerts',
+  'handleLotAlertPageChange',
+  'handleLotAlertSizeChange',
+  'lotAlertQuery.warningDays = 30',
+  "callbacks.onError('inventoryStocks.message.expiryAlertsLoadFailed', error)"
+]) {
+  if (!inventoryStockExpiryAlertList.includes(fragment)) {
+    errors.push(`库存效期预警切片缺少真实查询或分页片段: ${fragment}`)
+  }
+}
+for (const fragment of [
+  '@size-change="handleLotAlertSizeChange"',
+  '@current-change="handleLotAlertPageChange"'
+]) {
+  if (!inventoryStockView.includes(fragment)) {
+    errors.push(`库存效期预警页缺少独立分页绑定: ${fragment}`)
   }
 }
 

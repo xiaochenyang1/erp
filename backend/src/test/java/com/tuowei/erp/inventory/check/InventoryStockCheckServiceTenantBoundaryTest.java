@@ -3,8 +3,15 @@ package com.tuowei.erp.inventory.check;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ErpPrincipal;
+import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentService;
 import com.tuowei.erp.inventory.check.mapper.InventoryStockCheckLineMapper;
@@ -12,19 +19,25 @@ import com.tuowei.erp.inventory.check.mapper.InventoryStockCheckMapper;
 import com.tuowei.erp.inventory.check.model.InventoryStockCheckEntity;
 import com.tuowei.erp.inventory.check.model.InventoryStockCheckLineEntity;
 import com.tuowei.erp.inventory.check.service.InventoryStockCheckNumberService;
+import com.tuowei.erp.inventory.check.service.InventoryStockCheckCommandService;
+import com.tuowei.erp.inventory.check.service.InventoryStockCheckQueryService;
 import com.tuowei.erp.inventory.check.service.InventoryStockCheckService;
 import com.tuowei.erp.inventory.check.web.InventoryStockCheckCreateRequest;
 import com.tuowei.erp.inventory.check.web.InventoryStockCheckLineRequest;
+import com.tuowei.erp.inventory.check.web.InventoryStockCheckPageQuery;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -33,12 +46,17 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class InventoryStockCheckServiceTenantBoundaryTest {
@@ -81,8 +99,23 @@ class InventoryStockCheckServiceTenantBoundaryTest {
     @Mock
     private AccountPeriodGuard accountPeriodGuard;
 
+    @Mock
+    private AttachmentService attachmentService;
+
+    @Mock
+    private CurrentUserContext currentUserContext;
+
+    @Mock
+    private ScopedUserResolver scopedUserResolver;
+
+    @Mock
+    private UserMapper userMapper;
+
+    private final DataScopeService dataScopeService = new DataScopeService(null, null, null, null);
+
     @BeforeAll
     static void initTableInfo() {
+        initTableInfo(InventoryStockCheckEntity.class);
         initTableInfo(InventoryStockCheckLineEntity.class);
         initTableInfo(WarehouseEntity.class);
         initTableInfo(ProductEntity.class);
@@ -190,6 +223,66 @@ class InventoryStockCheckServiceTenantBoundaryTest {
                 .hasMessage("库存盘点单不存在");
     }
 
+    @Test
+    void postAdjustmentStopsAtAttachmentGateBeforeCheckingAccountingPeriod() {
+        InventoryStockCheckEntity check = stockCheck(AUDIT.accountBookId());
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(checkMapper.selectById(CHECK_ID)).thenReturn(check);
+        doThrow(new IllegalArgumentException("业务类型 INVENTORY_CHECK 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("INVENTORY_CHECK", CHECK_ID);
+
+        assertThatThrownBy(() -> service().postAdjustment(CHECK_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("INVENTORY_CHECK");
+
+        assertThat(check.getStatus()).isEqualTo("COUNTED");
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        verify(checkMapper, never()).updateById(any(InventoryStockCheckEntity.class));
+    }
+
+    @Test
+    void listAppliesWarehouseDataScope() {
+        stubScope(new DataScopeSnapshot(false, false, false, false, Set.of(WAREHOUSE_ID)));
+        Page<InventoryStockCheckEntity> page = new Page<>(1, 20);
+        page.setRecords(List.of());
+        when(checkMapper.selectPage(any(Page.class), any())).thenReturn(page);
+
+        secureQueryService().list(new InventoryStockCheckPageQuery());
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<InventoryStockCheckEntity>> wrapperCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(checkMapper).selectPage(any(Page.class), wrapperCaptor.capture());
+        assertThat(wrapperCaptor.getValue().getSqlSegment().toLowerCase(Locale.ROOT))
+                .contains("warehouse_id");
+    }
+
+    @Test
+    void getByIdRejectsNoneScopeBeforeLoadingLines() {
+        stubScope(DataScopeSnapshot.none());
+        when(checkMapper.selectById(CHECK_ID)).thenReturn(stockCheck(AUDIT.accountBookId()));
+
+        assertThatThrownBy(() -> secureQueryService().getById(CHECK_ID))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("无权访问该库存盘点单");
+
+        verify(lineMapper, never()).selectList(any());
+    }
+
+    @Test
+    void createRejectsNoneScopeBeforeInsertingCheck() {
+        stubScope(DataScopeSnapshot.none());
+        when(warehouseMapper.selectById(WAREHOUSE_ID)).thenReturn(activeWarehouse(AUDIT.accountBookId()));
+
+        assertThatThrownBy(() -> secureCommandService().create(createRequest()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("无权访问该库存盘点单");
+
+        verify(checkMapper, never()).insert(any(InventoryStockCheckEntity.class));
+        verify(lineMapper, never()).insert(any(InventoryStockCheckLineEntity.class));
+    }
+
     private InventoryStockCheckService service() {
         return new InventoryStockCheckService(
                 checkMapper,
@@ -200,8 +293,36 @@ class InventoryStockCheckServiceTenantBoundaryTest {
                 auditMetadataFactory,
                 warehouseMapper,
                 productValidator,
-                accountPeriodGuard
+                accountPeriodGuard,
+                attachmentService
         );
+    }
+
+    private InventoryStockCheckQueryService secureQueryService() {
+        return new InventoryStockCheckQueryService(
+                checkMapper, lineMapper, auditMetadataFactory, currentUserContext,
+                dataScopeService, scopedUserResolver, userMapper);
+    }
+
+    private InventoryStockCheckCommandService secureCommandService() {
+        return new InventoryStockCheckCommandService(
+                checkMapper, lineMapper, numberService, inventoryPostingService, adjustmentService,
+                auditMetadataFactory, warehouseMapper, productValidator, accountPeriodGuard,
+                attachmentService, currentUserContext, dataScopeService, userMapper);
+    }
+
+    private void stubScope(DataScopeSnapshot snapshot) {
+        CurrentUser currentUser = new CurrentUser(
+                AUDIT.userId(), AUDIT.companyId(), AUDIT.accountBookId(), 11L, 12L,
+                "stock_check_user", "库存盘点用户");
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(currentUserContext.requireCurrentUser()).thenReturn(currentUser);
+        when(currentUserContext.requirePrincipal()).thenReturn(new ErpPrincipal(
+                currentUser.userId(), currentUser.companyId(), currentUser.accountBookId(),
+                currentUser.deptId(), currentUser.postId(), currentUser.username(), currentUser.realName(),
+                "N/A", Set.of(), snapshot));
+        lenient().when(scopedUserResolver.resolve(currentUser, snapshot))
+                .thenReturn(new ScopedUserResolver.ScopedUserIds(Set.of(), Set.of()));
     }
 
     private InventoryStockCheckCreateRequest createRequest() {

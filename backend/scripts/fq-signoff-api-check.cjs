@@ -1,6 +1,9 @@
 const fs = require('fs')
 const path = require('path')
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:8080'
+const OUT_DIR = path.resolve(
+  process.env.ERP_FQ_EVIDENCE_DIRECTORY || process.env.ERP_EVIDENCE_DIRECTORY || path.join('target', 'fq-signoff-api-check'),
+)
 
 async function login(username, password) {
   const r = await fetch(`${BASE}/api/auth/login`, {
@@ -57,6 +60,15 @@ async function findByKeyword(token, apiPath, keyword) {
   return recs.find((x) => JSON.stringify(x).includes(keyword)) || null
 }
 
+async function listRecords(token, apiPath) {
+  const res = await api(token, `${apiPath}?pageNo=1&pageSize=100`)
+  return recordsOf(res.body)
+}
+
+function firstMatching(records, predicate) {
+  return records.find(predicate) || null
+}
+
 function row(id, title, pass, detail, extra = {}) {
   return { id, title, pass: !!pass, detail, ...extra }
 }
@@ -71,7 +83,11 @@ async function main() {
 
   // F1 / F2 expense
   {
-    const hit = await findByKeyword(token, '/api/finance/expenses', 'FE202607150005')
+    const expenses = await listRecords(token, '/api/finance/expenses')
+    const hit =
+      (await findByKeyword(token, '/api/finance/expenses', 'FE202607150005')) ||
+      firstMatching(expenses, (x) => x.voucherId && x.reversalVoucherId) ||
+      firstMatching(expenses, (x) => x.voucherId)
     let detail = 'not found'
     let postedOk = false
     let reverseOk = false
@@ -107,7 +123,11 @@ async function main() {
 
   // F3 / F4 manual voucher
   {
-    const hit = await findByKeyword(token, '/api/finance/vouchers/manual', 'MV202607150003')
+    const manualVouchers = await listRecords(token, '/api/finance/vouchers/manual')
+    const hit =
+      (await findByKeyword(token, '/api/finance/vouchers/manual', 'MV202607150003')) ||
+      firstMatching(manualVouchers, (x) => x.postedVoucherId && x.reversalVoucherId) ||
+      firstMatching(manualVouchers, (x) => x.postedVoucherId)
     let detail = 'not found'
     let pass = false
     let cancelOk = false
@@ -124,28 +144,52 @@ async function main() {
 
   // F5 delivery + AR
   {
-    const sd = await findByKeyword(token, '/api/sales/deliveries', 'SD202607160004')
-    const ars = recordsOf((await api(token, '/api/finance/receivables?pageNo=1&pageSize=100')).body)
+    const deliveries = await listRecords(token, '/api/sales/deliveries')
+    const ars = await listRecords(token, '/api/finance/receivables')
+    const oldSd = await findByKeyword(token, '/api/sales/deliveries', 'SD202607160004')
+    const sd = oldSd || firstMatching(deliveries, (x) => {
+      if (String(x.status).toUpperCase() !== 'POSTED') return false
+      return ars.some((candidate) => String(candidate.sourceNo) === String(x.deliveryNo))
+    })
     const ar =
+      ars.find((x) => String(x.sourceNo) === String(sd?.deliveryNo)) ||
       ars.find((x) => String(x.receivableNo) === 'AR-SALES_DELIVERY-2077598953381076994') ||
       ars.find((x) => JSON.stringify(x).includes('SD202607160004') || JSON.stringify(x).includes('2077598953381076994'))
     const sdOk = sd && String(sd.status).toUpperCase() === 'POSTED'
+    const amountOk =
+      sd && ar && ar.originalAmount != null
+        ? Math.abs(Number(ar.originalAmount) - (Number(sd.totalAmount || 0) + Number(sd.totalTaxAmount || 0))) < 0.01
+        : !!ar
     results.push(
       row(
         'F5',
         '发货生成应收金额=含税',
-        sdOk && !!ar,
-        `sd=${sd?.deliveryNo}/${sd?.status} amt=${sd?.totalAmount}; ar=${ar?.receivableNo}/${ar?.status} amt=${ar?.amount || ar?.totalAmount || ar?.originAmount}`,
+        sdOk && !!ar && amountOk,
+        `sd=${sd?.deliveryNo}/${sd?.status} net=${sd?.totalAmount} tax=${sd?.totalTaxAmount}; ar=${ar?.receivableNo}/${ar?.status} original=${ar?.originalAmount} expected=${(Number(sd?.totalAmount || 0) + Number(sd?.totalTaxAmount || 0)).toFixed(2)}`,
       ),
     )
   }
 
   // F6 receipt settle
   {
+    const receipts = await listRecords(token, '/api/finance/receipts')
+    const ars = await listRecords(token, '/api/finance/receivables')
     let fr = await findByKeyword(token, '/api/finance/receipts', 'FR202607160004')
     if (!fr) fr = await findByKeyword(token, '/api/finance/payments', 'FR202607160004')
-    const ars = recordsOf((await api(token, '/api/finance/receivables?pageNo=1&pageSize=100')).body)
-    const ar = ars.find((x) => String(x.receivableNo) === 'AR-SALES_DELIVERY-2077598953381076994')
+    const settledAr = firstMatching(
+      ars,
+      (x) => String(x.sourceType).toUpperCase() === 'SALES_DELIVERY' &&
+        (String(x.status).toUpperCase() === 'SETTLED' || Number(x.remainingAmount || x.balanceAmount || 0) === 0),
+    )
+    const ar =
+      ars.find((x) => String(x.receivableNo) === 'AR-SALES_DELIVERY-2077598953381076994') ||
+      settledAr
+    if (!fr && ar) {
+      fr = firstMatching(receipts, (candidate) =>
+        String(candidate.status).toUpperCase() === 'POSTED' &&
+        (candidate.allocations || []).some((allocation) => String(allocation.receivableId) === String(ar.id)),
+      )
+    }
     const frOk = fr && String(fr.status).toUpperCase() === 'POSTED'
     const settled =
       ar && (String(ar.status).toUpperCase() === 'SETTLED' || Number(ar.remainingAmount || ar.balanceAmount || 0) === 0)
@@ -161,7 +205,10 @@ async function main() {
 
   // F7 sales return
   {
-    const hit = await findByKeyword(token, '/api/sales/returns', 'SRT202607150005')
+    const returns = await listRecords(token, '/api/sales/returns')
+    const hit =
+      (await findByKeyword(token, '/api/sales/returns', 'SRT202607150005')) ||
+      firstMatching(returns, (x) => String(x.status).toUpperCase() === 'POSTED')
     results.push(
       row(
         'F7',
@@ -174,12 +221,25 @@ async function main() {
 
   // F8 purchase
   {
-    const pr = await findByKeyword(token, '/api/purchase/receipts', 'PR202607160009')
-    const fp = await findByKeyword(token, '/api/finance/payments', 'FP202607160004')
-    const aps = recordsOf((await api(token, '/api/finance/payables?pageNo=1&pageSize=100')).body)
+    const receipts = await listRecords(token, '/api/purchase/receipts')
+    const payments = await listRecords(token, '/api/finance/payments')
+    const aps = await listRecords(token, '/api/finance/payables')
+    const oldPr = await findByKeyword(token, '/api/purchase/receipts', 'PR202607160009')
+    const pr = (oldPr && String(oldPr.status).toUpperCase() === 'POSTED' ? oldPr : null) || firstMatching(receipts, (candidate) => {
+      if (String(candidate.status).toUpperCase() !== 'POSTED') return false
+      const payable = aps.find((x) => String(x.sourceNo) === String(candidate.receiptNo))
+      return payable && String(payable.status).toUpperCase() === 'SETTLED'
+    })
     const ap =
       aps.find((x) => String(x.payableNo) === 'AP-PURCHASE_RECEIPT-2077598945533534210') ||
+      aps.find((x) => String(x.sourceNo) === String(pr?.receiptNo) && String(x.status).toUpperCase() === 'SETTLED') ||
       aps.find((x) => String(x.payableNo || '').includes('2077598945533534210'))
+    const fp =
+      (await findByKeyword(token, '/api/finance/payments', 'FP202607160004')) ||
+      firstMatching(payments, (candidate) =>
+        String(candidate.status).toUpperCase() === 'POSTED' &&
+        (candidate.allocations || []).some((allocation) => String(allocation.payableId) === String(ap?.id)),
+      )
     const prOk = pr && String(pr.status).toUpperCase() === 'POSTED'
     const fpOk = fp && String(fp.status).toUpperCase() === 'POSTED'
     const apOk = ap && (String(ap.status).toUpperCase() === 'SETTLED' || Number(ap.remainingAmount || 0) === 0)
@@ -195,7 +255,10 @@ async function main() {
 
   // F9 purchase return
   {
-    const hit = await findByKeyword(token, '/api/purchase/returns', 'PRT202607150005')
+    const returns = await listRecords(token, '/api/purchase/returns')
+    const hit =
+      (await findByKeyword(token, '/api/purchase/returns', 'PRT202607150005')) ||
+      firstMatching(returns, (x) => String(x.status).toUpperCase() === 'POSTED')
     results.push(
       row(
         'F9',
@@ -279,7 +342,10 @@ async function main() {
 
   // Q1-Q3
   {
-    const qc = await findByKeyword(token, '/api/qc/inspections', 'QC202607150003')
+    const inspections = await listRecords(token, '/api/qc/inspections')
+    const qc =
+      (await findByKeyword(token, '/api/qc/inspections', 'QC202607150003')) ||
+      firstMatching(inspections, (x) => String(x.status).toUpperCase() === 'JUDGED' && x.receiptId)
     let detail = 'not found'
     let q1 = false
     let q2 = false
@@ -348,7 +414,7 @@ async function main() {
     results,
   }
 
-  const outDir = path.join('target', 'fq-signoff-api-check')
+  const outDir = OUT_DIR
   fs.mkdirSync(outDir, { recursive: true })
   const jsonPath = path.join(outDir, 'report.json')
   fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2))

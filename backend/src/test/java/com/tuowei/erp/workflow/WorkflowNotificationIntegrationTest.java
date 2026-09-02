@@ -192,7 +192,7 @@ class WorkflowNotificationIntegrationTest {
         Assertions.assertThat(todoCountFor(SECOND_APPROVER_ID)).isZero();
 
         useUser(APPROVER_ID, 1L, 1L, "wf_notify_approver");
-        workflowService.approve("SALES_ORDER", BUSINESS_ID, "first approve");
+        Assertions.assertThat(workflowService.approve("SALES_ORDER", BUSINESS_ID, "first approve")).isFalse();
 
         Assertions.assertThat(instanceStatus()).isEqualTo("IN_APPROVAL");
         Assertions.assertThat(taskCountByStatus("APPROVED")).isEqualTo(1);
@@ -201,7 +201,7 @@ class WorkflowNotificationIntegrationTest {
         Assertions.assertThat(todoCountFor(SECOND_APPROVER_ID)).isEqualTo(1);
 
         useUser(SECOND_APPROVER_ID, 1L, 1L, "wf_notify_second_approver");
-        workflowService.approve("SALES_ORDER", BUSINESS_ID, "second approve");
+        Assertions.assertThat(workflowService.approve("SALES_ORDER", BUSINESS_ID, "second approve")).isTrue();
 
         Assertions.assertThat(instanceStatus()).isEqualTo("APPROVED");
         Assertions.assertThat(taskCountByStatus("APPROVED")).isEqualTo(2);
@@ -220,7 +220,7 @@ class WorkflowNotificationIntegrationTest {
         Assertions.assertThat(todoCountFor(SECOND_APPROVER_ID)).isEqualTo(1);
 
         useUser(APPROVER_ID, 1L, 1L, "wf_notify_approver");
-        workflowService.approve("SALES_ORDER", BUSINESS_ID, "first approve");
+        Assertions.assertThat(workflowService.approve("SALES_ORDER", BUSINESS_ID, "first approve")).isFalse();
 
         Assertions.assertThat(instanceStatus()).isEqualTo("IN_APPROVAL");
         Assertions.assertThat(taskCountByStatus("PENDING")).isEqualTo(1);
@@ -230,7 +230,7 @@ class WorkflowNotificationIntegrationTest {
         Assertions.assertThat(todoCountFor(SECOND_APPROVER_ID)).isEqualTo(1);
 
         useUser(SECOND_APPROVER_ID, 1L, 1L, "wf_notify_second_approver");
-        workflowService.approve("SALES_ORDER", BUSINESS_ID, "second approve");
+        Assertions.assertThat(workflowService.approve("SALES_ORDER", BUSINESS_ID, "second approve")).isTrue();
 
         Assertions.assertThat(instanceStatus()).isEqualTo("APPROVED");
         Assertions.assertThat(taskCountByStatus("PENDING")).isZero();

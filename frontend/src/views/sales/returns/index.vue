@@ -426,7 +426,7 @@ const {
   getProducts,
   getLocations,
   printReturn: printSalesReturn,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   enrichReturnRow: (item) => ({
     ...item,
     deliveryNo: item.deliveryNo || deliveryNoById(item.deliveryId),

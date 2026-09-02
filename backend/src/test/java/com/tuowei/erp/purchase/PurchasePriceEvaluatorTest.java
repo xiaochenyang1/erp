@@ -11,6 +11,8 @@ import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
 import com.tuowei.erp.purchase.price.mapper.PurchasePriceMapper;
 import com.tuowei.erp.purchase.price.model.PurchasePriceEntity;
 import com.tuowei.erp.purchase.price.service.PurchasePriceService;
+import com.tuowei.erp.purchase.price.service.PurchasePriceCommandService;
+import com.tuowei.erp.purchase.price.service.PurchasePriceQueryService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -140,12 +142,22 @@ class PurchasePriceEvaluatorTest {
     }
 
     private PurchasePriceService priceService() {
-        return new PurchasePriceService(
+        PurchasePriceQueryService queryService = new PurchasePriceQueryService(
                 purchasePriceMapper,
                 productMapper,
                 supplierMapper,
                 productValidator,
                 auditMetadataFactory
+        );
+        return new PurchasePriceService(
+                queryService,
+                new PurchasePriceCommandService(
+                        purchasePriceMapper,
+                        supplierMapper,
+                        productValidator,
+                        auditMetadataFactory,
+                        queryService
+                )
         );
     }
 

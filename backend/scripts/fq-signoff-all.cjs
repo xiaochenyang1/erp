@@ -8,6 +8,9 @@ const path = require('path')
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:8080'
 const ROOT = path.resolve(__dirname, '..')
+const OUT_DIR = path.resolve(
+  process.env.ERP_FQ_EVIDENCE_DIRECTORY || process.env.ERP_EVIDENCE_DIRECTORY || path.join('target', 'fq-signoff-api-check'),
+)
 
 function runNode(script) {
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', script)], {
@@ -52,8 +55,8 @@ async function main() {
   console.log('[fq-all] 2/3 run human-item negative checks')
   runNode('fq-signoff-human-items.cjs')
 
-  const reportPath = path.join(ROOT, 'target/fq-signoff-api-check/report.json')
-  const humanPath = path.join(ROOT, 'target/fq-signoff-api-check/human-items-report.json')
+  const reportPath = path.join(OUT_DIR, 'report.json')
+  const humanPath = path.join(OUT_DIR, 'human-items-report.json')
   const forward = JSON.parse(fs.readFileSync(reportPath, 'utf8'))
   const human = JSON.parse(fs.readFileSync(humanPath, 'utf8'))
 
@@ -70,7 +73,7 @@ async function main() {
     finalForm: 'docs/FQ-SIGNOFF-FINAL-2026-07-16.md',
   }
   fs.writeFileSync(
-    path.join(ROOT, 'target/fq-signoff-api-check/all-summary.json'),
+    path.join(OUT_DIR, 'all-summary.json'),
     JSON.stringify(summary, null, 2),
   )
 
@@ -108,7 +111,7 @@ async function main() {
     `technicalPass=${technicalPass}`,
     `forward autoPass=${forward.summary.autoPass} autoFail=${forward.summary.autoFail} needsHuman=${forward.summary.needsHuman}`,
     `human passed=${human.summary.passed}/${human.summary.total}`,
-    `reports: target/fq-signoff-api-check/report.json + human-items-report.json`,
+    `reports: ${path.relative(ROOT, OUT_DIR)}/report.json + human-items-report.json`,
     `sign form: docs/FQ-SIGNOFF-FINAL-2026-07-16.md`,
   ].join('\n')
 
@@ -139,7 +142,7 @@ async function main() {
     readinessItemId: String(itemId),
     note: 'Item marked PASSED technically; overall release decision left to humans after FQ-SIGNOFF-FINAL signatures.',
   }
-  fs.writeFileSync(path.join(ROOT, 'target/fq-signoff-api-check/all-summary.json'), JSON.stringify(out, null, 2))
+  fs.writeFileSync(path.join(OUT_DIR, 'all-summary.json'), JSON.stringify(out, null, 2))
   console.log(JSON.stringify(out, null, 2))
   if (!technicalPass) process.exit(1)
 }

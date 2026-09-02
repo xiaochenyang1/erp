@@ -31,11 +31,15 @@ const createList = (overrides: Partial<Parameters<typeof useReportList>[1]> = {}
     getInventoryBalanceReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     getInventoryTransactionReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     getFinanceSettlementReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
+    getInventoryValuationReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
+    getProductionCostReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     exportPurchaseOrderReport: vi.fn(async () => new Blob(['purchase'])),
     exportSalesOrderReport: vi.fn(async () => new Blob(['sales'])),
     exportInventoryBalanceReport: vi.fn(async () => new Blob(['balance'])),
     exportInventoryTransactionReport: vi.fn(async () => new Blob(['transaction'])),
     exportFinanceSettlementReport: vi.fn(async () => new Blob(['settlement'])),
+    exportInventoryValuationReport: vi.fn(async () => new Blob(['valuation'])),
+    exportProductionCostReport: vi.fn(async () => new Blob(['production-cost'])),
     downloadBlob: vi.fn(),
     now: () => 123,
     onError: vi.fn(),
@@ -71,6 +75,20 @@ describe('report list', () => {
     expect(buildReportParams('inventoryBalance', state, 'ignored', range)).toEqual({
       pageNo: 2,
       pageSize: 50
+    })
+    expect(buildReportParams('inventoryValuation', state, ' P001 ', range)).toEqual({
+      pageNo: 2,
+      pageSize: 50,
+      keyword: 'P001',
+      periodStart: '2026-07-01',
+      asOfDate: '2026-07-31'
+    })
+    expect(buildReportParams('productionCost', state, ' WO ', range)).toEqual({
+      pageNo: 2,
+      pageSize: 50,
+      keyword: 'WO',
+      plannedStartDateFrom: '2026-07-01',
+      plannedStartDateTo: '2026-07-31'
     })
   })
 

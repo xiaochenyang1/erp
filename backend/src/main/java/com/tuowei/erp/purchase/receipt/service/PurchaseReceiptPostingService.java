@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.commercial.contract.service.ContractExecutionService;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
@@ -27,6 +28,8 @@ import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptResponse;
 import com.tuowei.erp.purchase.support.AccumulatedQuantityValidator;
 import com.tuowei.erp.purchase.support.PurchaseReceiptQuantities;
 import com.tuowei.erp.qc.inspection.service.QcInspectionGate;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +58,9 @@ public class PurchaseReceiptPostingService {
     private final AccountPeriodGuard accountPeriodGuard;
     private final QcInspectionGate qcInspectionGate;
     private final ProductValidator productValidator;
+    private final AttachmentService attachmentService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ContractExecutionService contractExecutionService;
 
     public PurchaseReceiptPostingService(
             PurchaseReceiptMapper purchaseReceiptMapper,
@@ -70,7 +76,8 @@ public class PurchaseReceiptPostingService {
             PurchaseReceiptQueryService purchaseReceiptQueryService,
             AccountPeriodGuard accountPeriodGuard,
             QcInspectionGate qcInspectionGate,
-            ProductValidator productValidator
+            ProductValidator productValidator,
+            AttachmentService attachmentService
     ) {
         this.purchaseReceiptMapper = purchaseReceiptMapper;
         this.purchaseReceiptLineMapper = purchaseReceiptLineMapper;
@@ -86,6 +93,7 @@ public class PurchaseReceiptPostingService {
         this.accountPeriodGuard = accountPeriodGuard;
         this.qcInspectionGate = qcInspectionGate;
         this.productValidator = productValidator;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -95,6 +103,7 @@ public class PurchaseReceiptPostingService {
         if (!"DRAFT".equals(receipt.getStatus())) {
             throw new IllegalArgumentException("当前采购入库单状态不允许过账");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.PURCHASE_RECEIPT, receipt.getId());
         accountPeriodGuard.requireOpen(receipt.getReceiptDate(), "采购入库过账");
 
         PurchaseOrderEntity order = purchaseOrderLookupService.requireOrder(receipt.getOrderId());
@@ -137,6 +146,9 @@ public class PurchaseReceiptPostingService {
                     purchaseOrderLineMapper.updateById(orderLine),
                     "采购订单明细已被其他操作修改，请刷新后重试"
             );
+            if (contractExecutionService != null) {
+                contractExecutionService.increase(orderLine.getContractLineId(), receiptLine.getQty(), audit);
+            }
 
             inventoryPostingService.postInbound(
                     new InventoryPostingCommand(

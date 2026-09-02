@@ -210,6 +210,12 @@ export const financeReportPageMessages = {
         recheck: '重新检查',
         lockPeriod: '锁定期间',
         confirmClose: '确认结账',
+        closeEvidence: '月结证据',
+        evidenceAction: '动作',
+        evidenceTime: '检查时间',
+        evidenceOperator: '操作人',
+        blockingItems: '阻塞项',
+        noCloseEvidence: '暂无成功锁定或结账证据',
         previous: '上一步',
         next: '下一步',
         inventoryFinanceReconciliation: '库存财务对账',
@@ -293,9 +299,6 @@ export const financeReportPageMessages = {
           locked: '会计期间已锁定',
           lockFailed: '锁定会计期间失败',
           checkBlocksClose: '月结检查失败，暂不能结账',
-          riskyCloseConfirm: '月结检查发现 {count} 项待处理问题（见“月结检查”弹窗）。结账后本期业务将不可再处理，且这些问题会被固化。确定仍要结账 {period} 吗？',
-          riskyCloseTitle: '带风险结账确认',
-          closeAnyway: '仍要结账',
           safeCloseConfirm: '月结检查通过。确定结账 {period} 会计期间吗？结账后将不能继续处理本期业务。',
           closeTitle: '期间结账',
           closed: '会计期间已结账',
@@ -307,7 +310,8 @@ export const financeReportPageMessages = {
           unlockFailed: '解锁会计期间失败',
           reconciliationLoadFailed: '加载对账数据失败',
           differencesLoadFailed: '加载对账差异失败',
-          differenceDetailLoadFailed: '加载对账差异明细失败'
+          differenceDetailLoadFailed: '加载对账差异明细失败',
+          evidenceLoadFailed: '加载月结证据失败'
         }
       },
       funds: {
@@ -407,6 +411,12 @@ export const financeReportPageMessages = {
         reverse: '红冲',
         selectExpenseSubject: '请选择费用科目',
         selectPaymentSubject: '请选择支付科目',
+        department: '部门',
+        selectDepartment: '请选择部门',
+        budgetState: '预算状态',
+        budgetOverrun: '预计超预算，提交后将按预算控制策略处理',
+        budgetAvailable: '预算额度充足',
+        budgetPreview: '当前可用 {available}，提交后预计可用 {projected}',
         selectDate: '请选择日期',
         remarkPlaceholder: '请输入备注',
         createTitle: '新增费用',
@@ -480,6 +490,20 @@ export const financeReportPageMessages = {
           rejectFailed: '驳回失败',
           saved: '保存成功',
           saveFailed: '保存失败'
+        }
+      },
+      budgets: {
+        title: '预算管理', create: '新增预算', edit: '编辑预算', detail: '预算详情', execution: '预算执行查询', close: '关闭预算',
+        year: '预算年度', name: '预算名称', policy: '控制策略', month: '期间', monthSuffix: '月', annual: '年度额度',
+        department: '部门', subject: '会计科目', amount: '预算金额', totalBudget: '预算总额', committed: '已占用', actual: '已执行', available: '可用余额',
+        addLine: '新增明细', periodSource: '额度来源', projectedAvailable: '预计可用', overrun: '预计超预算', withinBudget: '预算额度充足',
+        policyValue: { reject: '超预算拒绝', approval: '超预算转审批' },
+        status: { draft: '草稿', submitted: '待审批', approved: '已审批', closed: '已关闭', cancelled: '已作废' },
+        validation: { completeForm: '请完整填写预算名称、科目和明细', subject: '请选择科目' },
+        message: {
+          loadFailed: '加载预算失败', saved: '预算已保存', saveFailed: '保存预算失败',
+          confirmAction: '确认“{action}”预算“{name}”吗？', prompt: '确认', actionDone: '预算操作成功',
+          actionFailed: '预算操作失败', executionLoadFailed: '加载预算执行失败'
         }
       },
       payments: {
@@ -643,7 +667,9 @@ export const financeReportPageMessages = {
           sales: '销售订单',
           inventoryBalance: '库存余额',
           inventoryTransaction: '库存流水',
-          financeSettlement: '应收应付'
+          financeSettlement: '应收应付',
+          inventoryValuation: '库存估值',
+          productionCost: '生产成本'
         },
         documentNo: '单据编号',
         supplierId: '供应商ID',
@@ -662,6 +688,21 @@ export const financeReportPageMessages = {
         inventoryAmount: '库存金额',
         updatedTime: '更新时间',
         businessNo: '业务单号',
+        warehouse: '仓库',
+        product: '商品',
+        openingQty: '期初数量',
+        inboundQty: '入库数量',
+        outboundQty: '出库数量',
+        closingQty: '期末数量',
+        closingAmount: '期末金额',
+        averageUnitCost: '平均单位成本',
+        orderNo: '工单号',
+        plannedQty: '计划数量',
+        completedQty: '完工数量',
+        materialCost: '材料成本',
+        finishedGoodsCost: '完工成本',
+        wipCost: '在制金额',
+        costStatus: '成本状态',
         businessType: '业务类型',
         direction: '方向',
         unitCost: '单位成本',
@@ -861,6 +902,8 @@ export const financeReportPageMessages = {
         suggestedOrder: 'Recommended order: generate yearly periods → run month-end checks → lock → close. Checks must pass before locking.',
         allChecksPassed: 'All checks passed', blockingCount: '{count} blocking issue(s) found', recheck: 'Run checks again',
         lockPeriod: 'Lock period', confirmClose: 'Confirm closing', previous: 'Previous', next: 'Next',
+        closeEvidence: 'Close evidence', evidenceAction: 'Action', evidenceTime: 'Checked at',
+        evidenceOperator: 'Operator', blockingItems: 'Blocking items', noCloseEvidence: 'No successful lock or close evidence yet',
         inventoryFinanceReconciliation: 'Inventory and finance reconciliation', inventoryNetAmount: 'Inventory net amount',
         financeInventoryNetAmount: 'Finance inventory-account net amount', differenceAmount: 'Difference',
         reconciliationStatus: 'Reconciliation status', balanced: 'Balanced', unbalanced: 'Unbalanced',
@@ -899,15 +942,14 @@ export const financeReportPageMessages = {
           checkBlocksLock: 'Month-end checks did not pass; the period cannot be locked',
           lockConfirm: 'Lock accounting period {period}?', locked: 'Accounting period locked',
           lockFailed: 'Failed to lock the accounting period', checkBlocksClose: 'Month-end checks failed; the period cannot be closed yet',
-          riskyCloseConfirm: 'Month-end checks found {count} unresolved issue(s) (see the Month-end checks dialog). Closing will prevent further activity in this period and preserve these issues. Close {period} anyway?',
-          riskyCloseTitle: 'Confirm closing with risks', closeAnyway: 'Close anyway',
           safeCloseConfirm: 'Month-end checks passed. Close accounting period {period}? No further activity can be processed in this period.',
           closeTitle: 'Close accounting period', closed: 'Accounting period closed', closeFailed: 'Failed to close the accounting period',
           unlockConfirm: 'Reopen accounting period {period}? This changes it from Locked to Open and allows entries and posting again. Only the latest locked period can be reopened; closed periods cannot be reopened. Continue?',
           unlockTitle: 'Reopen accounting period', confirmUnlock: 'Reopen', unlocked: 'Accounting period reopened',
           unlockFailed: 'Failed to reopen the accounting period', reconciliationLoadFailed: 'Failed to load reconciliation data',
           differencesLoadFailed: 'Failed to load reconciliation differences',
-          differenceDetailLoadFailed: 'Failed to load reconciliation difference details'
+          differenceDetailLoadFailed: 'Failed to load reconciliation difference details',
+          evidenceLoadFailed: 'Failed to load month-end close evidence'
         }
       },
       funds: {
@@ -946,6 +988,8 @@ export const financeReportPageMessages = {
         expenseSubject: 'Expense account', paymentSubject: 'Payment account', expenseAmount: 'Expense amount', voucher: 'Voucher',
         voucherValidation: 'Voucher validation', balanced: 'Balanced', reconciliation: 'Reconcile', reverse: 'Reverse',
         selectExpenseSubject: 'Select an expense account', selectPaymentSubject: 'Select a payment account', selectDate: 'Select a date',
+        department: 'Department', selectDepartment: 'Select a department', budgetState: 'Budget state',
+        budgetOverrun: 'Projected over budget; submission follows the budget control policy', budgetAvailable: 'Within budget', budgetPreview: 'Available {available}; projected available after submission {projected}',
         remarkPlaceholder: 'Enter a remark', createTitle: 'New expense', editTitle: 'Edit expense', detailTitle: 'Expense details',
         voucherNo: 'Voucher no.', voucherStatus: 'Voucher status', voucherEntries: 'Voucher entries', voucherAmount: 'Voucher amount',
         reversalVoucher: 'Reversal voucher', reversalStatus: 'Reversal status', reversed: 'Reversed', reconciliationTitle: 'Expense reconciliation',
@@ -972,6 +1016,20 @@ export const financeReportPageMessages = {
           reversed: 'Expense reversed', reverseFailed: 'Failed to reverse the expense', cancelConfirm: 'Void expense “{no}”?',
           cancelled: 'Expense voided', cancelFailed: 'Failed to void the expense', rejectReasonRequired: 'Enter a rejection reason',
           rejected: 'Expense rejected', rejectFailed: 'Failed to reject the expense', saved: 'Expense saved', saveFailed: 'Failed to save the expense'
+        }
+      },
+      budgets: {
+        title: 'Budgets', create: 'New budget', edit: 'Edit budget', detail: 'Budget details', execution: 'Budget execution', close: 'Close budget',
+        year: 'Budget year', name: 'Budget name', policy: 'Control policy', month: 'Period', monthSuffix: ' mo.', annual: 'Annual allocation',
+        department: 'Department', subject: 'Account', amount: 'Budget amount', totalBudget: 'Total budget', committed: 'Committed', actual: 'Actual', available: 'Available',
+        addLine: 'Add line', periodSource: 'Allocation source', projectedAvailable: 'Projected available', overrun: 'Projected over budget', withinBudget: 'Within budget',
+        policyValue: { reject: 'Reject overrun', approval: 'Route overrun for approval' },
+        status: { draft: 'Draft', submitted: 'Pending approval', approved: 'Approved', closed: 'Closed', cancelled: 'Voided' },
+        validation: { completeForm: 'Complete the budget name, account, and line information', subject: 'Select an account' },
+        message: {
+          loadFailed: 'Failed to load budgets', saved: 'Budget saved', saveFailed: 'Failed to save the budget',
+          confirmAction: 'Confirm “{action}” for budget “{name}”?', prompt: 'Confirmation', actionDone: 'Budget operation completed',
+          actionFailed: 'Budget operation failed', executionLoadFailed: 'Failed to load budget execution'
         }
       },
       payments: {
@@ -1034,8 +1092,8 @@ export const financeReportPageMessages = {
       reports: {
         keywordPlaceholder: 'Document no. keyword', export: 'Export', currentReport: 'Current report', recordCount: 'Records',
         amountTotal: 'Total amount', currentPage: 'Current page',
-        tabs: { purchase: 'Purchase orders', sales: 'Sales orders', inventoryBalance: 'Inventory balances', inventoryTransaction: 'Inventory transactions', financeSettlement: 'Receivables and payables' },
-        documentNo: 'Document no.', supplierId: 'Supplier ID', customerId: 'Customer ID', documentStatus: 'Document status',
+        tabs: { purchase: 'Purchase orders', sales: 'Sales orders', inventoryBalance: 'Inventory balances', inventoryTransaction: 'Inventory transactions', financeSettlement: 'Receivables and payables', inventoryValuation: 'Inventory valuation', productionCost: 'Production costs' },
+        documentNo: 'Document no.', supplierId: 'Supplier ID', customerId: 'Customer ID', documentStatus: 'Document status', warehouse: 'Warehouse', product: 'Product', openingQty: 'Opening qty', inboundQty: 'Inbound qty', outboundQty: 'Outbound qty', closingQty: 'Closing qty', closingAmount: 'Closing amount', averageUnitCost: 'Average unit cost', orderNo: 'Work order', plannedQty: 'Planned qty', completedQty: 'Completed qty', materialCost: 'Material cost', finishedGoodsCost: 'Finished goods cost', wipCost: 'WIP amount', costStatus: 'Cost status',
         approvalStatus: 'Approval status', receiptStatus: 'Receipt status', deliveryStatus: 'Delivery status', quantity: 'Quantity',
         taxAmount: 'Tax amount', warehouseId: 'Warehouse ID', productId: 'Product ID', quantityOnHand: 'On-hand quantity',
         quantityReserved: 'Reserved quantity', quantityAvailable: 'Available quantity', inventoryAmount: 'Inventory amount',

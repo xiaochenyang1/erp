@@ -36,6 +36,27 @@ type WarehouseTexts = {
   exportSuccess: string
   exportFailed: string
   exportFilename: string
+  confirm: string
+  selectedExportFilename: string
+  batchEnable: string
+  batchDisable: string
+  exportSelected: string
+  batchEnableTitle: string
+  batchDisableTitle: string
+  batchEnableConfirm: string
+  batchDisableConfirm: string
+  batchEnableSuccess: string
+  batchDisableSuccess: string
+  batchEnablePartial: string
+  batchDisablePartial: string
+  warehouseCode: string
+  warehouseName: string
+  department: string
+  address: string
+  manager: string
+  status: string
+  active: string
+  inactive: string
   [key: string]: string
 }
 
@@ -58,8 +79,11 @@ export const useWarehouseList = (
     getUsers: (params: { pageNo: number; pageSize: number; status: string }) => Promise<PageResponse<User>>
     confirm: Confirm
     interpolate: (template: string, params: Record<string, string | number>) => string
+    joinNames: (items: string[], locale: string) => string
+    locale: Ref<string> | ComputedRef<string>
     onError?: Notify
     onSuccess?: Notify
+    onWarning?: Notify
   }
 ) => {
   const searchForm = reactive<WarehouseQuery>({
@@ -74,11 +98,17 @@ export const useWarehouseList = (
   const tableData = ref<Warehouse[]>([])
   const total = ref(0)
   const loading = ref(false)
+  const selectedRows = ref<Warehouse[]>([])
   const detailVisible = ref(false)
   const currentRow = ref<Warehouse>()
   const stockSummary = ref<WarehouseStockSummary>()
   const deptOptions = ref<Dept[]>([])
   const userOptions = ref<User[]>([])
+  const batchRunning = ref(false)
+
+  const handleSelectionChange = (rows: Warehouse[]) => {
+    selectedRows.value = rows
+  }
 
   const loadData = async () => {
     loading.value = true
@@ -184,6 +214,110 @@ export const useWarehouseList = (
     }
   }
 
+  const runBatch = async (
+    rows: Warehouse[],
+    action: (row: Warehouse) => Promise<unknown>,
+    actionTexts: {
+      confirmTitle: string
+      confirmText: string
+      successText: (success: number) => string
+      partialText: (success: number, failed: string[]) => string
+    }
+  ) => {
+    if (rows.length === 0 || batchRunning.value) return
+    await options.confirm(actionTexts.confirmText, actionTexts.confirmTitle, {
+      confirmButtonText: texts.value.confirm,
+      cancelButtonText: texts.value.cancel,
+      type: 'warning'
+    })
+
+    batchRunning.value = true
+    let success = 0
+    const failed: string[] = []
+    try {
+      for (const row of rows) {
+        try {
+          await action(row)
+          success += 1
+        } catch {
+          failed.push(row.name || row.warehouseName || row.code || row.warehouseCode || String(row.id))
+        }
+      }
+      if (failed.length === 0) {
+        options.onSuccess?.(actionTexts.successText(success))
+      } else {
+        options.onWarning?.(actionTexts.partialText(success, failed))
+      }
+      await loadData()
+    } finally {
+      batchRunning.value = false
+    }
+  }
+
+  const handleBatchEnable = () => {
+    const rows = selectedRows.value
+    return runBatch(rows, (row) => options.enableWarehouse(row.id), {
+      confirmTitle: texts.value.batchEnableTitle,
+      confirmText: options.interpolate(texts.value.batchEnableConfirm, { count: rows.length }),
+      successText: (success) => options.interpolate(texts.value.batchEnableSuccess, { count: success }),
+      partialText: (success, failed) => options.interpolate(texts.value.batchEnablePartial, {
+        success,
+        failedCount: failed.length,
+        failed: options.joinNames(failed, options.locale.value)
+      })
+    })
+  }
+
+  const handleBatchDisable = () => {
+    const rows = selectedRows.value
+    return runBatch(rows, (row) => options.deleteWarehouse(row.id), {
+      confirmTitle: texts.value.batchDisableTitle,
+      confirmText: options.interpolate(texts.value.batchDisableConfirm, { count: rows.length }),
+      successText: (success) => options.interpolate(texts.value.batchDisableSuccess, { count: success }),
+      partialText: (success, failed) => options.interpolate(texts.value.batchDisablePartial, {
+        success,
+        failedCount: failed.length,
+        failed: options.joinNames(failed, options.locale.value)
+      })
+    })
+  }
+
+  const exportSelectedRowsToCsv = (
+    filename: string,
+    headers: string[],
+    rows: Array<Array<string | number>>
+  ) => {
+    const escapeCell = (value: string | number) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const csv = [headers, ...rows].map((row) => row.map(escapeCell).join(',')).join('\r\n')
+    downloadBlob(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }), `${filename}.csv`)
+  }
+
+  const handleExportSelected = () => {
+    const rows = selectedRows.value
+    if (rows.length === 0) return
+    const headers = [
+      texts.value.warehouseCode,
+      texts.value.warehouseName,
+      texts.value.department,
+      texts.value.address,
+      texts.value.manager,
+      texts.value.status
+    ]
+    const lines = rows.map((row) => [
+      row.code || '',
+      row.name || row.warehouseName || '',
+      row.deptId != null ? String(row.deptId) : '',
+      row.address || '',
+      row.managerUserId != null ? String(row.managerUserId) : '',
+      row.status === 'ACTIVE' ? texts.value.active : texts.value.inactive
+    ])
+    exportSelectedRowsToCsv(
+      options.interpolate(texts.value.selectedExportFilename, { count: rows.length }),
+      headers,
+      lines
+    )
+  }
+
   const handleExport = async () => {
     try {
       const blob = await options.exportWarehouses(searchForm)
@@ -195,20 +329,26 @@ export const useWarehouseList = (
   }
 
   return {
+    batchRunning,
     currentRow,
     deptOptions,
     detailVisible,
+    handleBatchDisable,
+    handleBatchEnable,
     handleDelete,
     handleEnable,
     handleExport,
+    handleExportSelected,
     handlePageChange,
     handleReset,
     handleSearch,
+    handleSelectionChange,
     handleView,
     loadData,
     loadOptions,
     loading,
     searchForm,
+    selectedRows,
     stockSummary,
     tableData,
     total,

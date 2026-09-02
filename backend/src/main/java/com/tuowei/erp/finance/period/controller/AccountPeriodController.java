@@ -8,6 +8,7 @@ import com.tuowei.erp.finance.period.service.InventoryFinanceReconciliationServi
 import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckResponse;
 import com.tuowei.erp.finance.period.web.AccountPeriodGenerateRequest;
 import com.tuowei.erp.finance.period.web.AccountPeriodResponse;
+import com.tuowei.erp.finance.period.web.AccountPeriodCloseSnapshotResponse;
 import com.tuowei.erp.finance.period.web.InventoryFinanceDifferenceDetailResponse;
 import com.tuowei.erp.finance.period.web.InventoryFinanceDifferenceQuery;
 import com.tuowei.erp.finance.period.web.InventoryFinanceDifferenceResponse;
@@ -81,6 +82,12 @@ public class AccountPeriodController {
     @OperationLog(module = "finance", operation = "reopen-account-period", message = "解锁会计期间", bizNo = "#id")
     public ApiResponse<AccountPeriodResponse> reopen(@PathVariable Long id) {
         return ApiResponse.success(accountPeriodService.reopen(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_VIEW)
+    @GetMapping("/{id}/close-snapshots")
+    public ApiResponse<List<AccountPeriodCloseSnapshotResponse>> closeSnapshots(@PathVariable Long id) {
+        return ApiResponse.success(accountPeriodService.closeSnapshots(id));
     }
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_VIEW)

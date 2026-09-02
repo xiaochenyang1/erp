@@ -5,6 +5,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.CurrentUser;
 import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ErpPrincipal;
+import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -18,6 +22,7 @@ import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.report.service.BusinessTraceService;
+import com.tuowei.erp.report.service.BusinessTraceAssemblyService;
 import com.tuowei.erp.report.web.BusinessTraceQuery;
 import com.tuowei.erp.sales.delivery.mapper.SalesDeliveryMapper;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
@@ -43,6 +48,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -65,6 +71,9 @@ class BusinessTraceServiceTest {
 
     @Mock
     private CurrentUserContext currentUserContext;
+
+    @Mock
+    private ScopedUserResolver scopedUserResolver;
 
     @Mock
     private PurchaseOrderMapper purchaseOrderMapper;
@@ -113,6 +122,9 @@ class BusinessTraceServiceTest {
     @Test
     void aggregatesDocumentsTimelineSummaryAndTenantScopedQueries() {
         when(currentUserContext.requireCurrentUser()).thenReturn(USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal());
+        when(scopedUserResolver.resolve(USER, DataScopeSnapshot.all()))
+                .thenReturn(new ScopedUserResolver.ScopedUserIds(Set.of(), Set.of()));
         when(salesOrderMapper.selectList(any())).thenReturn(List.of(salesOrder()));
         when(purchaseOrderMapper.selectList(any())).thenReturn(List.of(purchaseOrder()));
         when(salesDeliveryMapper.selectList(any())).thenReturn(List.of(salesDelivery()));
@@ -188,9 +200,51 @@ class BusinessTraceServiceTest {
         );
     }
 
+    @Test
+    void warehouseScopedUserCannotTraceHiddenFinanceNumberWithoutVisibleBusinessSource() {
+        DataScopeSnapshot snapshot = new DataScopeSnapshot(false, false, false, false, Set.of(801L));
+        when(currentUserContext.requireCurrentUser()).thenReturn(USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(snapshot));
+        when(scopedUserResolver.resolve(USER, snapshot))
+                .thenReturn(new ScopedUserResolver.ScopedUserIds(Set.of(), Set.of()));
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of());
+        when(purchaseOrderMapper.selectList(any())).thenReturn(List.of());
+        when(salesDeliveryMapper.selectList(any())).thenReturn(List.of());
+        when(purchaseReceiptMapper.selectList(any())).thenReturn(List.of());
+        when(inventoryTransactionMapper.selectList(any())).thenReturn(List.of());
+
+        var response = service().trace(new BusinessTraceQuery("AR-HIDDEN-001"));
+
+        assertThat(response.documents()).isEmpty();
+        assertThat(response.timeline()).isEmpty();
+        verifyNoInteractions(
+                receivableMapper,
+                payableMapper,
+                workflowTaskMapper,
+                operationLogMapper,
+                exceptionTicketMapper
+        );
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<SalesOrderEntity>> salesCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(salesOrderMapper).selectList(salesCaptor.capture());
+        assertThat(salesCaptor.getValue().getSqlSegment().toLowerCase(Locale.ROOT)).contains("1 = 0");
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<InventoryTransactionEntity>> inventoryCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(inventoryTransactionMapper).selectList(inventoryCaptor.capture());
+        assertThat(inventoryCaptor.getValue().getSqlSegment().toLowerCase(Locale.ROOT))
+                .contains("warehouse_id");
+        assertThat(inventoryCaptor.getValue().getParamNameValuePairs().values()).contains(801L);
+    }
+
     private BusinessTraceService service() {
         return new BusinessTraceService(
                 currentUserContext,
+                new DataScopeService(null, null, null, null),
+                scopedUserResolver,
                 purchaseOrderMapper,
                 salesOrderMapper,
                 purchaseReceiptMapper,
@@ -201,7 +255,27 @@ class BusinessTraceServiceTest {
                 workflowTaskMapper,
                 operationLogMapper,
                 exceptionTicketMapper,
-                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"))
+                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai")),
+                new BusinessTraceAssemblyService()
+        );
+    }
+
+    private ErpPrincipal principal() {
+        return principal(DataScopeSnapshot.all());
+    }
+
+    private ErpPrincipal principal(DataScopeSnapshot snapshot) {
+        return new ErpPrincipal(
+                USER.userId(),
+                USER.companyId(),
+                USER.accountBookId(),
+                USER.deptId(),
+                USER.postId(),
+                USER.username(),
+                USER.realName(),
+                "N/A",
+                Set.of(),
+                snapshot
         );
     }
 

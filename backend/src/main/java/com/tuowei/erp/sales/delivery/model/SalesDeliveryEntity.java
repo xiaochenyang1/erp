@@ -43,6 +43,12 @@ public class SalesDeliveryEntity {
 
     private String logisticsStatus;
 
+    private String deliveredBy;
+
+    private LocalDateTime deliveredTime;
+
+    private Long deliveryProofAttachmentId;
+
     private String remark;
 
     private Long createdBy;
@@ -175,6 +181,13 @@ public class SalesDeliveryEntity {
     public void setLogisticsStatus(String logisticsStatus) {
         this.logisticsStatus = logisticsStatus;
     }
+
+    public String getDeliveredBy() { return deliveredBy; }
+    public void setDeliveredBy(String deliveredBy) { this.deliveredBy = deliveredBy; }
+    public LocalDateTime getDeliveredTime() { return deliveredTime; }
+    public void setDeliveredTime(LocalDateTime deliveredTime) { this.deliveredTime = deliveredTime; }
+    public Long getDeliveryProofAttachmentId() { return deliveryProofAttachmentId; }
+    public void setDeliveryProofAttachmentId(Long deliveryProofAttachmentId) { this.deliveryProofAttachmentId = deliveryProofAttachmentId; }
 
     public String getRemark() {
         return remark;

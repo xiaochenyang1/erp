@@ -12,6 +12,9 @@ import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.report.mapper.FinanceSettlementReportMapper;
 import com.tuowei.erp.report.service.ReportQueryService;
+import com.tuowei.erp.report.service.InventoryReportQueryService;
+import com.tuowei.erp.report.service.OrderReportQueryService;
+import com.tuowei.erp.report.service.FinanceSettlementReportQueryService;
 import com.tuowei.erp.report.web.FinanceSettlementReportQuery;
 import com.tuowei.erp.report.web.FinanceSettlementReportResponse;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
@@ -63,18 +66,28 @@ class ReportQueryServiceFinanceSettlementTest {
     @BeforeEach
     void setUp() {
         reportQueryService = new ReportQueryService(
-                purchaseOrderMapper,
-                salesOrderMapper,
-                inventoryBalanceMapper,
-                inventoryTransactionMapper,
-                payableMapper,
-                receivableMapper,
-                financeSettlementReportMapper,
-                currentUserContext,
-                dataScopeService,
-                scopedUserResolver,
-                financeSettlementScopeSupport,
-                new ReportProperties(5000, 500)
+                new OrderReportQueryService(
+                        purchaseOrderMapper,
+                        salesOrderMapper,
+                        currentUserContext,
+                        dataScopeService,
+                        scopedUserResolver,
+                        new ReportProperties(5000, 500)
+                ),
+                new InventoryReportQueryService(
+                        inventoryBalanceMapper,
+                        inventoryTransactionMapper,
+                        currentUserContext,
+                        dataScopeService,
+                        new ReportProperties(5000, 500)
+                ),
+                new FinanceSettlementReportQueryService(
+                        payableMapper,
+                        receivableMapper,
+                        financeSettlementReportMapper,
+                        financeSettlementScopeSupport,
+                        new ReportProperties(5000, 500)
+                )
         );
         when(financeSettlementScopeSupport.applyPayableScope(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(financeSettlementScopeSupport.applyReceivableScope(any())).thenAnswer(invocation -> invocation.getArgument(0));

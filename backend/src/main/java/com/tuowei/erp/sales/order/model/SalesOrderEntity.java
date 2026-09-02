@@ -25,6 +25,8 @@ public class SalesOrderEntity {
 
     private Long warehouseId;
 
+    private Long contractId;
+
     private LocalDate orderDate;
 
     private LocalDate deliveryDate;
@@ -102,6 +104,14 @@ public class SalesOrderEntity {
 
     public void setWarehouseId(Long warehouseId) {
         this.warehouseId = warehouseId;
+    }
+
+    public Long getContractId() {
+        return contractId;
+    }
+
+    public void setContractId(Long contractId) {
+        this.contractId = contractId;
     }
 
     public LocalDate getOrderDate() {

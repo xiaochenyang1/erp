@@ -120,6 +120,29 @@
         <el-table-column prop="occurredTime" :label="$t('financeReportPages.reports.occurredTime')" min-width="180" />
       </el-table>
 
+      <el-table v-else-if="activeKey === 'inventoryValuation'" v-loading="activeState.loading" :data="activeState.records" border stripe>
+        <el-table-column prop="warehouseCode" :label="$t('financeReportPages.reports.warehouse')" min-width="150"><template #default="{ row }">{{ row.warehouseCode }} · {{ row.warehouseName }}</template></el-table-column>
+        <el-table-column prop="productCode" :label="$t('financeReportPages.reports.product')" min-width="170"><template #default="{ row }">{{ row.productCode }} · {{ row.productName }}</template></el-table-column>
+        <el-table-column prop="openingQty" :label="$t('financeReportPages.reports.openingQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.openingQty) }}</template></el-table-column>
+        <el-table-column prop="inboundQty" :label="$t('financeReportPages.reports.inboundQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.inboundQty) }}</template></el-table-column>
+        <el-table-column prop="outboundQty" :label="$t('financeReportPages.reports.outboundQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.outboundQty) }}</template></el-table-column>
+        <el-table-column prop="closingQty" :label="$t('financeReportPages.reports.closingQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.closingQty) }}</template></el-table-column>
+        <el-table-column prop="closingAmount" :label="$t('financeReportPages.reports.closingAmount')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.closingAmount) }}</template></el-table-column>
+        <el-table-column prop="averageUnitCost" :label="$t('financeReportPages.reports.averageUnitCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.averageUnitCost) }}</template></el-table-column>
+      </el-table>
+
+      <el-table v-else-if="activeKey === 'productionCost'" v-loading="activeState.loading" :data="activeState.records" border stripe>
+        <el-table-column prop="orderNo" :label="$t('financeReportPages.reports.orderNo')" min-width="150" />
+        <el-table-column prop="productCode" :label="$t('financeReportPages.reports.product')" min-width="170"><template #default="{ row }">{{ row.productCode }} · {{ row.productName }}</template></el-table-column>
+        <el-table-column prop="status" :label="$t('financeReportPages.reports.documentStatus')" width="120"><template #default="{ row }">{{ reportStatusLabel(row.status) }}</template></el-table-column>
+        <el-table-column prop="plannedQty" :label="$t('financeReportPages.reports.plannedQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.plannedQty) }}</template></el-table-column>
+        <el-table-column prop="completedQty" :label="$t('financeReportPages.reports.completedQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.completedQty) }}</template></el-table-column>
+        <el-table-column prop="materialCost" :label="$t('financeReportPages.reports.materialCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.materialCost) }}</template></el-table-column>
+        <el-table-column prop="finishedGoodsCost" :label="$t('financeReportPages.reports.finishedGoodsCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.finishedGoodsCost) }}</template></el-table-column>
+        <el-table-column prop="workInProgressCost" :label="$t('financeReportPages.reports.wipCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.workInProgressCost) }}</template></el-table-column>
+        <el-table-column prop="costStatus" :label="$t('financeReportPages.reports.costStatus')" width="130" />
+      </el-table>
+
       <el-table v-else v-loading="activeState.loading" :data="activeState.records" border stripe>
         <el-table-column prop="direction" :label="$t('financeReportPages.reports.direction')" width="110">
           <template #default="{ row }">
@@ -173,9 +196,13 @@ import {
   exportFinanceSettlementReport,
   exportInventoryBalanceReport,
   exportInventoryTransactionReport,
+  exportInventoryValuationReport,
+  exportProductionCostReport,
   exportPurchaseOrderReport,
   exportSalesOrderReport,
   getFinanceSettlementReport,
+  getInventoryValuationReport,
+  getProductionCostReport,
   getInventoryBalanceReport,
   getInventoryTransactionReport,
   getPurchaseOrderReport,
@@ -204,11 +231,15 @@ const {
   getInventoryBalanceReport,
   getInventoryTransactionReport,
   getFinanceSettlementReport,
+  getInventoryValuationReport,
+  getProductionCostReport,
   exportPurchaseOrderReport,
   exportSalesOrderReport,
   exportInventoryBalanceReport,
   exportInventoryTransactionReport,
   exportFinanceSettlementReport,
+  exportInventoryValuationReport,
+  exportProductionCostReport,
   downloadBlob,
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message)

@@ -15,25 +15,35 @@ import com.tuowei.erp.system.auth.service.RefreshTokenService;
 import com.tuowei.erp.system.dept.mapper.DeptMapper;
 import com.tuowei.erp.system.dept.model.DeptEntity;
 import com.tuowei.erp.system.dept.service.DeptService;
+import com.tuowei.erp.system.dept.service.DeptCommandService;
+import com.tuowei.erp.system.dept.service.DeptQueryService;
 import com.tuowei.erp.system.dept.web.DeptCreateRequest;
 import com.tuowei.erp.system.dept.web.DeptPageQuery;
 import com.tuowei.erp.system.menu.mapper.MenuMapper;
 import com.tuowei.erp.system.menu.mapper.RoleMenuMapper;
 import com.tuowei.erp.system.menu.model.MenuEntity;
 import com.tuowei.erp.system.menu.service.MenuService;
+import com.tuowei.erp.system.menu.service.MenuCommandService;
+import com.tuowei.erp.system.menu.service.MenuQueryService;
 import com.tuowei.erp.system.post.mapper.PostMapper;
 import com.tuowei.erp.system.post.model.PostEntity;
 import com.tuowei.erp.system.post.service.PostService;
+import com.tuowei.erp.system.post.service.PostCommandService;
+import com.tuowei.erp.system.post.service.PostQueryService;
 import com.tuowei.erp.system.post.web.PostCreateRequest;
 import com.tuowei.erp.system.post.web.PostPageQuery;
 import com.tuowei.erp.system.role.mapper.RoleMapper;
 import com.tuowei.erp.system.role.model.RoleEntity;
+import com.tuowei.erp.system.role.service.RoleCommandService;
+import com.tuowei.erp.system.role.service.RoleQueryService;
 import com.tuowei.erp.system.role.service.RoleService;
 import com.tuowei.erp.system.role.web.RoleMenuAssignRequest;
 import com.tuowei.erp.system.role.web.RolePageQuery;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.system.user.mapper.UserRoleMapper;
 import com.tuowei.erp.system.user.model.UserEntity;
+import com.tuowei.erp.system.user.service.UserCommandService;
+import com.tuowei.erp.system.user.service.UserQueryService;
 import com.tuowei.erp.system.user.service.UserService;
 import com.tuowei.erp.system.user.web.UserCreateRequest;
 import com.tuowei.erp.system.user.web.UserPageQuery;
@@ -349,11 +359,17 @@ class SystemTenantBoundaryTest {
     }
 
     private DeptService deptService(DeptMapper mapper) {
-        return new DeptService(mapper, auditMetadataFactory);
+        DeptQueryService queryService = new DeptQueryService(mapper, auditMetadataFactory);
+        DeptCommandService commandService = new DeptCommandService(mapper, auditMetadataFactory, queryService);
+        return new DeptService(queryService, commandService);
     }
 
     private PostService postService(PostMapper postMapper, DeptMapper deptMapper) {
-        return new PostService(postMapper, deptMapper, auditMetadataFactory);
+        PostQueryService queryService = new PostQueryService(postMapper, auditMetadataFactory);
+        PostCommandService commandService = new PostCommandService(
+                postMapper, deptMapper, auditMetadataFactory, queryService
+        );
+        return new PostService(queryService, commandService);
     }
 
     private RoleService roleService(RoleMapper roleMapper) {
@@ -366,28 +382,44 @@ class SystemTenantBoundaryTest {
             RoleMenuMapper roleMenuMapper,
             UserPermissionService permissionService
     ) {
-        return new RoleService(
+        RoleQueryService queryService = new RoleQueryService(
                 roleMapper,
                 menuMapper,
                 roleMenuMapper,
-                auditMetadataFactory,
-                mock(SecurityPrincipalCache.class),
-                permissionService
+                auditMetadataFactory
         );
-    }
-
-    private MenuService menuService(MenuMapper menuMapper, UserPermissionService permissionService) {
-        return new MenuService(
-                menuMapper,
+        RoleCommandService commandService = new RoleCommandService(
+                roleMapper,
+                roleMenuMapper,
                 auditMetadataFactory,
                 mock(SecurityPrincipalCache.class),
                 permissionService,
+                queryService
+        );
+        return new RoleService(queryService, commandService);
+    }
+
+    private MenuService menuService(MenuMapper menuMapper, UserPermissionService permissionService) {
+        MenuQueryService queryService = new MenuQueryService(
+                menuMapper,
                 mock(com.tuowei.erp.common.security.CurrentUserContext.class),
                 mock(UserRoleMapper.class),
                 mock(RoleMapper.class),
                 mock(RoleMenuMapper.class),
                 CacheService.NOOP,
                 new ObjectMapper()
+        );
+        MenuCommandService commandService = new MenuCommandService(
+                menuMapper,
+                auditMetadataFactory,
+                mock(SecurityPrincipalCache.class),
+                permissionService,
+                CacheService.NOOP,
+                queryService
+        );
+        return new MenuService(
+                queryService,
+                commandService
         );
     }
 
@@ -409,7 +441,12 @@ class SystemTenantBoundaryTest {
             PostMapper postMapper,
             UserPermissionService permissionService
     ) {
-        return new UserService(
+        UserQueryService queryService = new UserQueryService(
+                userMapper,
+                userRoleMapper,
+                auditMetadataFactory
+        );
+        UserCommandService commandService = new UserCommandService(
                 userMapper,
                 userRoleMapper,
                 roleMapper,
@@ -420,8 +457,10 @@ class SystemTenantBoundaryTest {
                 mock(RefreshTokenService.class),
                 mock(SecurityPrincipalCache.class),
                 mock(ScopedUserResolver.class),
-                permissionService
+                permissionService,
+                queryService
         );
+        return new UserService(queryService, commandService);
     }
 
     private <T> Page<T> page() {

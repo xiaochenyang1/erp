@@ -18,6 +18,7 @@ import com.tuowei.erp.inventory.check.web.InventoryStockCheckUpdateRequest;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -73,6 +74,9 @@ class InventoryStockCheckUpdateServiceTest {
 
     @Mock
     private AccountPeriodGuard accountPeriodGuard;
+
+    @Mock
+    private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -184,7 +188,8 @@ class InventoryStockCheckUpdateServiceTest {
                 auditMetadataFactory,
                 warehouseMapper,
                 productValidator,
-                accountPeriodGuard
+                accountPeriodGuard,
+                attachmentService
         );
     }
 

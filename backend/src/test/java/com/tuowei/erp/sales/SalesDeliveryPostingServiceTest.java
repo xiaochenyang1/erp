@@ -27,6 +27,7 @@ import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -106,6 +107,9 @@ class SalesDeliveryPostingServiceTest {
 
     @Mock
     private QcInspectionGate qcInspectionGate;
+
+    @Mock
+    private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -327,6 +331,22 @@ class SalesDeliveryPostingServiceTest {
         verify(salesDeliveryQueryService, never()).getById(any());
     }
 
+    @Test
+    void postStopsAtAttachmentGateBeforeCheckingAccountingPeriod() {
+        SalesDeliveryEntity delivery = delivery();
+        when(salesDeliveryMapper.selectById(DELIVERY_ID)).thenReturn(delivery);
+        doThrow(new IllegalArgumentException("业务类型 SALES_DELIVERY 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("SALES_DELIVERY", DELIVERY_ID);
+
+        assertThatThrownBy(() -> service().post(DELIVERY_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SALES_DELIVERY");
+
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        assertNoPostingWrites();
+    }
+
     private SalesDeliveryPostingService service() {
         return new SalesDeliveryPostingService(
                 salesDeliveryMapper,
@@ -342,7 +362,8 @@ class SalesDeliveryPostingServiceTest {
                 auditMetadataFactory,
                 accountPeriodGuard,
                 productValidator,
-                qcInspectionGate
+                qcInspectionGate,
+                attachmentService
         );
     }
 
@@ -457,6 +478,9 @@ class SalesDeliveryPostingServiceTest {
                 null,
                 null,
                 "PENDING_SHIP",
+                null,
+                null,
+                null,
                 List.of()
         );
     }

@@ -128,8 +128,8 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleQuery"
-        @current-change="loadData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -245,13 +245,14 @@
         :total="reservationTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleReservationQuery"
-        @current-change="loadReservations"
+        @size-change="handleReservationSizeChange"
+        @current-change="handleReservationPageChange"
       />
     </el-dialog>
 
     <el-dialog v-model="reservationDetailVisible" :title="$t('inventoryStocks.reservationDetail')" width="960px">
-      <template v-if="reservationDetail">
+      <el-skeleton v-if="reservationDetailLoading" :rows="6" animated />
+      <template v-else-if="reservationDetail">
         <el-descriptions :column="3" border>
           <el-descriptions-item :label="$t('inventoryStocks.warehouse')">
             {{ warehouseName(reservationDetail.reservation.warehouseId) }}
@@ -357,13 +358,20 @@
 
     <el-dialog v-model="checkDialogVisible" :title="$t('inventoryStocks.reservationCheck')" width="980px">
       <el-alert
-        v-if="!checkIssues.length && !checkLoading"
+        v-if="reservationCheckFailed"
+        :title="$t('inventoryStocks.message.reservationCheckFailed')"
+        type="error"
+        :closable="false"
+        show-icon
+      />
+      <el-alert
+        v-else-if="!checkIssues.length && !reservationCheckLoading && !reservationCheckFailed"
         :title="$t('inventoryStocks.noReservationIssues')"
         type="success"
         :closable="false"
         show-icon
       />
-      <el-table v-else v-loading="checkLoading" :data="checkIssues" border stripe>
+      <el-table v-else v-loading="reservationCheckLoading" :data="checkIssues" border stripe>
         <el-table-column prop="severity" :label="$t('inventoryStocks.severity')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.severity === 'ERROR' ? 'danger' : 'warning'">{{ severityLabel(row.severity) }}</el-tag>
@@ -438,8 +446,8 @@
         :total="lotBalanceTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleLotBalanceQuery"
-        @current-change="loadLotBalances"
+        @size-change="handleLotBalanceSizeChange"
+        @current-change="handleLotBalancePageChange"
       />
     </el-dialog>
 
@@ -499,8 +507,8 @@
         :total="transactionTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleTransactionQuery"
-        @current-change="loadTransactions"
+        @size-change="handleTransactionSizeChange"
+        @current-change="handleTransactionPageChange"
       />
     </el-dialog>
 
@@ -562,8 +570,8 @@
         :total="lotAlertTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleLotAlertQuery"
-        @current-change="loadLotAlerts"
+        @size-change="handleLotAlertSizeChange"
+        @current-change="handleLotAlertPageChange"
       />
     </el-dialog>
 
@@ -596,6 +604,18 @@
         <el-table-column prop="documentLabel" :label="$t('inventoryStocks.documentType')" min-width="120">
           <template #default="{ row }">{{ row.documentLabel || row.bizType }}</template>
         </el-table-column>
+        <el-table-column :label="$t('inventoryStocks.actions')" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              v-permission="'inventory:lot:genealogy'"
+              link
+              type="primary"
+              @click="router.push({ path: '/inventory/lot-genealogy', query: { productId: String(row.productId), lotNo: row.lotNo || '' } })"
+            >
+              {{ $t('inventoryStocks.action.viewGenealogy') }}
+            </el-button>
+          </template>
+        </el-table-column>
         <el-table-column prop="direction" :label="$t('inventoryStocks.direction')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.direction === 'IN' ? 'success' : 'warning'">{{ directionLabel(row.direction) }}</el-tag>
@@ -613,8 +633,8 @@
         :total="lotTraceTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadLotTrace"
-        @current-change="loadLotTrace"
+        @size-change="handleLotTraceSizeChange"
+        @current-change="handleLotTracePageChange"
       />
     </el-dialog>
 
@@ -634,7 +654,7 @@
     </el-dialog>
 
     <el-dialog v-model="lotBalanceDetailVisible" :title="$t('inventoryStocks.lotStockDetail')" width="760px">
-      <el-skeleton v-if="detailLoading" :rows="6" animated />
+      <el-skeleton v-if="lotBalanceDetailLoading" :rows="6" animated />
       <el-descriptions v-else-if="selectedLotBalance" :column="2" border>
         <el-descriptions-item :label="$t('inventoryStocks.warehouse')">{{ warehouseName(selectedLotBalance.warehouseId) }}</el-descriptions-item>
         <el-descriptions-item :label="$t('inventoryStocks.product')">{{ productName(selectedLotBalance.productId) }}</el-descriptions-item>
@@ -651,7 +671,7 @@
     </el-dialog>
 
     <el-dialog v-model="transactionDetailVisible" :title="$t('inventoryStocks.transactionDetail')" width="760px">
-      <el-skeleton v-if="detailLoading" :rows="6" animated />
+      <el-skeleton v-if="transactionDetailLoading" :rows="6" animated />
       <el-descriptions v-else-if="selectedTransaction" :column="2" border>
         <el-descriptions-item :label="$t('inventoryStocks.warehouse')">{{ warehouseName(selectedTransaction.warehouseId) }}</el-descriptions-item>
         <el-descriptions-item :label="$t('inventoryStocks.product')">{{ productName(selectedTransaction.productId) }}</el-descriptions-item>
@@ -705,162 +725,177 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search, Warning } from '@element-plus/icons-vue'
-import {
-  exportInventoryStocks,
-  type InventoryStock,
-} from '@/api/inventory'
-import { getLocations, getProducts, getWarehouses, type Location, type Product, type Warehouse } from '@/api/masterdata'
-import { useInventoryStockActions } from '@/composables/useInventoryStockActions'
+import { useInventoryStockBalanceList } from '@/composables/useInventoryStockBalanceList'
 import { useInventoryStockDetails } from '@/composables/useInventoryStockDetails'
+import { useInventoryStockExpiryAlertList } from '@/composables/useInventoryStockExpiryAlertList'
+import { useInventoryStockLotBalanceList } from '@/composables/useInventoryStockLotBalanceList'
 import { useInventoryStockQueries } from '@/composables/useInventoryStockQueries'
 import { useInventoryStockPresentation } from '@/composables/useInventoryStockPresentation'
-import { useInventoryStockResources } from '@/composables/useInventoryStockResources'
-import { downloadBlob } from '@/utils/download'
+import { useInventoryStockReservationList } from '@/composables/useInventoryStockReservationList'
+import { useInventoryStockTransactionList } from '@/composables/useInventoryStockTransactionList'
 
 const route = useRoute()
 const { t } = useI18n()
 const router = useRouter()
 
-const {
-  applyStockScope,
-  lotAlertQuery,
-  lotBalanceQuery,
-  lotTraceQuery,
-  queryParams,
-  reservationQuery,
-  transactionQuery
-} = useInventoryStockQueries({
+const { queryParams } = useInventoryStockQueries({
   warehouseId: route.query.warehouseId ? String(route.query.warehouseId) : undefined,
   productId: route.query.productId ? String(route.query.productId) : undefined,
   locationId: route.query.locationId ? String(route.query.locationId) : undefined
 })
 
-const warehouses = ref<Warehouse[]>([])
-const products = ref<Product[]>([])
-const locations = ref<Location[]>([])
-const locationsForQuery = computed(() => {
-  if (!queryParams.warehouseId) return locations.value
-  return locations.value.filter((location) => String(location.warehouseId) === String(queryParams.warehouseId))
+const {
+  handleExport,
+  handlePageChange,
+  handleQuery,
+  handleReset,
+  handleSizeChange,
+  loadData,
+  loadOptions,
+  loading,
+  locations,
+  locationsForQuery,
+  products,
+  tableData,
+  total,
+  warehouses
+} = useInventoryStockBalanceList(queryParams, {
+  t,
+  onError: (messageKey, error) => {
+    if (error) console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  },
+  onOptionsError: (messageKey, error) => console.error(t(messageKey), error),
+  onSuccess: (messageKey) => ElMessage.success(t(messageKey))
 })
 
 const {
   detailLoading,
-  handleViewLotBalance,
-  handleViewReservation,
-  handleViewReservationSource,
   handleViewStock,
-  handleViewTransaction,
-  lotBalanceDetailVisible,
-  reservationDetail,
-  reservationDetailVisible,
-  reservationSourceDetail,
-  reservationSourceLoading,
-  reservationSourceVisible,
-  selectedLotBalance,
   selectedStock,
-  selectedTransaction,
-  stockDetailVisible,
-  transactionDetailVisible
+  stockDetailVisible
 } = useInventoryStockDetails((messageKey) => ElMessage.error(t(messageKey)))
 
 const {
-  loadData,
-  loadLotAlerts,
-  loadLotBalances,
-  loadLotTrace,
-  loadReservations,
-  loadReservationSummary,
-  loadTransactions,
-  loading,
-  lotAlertData,
-  lotAlertLoading,
-  lotAlertTotal,
-  lotBalanceData,
-  lotBalanceLoading,
-  lotBalanceTotal,
-  lotTraceData,
-  lotTraceLoading,
-  lotTraceTotal,
-  reservationData,
-  reservationLoading,
-  reservationSummaryData,
-  reservationSummaryLoading,
-  reservationTotal,
-  tableData,
-  total,
-  transactionData,
-  transactionLoading,
-  transactionTotal
-} = useInventoryStockResources({
-  stock: queryParams,
-  reservations: reservationQuery,
-  lotBalances: lotBalanceQuery,
-  transactions: transactionQuery,
-  lotAlerts: lotAlertQuery,
-  lotTrace: lotTraceQuery
-}, (messageKey, error) => {
-  console.error(t(messageKey), error)
-  ElMessage.error(t(messageKey))
-})
-
-const {
   checkDialogVisible,
+  checkFailed: reservationCheckFailed,
   checkIssues,
-  checkLoading,
-  handleLotAlertQuery,
-  handleLotBalanceQuery,
-  handleOpenLotAlerts,
-  handleOpenLotBalances,
-  handleOpenLotTrace,
+  checkLoading: reservationCheckLoading,
   handleOpenReservations,
-  handleOpenTransactions,
   handleReservationCheck,
+  handleReservationPageChange,
   handleReservationQuery,
-  handleTransactionQuery,
-  lotAlertDialogVisible,
-  lotBalanceDialogVisible,
-  lotTraceDialogVisible,
+  handleReservationSizeChange,
+  handleViewReservation,
+  handleViewReservationSource,
   openReleaseDialog,
   releaseDialogVisible,
   releaseForm,
   releaseFormRef,
   releaseRules,
   releasing,
-  reservationDialogVisible,
-  resetLotAlertQuery,
-  resetLotBalanceQuery,
-  resetReservationQuery,
-  resetTransactionQuery,
-  selectedReservation,
-  submitManualRelease,
-  transactionDialogVisible
-} = useInventoryStockActions({
-  queryParams,
-  reservationQuery,
-  lotBalanceQuery,
-  transactionQuery,
-  lotAlertQuery,
-  lotTraceQuery
-}, {
-  loadData,
-  loadLotAlerts,
-  loadLotBalances,
-  loadLotTrace,
-  loadReservations,
-  loadReservationSummary,
-  loadTransactions
-}, {
-  applyStockScope,
+  reservationData,
   reservationDetail,
+  reservationDetailLoading,
+  reservationDetailVisible,
+  reservationDialogVisible,
+  reservationLoading,
+  reservationQuery,
+  reservationSourceDetail,
+  reservationSourceLoading,
+  reservationSourceVisible,
+  reservationSummaryData,
+  reservationSummaryLoading,
+  reservationTotal,
+  resetReservationQuery,
+  selectedReservation,
+  submitManualRelease
+} = useInventoryStockReservationList(queryParams, {
   t,
-  onError: (messageKey) => ElMessage.error(t(messageKey)),
-  onSuccess: (messageKey) => ElMessage.success(t(messageKey))
+  onError: (messageKey, error) => {
+    if (error) console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  },
+  onSuccess: (messageKey) => ElMessage.success(t(messageKey)),
+  reloadStockList: loadData
+})
+
+const {
+  handleLotBalancePageChange,
+  handleLotBalanceQuery,
+  handleLotBalanceSizeChange,
+  handleLotTracePageChange,
+  handleLotTraceSizeChange,
+  handleOpenLotBalances,
+  handleOpenLotTrace,
+  handleViewLotBalance,
+  lotBalanceData,
+  lotBalanceDetailLoading,
+  lotBalanceDetailVisible,
+  lotBalanceDialogVisible,
+  lotBalanceLoading,
+  lotBalanceQuery,
+  lotBalanceTotal,
+  lotTraceData,
+  lotTraceDialogVisible,
+  lotTraceLoading,
+  lotTraceQuery,
+  lotTraceTotal,
+  resetLotBalanceQuery,
+  selectedLotBalance
+} = useInventoryStockLotBalanceList(queryParams, {
+  onDetailError: (messageKey) => ElMessage.error(t(messageKey)),
+  onListError: (messageKey, error) => {
+    console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  }
+})
+
+const {
+  handleOpenTransactions,
+  handleTransactionPageChange,
+  handleTransactionQuery,
+  handleTransactionSizeChange,
+  handleViewTransaction,
+  resetTransactionQuery,
+  selectedTransaction,
+  transactionData,
+  transactionDetailLoading,
+  transactionDetailVisible,
+  transactionDialogVisible,
+  transactionLoading,
+  transactionQuery,
+  transactionTotal
+} = useInventoryStockTransactionList(queryParams, {
+  onDetailError: (messageKey) => ElMessage.error(t(messageKey)),
+  onListError: (messageKey, error) => {
+    console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  }
+})
+
+const {
+  handleLotAlertPageChange,
+  handleLotAlertQuery,
+  handleLotAlertSizeChange,
+  handleOpenLotAlerts,
+  lotAlertData,
+  lotAlertDialogVisible,
+  lotAlertLoading,
+  lotAlertQuery,
+  lotAlertTotal,
+  resetLotAlertQuery
+} = useInventoryStockExpiryAlertList(queryParams, {
+  onError: (messageKey, error) => {
+    console.error(t(messageKey), error)
+    ElMessage.error(t(messageKey))
+  }
 })
 
 const {
@@ -880,53 +915,14 @@ const {
   warehouseName
 } = useInventoryStockPresentation(warehouses, products, t, locations)
 
-const loadOptions = async () => {
-  const optionPageQuery = { pageNo: 1, pageSize: 200, status: 'ACTIVE' }
-  const [warehousePage, productPage, locationPage] = await Promise.all([
-    getWarehouses(optionPageQuery),
-    getProducts(optionPageQuery),
-    getLocations({ pageNo: 1, pageSize: 500, status: 'ACTIVE' })
-  ])
-  warehouses.value = warehousePage.records
-  products.value = productPage.records
-  locations.value = locationPage.records || []
-}
-
-const handleQuery = () => {
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleReset = () => {
-  queryParams.warehouseId = undefined
-  queryParams.productId = undefined
-  queryParams.locationId = undefined
-  queryParams.pageNo = 1
-  loadData()
-}
-
-const handleExport = async () => {
-  try {
-    const blob = await exportInventoryStocks(queryParams)
-    downloadBlob(blob, t('inventoryStocks.file.stockBalances', { timestamp: Date.now() }))
-    ElMessage.success(t('inventoryStocks.message.exported'))
-  } catch (error) {
-    ElMessage.error(t('inventoryStocks.message.exportFailed'))
-  }
-}
-
 const openTraceDocument = (route: string) => {
   if (!route) return
   router.push(route)
 }
 
 onMounted(async () => {
-  try {
-    await loadOptions()
-  } catch (error) {
-    console.error(t('inventoryStocks.message.optionsLoadFailed'), error)
-  }
-  loadData()
+  await loadOptions()
+  void loadData()
 })
 </script>
 

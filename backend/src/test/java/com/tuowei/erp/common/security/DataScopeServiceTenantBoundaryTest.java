@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.inventory.transfer.model.InventoryTransferEntity;
+import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentEntity;
+import com.tuowei.erp.inventory.check.model.InventoryStockCheckEntity;
 import com.tuowei.erp.production.order.model.ProductionOrderEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
@@ -11,6 +13,7 @@ import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnEntity;
 import com.tuowei.erp.sales.delivery.model.SalesDeliveryEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.returnorder.model.SalesReturnEntity;
+import com.tuowei.erp.system.user.mapper.UserRoleMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -35,7 +38,8 @@ class DataScopeServiceTenantBoundaryTest {
     );
     private static final DataScopeSnapshot ALL_SCOPE = DataScopeSnapshot.all();
 
-    private final DataScopeService dataScopeService = new DataScopeService(null, null, null, null);
+    private final DataScopeService dataScopeService = new DataScopeService(
+            (UserRoleMapper) null, null, null, null);
 
     @BeforeAll
     static void initTableInfo() {
@@ -45,6 +49,8 @@ class DataScopeServiceTenantBoundaryTest {
         initTableInfo(SalesReturnEntity.class);
         initTableInfo(PurchaseReceiptEntity.class);
         initTableInfo(PurchaseReturnEntity.class);
+        initTableInfo(InventoryAdjustmentEntity.class);
+        initTableInfo(InventoryStockCheckEntity.class);
     }
 
     @Test
@@ -61,6 +67,10 @@ class DataScopeServiceTenantBoundaryTest {
                 new LambdaQueryWrapper<>(PurchaseReceiptEntity.class), CURRENT_USER, ALL_SCOPE, Set.of(), Set.of()));
         assertTenantScoped(dataScopeService.applyPurchaseReturnScope(
                 new LambdaQueryWrapper<>(PurchaseReturnEntity.class), CURRENT_USER, ALL_SCOPE, Set.of(), Set.of()));
+        assertTenantScoped(dataScopeService.applyInventoryAdjustmentScope(
+                new LambdaQueryWrapper<>(InventoryAdjustmentEntity.class), CURRENT_USER, ALL_SCOPE, Set.of(), Set.of()));
+        assertTenantScoped(dataScopeService.applyInventoryStockCheckScope(
+                new LambdaQueryWrapper<>(InventoryStockCheckEntity.class), CURRENT_USER, ALL_SCOPE, Set.of(), Set.of()));
     }
 
     @Test
@@ -81,6 +91,10 @@ class DataScopeServiceTenantBoundaryTest {
                 inventoryTransfer(CURRENT_USER.companyId(), 9999L), CURRENT_USER, ALL_SCOPE, null, null));
         assertDenied(() -> dataScopeService.assertCanViewProductionOrder(
                 productionOrder(CURRENT_USER.companyId(), 9999L), CURRENT_USER, ALL_SCOPE, null, null));
+        assertDenied(() -> dataScopeService.assertCanViewInventoryAdjustment(
+                inventoryAdjustment(CURRENT_USER.companyId(), 9999L), CURRENT_USER, ALL_SCOPE, null, null));
+        assertDenied(() -> dataScopeService.assertCanViewInventoryStockCheck(
+                inventoryStockCheck(CURRENT_USER.companyId(), 9999L), CURRENT_USER, ALL_SCOPE, null, null));
     }
 
     private void assertTenantScoped(LambdaQueryWrapper<?> wrapper) {
@@ -145,6 +159,20 @@ class DataScopeServiceTenantBoundaryTest {
 
     private ProductionOrderEntity productionOrder(Long companyId, Long accountBookId) {
         ProductionOrderEntity entity = new ProductionOrderEntity();
+        entity.setCompanyId(companyId);
+        entity.setAccountBookId(accountBookId);
+        return entity;
+    }
+
+    private InventoryAdjustmentEntity inventoryAdjustment(Long companyId, Long accountBookId) {
+        InventoryAdjustmentEntity entity = new InventoryAdjustmentEntity();
+        entity.setCompanyId(companyId);
+        entity.setAccountBookId(accountBookId);
+        return entity;
+    }
+
+    private InventoryStockCheckEntity inventoryStockCheck(Long companyId, Long accountBookId) {
+        InventoryStockCheckEntity entity = new InventoryStockCheckEntity();
         entity.setCompanyId(companyId);
         entity.setAccountBookId(accountBookId);
         return entity;

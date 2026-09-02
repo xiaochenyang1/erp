@@ -654,6 +654,26 @@ export interface AccountPeriodCloseCheck {
   checks?: AccountPeriodCloseCheckItem[]
 }
 
+export interface AccountPeriodCloseSnapshotItem {
+  code: string
+  title: string
+  category: string
+  passed: boolean
+  message: string
+  metric: number
+}
+
+export interface AccountPeriodCloseSnapshot {
+  id: string
+  periodId: string
+  actionType: 'LOCK' | 'CLOSE' | string
+  passed: boolean
+  issueCount: number
+  checkedBy?: string
+  checkedTime?: string
+  items: AccountPeriodCloseSnapshotItem[]
+}
+
 export interface InventoryFinanceReconciliation {
   periodId: string
   periodMonth: string
@@ -736,6 +756,11 @@ export const reopenAccountPeriod = (id: string | number) => {
   return request.post<AccountPeriod>(`/finance/periods/${id}/reopen`).then(normalizeAccountPeriod)
 }
 
+export const getAccountPeriodCloseSnapshots = (id: string | number) => {
+  return request.get<AccountPeriodCloseSnapshot[]>(`/finance/periods/${id}/close-snapshots`)
+    .then((snapshots) => snapshots.map(normalizeAccountPeriodCloseSnapshot))
+}
+
 export const getInventoryFinanceReconciliation = (id: string | number) => {
   return request.get<InventoryFinanceReconciliation>(`/finance/periods/${id}/reconciliation`)
     .then(normalizeInventoryFinanceReconciliation)
@@ -779,6 +804,18 @@ const normalizeAccountPeriodCloseCheck = (result: AccountPeriodCloseCheck): Acco
   }))
 })
 
+const normalizeAccountPeriodCloseSnapshot = (snapshot: AccountPeriodCloseSnapshot): AccountPeriodCloseSnapshot => ({
+  ...snapshot,
+  id: String(snapshot.id),
+  periodId: String(snapshot.periodId),
+  issueCount: Number(snapshot.issueCount ?? 0),
+  checkedBy: snapshot.checkedBy != null ? String(snapshot.checkedBy) : undefined,
+  items: (snapshot.items || []).map((item) => ({
+    ...item,
+    metric: Number(item.metric ?? 0)
+  }))
+})
+
 const normalizeInventoryFinanceReconciliation = (
   result: InventoryFinanceReconciliation
 ): InventoryFinanceReconciliation => ({
@@ -814,7 +851,11 @@ export interface Expense {
   expenseDate: string
   subjectId: string | number
   paymentSubjectId: string | number
+  deptId?: string | number
   amount: number
+  budgetLineId?: string
+  budgetState?: string
+  budgetOverrunFlag?: number
   status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'POSTED' | 'CANCELLED' | string
   voucherId?: string
   voucherNo?: string
@@ -844,6 +885,7 @@ export interface ExpenseCreateRequest {
   expenseDate: string
   subjectId: string | number
   paymentSubjectId: string | number
+  deptId?: string | number
   amount: number
   remark?: string
 }
@@ -916,10 +958,157 @@ export const cancelExpense = (id: string | number) => {
   return request.post<Expense>(`/finance/expenses/${id}/cancel`).then(normalizeExpense)
 }
 
+// ==================== 预算管理 ====================
+
+export interface BudgetLine {
+  id?: string
+  periodMonth: number
+  deptId?: string | number
+  subjectId: string | number
+  budgetAmount: number
+  committedAmount: number
+  actualAmount: number
+  availableAmount: number
+  remark?: string
+}
+
+export interface Budget {
+  id: string
+  budgetYear: number
+  budgetName: string
+  controlPolicy: 'REJECT' | 'APPROVAL' | string
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'CLOSED' | 'CANCELLED' | string
+  totalBudgetAmount: number
+  totalCommittedAmount: number
+  totalActualAmount: number
+  totalAvailableAmount: number
+  remark?: string
+  lines: BudgetLine[]
+}
+
+export interface BudgetQuery extends PageQuery {
+  budgetYear?: number
+  status?: string
+  keyword?: string
+}
+
+export interface BudgetLineSaveRequest {
+  periodMonth: number
+  deptId?: string | number
+  subjectId: string | number
+  budgetAmount: number
+  remark?: string
+}
+
+export interface BudgetSaveRequest {
+  budgetYear?: number
+  budgetName: string
+  controlPolicy: string
+  remark?: string
+  lines: BudgetLineSaveRequest[]
+}
+
+export interface BudgetExecutionQuery {
+  budgetYear: number
+  periodMonth: number
+  deptId?: string | number
+  subjectId: string | number
+  amount?: number
+}
+
+export interface BudgetExecution {
+  budgetYear: number
+  periodMonth: number
+  deptId?: string | number
+  subjectId: string | number
+  budgetAmount: number
+  committedAmount: number
+  actualAmount: number
+  availableAmount: number
+  budgetId?: string
+  budgetLineId?: string
+  controlPolicy?: string
+  periodSource: 'MONTHLY' | 'ANNUAL' | 'NONE' | string
+  requestedAmount: number
+  projectedAvailableAmount: number
+  overrun: boolean
+}
+
+const normalizeBudgetLine = (line: BudgetLine): BudgetLine => ({
+  ...line,
+  id: line.id != null ? String(line.id) : undefined,
+  deptId: line.deptId != null ? String(line.deptId) : undefined,
+  subjectId: String(line.subjectId),
+  periodMonth: Number(line.periodMonth ?? 0),
+  budgetAmount: Number(line.budgetAmount ?? 0),
+  committedAmount: Number(line.committedAmount ?? 0),
+  actualAmount: Number(line.actualAmount ?? 0),
+  availableAmount: Number(line.availableAmount ?? 0)
+})
+
+const normalizeBudget = (budget: Budget): Budget => ({
+  ...budget,
+  id: String(budget.id),
+  budgetYear: Number(budget.budgetYear),
+  totalBudgetAmount: Number(budget.totalBudgetAmount ?? 0),
+  totalCommittedAmount: Number(budget.totalCommittedAmount ?? 0),
+  totalActualAmount: Number(budget.totalActualAmount ?? 0),
+  totalAvailableAmount: Number(budget.totalAvailableAmount ?? 0),
+  lines: (budget.lines || []).map(normalizeBudgetLine)
+})
+
+const normalizeBudgetExecution = (result: BudgetExecution): BudgetExecution => ({
+  ...result,
+  budgetYear: Number(result.budgetYear),
+  periodMonth: Number(result.periodMonth),
+  deptId: result.deptId != null ? String(result.deptId) : undefined,
+  subjectId: String(result.subjectId),
+  budgetId: result.budgetId != null ? String(result.budgetId) : undefined,
+  budgetLineId: result.budgetLineId != null ? String(result.budgetLineId) : undefined,
+  budgetAmount: Number(result.budgetAmount ?? 0),
+  committedAmount: Number(result.committedAmount ?? 0),
+  actualAmount: Number(result.actualAmount ?? 0),
+  availableAmount: Number(result.availableAmount ?? 0),
+  requestedAmount: Number(result.requestedAmount ?? 0),
+  projectedAvailableAmount: Number(result.projectedAvailableAmount ?? 0),
+  overrun: Boolean(result.overrun)
+})
+
+export const getBudgets = (params: BudgetQuery) =>
+  request.get<PageResponse<Budget>>('/finance/budgets', { params }).then((page) => ({
+    ...page,
+    records: page.records.map(normalizeBudget)
+  }))
+
+export const getBudget = (id: string | number) =>
+  request.get<Budget>(`/finance/budgets/${id}`).then(normalizeBudget)
+
+export const createBudget = (data: BudgetSaveRequest) =>
+  request.post<Budget>('/finance/budgets', data).then(normalizeBudget)
+
+export const updateBudget = (id: string | number, data: BudgetSaveRequest) =>
+  request.put<Budget>(`/finance/budgets/${id}`, data).then(normalizeBudget)
+
+export const submitBudget = (id: string | number) =>
+  request.post<Budget>(`/finance/budgets/${id}/submit`).then(normalizeBudget)
+
+export const approveBudget = (id: string | number) =>
+  request.post<Budget>(`/finance/budgets/${id}/approve`).then(normalizeBudget)
+
+export const closeBudget = (id: string | number) =>
+  request.post<Budget>(`/finance/budgets/${id}/close`).then(normalizeBudget)
+
+export const cancelBudget = (id: string | number) =>
+  request.post<Budget>(`/finance/budgets/${id}/cancel`).then(normalizeBudget)
+
+export const getBudgetExecution = (params: BudgetExecutionQuery) =>
+  request.get<BudgetExecution>('/finance/budgets/execution', { params }).then(normalizeBudgetExecution)
+
 const toExpensePayload = (data: ExpenseCreateRequest) => ({
   expenseDate: data.expenseDate,
   subjectId: data.subjectId,
   paymentSubjectId: data.paymentSubjectId,
+  deptId: data.deptId,
   amount: data.amount,
   remark: data.remark
 })
@@ -929,6 +1118,9 @@ const normalizeExpense = (expense: Expense): Expense => ({
   id: String(expense.id),
   subjectId: String(expense.subjectId),
   paymentSubjectId: String(expense.paymentSubjectId),
+  deptId: expense.deptId != null ? String(expense.deptId) : undefined,
+  budgetLineId: expense.budgetLineId != null ? String(expense.budgetLineId) : undefined,
+  budgetOverrunFlag: Number(expense.budgetOverrunFlag ?? 0),
   voucherId: expense.voucherId != null ? String(expense.voucherId) : undefined,
   reversalVoucherId: expense.reversalVoucherId != null ? String(expense.reversalVoucherId) : undefined,
   amount: Number(expense.amount ?? 0),

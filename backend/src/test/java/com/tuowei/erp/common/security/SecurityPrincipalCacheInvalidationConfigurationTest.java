@@ -13,12 +13,12 @@ class SecurityPrincipalCacheInvalidationConfigurationTest {
 
     @Test
     void securityMutationServicesEvictPrincipalCache() throws IOException {
-        String userService = readSource("system", "user", "service", "UserService.java");
-        String roleService = readSource("system", "role", "service", "RoleService.java");
-        String menuService = readSource("system", "menu", "service", "MenuService.java");
+        String userCommandService = readSource("system", "user", "service", "UserCommandService.java");
+        String roleService = readSource("system", "role", "service", "RoleCommandService.java");
+        String menuCommandService = readSource("system", "menu", "service", "MenuCommandService.java");
         String authService = readSource("system", "auth", "service", "AuthService.java");
 
-        assertThat(userService)
+        assertThat(userCommandService)
                 .contains("SecurityPrincipalCache principalCache")
                 .contains("principalCache.evictUser(id);")
                 .contains("principalCache.evictUser(userId);");
@@ -27,7 +27,7 @@ class SecurityPrincipalCacheInvalidationConfigurationTest {
                 .contains("SecurityPrincipalCache principalCache")
                 .contains("principalCache.evictAll();");
 
-        assertThat(menuService)
+        assertThat(menuCommandService)
                 .contains("SecurityPrincipalCache principalCache")
                 .contains("principalCache.evictAll();");
 

@@ -129,6 +129,9 @@ public class SalesDeliveryQueryService {
                 delivery.getCarrierName(),
                 delivery.getTrackingNo(),
                 delivery.getLogisticsStatus(),
+                delivery.getDeliveredBy(),
+                delivery.getDeliveredTime(),
+                delivery.getDeliveryProofAttachmentId(),
                 lines.stream().map(this::toLineResponse).toList()
         );
     }
@@ -210,6 +213,9 @@ public class SalesDeliveryQueryService {
                 delivery.getCarrierName(),
                 delivery.getTrackingNo(),
                 delivery.getLogisticsStatus(),
+                delivery.getDeliveredBy(),
+                delivery.getDeliveredTime(),
+                delivery.getDeliveryProofAttachmentId(),
                 List.of()
         );
     }

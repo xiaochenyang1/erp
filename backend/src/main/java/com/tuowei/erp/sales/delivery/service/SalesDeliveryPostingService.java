@@ -5,6 +5,7 @@ import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.commercial.contract.service.ContractExecutionService;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
@@ -27,6 +28,8 @@ import com.tuowei.erp.sales.order.mapper.SalesOrderLineMapper;
 import com.tuowei.erp.sales.order.mapper.SalesOrderMapper;
 import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.sales.order.model.SalesOrderLineEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,6 +62,9 @@ public class SalesDeliveryPostingService {
     private final AccountPeriodGuard accountPeriodGuard;
     private final ProductValidator productValidator;
     private final QcInspectionGate qcInspectionGate;
+    private final AttachmentService attachmentService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ContractExecutionService contractExecutionService;
 
     public SalesDeliveryPostingService(
             SalesDeliveryMapper salesDeliveryMapper,
@@ -74,7 +80,8 @@ public class SalesDeliveryPostingService {
             AuditMetadataFactory auditMetadataFactory,
             AccountPeriodGuard accountPeriodGuard,
             ProductValidator productValidator,
-            QcInspectionGate qcInspectionGate
+            QcInspectionGate qcInspectionGate,
+            AttachmentService attachmentService
     ) {
         this.salesDeliveryMapper = salesDeliveryMapper;
         this.salesDeliveryLineMapper = salesDeliveryLineMapper;
@@ -90,6 +97,7 @@ public class SalesDeliveryPostingService {
         this.accountPeriodGuard = accountPeriodGuard;
         this.productValidator = productValidator;
         this.qcInspectionGate = qcInspectionGate;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional
@@ -99,6 +107,7 @@ public class SalesDeliveryPostingService {
         if (!"DRAFT".equals(delivery.getStatus())) {
             throw new IllegalArgumentException("当前销售出库单状态不允许过账");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.SALES_DELIVERY, delivery.getId());
         accountPeriodGuard.requireOpen(delivery.getDeliveryDate(), "销售出库过账");
 
         SalesOrderEntity order = requireApprovedOrder(delivery.getOrderId(), "销售订单未审批通过，不能执行出库过账");
@@ -166,6 +175,9 @@ public class SalesDeliveryPostingService {
                     salesOrderLineMapper.updateById(orderLine),
                     "销售订单明细已被其他操作修改，请刷新后重试"
             );
+            if (contractExecutionService != null) {
+                contractExecutionService.increase(orderLine.getContractLineId(), deliveryLine.getQty(), audit);
+            }
 
             inventoryPostingService.releaseReservation(
                     "SALES_ORDER",

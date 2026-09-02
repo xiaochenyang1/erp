@@ -67,7 +67,38 @@
       @export="handleExport"
       @refresh="loadData"
       @page-change="handlePageChange"
+      @selection-change="handleSelectionChange"
     >
+      <template #toolbar-left>
+        <el-button v-permission="'masterdata:supplier:create'" type="primary" :icon="Plus" @click="handleCreate">
+          {{ texts.createSupplier }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:supplier:enable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="CircleCheck"
+          @click="handleBatchEnable"
+        >
+          {{ labelWithCount(texts.batchEnable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:supplier:disable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="Delete"
+          @click="handleBatchDisable"
+        >
+          {{ labelWithCount(texts.batchDisable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          :disabled="selectedRows.length === 0"
+          :icon="Download"
+          @click="handleExportSelected"
+        >
+          {{ labelWithCount(texts.exportSelected, selectedRows.length) }}
+        </el-button>
+      </template>
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="code" :label="texts.supplierCode" width="140" fixed>
         <template #default="{ row }">
@@ -99,12 +130,16 @@
           <status-tag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column :label="texts.actions" width="180" fixed="right" align="center">
+      <el-table-column :label="texts.actions" width="260" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" @click="handleView(row)">
               <el-icon><View /></el-icon>
               {{ texts.view }}
+            </el-button>
+            <el-button link type="primary" @click="openRelations(row)">
+              <el-icon><Goods /></el-icon>
+              {{ texts.relations }}
             </el-button>
             <el-button v-permission="'masterdata:supplier:update'" link type="primary" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
@@ -318,6 +353,154 @@
         </div>
       </detail-card>
     </el-dialog>
+
+    <!-- 供应商商品关系对话框 -->
+    <el-dialog
+      v-model="relationVisible"
+      :title="relationDialogTitle"
+      width="1040px"
+      :close-on-click-modal="false"
+      class="elegant-dialog supplier-dialog"
+      @closed="closeRelations"
+    >
+      <div class="relation-panel">
+        <div class="relation-toolbar">
+          <span class="relation-hint">{{ texts.relationHint }}</span>
+          <el-button
+            v-permission="'masterdata:supplier:update'"
+            type="primary"
+            :icon="Plus"
+            @click="handleRelationCreate"
+          >
+            {{ texts.createRelation }}
+          </el-button>
+        </div>
+        <el-table
+          v-loading="relationLoading"
+          :data="relationRows"
+          border
+          size="small"
+          class="relation-table"
+          :empty-text="texts.relationEmpty"
+        >
+          <el-table-column prop="productCode" :label="texts.productCode" width="140">
+            <template #default="{ row }">
+              <span v-if="row.productCode" class="code-badge supplier">{{ row.productCode }}</span>
+              <el-tag v-else type="warning" size="small">{{ texts.productMissing }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="productName" :label="texts.productName" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.productName || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="supplierProductCode" :label="texts.supplierProductCode" width="140">
+            <template #default="{ row }">{{ row.supplierProductCode || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="supplierProductName" :label="texts.supplierProductName" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.supplierProductName || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="minPurchaseQty" :label="texts.minPurchaseQty" width="130" align="right">
+            <template #default="{ row }">{{ formatQty(row.minPurchaseQty) }}</template>
+          </el-table-column>
+          <el-table-column prop="leadTimeDays" :label="texts.leadTimeDays" width="110" align="center">
+            <template #default="{ row }">{{ formatLeadTime(row.leadTimeDays) }}</template>
+          </el-table-column>
+          <el-table-column prop="defaultSupplier" :label="texts.defaultSupplier" width="120" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.defaultSupplier" type="success" size="small">{{ texts.defaultSupplierYes }}</el-tag>
+              <span v-else class="no-credit">{{ texts.defaultSupplierNo }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="texts.actions" width="140" align="center">
+            <template #default="{ row }">
+              <div class="action-buttons">
+                <el-button v-permission="'masterdata:supplier:update'" link type="primary" @click="handleRelationEdit(row)">
+                  <el-icon><Edit /></el-icon>
+                  {{ texts.edit }}
+                </el-button>
+                <el-button v-permission="'masterdata:supplier:update'" link type="danger" @click="handleRelationDelete(row)">
+                  <el-icon><Delete /></el-icon>
+                  {{ texts.delete }}
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
+
+    <!-- 供应商商品关系表单 -->
+    <el-dialog
+      v-model="relationFormVisible"
+      :title="relationFormTitle"
+      width="560px"
+      :close-on-click-modal="false"
+      class="elegant-dialog supplier-dialog"
+    >
+      <el-form :model="relationForm" :rules="relationFormRules" label-width="130px" class="relation-form">
+        <el-form-item :label="texts.productName" prop="productId">
+          <el-select
+            v-model="relationForm.productId"
+            :placeholder="texts.selectProduct"
+            filterable
+            :disabled="Boolean(relationForm.id)"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="product in relationProducts"
+              :key="product.id"
+              :label="`${product.productCode} / ${product.productName}`"
+              :value="String(product.id)"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="texts.supplierProductCode" prop="supplierProductCode">
+          <el-input v-model="relationForm.supplierProductCode" :placeholder="texts.enterSupplierProductCode" maxlength="50" />
+        </el-form-item>
+        <el-form-item :label="texts.supplierProductName" prop="supplierProductName">
+          <el-input v-model="relationForm.supplierProductName" :placeholder="texts.enterSupplierProductName" maxlength="100" />
+        </el-form-item>
+        <el-form-item :label="texts.minPurchaseQty" prop="minPurchaseQty">
+          <el-input-number
+            v-model="relationForm.minPurchaseQty"
+            :min="0"
+            :precision="4"
+            :controls="false"
+            style="width: 100%"
+          />
+          <span class="form-tip">{{ texts.minPurchaseQtyHint }}</span>
+        </el-form-item>
+        <el-form-item :label="texts.leadTimeDays" prop="leadTimeDays">
+          <el-input-number
+            v-model="relationForm.leadTimeDays"
+            :min="0"
+            :precision="0"
+            :controls="false"
+            style="width: 100%"
+          />
+          <span class="form-tip">{{ texts.leadTimeDaysHint }}</span>
+        </el-form-item>
+        <el-form-item :label="texts.defaultSupplier" prop="defaultSupplier">
+          <el-switch v-model="relationForm.defaultSupplier" />
+          <span class="form-tip">{{ texts.defaultSupplierHint }}</span>
+        </el-form-item>
+        <el-form-item :label="texts.remark" prop="remark">
+          <el-input
+            v-model="relationForm.remark"
+            type="textarea"
+            :rows="2"
+            :placeholder="texts.enterRemark"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="relationFormVisible = false">{{ texts.cancel }}</el-button>
+        <el-button type="primary" :loading="relationSubmitting" @click="handleRelationSubmit">
+          {{ texts.confirm }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -334,7 +517,10 @@ import {
   Phone,
   Calendar,
   Clock,
-  DocumentCopy
+  DocumentCopy,
+  Plus,
+  Download,
+  Goods
 } from '@element-plus/icons-vue'
 import {
   getSuppliers,
@@ -344,7 +530,11 @@ import {
   updateSupplier,
   deleteSupplier,
   enableSupplier,
-  exportSuppliers
+  exportSuppliers,
+  getProducts,
+  getSupplierProductRelations,
+  saveSupplierProductRelation,
+  deleteSupplierProductRelation
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import { useAppStore } from '@/store/modules/app'
@@ -352,6 +542,7 @@ import { useUserStore } from '@/store/modules/user'
 import { useSupplierPresentation } from '@/composables/useSupplierPresentation'
 import { useSupplierList } from '@/composables/useSupplierList'
 import { useSupplierForm } from '@/composables/useSupplierForm'
+import { useSupplierProductRelations } from '@/composables/useSupplierProductRelations'
 
 const appStore = useAppStore()
 const userStore = useUserStore()
@@ -378,6 +569,7 @@ const SUPPLIER_TEXTS = {
     enable: '启用',
     delete: '删除',
     cancel: '取消',
+    confirm: '确定',
     enterSupplierCode: '请输入供应商编码',
     enterSupplierName: '请输入供应商名称',
     selectStatus: '请选择状态',
@@ -426,13 +618,58 @@ const SUPPLIER_TEXTS = {
     exportSuccess: '导出成功',
     exportFailed: '导出失败',
     exportFilename: '供应商列表',
+    batchEnable: '批量启用',
+    batchDisable: '批量删除',
+    exportSelected: '导出选中',
+    selectedExportFilename: '供应商-{count}',
+    batchEnableTitle: '批量启用供应商',
+    batchDisableTitle: '批量删除供应商',
+    batchEnableConfirm: '确认批量启用 {count} 个供应商吗？',
+    batchDisableConfirm: '确认批量删除 {count} 个供应商吗？',
+    batchEnableSuccess: '成功启用 {count} 个供应商',
+    batchDisableSuccess: '成功删除 {count} 个供应商',
+    batchEnablePartial: '成功启用 {success} 个，失败 {failedCount} 个：{failed}',
+    batchDisablePartial: '成功删除 {success} 个，失败 {failedCount} 个：{failed}',
     validationEnterCode: '请输入供应商编码',
     validationCodeLength: '长度在 2 到 50 个字符',
     validationEnterName: '请输入供应商名称',
     validationNameLength: '长度在 2 到 100 个字符',
     validationSettlementMethod: '请选择结算方式',
     validationMobile: '请输入正确的手机号码',
-    validationEmail: '请输入正确的邮箱地址'
+    validationEmail: '请输入正确的邮箱地址',
+    relations: '商品',
+    relationDialogTitle: '供应商商品关系 - {name}',
+    relationHint: '维护供应商料号、最小采购量和交期，采购订单提交时会按这里的规则校验。',
+    relationEmpty: '该供应商暂无商品关系',
+    createRelation: '新增商品关系',
+    editRelation: '编辑商品关系',
+    productCode: '商品编码',
+    productName: '商品名称',
+    productMissing: '商品已停用',
+    supplierProductCode: '供应商料号',
+    supplierProductName: '供应商品名',
+    minPurchaseQty: '最小采购量',
+    minPurchaseQtyHint: '0 表示不限制',
+    leadTimeDays: '交期（天）',
+    leadTimeDaysHint: '0 表示不校验交期',
+    leadTimeDaysValue: '{days} 天',
+    leadTimeUnlimited: '不限',
+    minPurchaseQtyNone: '不限',
+    defaultSupplier: '默认供应商',
+    defaultSupplierYes: '默认',
+    defaultSupplierNo: '非默认',
+    defaultSupplierHint: '每个商品只能有一个默认供应商，开启后会自动取消其他供应商的默认标记',
+    selectProduct: '请选择商品',
+    enterSupplierProductCode: '请输入供应商料号',
+    enterSupplierProductName: '请输入供应商品名',
+    relationLoadFailed: '加载供应商商品关系失败',
+    relationOptionsLoadFailed: '加载商品列表失败',
+    relationSaveSuccess: '商品关系已保存',
+    relationSaveFailed: '保存商品关系失败',
+    relationDeleteSuccess: '商品关系已删除',
+    relationDeleteFailed: '删除商品关系失败',
+    confirmDeleteRelation: '确认删除商品关系“{product}”吗？',
+    validationSelectProduct: '请选择商品'
   },
   'en-US': {
     pageTitle: 'Supplier Management',
@@ -455,6 +692,7 @@ const SUPPLIER_TEXTS = {
     enable: 'Enable',
     delete: 'Delete',
     cancel: 'Cancel',
+    confirm: 'Confirm',
     enterSupplierCode: 'Enter supplier code',
     enterSupplierName: 'Enter supplier name',
     selectStatus: 'Select status',
@@ -503,13 +741,58 @@ const SUPPLIER_TEXTS = {
     exportSuccess: 'Export completed',
     exportFailed: 'Failed to export suppliers',
     exportFilename: 'supplier-list',
+    batchEnable: 'Batch enable',
+    batchDisable: 'Batch delete',
+    exportSelected: 'Export selected',
+    selectedExportFilename: 'suppliers-{count}',
+    batchEnableTitle: 'Batch enable suppliers',
+    batchDisableTitle: 'Batch delete suppliers',
+    batchEnableConfirm: 'Enable {count} suppliers?',
+    batchDisableConfirm: 'Delete {count} suppliers?',
+    batchEnableSuccess: 'Enabled {count} suppliers',
+    batchDisableSuccess: 'Deleted {count} suppliers',
+    batchEnablePartial: 'Enabled {success}, failed {failedCount}: {failed}',
+    batchDisablePartial: 'Deleted {success}, failed {failedCount}: {failed}',
     validationEnterCode: 'Enter supplier code',
     validationCodeLength: 'Length must be between 2 and 50 characters',
     validationEnterName: 'Enter supplier name',
     validationNameLength: 'Length must be between 2 and 100 characters',
     validationSettlementMethod: 'Select a settlement method',
     validationMobile: 'Enter a valid mobile number',
-    validationEmail: 'Enter a valid email address'
+    validationEmail: 'Enter a valid email address',
+    relations: 'Products',
+    relationDialogTitle: 'Supplier product relations - {name}',
+    relationHint: 'Maintain supplier part numbers, minimum order quantity and lead time; purchase orders are validated against these rules.',
+    relationEmpty: 'No product relations for this supplier yet',
+    createRelation: 'Add relation',
+    editRelation: 'Edit relation',
+    productCode: 'Product code',
+    productName: 'Product name',
+    productMissing: 'Product inactive',
+    supplierProductCode: 'Supplier part no.',
+    supplierProductName: 'Supplier part name',
+    minPurchaseQty: 'Min. order qty',
+    minPurchaseQtyHint: '0 means no minimum',
+    leadTimeDays: 'Lead time (days)',
+    leadTimeDaysHint: '0 skips the lead time check',
+    leadTimeDaysValue: '{days} days',
+    leadTimeUnlimited: 'None',
+    minPurchaseQtyNone: 'No minimum',
+    defaultSupplier: 'Default supplier',
+    defaultSupplierYes: 'Default',
+    defaultSupplierNo: 'Not default',
+    defaultSupplierHint: 'Only one default supplier per product; enabling this clears the flag on other suppliers.',
+    selectProduct: 'Select a product',
+    enterSupplierProductCode: 'Enter supplier part number',
+    enterSupplierProductName: 'Enter supplier part name',
+    relationLoadFailed: 'Failed to load supplier product relations',
+    relationOptionsLoadFailed: 'Failed to load products',
+    relationSaveSuccess: 'Product relation saved',
+    relationSaveFailed: 'Failed to save product relation',
+    relationDeleteSuccess: 'Product relation removed',
+    relationDeleteFailed: 'Failed to remove product relation',
+    confirmDeleteRelation: 'Remove product relation "{product}"?',
+    validationSelectProduct: 'Select a product'
   }
 } as const
 const texts = computed(() => SUPPLIER_TEXTS[appStore.locale as keyof typeof SUPPLIER_TEXTS])
@@ -525,24 +808,32 @@ const {
   formatDateTime,
   hasCreditPeriod,
   interpolate,
+  joinNames,
+  labelWithCount,
   settlementMethodLabel,
   settlementMethodOptions
 } = useSupplierPresentation(texts, displayPreferences)
 
 const {
+  batchRunning,
   currentRow,
   detailVisible,
+  handleBatchDisable,
+  handleBatchEnable,
   handleDelete,
   handleEnable,
   handleExport,
+  handleExportSelected,
   handlePageChange,
   handleReset,
   handleSearch,
+  handleSelectionChange,
   handleView,
   loadData,
   loading,
   payableExposure,
   searchForm,
+  selectedRows,
   tableData,
   total
 } = useSupplierList(texts, {
@@ -552,10 +843,13 @@ const {
   enableSupplier,
   deleteSupplier,
   exportSuppliers,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   interpolate,
+  joinNames: (items, locale) => joinNames(items, locale),
+  locale: computed(() => appStore.locale),
   onError: (message) => ElMessage.error(message),
-  onSuccess: (message) => ElMessage.success(message)
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
 const activeCount = computed(() => countActive(tableData.value))
@@ -576,6 +870,55 @@ const {
   onError: (message) => ElMessage.error(message),
   onCompleted: () => loadData()
 })
+
+const {
+  closeRelations,
+  handleRelationCreate,
+  handleRelationDelete,
+  handleRelationEdit,
+  handleRelationSubmit,
+  openRelations,
+  relationForm,
+  relationFormRules,
+  relationFormTitle,
+  relationFormVisible,
+  relationLoading,
+  relationOwner,
+  relationProducts,
+  relationRows,
+  relationSubmitting,
+  relationVisible
+} = useSupplierProductRelations(texts, {
+  getSupplierProductRelations,
+  saveSupplierProductRelation,
+  deleteSupplierProductRelation,
+  getProducts,
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
+  interpolate,
+  cancelLabel: () => texts.value.cancel,
+  onSuccess: (message) => ElMessage.success(message),
+  onError: (message) => ElMessage.error(message)
+})
+
+const relationDialogTitle = computed(() => interpolate(texts.value.relationDialogTitle, {
+  name: relationOwner.value?.supplierName || relationOwner.value?.name || ''
+}))
+
+const formatQty = (value?: number | string | null) => {
+  const qty = Number(value)
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return texts.value.minPurchaseQtyNone
+  }
+  return String(qty)
+}
+
+const formatLeadTime = (value?: number | string | null) => {
+  const days = Number(value)
+  if (!Number.isFinite(days) || days <= 0) {
+    return texts.value.leadTimeUnlimited
+  }
+  return interpolate(texts.value.leadTimeDaysValue, { days })
+}
 
 onMounted(() => {
   loadData()
@@ -867,5 +1210,31 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 700;
   color: #10b981;
+}
+
+.relation-panel {
+  padding: 24px 32px;
+}
+
+.relation-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.relation-hint {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.6;
+}
+
+.relation-table {
+  width: 100%;
+}
+
+.relation-form {
+  padding: 24px 32px 0;
 }
 </style>

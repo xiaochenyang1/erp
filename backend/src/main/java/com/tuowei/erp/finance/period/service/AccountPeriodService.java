@@ -8,6 +8,7 @@ import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.web.AccountPeriodResponse;
+import com.tuowei.erp.finance.period.web.AccountPeriodCloseSnapshotResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,15 +23,18 @@ public class AccountPeriodService {
     private final AccountPeriodMapper accountPeriodMapper;
     private final AuditMetadataFactory auditMetadataFactory;
     private final AccountPeriodCloseChecker closeChecker;
+    private final AccountPeriodCloseSnapshotService closeSnapshotService;
 
     public AccountPeriodService(
             AccountPeriodMapper accountPeriodMapper,
             AuditMetadataFactory auditMetadataFactory,
-            AccountPeriodCloseChecker closeChecker
+            AccountPeriodCloseChecker closeChecker,
+            AccountPeriodCloseSnapshotService closeSnapshotService
     ) {
         this.accountPeriodMapper = accountPeriodMapper;
         this.auditMetadataFactory = auditMetadataFactory;
         this.closeChecker = closeChecker;
+        this.closeSnapshotService = closeSnapshotService;
     }
 
     @Transactional
@@ -73,16 +77,25 @@ public class AccountPeriodService {
         return accountPeriodMapper.selectList(wrapper).stream().map(this::toResponse).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<AccountPeriodCloseSnapshotResponse> closeSnapshots(Long id) {
+        AccountPeriodEntity period = requirePeriod(id);
+        AuditMetadata audit = auditMetadataFactory.current();
+        return closeSnapshotService.list(period.getId(), audit.companyId(), audit.accountBookId());
+    }
+
     @Transactional
     public AccountPeriodResponse lock(Long id) {
         AccountPeriodEntity entity = requirePeriod(id);
         if (!"OPEN".equals(entity.getStatus())) {
             throw new BusinessConflictException("只有打开期间可以锁定");
         }
-        if (!closeChecker.check(id).passed()) {
+        var check = closeChecker.check(id);
+        if (!check.passed()) {
             throw new BusinessConflictException("期间月结检查未通过，不能锁定");
         }
         AuditMetadata audit = auditMetadataFactory.current();
+        closeSnapshotService.capture("LOCK", check, audit);
         entity.setStatus("LOCKED");
         entity.setLockedBy(audit.userId());
         entity.setLockedTime(audit.now());
@@ -98,6 +111,12 @@ public class AccountPeriodService {
             throw new BusinessConflictException("只有已锁定期间可以结账");
         }
         AuditMetadata audit = auditMetadataFactory.current();
+        ensureEarlierPeriodsClosed(entity, audit);
+        var check = closeChecker.check(id);
+        if (!check.passed()) {
+            throw new BusinessConflictException("期间月结检查未通过，不能结账");
+        }
+        closeSnapshotService.capture("CLOSE", check, audit);
         entity.setStatus("CLOSED");
         entity.setClosedBy(audit.userId());
         entity.setClosedTime(audit.now());
@@ -148,6 +167,15 @@ public class AccountPeriodService {
     private void setUpdated(AccountPeriodEntity entity, AuditMetadata audit) {
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(audit.now());
+    }
+
+    private void ensureEarlierPeriodsClosed(AccountPeriodEntity entity, AuditMetadata audit) {
+        long earlierUnclosed = accountPeriodMapper.selectCount(baseWrapper(audit)
+                .lt(AccountPeriodEntity::getPeriodMonth, entity.getPeriodMonth())
+                .ne(AccountPeriodEntity::getStatus, "CLOSED"));
+        if (earlierUnclosed > 0) {
+            throw new BusinessConflictException("存在更早的未结账期间，请按期间顺序结账");
+        }
     }
 
     private AccountPeriodResponse toResponse(AccountPeriodEntity entity) {

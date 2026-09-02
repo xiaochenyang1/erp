@@ -32,14 +32,6 @@
             <el-option :label="t('productionOrder.status.cancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('productionOrder.priorityLabel')">
-          <el-select v-model="queryForm.priority" :placeholder="t('productionOrder.select')" clearable style="width: 120px">
-            <el-option :label="t('productionOrder.priority.low')" value="LOW" />
-            <el-option :label="t('productionOrder.priority.normal')" value="NORMAL" />
-            <el-option :label="t('productionOrder.priority.high')" value="HIGH" />
-            <el-option :label="t('productionOrder.priority.urgent')" value="URGENT" />
-          </el-select>
-        </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleQuery">{{ t('productionOrder.search') }}</el-button>
           <el-button :icon="Refresh" @click="handleReset">{{ t('productionOrder.reset') }}</el-button>
@@ -183,8 +175,8 @@
         :total="pagination.total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleQuery"
-        @current-change="handleQuery"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
         style="margin-top: 20px; justify-content: flex-end"
       />
     </el-card>
@@ -348,7 +340,7 @@
 
     <!-- 查看对话框 -->
     <el-dialog v-model="viewDialogVisible" :title="t('productionOrder.detailTitle')" width="1000px">
-      <el-descriptions :column="2" border>
+      <el-descriptions v-loading="viewLoading" :column="2" border>
         <el-descriptions-item :label="t('productionOrder.orderNo')">{{ viewData.orderNo }}</el-descriptions-item>
         <el-descriptions-item :label="t('productionOrder.bomCode')">{{ viewData.bomCode || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="t('productionOrder.productCode')">{{ viewData.productCode }}</el-descriptions-item>
@@ -858,9 +850,11 @@ const { t } = useI18n()
 const {
   allBomOptions,
   finishedLocations,
+  handlePageChange,
   handlePrint,
   handleQuery,
   handleReset,
+  handleSizeChange,
   handleView,
   loadData,
   loadFinishedLocations,
@@ -874,6 +868,7 @@ const {
   tableData,
   viewData,
   viewDialogVisible,
+  viewLoading,
   warehouseOptions
 } = useProductionOrderList(t, {
   getOrders: getProductionOrders,
@@ -906,7 +901,6 @@ const {
   operations,
   opsDialogVisible,
   opsLoading,
-  opsOrderId,
   opsOrderNo,
   reportDialogVisible,
   reportForm,
@@ -956,7 +950,7 @@ const {
   submitLoading: materialsSubmitLoading
 } = useProductionOrderMaterials(t, {
   loadOrder: getProductionOrder,
-  issueOrder: issueProductionOrder,
+  issueOrder: (id, payload) => issueProductionOrder(id, payload as Parameters<typeof issueProductionOrder>[1]),
   returnMaterials: returnProductionMaterials,
   hydrateMaterialControls,
   loadMaterialLocations: (warehouseId) => loadMaterialLocations(warehouseId),
@@ -990,7 +984,7 @@ const {
   updateOrder: updateProductionOrder,
   releaseOrder: releaseProductionOrder,
   cancelOrder: cancelProductionOrder,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onCompleted: () => loadData()

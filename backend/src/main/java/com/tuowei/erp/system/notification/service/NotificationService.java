@@ -2,7 +2,6 @@ package com.tuowei.erp.system.notification.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
@@ -18,14 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 public class NotificationService {
@@ -42,52 +36,37 @@ public class NotificationService {
     private final NotificationRecipientMapper recipientMapper;
     private final AuditMetadataFactory auditMetadataFactory;
     private final NotificationWebhookPublisher webhookPublisher;
+    private final NotificationQueryService queryService;
 
     public NotificationService(
             NotificationMapper notificationMapper,
             NotificationRecipientMapper recipientMapper,
             AuditMetadataFactory auditMetadataFactory,
-            NotificationWebhookPublisher webhookPublisher
+            NotificationWebhookPublisher webhookPublisher,
+            NotificationQueryService queryService
     ) {
         this.notificationMapper = notificationMapper;
         this.recipientMapper = recipientMapper;
         this.auditMetadataFactory = auditMetadataFactory;
         this.webhookPublisher = webhookPublisher;
+        this.queryService = queryService;
     }
 
     @Transactional(readOnly = true)
     public PageResponse<NotificationResponse> listMine(NotificationPageQuery query) {
-        AuditMetadata audit = auditMetadataFactory.current();
         NotificationPageQuery safeQuery = query == null ? new NotificationPageQuery() : query;
-        Page<NotificationRecipientEntity> page = new Page<>(
-                normalizePageNo(safeQuery.getPageNo()),
-                normalizePageSize(safeQuery.getPageSize())
-        );
-        Page<NotificationRecipientEntity> result = recipientMapper.selectPage(page, buildRecipientQuery(audit, safeQuery));
-        Map<Long, NotificationEntity> notifications = loadNotifications(result.getRecords(), audit);
-        List<NotificationResponse> records = result.getRecords().stream()
-                .map(recipient -> toResponse(recipient, notifications.get(recipient.getNotificationId())))
-                .filter(Objects::nonNull)
-                .toList();
-        return new PageResponse<>(result.getCurrent(), result.getSize(), result.getTotal(), records);
+        return queryService.listMine(safeQuery);
     }
 
     @Transactional(readOnly = true)
     public long countUnreadMine() {
-        AuditMetadata audit = auditMetadataFactory.current();
-        return recipientMapper.selectCount(baseMineRecipientQuery(audit)
-                .eq(NotificationRecipientEntity::getReadFlag, 0)
-                .inSql(NotificationRecipientEntity::getNotificationId, activeNotificationSubQuery(audit, null, null)));
+        return queryService.countUnreadMine();
     }
 
     @Transactional
     public NotificationResponse markRead(Long recipientId) {
         AuditMetadata audit = auditMetadataFactory.current();
-        NotificationRecipientEntity recipient = recipientMapper.selectOne(baseMineRecipientQuery(audit)
-                .eq(NotificationRecipientEntity::getId, recipientId));
-        if (recipient == null) {
-            throw new IllegalArgumentException("通知不存在");
-        }
+        NotificationRecipientEntity recipient = queryService.requireMineRecipient(recipientId, audit);
         if (!Integer.valueOf(1).equals(recipient.getReadFlag())) {
             LocalDateTime now = audit.now();
             recipient.setReadFlag(1);
@@ -96,8 +75,8 @@ public class NotificationService {
             recipient.setUpdatedTime(now);
             recipientMapper.updateById(recipient);
         }
-        NotificationEntity notification = requireNotification(recipient.getNotificationId(), audit);
-        return toResponse(recipient, notification);
+        NotificationEntity notification = queryService.requireNotification(recipient.getNotificationId(), audit);
+        return queryService.toResponse(recipient, notification);
     }
 
     @Transactional
@@ -109,7 +88,8 @@ public class NotificationService {
                 .eq(NotificationRecipientEntity::getRecipientUserId, audit.userId())
                 .eq(NotificationRecipientEntity::getStatus, STATUS_ACTIVE)
                 .eq(NotificationRecipientEntity::getReadFlag, 0)
-                .inSql(NotificationRecipientEntity::getNotificationId, activeNotificationSubQuery(audit, null, null))
+                .inSql(NotificationRecipientEntity::getNotificationId,
+                        queryService.activeNotificationSubQuery(audit, null, null))
                 .set(NotificationRecipientEntity::getReadFlag, 1)
                 .set(NotificationRecipientEntity::getReadTime, now)
                 .set(NotificationRecipientEntity::getUpdatedBy, audit.userId())
@@ -379,102 +359,8 @@ public class NotificationService {
         }
     }
 
-    private LambdaQueryWrapper<NotificationRecipientEntity> buildRecipientQuery(AuditMetadata audit, NotificationPageQuery query) {
-        LambdaQueryWrapper<NotificationRecipientEntity> wrapper = baseMineRecipientQuery(audit);
-        if (Boolean.TRUE.equals(query.getUnreadOnly())) {
-            wrapper.eq(NotificationRecipientEntity::getReadFlag, 0);
-        }
-        wrapper.inSql(NotificationRecipientEntity::getNotificationId,
-                activeNotificationSubQuery(audit, normalizeCode(query.getCategory()), normalizeCode(query.getNotificationType())));
-        return wrapper.orderByDesc(NotificationRecipientEntity::getCreatedTime).orderByDesc(NotificationRecipientEntity::getId);
-    }
-
-    private LambdaQueryWrapper<NotificationRecipientEntity> baseMineRecipientQuery(AuditMetadata audit) {
-        return new LambdaQueryWrapper<NotificationRecipientEntity>()
-                .eq(NotificationRecipientEntity::getCompanyId, audit.companyId())
-                .eq(NotificationRecipientEntity::getRecipientUserId, audit.userId())
-                .eq(NotificationRecipientEntity::getStatus, STATUS_ACTIVE);
-    }
-
-    private String activeNotificationSubQuery(AuditMetadata audit, String category, String notificationType) {
-        StringBuilder sql = new StringBuilder("select id from sys_notification where deleted_flag = 0 and status = 'ACTIVE'")
-                .append(" and company_id = ").append(audit.companyId())
-                .append(" and account_book_id = ").append(audit.accountBookId());
-        if (StringUtils.hasText(category)) {
-            sql.append(" and category = '").append(escapeSql(category)).append("'");
-        }
-        if (StringUtils.hasText(notificationType)) {
-            sql.append(" and notification_type = '").append(escapeSql(notificationType)).append("'");
-        }
-        return sql.toString();
-    }
-
-    private Map<Long, NotificationEntity> loadNotifications(List<NotificationRecipientEntity> recipients, AuditMetadata audit) {
-        List<Long> notificationIds = recipients.stream()
-                .map(NotificationRecipientEntity::getNotificationId)
-                .distinct()
-                .toList();
-        if (notificationIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return notificationMapper.selectList(new LambdaQueryWrapper<NotificationEntity>()
-                        .eq(NotificationEntity::getCompanyId, audit.companyId())
-                        .eq(NotificationEntity::getAccountBookId, audit.accountBookId())
-                        .eq(NotificationEntity::getDeletedFlag, 0)
-                        .eq(NotificationEntity::getStatus, STATUS_ACTIVE)
-                        .in(NotificationEntity::getId, notificationIds))
-                .stream()
-                .collect(Collectors.toMap(NotificationEntity::getId, Function.identity()));
-    }
-
-    private NotificationEntity requireNotification(Long notificationId, AuditMetadata audit) {
-        NotificationEntity notification = notificationMapper.selectOne(new LambdaQueryWrapper<NotificationEntity>()
-                .eq(NotificationEntity::getCompanyId, audit.companyId())
-                .eq(NotificationEntity::getAccountBookId, audit.accountBookId())
-                .eq(NotificationEntity::getDeletedFlag, 0)
-                .eq(NotificationEntity::getStatus, STATUS_ACTIVE)
-                .eq(NotificationEntity::getId, notificationId));
-        if (notification == null) {
-            throw new IllegalArgumentException("通知不存在");
-        }
-        return notification;
-    }
-
-    private NotificationResponse toResponse(NotificationRecipientEntity recipient, NotificationEntity notification) {
-        if (notification == null) {
-            return null;
-        }
-        return new NotificationResponse(
-                recipient.getId(),
-                notification.getId(),
-                notification.getCategory(),
-                notification.getNotificationType(),
-                notification.getTitle(),
-                notification.getContent(),
-                notification.getBusinessType(),
-                notification.getBusinessId(),
-                notification.getBusinessNo(),
-                notification.getTargetUrl(),
-                Integer.valueOf(1).equals(recipient.getReadFlag()),
-                recipient.getReadTime(),
-                notification.getCreatedTime()
-        );
-    }
-
     private String workflowTargetUrl(WorkflowInstanceEntity instance) {
         return "/workflow/tasks?businessType=%s&businessId=%s".formatted(instance.getBusinessType(), instance.getBusinessId());
-    }
-
-    private String normalizeCode(String value) {
-        return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
-    }
-
-    private long normalizePageNo(Integer pageNo) {
-        return pageNo == null || pageNo < 1 ? 1L : pageNo;
-    }
-
-    private long normalizePageSize(Integer pageSize) {
-        return pageSize == null || pageSize < 1 ? 20L : Math.min(pageSize, 200);
     }
 
     private String truncate(String value, int maxLength) {
@@ -484,7 +370,4 @@ public class NotificationService {
         return value.substring(0, maxLength);
     }
 
-    private String escapeSql(String value) {
-        return value.replace("'", "''");
-    }
 }

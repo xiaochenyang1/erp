@@ -190,7 +190,7 @@ const {
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message),
-  onSaved: () => loadData()
+  onSaved: async () => { await loadData() }
 })
 
 const {

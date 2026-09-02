@@ -8,7 +8,9 @@ import com.tuowei.erp.inventory.alert.model.InventoryAlertRuleEntity;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.replenishment.mapper.InventoryReplenishmentSuggestionMapper;
 import com.tuowei.erp.inventory.replenishment.model.InventoryReplenishmentSuggestionEntity;
+import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionCommandService;
 import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionService;
+import com.tuowei.erp.inventory.replenishment.service.InventoryReplenishmentSuggestionQueryService;
 import com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionCancelRequest;
 import com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionCreateRequest;
 import com.tuowei.erp.inventory.replenishment.web.InventoryReplenishmentSuggestionResponse;
@@ -293,17 +295,31 @@ class InventoryReplenishmentSuggestionServiceTest {
     }
 
     private InventoryReplenishmentSuggestionService service() {
+        InventoryReplenishmentSuggestionQueryService queryService =
+                new InventoryReplenishmentSuggestionQueryService(
+                        suggestionMapper,
+                        auditMetadataFactory,
+                        warehouseMapper,
+                        productMapper,
+                        supplierMapper,
+                        purchaseOrderMapper
+                );
+        InventoryReplenishmentSuggestionCommandService commandService =
+                new InventoryReplenishmentSuggestionCommandService(
+                        suggestionMapper,
+                        alertRuleMapper,
+                        inventoryPostingService,
+                        inventoryAlertService,
+                        auditMetadataFactory,
+                        warehouseMapper,
+                        productMapper,
+                        supplierMapper,
+                        purchaseOrderService,
+                        queryService
+                );
         return new InventoryReplenishmentSuggestionService(
-                suggestionMapper,
-                alertRuleMapper,
-                inventoryPostingService,
-                inventoryAlertService,
-                auditMetadataFactory,
-                warehouseMapper,
-                productMapper,
-                supplierMapper,
-                purchaseOrderService,
-                purchaseOrderMapper
+                queryService,
+                commandService
         );
     }
 

@@ -96,6 +96,39 @@ class FlywayMigrationSmokeTest {
     }
 
     @Test
+    void createsBudgetManagementTablesFieldsAndPermissions() {
+        Long budgetTables = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) in ('fin_budget', 'fin_budget_line')
+                """, Long.class);
+        Assertions.assertThat(budgetTables).isEqualTo(2L);
+
+        Long expenseBudgetColumns = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.columns
+                where lower(table_schema) = 'public'
+                  and lower(table_name) = 'fin_expense'
+                  and lower(column_name) in ('dept_id', 'budget_line_id', 'budget_state', 'budget_overrun_flag')
+                """, Long.class);
+        Assertions.assertThat(expenseBudgetColumns).isEqualTo(4L);
+
+        Long budgetPermissionCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_menu
+                where permission in ('finance:budget:view', 'finance:budget:manage', 'finance:budget:approve')
+                  and status = 'ACTIVE' and deleted_flag = 0
+                """, Long.class);
+        Assertions.assertThat(budgetPermissionCount).isEqualTo(3L);
+
+        Long adminBindingCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_role_menu rm
+                join sys_menu m on m.id = rm.menu_id
+                where rm.role_id = 3002
+                  and m.permission in ('finance:budget:view', 'finance:budget:manage', 'finance:budget:approve')
+                """, Long.class);
+        Assertions.assertThat(adminBindingCount).isEqualTo(3L);
+    }
+
+    @Test
     void createsProductionBatchExecutionTablesSequencesAndPermission() {
         Long tableCount = jdbcTemplate.queryForObject("""
                 select count(*)
@@ -276,22 +309,22 @@ class FlywayMigrationSmokeTest {
 
         jdbcTemplate.update("""
                 insert into inv_lot_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id, lot_no)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no)
                 values
-                    (900001, 910001, 920001, 930001, 940001, 'LOT-A')
+                    (900001, 910001, 920001, 930001, 935001, 940001, 'LOT-A')
                 """);
         Assertions.assertThatThrownBy(() -> jdbcTemplate.update("""
                 insert into inv_lot_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id, lot_no)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no)
                 values
-                    (900002, 910001, 920001, 930001, 940001, 'LOT-A')
+                    (900002, 910001, 920001, 930001, 935001, 940001, 'LOT-A')
                 """)).isInstanceOf(Exception.class);
 
         jdbcTemplate.update("""
                 insert into inv_lot_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id, lot_no)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no)
                 values
-                    (900003, 910001, 920002, 930001, 940001, 'LOT-A')
+                    (900003, 910001, 920002, 930001, 935001, 940001, 'LOT-A')
                 """);
 
         jdbcTemplate.update("""
@@ -317,8 +350,8 @@ class FlywayMigrationSmokeTest {
 
     @Test
     void scopesInventoryStockAndReservationIndexesByCompanyAndAccountBook() {
-        assertIndexColumns("inv_balance", "uk_inv_balance_company_book_warehouse_product",
-                "company_id", "account_book_id", "warehouse_id", "product_id");
+        assertIndexColumns("inv_balance", "uk_inv_balance_company_book_warehouse_location_product",
+                "company_id", "account_book_id", "warehouse_id", "location_id", "product_id");
         assertIndexColumns("inv_balance", "idx_inv_balance_company_book_product",
                 "company_id", "account_book_id", "product_id");
         assertIndexColumns("inv_txn", "idx_inv_txn_company_book_biz_no",
@@ -351,21 +384,21 @@ class FlywayMigrationSmokeTest {
 
         jdbcTemplate.update("""
                 insert into inv_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id)
                 values
-                    (993001, 993001, 1, 993101, 993201)
+                    (993001, 993001, 1, 993101, 993151, 993201)
                 """);
         jdbcTemplate.update("""
                 insert into inv_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id)
                 values
-                    (993002, 993001, 2, 993101, 993201)
+                    (993002, 993001, 2, 993101, 993151, 993201)
                 """);
         Assertions.assertThatThrownBy(() -> jdbcTemplate.update("""
                 insert into inv_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id)
                 values
-                    (993003, 993001, 1, 993101, 993201)
+                    (993003, 993001, 1, 993101, 993151, 993201)
                 """)).isInstanceOf(Exception.class);
 
         jdbcTemplate.update("""
