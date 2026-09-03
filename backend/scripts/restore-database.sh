@@ -1,9 +1,10 @@
 #!/bin/bash
 # 数据库备份恢复脚本
 # 使用方法: ./restore-database.sh <备份文件路径>
-# 示例: ./restore-database.sh /data/backups/mysql/erp_production_20260612_143000.sql.gz
+# 示例: ./restore-database.sh /data/backups/mysql/erp_server_production_20260612_143000.sql.gz
 
 set -e
+set -o pipefail
 
 BACKUP_FILE=$1
 
@@ -31,9 +32,14 @@ fi
 # 数据库配置
 DB_HOST=${MYSQL_HOST:-localhost}
 DB_PORT=${MYSQL_PORT:-3306}
-DB_NAME=${MYSQL_DATABASE:-erp}
+DB_NAME=${MYSQL_DATABASE:-erp_server}
 DB_USER=${MYSQL_USER:-root}
 DB_PASSWORD=${MYSQL_PASSWORD}
+
+if [ -z "$DB_PASSWORD" ]; then
+    log_error "数据库密码未设置 (MYSQL_PASSWORD)"
+    exit 1
+fi
 
 log_warn "========================================"
 log_warn "警告：即将恢复数据库"
@@ -69,14 +75,12 @@ fi
 
 # 恢复数据库
 log_info "开始恢复数据库..."
-gunzip < "$BACKUP_FILE" | mysql \
+if gunzip < "$BACKUP_FILE" | mysql \
     --host="$DB_HOST" \
     --port="$DB_PORT" \
     --user="$DB_USER" \
     --password="$DB_PASSWORD" \
-    "$DB_NAME"
-
-if [ $? -eq 0 ]; then
+    "$DB_NAME"; then
     log_info "========================================"
     log_info "数据库恢复成功！"
     log_info "========================================"

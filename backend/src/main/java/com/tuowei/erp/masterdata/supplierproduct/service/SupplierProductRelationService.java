@@ -139,10 +139,13 @@ public class SupplierProductRelationService {
     }
 
     private SupplierProductRelationResponse response(SupplierProductRelationEntity entity, AuditMetadata metadata) {
+        // A product can be disabled or soft-deleted after the relation is saved.
+        // Keep the relation visible and leave product display fields empty.
         ProductEntity product = findActiveProduct(entity.getProductId(), metadata);
         return new SupplierProductRelationResponse(
                 entity.getId(), entity.getSupplierId(), entity.getProductId(),
-                product.getProductCode(), product.getProductName(),
+                product == null ? null : product.getProductCode(),
+                product == null ? null : product.getProductName(),
                 entity.getSupplierProductCode(), entity.getSupplierProductName(),
                 entity.getMinPurchaseQty(), entity.getLeadTimeDays(),
                 Integer.valueOf(1).equals(entity.getDefaultSupplierFlag()),
@@ -155,7 +158,8 @@ public class SupplierProductRelationService {
                 || !Objects.equals(entity.getCompanyId(), metadata.companyId())
                 || !Objects.equals(entity.getAccountBookId(), metadata.accountBookId())
                 || entity.getDeletedFlag() == null
-                || entity.getDeletedFlag() != 0) {
+                || entity.getDeletedFlag() != 0
+                || !"ACTIVE".equalsIgnoreCase(entity.getStatus())) {
             return null;
         }
         return entity;

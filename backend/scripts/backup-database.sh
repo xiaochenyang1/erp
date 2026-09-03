@@ -4,6 +4,7 @@
 # 示例: ./backup-database.sh production
 
 set -e  # 遇到错误立即退出
+set -o pipefail  # 让 mysqldump 或 gzip 任一失败都使管道失败
 
 # ========================================
 # 配置区域
@@ -17,7 +18,7 @@ DATE=$(date +%Y%m%d_%H%M%S)
 # 数据库配置（从环境变量读取）
 DB_HOST=${MYSQL_HOST:-localhost}
 DB_PORT=${MYSQL_PORT:-3306}
-DB_NAME=${MYSQL_DATABASE:-erp}
+DB_NAME=${MYSQL_DATABASE:-erp_server}
 DB_USER=${MYSQL_USER:-root}
 DB_PASSWORD=${MYSQL_PASSWORD}
 
@@ -93,7 +94,7 @@ log_info "开始导出数据库..."
 # --triggers: 包含触发器
 # --events: 包含事件
 # --hex-blob: 二进制数据用十六进制编码
-mysqldump \
+if mysqldump \
     --host="$DB_HOST" \
     --port="$DB_PORT" \
     --user="$DB_USER" \
@@ -104,9 +105,7 @@ mysqldump \
     --events \
     --hex-blob \
     --default-character-set=utf8mb4 \
-    "$DB_NAME" | gzip > "$BACKUP_FILE"
-
-if [ $? -eq 0 ]; then
+    "$DB_NAME" | gzip > "$BACKUP_FILE"; then
     log_info "数据库导出成功"
 else
     log_error "数据库导出失败"

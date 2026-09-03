@@ -115,10 +115,13 @@ public class CustomerProductRelationService {
     }
 
     private CustomerProductRelationResponse response(CustomerProductRelationEntity entity, AuditMetadata metadata) {
+        // A product can be disabled or soft-deleted after the relation is saved.
+        // Keep the relation visible and leave product display fields empty.
         ProductEntity product = findActiveProduct(entity.getProductId(), metadata);
         return new CustomerProductRelationResponse(
                 entity.getId(), entity.getCustomerId(), entity.getProductId(),
-                product.getProductCode(), product.getProductName(),
+                product == null ? null : product.getProductCode(),
+                product == null ? null : product.getProductName(),
                 entity.getCustomerProductCode(), entity.getCustomerProductName(),
                 entity.getDeliveryPreference(), entity.getPackagingPreference(),
                 entity.getRemark(), entity.getStatus());
@@ -130,7 +133,8 @@ public class CustomerProductRelationService {
                 || !Objects.equals(entity.getCompanyId(), metadata.companyId())
                 || !Objects.equals(entity.getAccountBookId(), metadata.accountBookId())
                 || entity.getDeletedFlag() == null
-                || entity.getDeletedFlag() != 0) {
+                || entity.getDeletedFlag() != 0
+                || !"ACTIVE".equalsIgnoreCase(entity.getStatus())) {
             return null;
         }
         return entity;

@@ -77,7 +77,11 @@ public class PartnerStatementService {
     private PartnerStatementResponse customerStatement(Long customerId, LocalDate dateFrom, LocalDate dateTo) {
         AuditMetadata audit = auditMetadataFactory.current();
         CustomerEntity customer = customerMapper.selectById(customerId);
-        if (customer == null || !Objects.equals(customer.getCompanyId(), audit.companyId())) {
+        if (customer == null
+                || customer.getDeletedFlag() == null
+                || customer.getDeletedFlag() != 0
+                || !Objects.equals(customer.getCompanyId(), audit.companyId())
+                || !Objects.equals(customer.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("客户不存在");
         }
         List<RawLine> all = new ArrayList<>();
@@ -97,6 +101,7 @@ public class PartnerStatementService {
                 .eq(ReceiptEntity::getCompanyId, audit.companyId())
                 .eq(ReceiptEntity::getAccountBookId, audit.accountBookId())
                 .eq(ReceiptEntity::getCustomerId, customerId)
+                .eq(ReceiptEntity::getDeletedFlag, 0)
                 .eq(ReceiptEntity::getStatus, "POSTED"))) {
             if (r.getReceiptDate() == null) continue;
             BigDecimal amt = ScalePrecision.amount(ScalePrecision.zeroDefault(r.getAmount()));
@@ -109,7 +114,11 @@ public class PartnerStatementService {
     private PartnerStatementResponse supplierStatement(Long supplierId, LocalDate dateFrom, LocalDate dateTo) {
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = supplierMapper.selectById(supplierId);
-        if (supplier == null || !Objects.equals(supplier.getCompanyId(), audit.companyId())) {
+        if (supplier == null
+                || supplier.getDeletedFlag() == null
+                || supplier.getDeletedFlag() != 0
+                || !Objects.equals(supplier.getCompanyId(), audit.companyId())
+                || !Objects.equals(supplier.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("供应商不存在");
         }
         List<RawLine> all = new ArrayList<>();
@@ -129,6 +138,7 @@ public class PartnerStatementService {
                 .eq(PaymentEntity::getCompanyId, audit.companyId())
                 .eq(PaymentEntity::getAccountBookId, audit.accountBookId())
                 .eq(PaymentEntity::getSupplierId, supplierId)
+                .eq(PaymentEntity::getDeletedFlag, 0)
                 .eq(PaymentEntity::getStatus, "POSTED"))) {
             if (p.getPaymentDate() == null) continue;
             BigDecimal amt = ScalePrecision.amount(ScalePrecision.zeroDefault(p.getAmount()));

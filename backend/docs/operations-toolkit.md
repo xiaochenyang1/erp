@@ -60,7 +60,7 @@ crontab -e
 ```bash
 export MYSQL_HOST=localhost
 export MYSQL_PORT=3306
-export MYSQL_DATABASE=erp
+export MYSQL_DATABASE=erp_server
 export MYSQL_USER=root
 export MYSQL_PASSWORD=your_password
 ```
@@ -68,9 +68,9 @@ export MYSQL_PASSWORD=your_password
 **备份文件位置**:
 ```
 /data/backups/mysql/
-├── erp_production_20260612_020000.sql.gz
-├── erp_production_20260612_020000.sql.gz.sha256
-├── erp_production_20260611_020000.sql.gz
+├── erp_server_production_20260612_020000.sql.gz
+├── erp_server_production_20260612_020000.sql.gz.sha256
+├── erp_server_production_20260611_020000.sql.gz
 └── ...
 ```
 
@@ -87,12 +87,12 @@ export MYSQL_PASSWORD=your_password
 **使用方法**:
 ```bash
 # 恢复备份（会提示确认）
-./scripts/restore-database.sh /data/backups/mysql/erp_production_20260612_020000.sql.gz
+./scripts/restore-database.sh /data/backups/mysql/erp_server_production_20260612_020000.sql.gz
 
 # 确认提示
 警告：即将恢复数据库
-数据库: erp@localhost:3306
-备份文件: /data/backups/mysql/erp_production_20260612_020000.sql.gz
+数据库: erp_server@localhost:3306
+备份文件: /data/backups/mysql/erp_server_production_20260612_020000.sql.gz
 当前数据库数据将被覆盖！
 确认继续吗？(输入 YES 继续): YES
 ```
@@ -101,7 +101,7 @@ export MYSQL_PASSWORD=your_password
 ```bash
 # 1. 在测试环境恢复生产备份
 export MYSQL_DATABASE=erp_test
-./scripts/restore-database.sh /data/backups/mysql/erp_production_latest.sql.gz
+./scripts/restore-database.sh /data/backups/mysql/erp_server_production_latest.sql.gz
 
 # 2. 验证数据完整性
 mysql -u root -p erp_test -e "SELECT COUNT(*) FROM sys_user;"
@@ -175,7 +175,7 @@ grep "审计日志" /data/erp/logs/audit.log | awk -F'模块=' '{print $2}' | aw
 
 ```bash
 # 1. 备份恢复演练
-./scripts/restore-database.sh /data/backups/mysql/erp_production_latest.sql.gz
+./scripts/restore-database.sh /data/backups/mysql/erp_server_production_latest.sql.gz
 
 # 2. 清理旧日志
 find /data/erp/logs/archive -name "*.log.gz" -mtime +90 -delete

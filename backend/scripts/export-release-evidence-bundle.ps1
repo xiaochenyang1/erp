@@ -356,6 +356,56 @@ function Read-ReleaseEvidenceIndex {
     }
 }
 
+function Assert-ReleaseEvidenceCandidateCommit {
+    param(
+        [object]$Index,
+        [string]$ReportDirectory
+    )
+
+    $releaseCheck = Get-ReleaseEvidenceObjectProperty -Object $Index -Name "releaseCheck"
+    if ($null -eq $releaseCheck) {
+        # Evidence indexes created before candidate binding remain exportable;
+        # the release-check report is still validated below.
+        Add-ReleaseEvidenceBundleCheck "evidence-index releaseCheck" "PASSED" "Legacy evidence index has no releaseCheck binding; candidate consistency check was skipped."
+        return
+    }
+
+    $indexCandidate = Get-ReleaseEvidenceObjectProperty -Object $releaseCheck -Name "releaseCandidateCommit"
+    if ([string]::IsNullOrWhiteSpace([string]$indexCandidate)) {
+        Add-ReleaseEvidenceBundleCheck "evidence-index releaseCandidateCommit" "FAILED" "releaseCheck.releaseCandidateCommit is missing or blank."
+        return
+    }
+    $indexCandidate = ([string]$indexCandidate).Trim()
+
+    $reportPath = Join-Path $ReportDirectory "release-check-report.json"
+    if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+        Add-ReleaseEvidenceBundleCheck "evidence-index releaseCandidateCommit" "FAILED" "Cannot compare candidate: release-check-report.json does not exist in $ReportDirectory"
+        return
+    }
+
+    try {
+        $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        Add-ReleaseEvidenceBundleCheck "evidence-index releaseCandidateCommit" "FAILED" "Cannot parse release-check-report.json for candidate binding: $(($_ | Out-String).Trim())"
+        return
+    }
+
+    $reportCandidate = Get-ReleaseEvidenceObjectProperty -Object $report -Name "releaseCandidateCommit"
+    if ([string]::IsNullOrWhiteSpace([string]$reportCandidate)) {
+        Add-ReleaseEvidenceBundleCheck "release-check releaseCandidateCommit" "FAILED" "release-check report releaseCandidateCommit is missing or blank."
+        return
+    }
+    $reportCandidate = ([string]$reportCandidate).Trim()
+
+    if ($indexCandidate.Equals($reportCandidate, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Add-ReleaseEvidenceBundleCheck "releaseCandidateCommit consistency" "PASSED" "Evidence index candidate matches release-check report candidate $reportCandidate."
+    }
+    else {
+        Add-ReleaseEvidenceBundleCheck "releaseCandidateCommit consistency" "FAILED" "Evidence index candidate $indexCandidate does not match release-check report candidate $reportCandidate."
+    }
+}
+
 function Assert-ReleaseEvidenceBundlePrerequisites {
     param(
         [object]$Index,
@@ -778,6 +828,7 @@ if (-not $OutputPath.EndsWith(".zip", [System.StringComparison]::OrdinalIgnoreCa
 $index = Read-ReleaseEvidenceIndex -IndexPath $indexPath
 Assert-ReleaseEvidenceBundlePrerequisites -Index $index -IndexPath $indexPath -EvidenceRoot $evidenceRoot
 $releaseCheckReportFiles = @(Assert-ReleaseCheckReports -ReportDirectory $ReleaseCheckReportDirectory)
+Assert-ReleaseEvidenceCandidateCommit -Index $index -ReportDirectory $ReleaseCheckReportDirectory
 
 $bundleStatus = "READY"
 if ($bundleFailureCount -gt 0) {
