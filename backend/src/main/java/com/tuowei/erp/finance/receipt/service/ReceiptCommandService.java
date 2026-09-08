@@ -72,7 +72,7 @@ public class ReceiptCommandService {
         ReceiptEntity receipt = new ReceiptEntity();
         receipt.setCompanyId(audit.companyId()); receipt.setAccountBookId(audit.accountBookId());
         receipt.setReceiptNo(receiptNumberService.nextReceiptNo(request.receiptDate())); receipt.setCustomerId(request.customerId());
-        receipt.setReceiptDate(request.receiptDate()); receipt.setAmount(amount); receipt.setAllocatedAmount(allocatedAmount);
+        receipt.setReceiptDate(request.receiptDate()); receipt.setAmount(amount); receipt.setAllocatedAmount(allocatedAmount); receipt.setCurrencyCode(request.currencyCode() == null ? "CNY" : request.currencyCode().toUpperCase()); receipt.setExchangeRate(request.exchangeRate() == null ? BigDecimal.ONE : request.exchangeRate()); receipt.setBaseAmount(amount.multiply(receipt.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         receipt.setStatus("POSTED"); receipt.setDeletedFlag(0); receipt.setRemark(request.remark()); setAudit(receipt, audit, now);
         if (receiptMapper.insert(receipt) != 1) throw new IllegalStateException("保存收款单失败");
         for (ReceiptAllocationRequest allocation : request.allocations()) allocateReceivable(receipt, allocation, audit, now);
