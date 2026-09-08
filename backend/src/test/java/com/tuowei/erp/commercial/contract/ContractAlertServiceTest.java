@@ -34,14 +34,18 @@ class ContractAlertServiceTest {
         when(contractMapper.selectList(any())).thenReturn(List.of(contract));
         when(lineMapper.selectList(any())).thenReturn(List.of(line));
         when(notificationMapper.selectCount(any())).thenReturn(0L);
+        when(notificationService.createBusinessNotificationIfAbsent(
+                anyString(), anyString(), anyString(), anyString(),
+                eq("COMMERCIAL_CONTRACT"), eq(1001L), eq("CT1001"), eq("/contracts"),
+                eq(List.of(7L)), anyString(), any(), any())).thenReturn(true);
 
         ContractAlertService service = new ContractAlertService(contractMapper, lineMapper, notificationMapper, notificationService);
         int created = service.scan(new AuditMetadata(9L, 1L, 2L, LocalDateTime.of(2026, 8, 26, 10, 0)),
                 LocalDate.of(2026, 8, 26), 30, new BigDecimal("0.5"));
 
         org.assertj.core.api.Assertions.assertThat(created).isEqualTo(2);
-        verify(notificationService, times(2)).createBusinessNotification(anyString(), anyString(), anyString(), anyString(),
-                eq("COMMERCIAL_CONTRACT"), eq(1001L), eq("CT1001"), eq("/contracts"), eq(List.of(7L)), any(), any());
+        verify(notificationService, times(2)).createBusinessNotificationIfAbsent(anyString(), anyString(), anyString(), anyString(),
+                eq("COMMERCIAL_CONTRACT"), eq(1001L), eq("CT1001"), eq("/contracts"), eq(List.of(7L)), anyString(), any(), any());
     }
 
     @Test

@@ -18,6 +18,9 @@ final class H2MigrationTestSupport {
     private static final String CUSTOMER_SUPPLIER_PROFILE_MIGRATION = "V123__customer_supplier_profile_fields.sql";
     private static final String FINANCE_BUDGET_MIGRATION = "V146__finance_budget_management.sql";
     private static final String COMMERCIAL_CONTRACT_MIGRATION = "V148__commercial_contract.sql";
+    private static final String RECEIPT_PAYMENT_SUBJECT_MIGRATION = "V153__receipt_payment_voucher_subjects.sql";
+    private static final String AUTOMATION_IDEMPOTENCY_MIGRATION = "V155__automation_idempotency_and_ticket_sequence.sql";
+    private static final String SCHEDULER_LEASE_MIGRATION = "V156__exception_rule_scheduler_lease.sql";
 
     private H2MigrationTestSupport() {
     }
@@ -45,7 +48,10 @@ final class H2MigrationTestSupport {
                     Files.writeString(target, h2CompatibleCustomerSupplierProfileMigration(migration),
                             StandardCharsets.UTF_8);
                 } else if (migration.getFileName().toString().equals(FINANCE_BUDGET_MIGRATION)
-                        || migration.getFileName().toString().equals(COMMERCIAL_CONTRACT_MIGRATION)) {
+                        || migration.getFileName().toString().equals(COMMERCIAL_CONTRACT_MIGRATION)
+                        || migration.getFileName().toString().equals(RECEIPT_PAYMENT_SUBJECT_MIGRATION)
+                        || migration.getFileName().toString().equals(AUTOMATION_IDEMPOTENCY_MIGRATION)
+                        || migration.getFileName().toString().equals(SCHEDULER_LEASE_MIGRATION)) {
                     Files.writeString(target, h2CompatibleRowAliasMigration(migration), StandardCharsets.UTF_8);
                 } else {
                     Files.copy(migration, target, StandardCopyOption.REPLACE_EXISTING);

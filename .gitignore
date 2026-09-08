@@ -28,4 +28,6 @@ frontend/.idea/
 # Common
 .DS_Store
 *.log
+*.core
+/core
 .vscode

@@ -96,6 +96,33 @@ class FlywayMigrationSmokeTest {
     }
 
     @Test
+    void seedsReceiptPaymentAdvanceSubjectsWithoutReusingHistoricalSeedIds() {
+        // V153 补种预付/预收科目;首版误用 910008/910009(V40 的 6402、V41 的 5001),
+        // upsert 不改 subject_code 却改名改类型 → 成本科目被静默改写(V99/V100 教训),故断言两侧同时成立。
+        Long advanceSubjects = jdbcTemplate.queryForObject("""
+                select count(*)
+                from fin_account_subject
+                where company_id = 1
+                  and account_book_id = 1
+                  and status = 'ACTIVE'
+                  and deleted_flag = 0
+                  and ((subject_code = '1123' and subject_name = '预付账款'
+                        and subject_type = 'ASSET' and balance_direction = 'DEBIT')
+                    or (subject_code = '2203' and subject_name = '预收账款'
+                        and subject_type = 'LIABILITY' and balance_direction = 'CREDIT'))
+                """, Long.class);
+        Assertions.assertThat(advanceSubjects).isEqualTo(2L);
+
+        Long collidedSeedIds = jdbcTemplate.queryForObject("""
+                select count(*)
+                from fin_account_subject
+                where (id = 910008 and subject_code = '6402')
+                   or (id = 910009 and subject_code = '5001')
+                """, Long.class);
+        Assertions.assertThat(collidedSeedIds).isEqualTo(2L);
+    }
+
+    @Test
     void createsBudgetManagementTablesFieldsAndPermissions() {
         Long budgetTables = jdbcTemplate.queryForObject("""
                 select count(*) from information_schema.tables
@@ -1078,6 +1105,84 @@ class FlywayMigrationSmokeTest {
                      'POST', '/api/smoke/idempotency', 'HASH-A', 'PROCESSING',
                      timestamp '2026-06-01 10:00:00')
                 """)).isInstanceOf(Exception.class);
+    }
+
+    @Test
+    void createsAutomationNotificationDeduplicationAndExceptionTicketSequence() {
+        assertColumnsExist("sys_notification", "dedup_key");
+        assertIndexColumns("sys_notification", "uk_sys_notification_company_book_dedup",
+                "company_id", "account_book_id", "dedup_key");
+
+        var sequenceRule = jdbcTemplate.queryForMap("""
+                select prefix, date_pattern, seq_length, status
+                from sys_sequence_rule
+                where company_id = 1
+                  and account_book_id = 1
+                  and biz_type = 'EXCEPTION_TICKET'
+                """);
+        Assertions.assertThat(sequenceRule)
+                .containsEntry("prefix", "ET-")
+                .containsEntry("date_pattern", "yyyyMMdd-")
+                .containsEntry("seq_length", 4)
+                .containsEntry("status", "ACTIVE");
+
+        insertNotification(996001L, 996001L, 1L, null);
+        insertNotification(996002L, 996001L, 1L, null);
+        insertNotification(996003L, 996001L, 1L, "CONTRACT:996001:EXPIRY");
+        insertNotification(996004L, 996001L, 2L, "CONTRACT:996001:EXPIRY");
+
+        Assertions.assertThatThrownBy(() ->
+                insertNotification(996005L, 996001L, 1L, "CONTRACT:996001:EXPIRY"))
+                .isInstanceOf(Exception.class);
+    }
+
+    @Test
+    void createsProcessWideExceptionRuleSchedulerLease() {
+        Long tableCount = jdbcTemplate.queryForObject("""
+                select count(*)
+                from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) = 'sys_scheduler_lease'
+                """, Long.class);
+        Assertions.assertThat(tableCount).isEqualTo(1L);
+
+        assertColumnsExist("sys_scheduler_lease", "lease_key", "owner_token", "expires_at", "version");
+        assertIndexColumns("sys_scheduler_lease", "idx_sys_scheduler_lease_expires_at", "expires_at");
+
+        var lease = jdbcTemplate.queryForMap("""
+                select lease_key, owner_token, expires_at
+                from sys_scheduler_lease
+                where lease_key = 'EXCEPTION_RULE_AUTOMATION'
+                """);
+        Assertions.assertThat(lease)
+                .containsEntry("lease_key", "EXCEPTION_RULE_AUTOMATION")
+                .containsEntry("owner_token", "");
+        Assertions.assertThat(lease.get("expires_at")).isNull();
+
+        int firstAcquire = jdbcTemplate.update("""
+                update sys_scheduler_lease
+                set owner_token = ?, expires_at = timestamp '2099-01-01 00:00:00'
+                where lease_key = ?
+                  and (expires_at is null or expires_at <= timestamp '2026-01-01 00:00:00' or owner_token = ?)
+                """, "owner-a", "EXCEPTION_RULE_AUTOMATION", "owner-a");
+        Assertions.assertThat(firstAcquire).isEqualTo(1);
+
+        int staleRelease = jdbcTemplate.update("""
+                update sys_scheduler_lease
+                set owner_token = '', expires_at = timestamp '2026-01-01 00:00:00'
+                where lease_key = ? and owner_token = ?
+                """, "EXCEPTION_RULE_AUTOMATION", "owner-old");
+        Assertions.assertThat(staleRelease).isZero();
+    }
+
+    private void insertNotification(long id, long companyId, long accountBookId, String dedupKey) {
+        jdbcTemplate.update("""
+                insert into sys_notification
+                    (id, company_id, account_book_id, category, notification_type, title,
+                     content, dedup_key, status, deleted_flag, created_by, updated_by, version)
+                values (?, ?, ?, 'BUSINESS', 'MIGRATION_SMOKE', 'migration smoke',
+                        'automation deduplication guard', ?, 'ACTIVE', 0, 0, 0, 0)
+                """, id, companyId, accountBookId, dedupKey);
     }
 
     private void assertColumnsExist(String tableName, String... columnNames) {

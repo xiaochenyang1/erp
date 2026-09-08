@@ -88,8 +88,10 @@ public class ContractAlertService {
                 .eq(NotificationEntity::getDeletedFlag, 0)) > 0;
         if (exists || contract.getCreatedBy() == null) return false;
         AuditMetadata scopedAudit = new AuditMetadata(audit.userId(), contract.getCompanyId(), contract.getAccountBookId(), audit.now());
-        notificationService.createBusinessNotification("NOTICE", type, title, content, BUSINESS_TYPE,
-                contract.getId(), contract.getContractNo(), "/contracts", List.of(contract.getCreatedBy()), scopedAudit, audit.now());
-        return true;
+        String dedupKey = BUSINESS_TYPE + ":" + contract.getId() + ":" + type;
+        return notificationService.createBusinessNotificationIfAbsent(
+                "NOTICE", type, title, content, BUSINESS_TYPE,
+                contract.getId(), contract.getContractNo(), "/contracts", List.of(contract.getCreatedBy()),
+                dedupKey, scopedAudit, audit.now());
     }
 }

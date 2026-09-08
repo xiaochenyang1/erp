@@ -10,8 +10,23 @@ route:
   routes:
     - matchers: [severity="critical"]
       receiver: erp-critical
-      continue: true
 
 receivers:
+  # URL files keep notification endpoints out of this repository. They must
+  # be mounted as secrets before Alertmanager starts.
   - name: erp-default
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/erp-default-webhook-url
+        send_resolved: true
   - name: erp-critical
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/erp-critical-webhook-url
+        send_resolved: true
+
+inhibit_rules:
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    # Critical and warning variants intentionally have different alert names
+    # (for example CriticalCPUUsage vs HighCPUUsage), so match their target
+    # and component rather than requiring the alertname to be identical.
+    equal: [service, instance, component]

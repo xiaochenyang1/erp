@@ -48,7 +48,16 @@ class ReleaseDocumentationConfigurationTest {
                 .contains("ERP_REPORT_MAX_EXPORT_ROWS=")
                 .contains("ERP_REPORT_EXPORT_BATCH_SIZE=")
                 .contains("ERP_PRINCIPAL_CACHE_INVALIDATION_MODE=")
-                .contains("ERP_JWT_REFRESH_TOKEN_TTL_SECONDS=");
+                .contains("ERP_JWT_REFRESH_TOKEN_TTL_SECONDS=")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_ENABLED=")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_LEASE_ENABLED=")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_LEASE_TTL_SECONDS=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_ENABLED=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_FIXED_DELAY_MS=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_INITIAL_DELAY_MS=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_EXPIRATION_WARNING_DAYS=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_LOW_EXECUTION_RATE=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_SYSTEM_USER_ID=");
 
         assertThat(deployment)
                 .contains("ERP_REDIS_TIMEOUT")
@@ -64,7 +73,16 @@ class ReleaseDocumentationConfigurationTest {
                 .contains("ERP_REPORT_MAX_EXPORT_ROWS")
                 .contains("ERP_REPORT_EXPORT_BATCH_SIZE")
                 .contains("ERP_PRINCIPAL_CACHE_INVALIDATION_MODE")
-                .contains("ERP_JWT_REFRESH_TOKEN_TTL_SECONDS");
+                .contains("ERP_JWT_REFRESH_TOKEN_TTL_SECONDS")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_ENABLED")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_LEASE_ENABLED")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_LEASE_TTL_SECONDS")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_ENABLED")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_FIXED_DELAY_MS")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_INITIAL_DELAY_MS")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_EXPIRATION_WARNING_DAYS")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_LOW_EXECUTION_RATE")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_SYSTEM_USER_ID");
     }
 
     @Test

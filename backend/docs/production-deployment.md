@@ -29,6 +29,22 @@
 - `ERP_IMPORT_MAX_FILE_SIZE_BYTES`、`ERP_IMPORT_MAX_ROWS`、`ERP_IMPORT_MAX_CELL_LENGTH`、`ERP_IMPORT_COMMIT_BATCH_SIZE`：CSV 导入文件大小、行数、单元格长度和提交批量上限。
 - `ERP_REPORT_MAX_EXPORT_ROWS`、`ERP_REPORT_EXPORT_BATCH_SIZE`：报表导出最大行数和分批读取大小。
 - `ERP_PRINCIPAL_CACHE_INVALIDATION_MODE`：权限主体缓存失效模式，生产默认 `redis`，多实例部署不要改回 `local`。
+- `ERP_PRINCIPAL_CACHE_TTL_SECONDS`、`ERP_SCOPED_USER_CACHE_TTL_SECONDS`：权限主体缓存和账套用户缓存的存活秒数，默认都是 `60`。调大能省查询，但权限或数据范围变更的生效延迟也会同步变长。
+- `ERP_WORKFLOW_TASK_TIMEOUT_HOURS`：审批任务超时小时数，默认 `24`，超时任务由异常规则扫描升级。
+- `ERP_NOTIFICATION_WEBHOOK_ENABLED`：是否允许审批通知 webhook 外发，生产默认 `true`；数据库配置 `notification.webhook.url` 为空时仍不会发送。
+- `ERP_NOTIFICATION_WEBHOOK_POOL_SIZE`、`ERP_NOTIFICATION_WEBHOOK_QUEUE_CAPACITY`：webhook 外发线程数和有界队列容量。队列满时会丢弃本次尽力通知并记录告警，不会阻塞业务事务。
+- `ERP_NOTIFICATION_WEBHOOK_REQUEST_TIMEOUT`：单次 webhook 连接/请求超时，默认 `5s`。
+- `ERP_NOTIFICATION_WEBHOOK_ALLOWED_HOSTS`：可选的精确主机白名单，多个主机用英文逗号分隔；生产建议填写实际通知服务域名。
+- `ERP_NOTIFICATION_WEBHOOK_ALLOW_PRIVATE_ADDRESSES`：是否允许解析到回环、内网、链路本地、CGNAT 或云 metadata 地址，生产必须保持 `false`，除非已完成隔离网络评审。
+- `ERP_EXCEPTION_RULE_SCHEDULER_ENABLED`：是否启用异常规则自动扫描和超时升级。
+- `ERP_EXCEPTION_RULE_SCHEDULER_FIXED_DELAY_MS`、`ERP_EXCEPTION_RULE_SCHEDULER_INITIAL_DELAY_MS`：调度间隔和首次延迟。
+- `ERP_EXCEPTION_RULE_SCHEDULER_LEASE_ENABLED`、`ERP_EXCEPTION_RULE_SCHEDULER_LEASE_TTL_SECONDS`：多实例数据库租约开关和租约时长。生产多实例必须保持租约开启；持有期间调度器会按 TTL 的约三分之一自动续期，TTL 应足以覆盖线程调度抖动和单次续期请求耗时。租约获取或续期失败会跳过/停止本轮，不会无协调地并跑。
+- `ERP_EXCEPTION_RULE_SCHEDULER_SYSTEM_USER_ID`、`ERP_EXCEPTION_RULE_SCHEDULER_SYSTEM_COMPANY_ID`、`ERP_EXCEPTION_RULE_SCHEDULER_SYSTEM_ACCOUNT_BOOK_ID`：异常规则扫描使用的系统身份，默认 `0` / `1` / `1`。调度器会从有效异常规则发现公司/账套并逐账套建立身份；公司/账套 ID 仅作为兼容路径的默认身份，不用靠它枚举多账套。
+- `ERP_CONTRACT_ALERT_SCHEDULER_ENABLED`：是否启用合同到期和执行率偏低预警扫描，默认 `true`。
+- `ERP_CONTRACT_ALERT_SCHEDULER_FIXED_DELAY_MS`、`ERP_CONTRACT_ALERT_SCHEDULER_INITIAL_DELAY_MS`：调度间隔和首次延迟，默认 `3600000` / `120000`。该任务没有数据库租约，多实例会各扫一遍；重复通知由 `sys_notification` 的 `dedup_key` 唯一索引（V155）挡住，插入冲突会被当成“已存在”处理，不会让业务事务失败。要省掉重复扫描开销，就只在一个实例上开启。
+- `ERP_CONTRACT_ALERT_SCHEDULER_EXPIRATION_WARNING_DAYS`：距失效日期多少天内开始预警，默认 `30`，负值按 `0` 处理。
+- `ERP_CONTRACT_ALERT_SCHEDULER_LOW_EXECUTION_RATE`：履约率低于该阈值才发执行率预警，默认 `0.5`，取值会被夹到 `0` 到 `1` 之间。
+- `ERP_CONTRACT_ALERT_SCHEDULER_SYSTEM_USER_ID`：写入自动通知的审计用户 ID，默认 `0`，只用于留痕，不是登录账号。
 
 也可以先用脚本生成一份本地 `.env.prod` 起点，再人工确认域名和密钥托管策略：
 
@@ -37,6 +53,8 @@
 ```
 
 脚本会为 `MYSQL_PASSWORD` 和 `ERP_DATASOURCE_PASSWORD` 写入同一个随机应用数据库密码，并拒绝覆盖已有 `.env.prod`，除非显式加 `-Force`。生成后的文件仍然不能提交到 Git。
+
+审批通知 webhook 的目标地址保存在全局系统配置 `notification.webhook.url` 中，空值表示关闭。应用只接受 `http`/`https`，拒绝凭据、fragment、非白名单主机和默认禁止的私有地址；通知在业务事务提交后才进入有界异步队列，应用停止时会关闭该线程池。它是尽力而为的外发通道，不能替代站内通知，也不能作为财务或审批状态持久化的唯一依据。轮换通知服务凭据时，只更新 secret/config manager 中的地址，不要把 URL 写入 Git、镜像层或日志。
 
 ## 本地构建
 
@@ -110,13 +128,23 @@ Docker 构建阶段使用仓库内 Maven Wrapper，并依赖 `.gitattributes` �
 
 ## 可观测性检查
 
-生产 profile 暴露 `/actuator/prometheus`，用于 Prometheus 以认证方式抓取 JVM、HTTP、Tomcat、Hikari 和 Redis 等基础指标。该端点不得匿名公开；生产环境应通过内网、网关认证或抓取侧凭证控制访问。
+生产 profile 暴露 `/actuator/prometheus`，用于 Prometheus 以认证方式抓取 JVM、HTTP、Tomcat、Hikari 和 Redis 等基础指标。该端点不得匿名公开；生产环境应通过内网、网关认证或抓取侧凭证控制访问。应用关闭 HTTP Basic，只接受 JWT Bearer，因此 Prometheus 抓取必须使用 `bearer_token_file`，不能把 `basic_auth` 配置复制进生产环境。
 
 上线前还要用已登录账号访问 `/api/system/observability/business-health`，确认 readiness、导入失败、负库存和开放会计期间摘要能返回。该接口只返回聚合数量和状态，不替代具体业务验收。
 
 业务健康摘要也会输出 Prometheus Gauge：`erp_business_health_overall_status` 表示整体状态，`erp_business_health_check_count` 按 `check` 标签输出 readiness、导入、库存和期间检查数量，`erp_business_health_check_status` 输出每个检查项状态。预生产验收要确认 `/actuator/prometheus` 响应包含 `erp_business_health_overall_status` 和 `erp_business_health_check_count`。
 
-仓库提供最小告警规则模板 `docs/monitoring/prometheus-alert-rules.yml`，以及 `monitoring/prometheus.yml` 和 `monitoring/alertmanager.yml` 部署模板。Prometheus 通过认证抓取 `/actuator/prometheus`，Alertmanager 对 critical 告警单独路由。生产环境必须通过 secret/overlay 替换指标凭证、TLS、目标地址和真实通知接收人，模板不包含生产密钥或通知地址。
+仓库提供最小告警规则模板 `docs/monitoring/prometheus-alert-rules.yml`，以及可直接部署的 `monitoring/alert-rules.yml`、`monitoring/prometheus.yml` 和 `monitoring/alertmanager.yml` 模板。生产部署时只加载一份规则文件：将 `monitoring/alert-rules.yml` 复制为 `/etc/prometheus/rules/alert-rules.yml`；`docs/monitoring/prometheus-alert-rules.yml` 是便于平台转换的业务规则摘录，不要和完整文件同时加载，否则会产生重复告警。Prometheus 模板默认抓取 Compose 内部的 `http://erp-server:8080/actuator/prometheus`，并从 `/etc/prometheus/secrets/erp-metrics-token` 读取 JWT；如果 TLS 在反向代理终止，必须同时在部署 overlay 中修改 `scheme` 和 `target`，不能只改其中一个。Alertmanager 的默认和 critical receiver 都通过 `url_file` 读取挂载的通知地址，缺少 secret 时应让配置校验失败，不能用空 receiver 静默丢弃告警。生产环境必须通过 secret/overlay 替换指标凭证、TLS、目标地址和真实通知接收人，模板不包含生产密钥或通知地址。
+
+部署监控模板后先做配置校验，再做一次触发/恢复演练：
+
+```bash
+promtool check config /etc/prometheus/prometheus.yml
+promtool check rules /etc/prometheus/rules/alert-rules.yml
+amtool check-config /etc/alertmanager/alertmanager.yml
+```
+
+`/etc/prometheus/secrets/erp-metrics-token`、`/etc/alertmanager/secrets/erp-default-webhook-url` 和 `/etc/alertmanager/secrets/erp-critical-webhook-url` 应由 secret manager 挂载并设置为 `0600`。指标 JWT 是有期限的服务账号令牌，轮换后要 reload Prometheus；不要把 token、webhook URL 或密码写入 Git、镜像层或验收日志。
 
 建议按下面顺序记录预生产启动证据：
 
@@ -298,7 +326,7 @@ Compose 还为 MySQL、Redis、后端服务统一配置 Docker `json-file` 日�
 - `/actuator/prometheus` 已通过认证访问，响应包含 Prometheus 文本指标。
 - `/actuator/prometheus` 响应包含 `erp_business_health_overall_status` 和 `erp_business_health_check_count`。
 - `/api/system/observability/business-health` 已通过认证访问，返回 readiness、导入、库存和期间检查项。
-- 告警规则模板 `docs/monitoring/prometheus-alert-rules.yml` 已按生产监控平台加载或转换。
+- 完整告警规则 `monitoring/alert-rules.yml` 已按生产监控平台加载；`docs/monitoring/prometheus-alert-rules.yml` 仅作业务规则摘录/转换参考，不能两份同时加载。
 - `admin` 首次密码已通过 `ERP_BOOTSTRAP_ADMIN_PASSWORD` 初始化。
 - 冒烟检查通过登录和受保护接口访问。
 - 数据库和 Redis 已配置持久化卷、备份策略和监控告警。
@@ -306,6 +334,16 @@ Compose 还为 MySQL、Redis、后端服务统一配置 Docker `json-file` 日�
 ## 回滚
 
 应用镜像回滚优先使用上一版镜像重新部署。数据库迁移由 Flyway 正向管理；涉及破坏性 DDL 的版本必须在上线前准备数据库备份和人工回滚脚本。
+
+数据库备份使用 `scripts/backup-database.sh`，脚本通过临时 `--defaults-extra-file` 传递 MySQL 凭据，不会把密码拼进 `mysqldump`/`mysql` 命令行；备份完成后会原子写入 `.sql.gz` 和 `.sha256`，并在清理过期文件前记录实际删除数量。恢复脚本默认拒绝没有校验文件的备份，只有经过负责人确认的遗留恢复演练才能显式设置 `ALLOW_MISSING_CHECKSUM=true`，该操作不能作为正式发布证据。
+
+```bash
+BACKUP_DIR=/data/backups/mysql MYSQL_PASSWORD='***' \
+  ./scripts/backup-database.sh production
+
+MYSQL_PASSWORD='***' \
+  ./scripts/restore-database.sh /data/backups/mysql/erp_server_production_YYYYMMDD_HHMMSS.sql.gz
+```
 
 上线前回滚口径必须写清楚：
 
