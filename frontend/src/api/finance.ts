@@ -1,6 +1,13 @@
 import { request } from '@/utils/request'
 import type { PageQuery, PageResponse } from '@/types/common'
 
+export interface Currency { id: string; currencyCode: string; currencyName: string; currencySymbol?: string; decimalPlaces: number; status: string }
+export interface ExchangeRate { id: string; fromCurrencyCode: string; toCurrencyCode: string; rate: number; effectiveFrom: string; effectiveTo?: string; status: string }
+export interface ExchangeRateRequest { fromCurrencyCode: string; toCurrencyCode: string; rate: number; effectiveFrom: string; effectiveTo?: string }
+export const getCurrencies = () => request.get<Currency[]>('/finance/currencies')
+export const getExchangeRates = (params?: { from?: string; to?: string }) => request.get<ExchangeRate[]>('/finance/currencies/rates', { params })
+export const createExchangeRate = (data: ExchangeRateRequest) => request.post<ExchangeRate>('/finance/currencies/rates', data)
+
 // ==================== 应收账款 ====================
 
 export type FinanceAccountStatus = 'UNSETTLED' | 'PARTIALLY_SETTLED' | 'SETTLED' | 'OFFSET'

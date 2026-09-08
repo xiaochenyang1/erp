@@ -7,6 +7,7 @@ import { salesCommercialPageMessages } from './sales-commercial-pages'
 import { contractPageMessages } from './contract-pages'
 import { documentAttachmentMessages } from './document-attachment-pages'
 import { masterdataRelationMessages } from './masterdata-relation-pages'
+import { currencyPageMessages } from './currency-pages'
 
 export const SUPPORTED_LOCALES = ['zh-CN', 'en-US'] as const
 export type SupportedLocale = typeof SUPPORTED_LOCALES[number]
@@ -502,6 +503,7 @@ const messages = {
     ...contractPageMessages['zh-CN'],
     ...masterdataRelationMessages['zh-CN'],
     ...documentAttachmentMessages['zh-CN']
+    ,...currencyPageMessages['zh-CN']
   },
   'en-US': {
     ...coreMessages['en-US'],
@@ -513,6 +515,7 @@ const messages = {
     ...contractPageMessages['en-US'],
     ...masterdataRelationMessages['en-US'],
     ...documentAttachmentMessages['en-US']
+    ,...currencyPageMessages['en-US']
   }
 } as const
 

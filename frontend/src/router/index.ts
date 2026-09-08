@@ -678,6 +678,9 @@ const routes: RouteRecordRaw[] = [
               permission: 'finance:invoice:view'
             }
           }
+          ,{
+            path: 'currencies', name: 'FinanceCurrencies', component: () => import('@/views/finance/currencies/index.vue'), meta: { title: '币种与汇率', icon: 'Money', permission: 'masterdata:currency:view' }
+          }
         ]
       },
       // 审批中心
