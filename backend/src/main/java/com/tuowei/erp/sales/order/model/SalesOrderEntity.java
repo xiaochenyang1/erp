@@ -43,6 +43,15 @@ public class SalesOrderEntity {
 
     private BigDecimal totalTaxAmount;
 
+    private String currencyCode;
+    private BigDecimal exchangeRate;
+    private BigDecimal baseTotalAmount;
+    private BigDecimal baseTotalTaxAmount;
+    public String getCurrencyCode(){return currencyCode;} public void setCurrencyCode(String v){currencyCode=v;}
+    public BigDecimal getExchangeRate(){return exchangeRate;} public void setExchangeRate(BigDecimal v){exchangeRate=v;}
+    public BigDecimal getBaseTotalAmount(){return baseTotalAmount;} public void setBaseTotalAmount(BigDecimal v){baseTotalAmount=v;}
+    public BigDecimal getBaseTotalTaxAmount(){return baseTotalTaxAmount;} public void setBaseTotalTaxAmount(BigDecimal v){baseTotalTaxAmount=v;}
+
     private Integer deletedFlag;
 
     private String remark;

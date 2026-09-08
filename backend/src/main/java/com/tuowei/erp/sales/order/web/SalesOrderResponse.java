@@ -19,6 +19,10 @@ public record SalesOrderResponse(
         BigDecimal totalQuantity,
         BigDecimal totalAmount,
         BigDecimal totalTaxAmount,
+        String currencyCode,
+        BigDecimal exchangeRate,
+        BigDecimal baseTotalAmount,
+        BigDecimal baseTotalTaxAmount,
         String remark,
         List<SalesOrderLineResponse> lines
 ) {
@@ -27,6 +31,6 @@ public record SalesOrderResponse(
                               String deliveryStatus, BigDecimal totalQuantity, BigDecimal totalAmount,
                               BigDecimal totalTaxAmount, String remark, List<SalesOrderLineResponse> lines) {
         this(id, orderNo, null, customerId, warehouseId, customerName, orderDate, deliveryDate, status,
-                approvalStatus, deliveryStatus, totalQuantity, totalAmount, totalTaxAmount, remark, lines);
+                approvalStatus, deliveryStatus, totalQuantity, totalAmount, totalTaxAmount, "CNY", BigDecimal.ONE, totalAmount, totalTaxAmount, remark, lines);
     }
 }

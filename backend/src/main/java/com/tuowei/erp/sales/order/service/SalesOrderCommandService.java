@@ -102,6 +102,10 @@ public class SalesOrderCommandService {
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
+        entity.setCurrencyCode(request.currencyCode() == null ? "CNY" : request.currencyCode().toUpperCase());
+        entity.setExchangeRate(request.exchangeRate() == null ? java.math.BigDecimal.ONE : request.exchangeRate());
+        entity.setBaseTotalAmount(totals.totalAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         entity.setDeletedFlag(0);
         entity.setRemark(request.remark());
         fillCreateAudit(entity, audit, now);
@@ -166,6 +170,10 @@ public class SalesOrderCommandService {
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
+        entity.setCurrencyCode(request.currencyCode() == null ? "CNY" : request.currencyCode().toUpperCase());
+        entity.setExchangeRate(request.exchangeRate() == null ? java.math.BigDecimal.ONE : request.exchangeRate());
+        entity.setBaseTotalAmount(totals.totalAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         entity.setRemark(request.remark());
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(now);

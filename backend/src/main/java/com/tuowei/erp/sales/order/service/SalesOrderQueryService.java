@@ -132,6 +132,7 @@ public class SalesOrderQueryService {
                 entity.getTotalQuantity(),
                 entity.getTotalAmount(),
                 entity.getTotalTaxAmount(),
+                entity.getCurrencyCode() == null ? "CNY" : entity.getCurrencyCode(), entity.getExchangeRate() == null ? java.math.BigDecimal.ONE : entity.getExchangeRate(), entity.getBaseTotalAmount(), entity.getBaseTotalTaxAmount(),
                 entity.getRemark(),
                 lines.stream().map(this::toLineResponse).toList()
         );
@@ -198,6 +199,7 @@ public class SalesOrderQueryService {
                 entity.getTotalQuantity(),
                 entity.getTotalAmount(),
                 entity.getTotalTaxAmount(),
+                entity.getCurrencyCode() == null ? "CNY" : entity.getCurrencyCode(), entity.getExchangeRate() == null ? java.math.BigDecimal.ONE : entity.getExchangeRate(), entity.getBaseTotalAmount(), entity.getBaseTotalTaxAmount(),
                 entity.getRemark(),
                 List.of()
         );
