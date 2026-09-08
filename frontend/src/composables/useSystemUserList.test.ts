@@ -85,7 +85,7 @@ describe('system user list', () => {
     const enableUser = vi.fn(async () => ({}))
     const resetUserPassword = vi.fn(async () => ({}))
     const confirm = vi.fn(async () => true)
-    const prompt = vi.fn(async () => ({ value: 'Secret1!' }))
+    const prompt = vi.fn(async () => ({ value: 'SecretPass1!' }))
     const onSuccess = vi.fn()
     const list = createList({ deleteUser, enableUser, resetUserPassword, confirm, prompt, onSuccess })
 
@@ -97,8 +97,22 @@ describe('system user list', () => {
     expect(enableUser).toHaveBeenCalledWith('u1')
 
     expect(await list.handleResetPassword(row())).toBe(true)
-    expect(resetUserPassword).toHaveBeenCalledWith('u1', 'Secret1!')
+    expect(resetUserPassword).toHaveBeenCalledWith('u1', 'SecretPass1!')
     expect(onSuccess).toHaveBeenCalledWith('systemUsers.message.passwordReset')
+  })
+
+  it('passes the backend password policy to the reset prompt', async () => {
+    const prompt = vi.fn(async (..._args: unknown[]) => ({ value: 'SecretPass1!' }))
+    const list = createList({ prompt })
+
+    await list.handleResetPassword(row())
+
+    const promptOptions = prompt.mock.calls[0]?.[2] as
+      | { inputValidator?: (value: string) => boolean | string }
+      | undefined
+    expect(promptOptions).toBeDefined()
+    expect(promptOptions?.inputValidator?.('short1')).toBe('systemUsers.message.passwordInvalid')
+    expect(promptOptions?.inputValidator?.('SecretPass1!')).toBe(true)
   })
 
   it('aborts disable when confirmation is cancelled', async () => {

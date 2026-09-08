@@ -20,6 +20,7 @@ const messageSource = {
     businessType: ['业务类型', 'Business type'],
     selectBusinessType: ['请选择业务类型', 'Select a business type'],
     businessTypes: {
+      purchaseRequisition: ['采购请购单', 'Purchase requisition'],
       purchaseOrder: ['采购订单', 'Purchase order'],
       salesOrder: ['销售订单', 'Sales order'],
       expense: ['费用报销', 'Expense claim']
@@ -74,6 +75,7 @@ const messageSource = {
     businessType: ['业务类型', 'Business type'],
     selectBusinessType: ['请选择业务类型', 'Select a business type'],
     businessTypes: {
+      purchaseRequisition: ['采购请购单', 'Purchase requisition'],
       purchaseOrder: ['采购订单', 'Purchase order'],
       salesOrder: ['销售订单', 'Sales order'],
       expense: ['费用报销', 'Expense claim']
@@ -396,7 +398,8 @@ const messageSource = {
       enableFailed: ['启用失败', 'Failed to enable user'],
       newPassword: ['请输入新密码', 'Enter a new password'],
       resetPasswordTitle: ['重置用户“{username}”的密码', 'Reset password for “{username}”'],
-      passwordRule: ['至少 6 位字符', 'At least 6 characters'],
+      passwordRule: ['12-72 位，包含字母和数字且不能有空格', '12-72 characters, including letters and numbers, without spaces'],
+      passwordInvalid: ['密码必须为 12-72 位，包含字母和数字且不能有空格', 'Password must be 12-72 characters, include letters and numbers, and contain no spaces'],
       passwordReset: ['密码重置成功', 'Password reset'],
       passwordResetFailed: ['密码重置失败', 'Failed to reset password'],
       optionsLoadFailed: ['加载部门、岗位或仓库选项失败', 'Failed to load department, post, or warehouse options']

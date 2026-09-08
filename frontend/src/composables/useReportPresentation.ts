@@ -73,6 +73,14 @@ const reportStatusMessageKeys: Record<string, string> = {
   OFFSET: 'financeReportPages.reports.status.offset'
 }
 
+/** Derived by ProductionCostReportService from the order status and WIP balance. */
+const costStatusMessageKeys: Record<string, string> = {
+  BALANCED: 'financeReportPages.reports.costStatusValue.balanced',
+  COST_VARIANCE: 'financeReportPages.reports.costStatusValue.costVariance',
+  WIP: 'financeReportPages.reports.costStatusValue.wip',
+  NOT_POSTED: 'financeReportPages.reports.costStatusValue.notPosted'
+}
+
 const reportBusinessTypeMessageKeys: Record<string, string> = {
   PURCHASE_RECEIPT: 'financeReportPages.reports.businessTypeValue.purchaseReceipt',
   PURCHASE_RETURN: 'financeReportPages.reports.businessTypeValue.purchaseReturn',
@@ -146,8 +154,23 @@ export const useReportPresentation = (
     return key ? t(key) : type
   }
 
+  const costStatusLabel = (status?: string) => {
+    if (!status) return '-'
+    const key = costStatusMessageKeys[status]
+    return key ? t(key) : status
+  }
+
+  const costStatusType = (status?: string): 'success' | 'warning' | 'info' | 'primary' => {
+    if (status === 'BALANCED') return 'success'
+    if (status === 'COST_VARIANCE') return 'warning'
+    if (status === 'WIP') return 'primary'
+    return 'info'
+  }
+
   return {
     activeReport,
+    costStatusLabel,
+    costStatusType,
     formatMoney,
     formatNumber,
     isReportKey,

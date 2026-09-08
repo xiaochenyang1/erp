@@ -140,7 +140,7 @@
         <el-table-column prop="materialCost" :label="$t('financeReportPages.reports.materialCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.materialCost) }}</template></el-table-column>
         <el-table-column prop="finishedGoodsCost" :label="$t('financeReportPages.reports.finishedGoodsCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.finishedGoodsCost) }}</template></el-table-column>
         <el-table-column prop="workInProgressCost" :label="$t('financeReportPages.reports.wipCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.workInProgressCost) }}</template></el-table-column>
-        <el-table-column prop="costStatus" :label="$t('financeReportPages.reports.costStatus')" width="130" />
+        <el-table-column prop="costStatus" :label="$t('financeReportPages.reports.costStatus')" width="130"><template #default="{ row }"><el-tag :type="costStatusType(row.costStatus)">{{ costStatusLabel(row.costStatus) }}</el-tag></template></el-table-column>
       </el-table>
 
       <el-table v-else v-loading="activeState.loading" :data="activeState.records" border stripe>
@@ -246,6 +246,8 @@ const {
 })
 const {
   activeReport,
+  costStatusLabel,
+  costStatusType,
   formatMoney,
   formatNumber,
   isReportKey,

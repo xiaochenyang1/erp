@@ -118,12 +118,15 @@
       <el-table-column prop="createdAt" :label="t('purchaseReceipt.createdAt')" width="190">
         <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column :label="t('purchaseReceipt.actions')" width="220" fixed="right" align="center">
+      <el-table-column :label="t('purchaseReceipt.actions')" width="280" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" size="small" @click="handleView(row)">
               <el-icon><View /></el-icon>
               {{ t('purchaseReceipt.view') }}
+            </el-button>
+            <el-button v-if="canViewAttachments" link type="primary" size="small" @click="openAttachments(row.id, row.receiptNo)">
+              {{ t('documentAttachment.entry') }}
             </el-button>
             <el-button link type="primary" size="small" @click="handlePrint(row)">
               {{ t('purchaseReceipt.print') }}
@@ -529,6 +532,15 @@
         {{ t('purchaseReceipt.loadingOrder') }}
       </div>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="PURCHASE_RECEIPT"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -568,6 +580,7 @@ import {
   getWarehouses
 } from '@/api/masterdata'
 import { BarcodeScanField, PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
 import {
   formatAuxQuantity,
   serialCaptureProgress
@@ -575,6 +588,7 @@ import {
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
 import { formatLocalizedDateTime } from '@/utils/locale'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { usePurchaseReceiptSummary } from '@/composables/usePurchaseReceiptPresentation'
 import { usePurchaseReceiptList } from '@/composables/usePurchaseReceiptList'
 import { usePurchaseReceiptForm } from '@/composables/usePurchaseReceiptForm'
@@ -582,6 +596,16 @@ import { usePurchaseReceiptForm } from '@/composables/usePurchaseReceiptForm'
 const userStore = useUserStore()
 const { t } = useI18n()
 const canCreate = computed(() => userStore.hasPermission('purchase:receipt:create'))
+
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const route = useRoute()
 const readQueryString = (key: string) => {

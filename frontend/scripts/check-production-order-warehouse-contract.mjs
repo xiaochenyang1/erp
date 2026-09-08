@@ -1532,7 +1532,12 @@ for (const fragment of [
   'options.printVoucher({',
   'sourceTypeLabel: options.sourceTypeLabel(voucher.sourceType)',
   'statusLabel: options.statusLabel(voucher.status)',
-  "financeReportPages.vouchers.sourceValue.expense"
+  // 来源筛选改为按登记表渲染，契约改校验登记表覆盖了自动过账的来源
+  'financeReportPages.vouchers.sourceValue.',
+  'v-for="option in sourceTypeOptions()"',
+  "{ value: 'RECEIPT', messageKey: 'receipt'",
+  "{ value: 'PAYMENT', messageKey: 'payment'",
+  "{ value: 'EXPENSE', messageKey: 'expense'"
 ]) {
   if (!voucherView.includes(fragment)) {
     errors.push(`凭证页缺少只读查询契约片段: ${fragment}`)
@@ -3832,8 +3837,14 @@ for (const fragment of [
   }
 }
 
-for (const fragment of [
+const barcodeAccessibility = [
   'aria-label="打开摄像头扫码"',
+  ':aria-label="$t(\'barcodeScan.openCamera\')"'
+]
+if (!barcodeAccessibility.some((fragment) => barcodeScanField.includes(fragment))) {
+  errors.push(`扫码组件缺少摄像头/扫码枪兼容片段: ${barcodeAccessibility.join(' 或 ')}`)
+}
+for (const fragment of [
   'navigator.mediaDevices.getUserMedia',
   'BarcodeDetector',
   "emit('cameraState', state)",

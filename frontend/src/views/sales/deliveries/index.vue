@@ -134,10 +134,13 @@
         <el-table-column prop="createdAt" :label="t('salesDelivery.createdAt')" width="190">
           <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column :label="t('salesDelivery.actions')" width="150" fixed="right">
+        <el-table-column :label="t('salesDelivery.actions')" width="215" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
               {{ t('salesDelivery.view') }}
+            </el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.deliveryNo)">
+              {{ t('documentAttachment.entry') }}
             </el-button>
             <el-button link type="primary" @click="handlePrint(row)">
               {{ t('salesDelivery.print') }}
@@ -436,6 +439,15 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="SALES_DELIVERY"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -472,12 +484,25 @@ import {
   serialCaptureProgress
 } from '@/utils/productLines'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useSalesDeliveryPresentation } from '@/composables/useSalesDeliveryPresentation'
 import { useSalesDeliveryList } from '@/composables/useSalesDeliveryList'
 import { useSalesDeliveryForm } from '@/composables/useSalesDeliveryForm'
+import { useUserStore } from '@/store/modules/user'
 
 const route = useRoute()
 const { t } = useI18n()
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 const readQueryString = (key: string) => {
   const value = route.query[key]
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''

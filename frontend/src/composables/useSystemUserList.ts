@@ -22,10 +22,26 @@ type Prompt = (
   options?: {
     inputType?: string
     inputPlaceholder?: string
+    inputValidator?: (value: string) => boolean | string
     confirmButtonText?: string
     cancelButtonText?: string
   }
 ) => Promise<{ value: string }>
+
+const isStrongPassword = (value: string, invalidMessage: string): boolean | string => {
+  const byteLength = new TextEncoder().encode(value).length
+  if (
+    value.length < 12 ||
+    value.length > 72 ||
+    byteLength > 72 ||
+    /\s/.test(value) ||
+    !/[A-Za-z]/.test(value) ||
+    !/\d/.test(value)
+  ) {
+    return invalidMessage
+  }
+  return true
+}
 
 /**
  * Query, master-data options and enable/disable/reset-password for system users.
@@ -173,6 +189,8 @@ export const useSystemUserList = (
         {
           inputType: 'password',
           inputPlaceholder: t('systemUsers.message.passwordRule'),
+          inputValidator: (value) =>
+            isStrongPassword(value, t('systemUsers.message.passwordInvalid')),
           confirmButtonText: t('systemUsers.confirm'),
           cancelButtonText: t('systemUsers.cancel')
         }

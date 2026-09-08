@@ -93,6 +93,8 @@ export const useReportList = (
   const reportStates = reactive<Record<ReportKey, ReportState>>(
     Object.fromEntries(reportKeys.map((key) => [key, createEmptyReportState()])) as Record<ReportKey, ReportState>
   )
+  // Keep requests isolated per tab so a slower response cannot overwrite a newer query.
+  const reportRequestIds = Object.fromEntries(reportKeys.map((key) => [key, 0])) as Record<ReportKey, number>
   const activeState = computed(() => reportStates[activeKey.value])
 
   const loaders: Record<ReportKey, (params: ReportQuery) => Promise<PageResponse<ReportRecord>>> = {
@@ -120,19 +122,23 @@ export const useReportList = (
   const loadActiveReport = async () => {
     const key = activeKey.value
     const state = reportStates[key]
+    const requestId = ++reportRequestIds[key]
+    const params = buildParams(key, state)
     state.loading = true
     try {
-      const page = await loaders[key](buildParams(key, state))
+      const page = await loaders[key](params)
+      if (requestId !== reportRequestIds[key]) return false
       state.records = page.records || []
       state.total = page.total || 0
       state.pageNo = page.pageNo || state.pageNo
       state.pageSize = page.pageSize || state.pageSize
       return true
     } catch {
+      if (requestId !== reportRequestIds[key]) return false
       options.onError?.(t('financeReportPages.reports.message.loadFailed'))
       return false
     } finally {
-      state.loading = false
+      if (requestId === reportRequestIds[key]) state.loading = false
     }
   }
 

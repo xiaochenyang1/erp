@@ -162,7 +162,25 @@ export const financeReportPageMessages = {
         voucherAmount: '凭证金额',
         sourceNo: '来源单号',
         detailTitle: '凭证详情',
-        sourceValue: { expense: '费用凭证', expenseReversal: '红冲凭证' },
+        sourceValue: {
+          expense: '费用凭证',
+          expenseReversal: '红冲凭证',
+          receipt: '收款凭证',
+          receiptReversal: '收款作废冲回凭证',
+          payment: '付款凭证',
+          paymentReversal: '付款作废冲回凭证',
+          purchaseReceipt: '采购入库凭证',
+          purchaseReturn: '采购退货凭证',
+          salesDelivery: '销售出库凭证',
+          salesReturn: '销售退货凭证',
+          inventoryAdjustment: '库存调整凭证',
+          productionIssue: '生产领料凭证',
+          productionCompletion: '生产完工凭证',
+          productionCompletionReversal: '生产反完工凭证',
+          productionReturn: '生产退料凭证',
+          manual: '手工凭证',
+          manualReversal: '手工红冲凭证'
+        },
         status: { draft: '草稿', approved: '已审批', posted: '已过账', cancelled: '已作废' },
         message: {
           loadFailed: '加载凭证失败',
@@ -498,10 +516,12 @@ export const financeReportPageMessages = {
         department: '部门', subject: '会计科目', amount: '预算金额', totalBudget: '预算总额', committed: '已占用', actual: '已执行', available: '可用余额',
         addLine: '新增明细', periodSource: '额度来源', projectedAvailable: '预计可用', overrun: '预计超预算', withinBudget: '预算额度充足',
         policyValue: { reject: '超预算拒绝', approval: '超预算转审批' },
+        periodSourceValue: { monthly: '月度额度', annual: '年度额度', none: '无额度' },
         status: { draft: '草稿', submitted: '待审批', approved: '已审批', closed: '已关闭', cancelled: '已作废' },
         validation: { completeForm: '请完整填写预算名称、科目和明细', subject: '请选择科目' },
         message: {
           loadFailed: '加载预算失败', saved: '预算已保存', saveFailed: '保存预算失败',
+          detailLoadFailed: '加载预算详情失败', resourcesLoadFailed: '加载科目或部门失败',
           confirmAction: '确认“{action}”预算“{name}”吗？', prompt: '确认', actionDone: '预算操作成功',
           actionFailed: '预算操作失败', executionLoadFailed: '加载预算执行失败'
         }
@@ -703,6 +723,12 @@ export const financeReportPageMessages = {
         finishedGoodsCost: '完工成本',
         wipCost: '在制金额',
         costStatus: '成本状态',
+        costStatusValue: {
+          balanced: '成本已结平',
+          costVariance: '存在成本差异',
+          wip: '在制中',
+          notPosted: '未过账'
+        },
         businessType: '业务类型',
         direction: '方向',
         unitCost: '单位成本',
@@ -885,7 +911,18 @@ export const financeReportPageMessages = {
         sourceType: 'Source type', sourcePlaceholder: 'Select a source', title: 'Voucher inquiry',
         voucherNo: 'Voucher no.', source: 'Source', voucherDate: 'Voucher date', voucherAmount: 'Voucher amount',
         sourceNo: 'Source no.', detailTitle: 'Voucher details',
-        sourceValue: { expense: 'Expense voucher', expenseReversal: 'Expense reversal voucher' },
+        sourceValue: {
+          expense: 'Expense voucher', expenseReversal: 'Expense reversal voucher',
+          receipt: 'Receipt voucher', receiptReversal: 'Receipt reversal voucher',
+          payment: 'Payment voucher', paymentReversal: 'Payment reversal voucher',
+          purchaseReceipt: 'Purchase receipt voucher', purchaseReturn: 'Purchase return voucher',
+          salesDelivery: 'Sales delivery voucher', salesReturn: 'Sales return voucher',
+          inventoryAdjustment: 'Inventory adjustment voucher',
+          productionIssue: 'Production issue voucher', productionCompletion: 'Production completion voucher',
+          productionCompletionReversal: 'Production completion reversal voucher',
+          productionReturn: 'Production return voucher',
+          manual: 'Manual voucher', manualReversal: 'Manual reversal voucher'
+        },
         status: { draft: 'Draft', approved: 'Approved', posted: 'Posted', cancelled: 'Voided' },
         message: { loadFailed: 'Failed to load vouchers', detailLoadFailed: 'Failed to load voucher details', printLoadFailed: 'Failed to load print data' }
       },
@@ -1024,10 +1061,12 @@ export const financeReportPageMessages = {
         department: 'Department', subject: 'Account', amount: 'Budget amount', totalBudget: 'Total budget', committed: 'Committed', actual: 'Actual', available: 'Available',
         addLine: 'Add line', periodSource: 'Allocation source', projectedAvailable: 'Projected available', overrun: 'Projected over budget', withinBudget: 'Within budget',
         policyValue: { reject: 'Reject overrun', approval: 'Route overrun for approval' },
+        periodSourceValue: { monthly: 'Monthly allocation', annual: 'Annual allocation', none: 'No allocation' },
         status: { draft: 'Draft', submitted: 'Pending approval', approved: 'Approved', closed: 'Closed', cancelled: 'Voided' },
         validation: { completeForm: 'Complete the budget name, account, and line information', subject: 'Select an account' },
         message: {
           loadFailed: 'Failed to load budgets', saved: 'Budget saved', saveFailed: 'Failed to save the budget',
+          detailLoadFailed: 'Failed to load budget details', resourcesLoadFailed: 'Failed to load accounts or departments',
           confirmAction: 'Confirm “{action}” for budget “{name}”?', prompt: 'Confirmation', actionDone: 'Budget operation completed',
           actionFailed: 'Budget operation failed', executionLoadFailed: 'Failed to load budget execution'
         }
@@ -1094,6 +1133,12 @@ export const financeReportPageMessages = {
         amountTotal: 'Total amount', currentPage: 'Current page',
         tabs: { purchase: 'Purchase orders', sales: 'Sales orders', inventoryBalance: 'Inventory balances', inventoryTransaction: 'Inventory transactions', financeSettlement: 'Receivables and payables', inventoryValuation: 'Inventory valuation', productionCost: 'Production costs' },
         documentNo: 'Document no.', supplierId: 'Supplier ID', customerId: 'Customer ID', documentStatus: 'Document status', warehouse: 'Warehouse', product: 'Product', openingQty: 'Opening qty', inboundQty: 'Inbound qty', outboundQty: 'Outbound qty', closingQty: 'Closing qty', closingAmount: 'Closing amount', averageUnitCost: 'Average unit cost', orderNo: 'Work order', plannedQty: 'Planned qty', completedQty: 'Completed qty', materialCost: 'Material cost', finishedGoodsCost: 'Finished goods cost', wipCost: 'WIP amount', costStatus: 'Cost status',
+        costStatusValue: {
+          balanced: 'Costs balanced',
+          costVariance: 'Cost variance',
+          wip: 'In progress',
+          notPosted: 'Not posted'
+        },
         approvalStatus: 'Approval status', receiptStatus: 'Receipt status', deliveryStatus: 'Delivery status', quantity: 'Quantity',
         taxAmount: 'Tax amount', warehouseId: 'Warehouse ID', productId: 'Product ID', quantityOnHand: 'On-hand quantity',
         quantityReserved: 'Reserved quantity', quantityAvailable: 'Available quantity', inventoryAmount: 'Inventory amount',

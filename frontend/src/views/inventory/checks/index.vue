@@ -89,10 +89,13 @@
         <el-table-column prop="remark" :label="$t('inventoryChecks.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="$t('inventoryChecks.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="$t('inventoryChecks.createdTime')" width="160" />
-        <el-table-column :label="$t('inventoryChecks.actions')" width="300" fixed="right">
+        <el-table-column :label="$t('inventoryChecks.actions')" width="360" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
               {{ $t('inventoryChecks.action.view') }}
+            </el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.checkNo)">
+              {{ $t('documentAttachment.entry') }}
             </el-button>
             <el-button link type="primary" @click="handlePrint(row)">
               {{ $t('inventoryChecks.action.print') }}
@@ -360,6 +363,15 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="INVENTORY_CHECK"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -380,13 +392,27 @@ import {
 import { getLocations, getProducts, getWarehouses } from '@/api/masterdata'
 import { printInventoryCheck } from '@/utils/bizPrint'
 import { serialCaptureProgress } from '@/utils/productLines'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useInventoryCheckList } from '@/composables/useInventoryCheckList'
 import { useInventoryCheckFormPresentation } from '@/composables/useInventoryCheckPresentation'
 import { useInventoryCheckForm } from '@/composables/useInventoryCheckForm'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
 
 const formRef = ref<FormInstance>()
+
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const {
   dateRange,

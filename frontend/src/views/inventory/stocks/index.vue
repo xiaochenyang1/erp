@@ -377,7 +377,9 @@
             <el-tag :type="row.severity === 'ERROR' ? 'danger' : 'warning'">{{ severityLabel(row.severity) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="issueType" :label="$t('inventoryStocks.issueType')" width="220" />
+        <el-table-column prop="issueType" :label="$t('inventoryStocks.issueType')" width="220" show-overflow-tooltip>
+          <template #default="{ row }">{{ issueTypeLabel(row.issueType) }}</template>
+        </el-table-column>
         <el-table-column prop="sourceNo" :label="$t('inventoryStocks.sourceNo')" width="160" />
         <el-table-column prop="expectedQty" :label="$t('inventoryStocks.expectedValue')" width="120" align="right">
           <template #default="{ row }">{{ formatOptionalNumber(row.expectedQty) }}</template>
@@ -905,6 +907,7 @@ const {
   formatMoney,
   formatNumber,
   formatOptionalNumber,
+  issueTypeLabel,
   locationName,
   productName,
   reservationEventLabel,

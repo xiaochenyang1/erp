@@ -50,9 +50,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('financeReportPages.common.summary')" min-width="180" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="380" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="440" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">{{ $t('financeReportPages.common.view') }}</el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.voucherNo)">{{ $t('documentAttachment.entry') }}</el-button>
             <el-button link type="primary" @click="handlePrint(row)">{{ $t('financeReportPages.common.print') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -308,6 +309,15 @@
         </el-table>
       </div>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="MANUAL_VOUCHER"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -330,11 +340,25 @@ import {
   submitManualVoucher,
   updateManualVoucher
 } from '@/api/finance'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useManualVoucherPresentation } from '@/composables/useManualVoucherPresentation'
 import { useManualVoucherList } from '@/composables/useManualVoucherList'
 import { useManualVoucherForm } from '@/composables/useManualVoucherForm'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
+
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const notify = {
   onError: (message: string) => ElMessage.error(message),

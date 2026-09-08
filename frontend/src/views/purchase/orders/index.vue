@@ -113,12 +113,15 @@
       <el-table-column prop="createdAt" :label="t('purchaseOrder.createdAt')" width="190">
         <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column :label="t('purchaseOrder.actions')" width="280" fixed="right" align="center">
+      <el-table-column :label="t('purchaseOrder.actions')" width="340" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" size="small" @click="handleView(row)">
               <el-icon><View /></el-icon>
               {{ t('purchaseOrder.view') }}
+            </el-button>
+            <el-button v-if="canViewAttachments" link type="primary" size="small" @click="openAttachments(row.id, row.orderNo)">
+              {{ t('documentAttachment.entry') }}
             </el-button>
             <el-button link type="primary" size="small" @click="handlePrint(row)">
               {{ t('purchaseOrder.print') }}
@@ -445,6 +448,15 @@
         </div>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="PURCHASE_ORDER"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -488,9 +500,11 @@ import { getContract, getContracts, type ContractRecord } from '@/api/contracts'
 import { printPurchaseOrder } from '@/utils/bizPrint'
 import { getProducts, getSuppliers } from '@/api/masterdata'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { usePurchaseOrderSummary } from '@/composables/usePurchaseOrderPresentation'
 import { usePurchaseOrderList } from '@/composables/usePurchaseOrderList'
 import { usePurchaseOrderForm } from '@/composables/usePurchaseOrderForm'
@@ -499,6 +513,16 @@ const userStore = useUserStore()
 const { t } = useI18n()
 const canCreate = computed(() => userStore.hasPermission('purchase:order:create'))
 const purchaseContracts = ref<ContractRecord[]>([])
+
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const route = useRoute()
 const readQueryString = (key: string) => {

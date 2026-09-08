@@ -153,12 +153,16 @@
           <status-tag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column :label="texts.actions" width="180" fixed="right" align="center">
+      <el-table-column :label="texts.actions" width="250" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" @click="handleView(row)">
               <el-icon><View /></el-icon>
               {{ texts.view }}
+            </el-button>
+            <el-button link type="primary" @click="openRelations(row)">
+              <el-icon><Connection /></el-icon>
+              {{ $t('productRelation.entry') }}
             </el-button>
             <el-button v-permission="'masterdata:customer:update'" link type="primary" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
@@ -395,11 +399,19 @@
         </div>
       </detail-card>
     </el-dialog>
+
+    <product-relation-dialog
+      v-model="relationVisible"
+      mode="CUSTOMER"
+      :owner-id="relationOwnerId"
+      :owner-label="relationOwnerLabel"
+      :can-write="canUpdate"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   UserFilled,
@@ -409,6 +421,7 @@ import {
   Edit,
   Delete,
   CircleCheck,
+  Connection,
   Phone,
   Wallet,
   Clock,
@@ -427,6 +440,7 @@ import {
   exportCustomers
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
+import ProductRelationDialog from '@/components/masterdata/ProductRelationDialog.vue'
 import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
 import { useCustomerPresentation } from '@/composables/useCustomerPresentation'
@@ -436,6 +450,16 @@ import { useCustomerForm } from '@/composables/useCustomerForm'
 const appStore = useAppStore()
 const userStore = useUserStore()
 const canCreate = computed(() => userStore.hasPermission('masterdata:customer:create'))
+const canUpdate = computed(() => userStore.hasPermission('masterdata:customer:update'))
+const relationVisible = ref(false)
+const relationOwnerId = ref('')
+const relationOwnerLabel = ref('')
+
+const openRelations = (row: { id: string; code?: string; name?: string }) => {
+  relationOwnerId.value = String(row.id)
+  relationOwnerLabel.value = `${row.code || ''} ${row.name || ''}`.trim()
+  relationVisible.value = true
+}
 const CUSTOMER_TEXTS = {
   'zh-CN': {
     pageTitle: '客户管理',

@@ -88,9 +88,10 @@
         </el-table-column>
         <el-table-column prop="planStartDate" :label="t('productionOrder.plannedStart')" width="120" />
         <el-table-column prop="planEndDate" :label="t('productionOrder.plannedEnd')" width="120" />
-        <el-table-column :label="t('productionOrder.actions')" width="460" align="center" fixed="right">
+        <el-table-column :label="t('productionOrder.actions')" width="520" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleView(row)">{{ t('productionOrder.view') }}</el-button>
+            <el-button v-if="canViewAttachments" type="primary" link @click="openAttachments(row.id, row.orderNo)">{{ t('documentAttachment.entry') }}</el-button>
             <el-button type="primary" link @click="handlePrint(row)">{{ t('productionOrder.print') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -808,6 +809,15 @@
         <el-button type="primary" :loading="reportLoading" @click="submitReport">{{ t('productionOrder.confirmReport') }}</el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="PRODUCTION_ORDER"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -837,6 +847,8 @@ import { printProductionOrder } from '@/utils/bizPrint'
 import {
   serialCaptureProgress
 } from '@/utils/productLines'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useProductionOrderPresentation } from '@/composables/useProductionOrderPresentation'
 import { useProductionOrderProductControls } from '@/composables/useProductionOrderProductControls'
 import { useProductionOrderOperations } from '@/composables/useProductionOrderOperations'
@@ -844,8 +856,20 @@ import { useProductionOrderCompletion } from '@/composables/useProductionOrderCo
 import { useProductionOrderMaterials } from '@/composables/useProductionOrderMaterials'
 import { useProductionOrderForm } from '@/composables/useProductionOrderForm'
 import { useProductionOrderList } from '@/composables/useProductionOrderList'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
+
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const {
   allBomOptions,

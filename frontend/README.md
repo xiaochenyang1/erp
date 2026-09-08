@@ -7,11 +7,11 @@
 - **框架**: Vue 3.4+ (Composition API)
 - **语言**: TypeScript 5.0+
 - **UI库**: Element Plus 2.8+
-- **构建工具**: Vite 5.0+
+- **构建工具**: Vite 8.1+
 - **状态管理**: Pinia 2.1+
 - **路由**: Vue Router 4.0+
 - **HTTP**: Axios 1.7+
-- **图表**: ECharts 5.5+
+- **图表**: ECharts 6.1+
 
 ## 功能模块
 

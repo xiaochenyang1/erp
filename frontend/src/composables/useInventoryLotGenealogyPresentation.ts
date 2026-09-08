@@ -87,7 +87,9 @@ export const useInventoryLotGenealogyPresentation = (
 
   const truncationBanner = (limits: Pick<GenealogyLimits, 'truncated' | 'truncationReasons'>) => {
     if (!limits.truncated || !limits.truncationReasons.length) return null
-    const reasons = limits.truncationReasons.map(terminalReasonLabel).join('、')
+    const reasons = limits.truncationReasons
+      .map(terminalReasonLabel)
+      .join(t('inventoryLotGenealogy.listSeparator'))
     return t('inventoryLotGenealogy.banner.truncated', { reasons })
   }
 

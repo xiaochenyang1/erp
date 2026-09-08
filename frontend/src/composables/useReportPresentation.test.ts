@@ -64,6 +64,32 @@ describe('report presentation', () => {
     expect(presentation.reportBusinessTypeLabel()).toBe('-')
   })
 
+  it('labels and tags every production cost status the backend derives', () => {
+    const state = createState()
+    const presentation = useReportPresentation(
+      t,
+      ref('productionCost'),
+      computed(() => state)
+    )
+
+    expect(presentation.costStatusLabel('BALANCED'))
+      .toBe('financeReportPages.reports.costStatusValue.balanced')
+    expect(presentation.costStatusLabel('COST_VARIANCE'))
+      .toBe('financeReportPages.reports.costStatusValue.costVariance')
+    expect(presentation.costStatusLabel('WIP'))
+      .toBe('financeReportPages.reports.costStatusValue.wip')
+    expect(presentation.costStatusLabel('NOT_POSTED'))
+      .toBe('financeReportPages.reports.costStatusValue.notPosted')
+    expect(presentation.costStatusLabel('FUTURE')).toBe('FUTURE')
+    expect(presentation.costStatusLabel()).toBe('-')
+
+    expect(presentation.costStatusType('BALANCED')).toBe('success')
+    expect(presentation.costStatusType('COST_VARIANCE')).toBe('warning')
+    expect(presentation.costStatusType('WIP')).toBe('primary')
+    expect(presentation.costStatusType('NOT_POSTED')).toBe('info')
+    expect(presentation.costStatusType()).toBe('info')
+  })
+
   it('formats report amounts and quantities with locale helpers', () => {
     const state = createState()
     const presentation = useReportPresentation(

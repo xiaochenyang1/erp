@@ -69,9 +69,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="430" align="center" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="490" align="center" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'finance:expense:manage'" type="primary" link :icon="View" @click="handleView(row)">{{ $t('financeReportPages.common.view') }}</el-button>
+            <el-button v-if="canViewAttachments" type="primary" link @click="openAttachments(row.id, row.expenseNo)">{{ $t('documentAttachment.entry') }}</el-button>
             <el-button v-permission="'finance:expense:manage'" type="primary" link @click="handlePrint(row)">{{ $t('financeReportPages.common.print') }}</el-button>
             <el-button
               v-permission="'finance:expense:manage'"
@@ -351,6 +352,15 @@
         <el-button type="danger" :loading="submitLoading" @click="handleConfirmReject">{{ $t('financeReportPages.expenses.confirmReject') }}</el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="EXPENSE"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -388,11 +398,25 @@ import {
   updateExpense
 } from '@/api/finance'
 import { getDeptTree, type Dept } from '@/api/system'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useExpensePresentation } from '@/composables/useExpensePresentation'
 import { useExpenseList } from '@/composables/useExpenseList'
 import { useExpenseForm } from '@/composables/useExpenseForm'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
+
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const formRef = ref<FormInstance>()
 const departmentOptions = ref<Dept[]>([])

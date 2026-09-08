@@ -129,6 +129,37 @@ describe('report list', () => {
     expect(onError).toHaveBeenCalledWith('financeReportPages.reports.message.loadFailed')
   })
 
+  it('ignores stale responses and keeps the latest request authoritative', async () => {
+    let resolveFirst!: (value: ReturnType<typeof page>) => void
+    let resolveSecond!: (value: ReturnType<typeof page>) => void
+    let callCount = 0
+    const getPurchaseOrderReport = vi.fn(() => {
+      callCount += 1
+      return new Promise<ReturnType<typeof page>>((resolve) => {
+        if (callCount === 1) resolveFirst = resolve
+        else resolveSecond = resolve
+      })
+    })
+    const onError = vi.fn()
+    const list = createList({ getPurchaseOrderReport, onError })
+
+    list.queryForm.keyword = 'old'
+    const staleRequest = list.loadActiveReport()
+    list.queryForm.keyword = 'new'
+    const currentRequest = list.loadActiveReport()
+
+    resolveSecond(page([orderRow('new')]))
+    expect(await currentRequest).toBe(true)
+    expect(list.reportStates.purchase.records[0]).toMatchObject({ id: 'new' })
+    expect(list.reportStates.purchase.loading).toBe(false)
+
+    resolveFirst(page([orderRow('old')]))
+    expect(await staleRequest).toBe(false)
+    expect(list.reportStates.purchase.records[0]).toMatchObject({ id: 'new' })
+    expect(list.reportStates.purchase.loading).toBe(false)
+    expect(onError).not.toHaveBeenCalled()
+  })
+
   it('dispatches exports with localized file names and failure feedback', async () => {
     const exportInventoryTransactionReport = vi.fn(async () => new Blob(['transaction']))
     const downloadBlob = vi.fn()

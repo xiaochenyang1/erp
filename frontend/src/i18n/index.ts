@@ -5,6 +5,8 @@ import { operationsPageMessages } from './operations-pages'
 import { platformPageMessages } from './platform-pages'
 import { salesCommercialPageMessages } from './sales-commercial-pages'
 import { contractPageMessages } from './contract-pages'
+import { documentAttachmentMessages } from './document-attachment-pages'
+import { masterdataRelationMessages } from './masterdata-relation-pages'
 
 export const SUPPORTED_LOCALES = ['zh-CN', 'en-US'] as const
 export type SupportedLocale = typeof SUPPORTED_LOCALES[number]
@@ -20,7 +22,10 @@ export const readStoredLocale = (): SupportedLocale => {
 
 const coreMessages = {
   'zh-CN': {
-    common: { cancel: '取消', save: '保存', confirm: '确定' },
+    common: {
+      cancel: '取消', save: '保存', confirm: '确定',
+      noPagePermission: '您没有访问该页面的权限', menuNotAssigned: '当前账号未分配该菜单'
+    },
     app: { name: 'ERP管理系统', shortName: 'ERP系统' },
     settings: {
       title: '语言与时区', language: '界面语言', timezone: '显示时区',
@@ -29,16 +34,36 @@ const coreMessages = {
     },
     user: {
       profile: '个人中心', password: '修改密码', logout: '退出登录', logoutConfirm: '确定要退出登录吗？',
-      saved: '个人资料已保存', saveFailed: '保存个人资料失败', preferencesSaveFailed: '保存语言与时区偏好失败', passwordChanged: '密码修改成功，请重新登录'
+      saved: '个人资料已保存', saveFailed: '保存个人资料失败', preferencesSaveFailed: '保存语言与时区偏好失败', passwordChanged: '密码修改成功，请重新登录',
+      profileFields: {
+        userId: '用户 ID', username: '用户名', roles: '角色', listSeparator: '、', warehouseScope: '仓库范围',
+        realName: '姓名', realNamePlaceholder: '请输入姓名', email: '邮箱', emailPlaceholder: '请输入邮箱',
+        mobile: '手机号', mobilePlaceholder: '请输入手机号', avatarUrl: '头像 URL', avatarPlaceholder: '可选，头像图片地址',
+        avatarPreview: '头像预览'
+      },
+      passwordFields: {
+        oldPassword: '原密码', oldPasswordPlaceholder: '请输入原密码', newPassword: '新密码',
+        newPasswordPlaceholder: '12 到 72 位，包含字母和数字', confirmPassword: '确认密码', confirmPasswordPlaceholder: '请再次输入新密码'
+      },
+      validation: {
+        realNameRequired: '请输入姓名', emailInvalid: '请输入正确的邮箱地址', oldPasswordRequired: '请输入原密码',
+        newPasswordRequired: '请输入新密码', passwordLength: '密码长度必须在 12 到 72 位之间',
+        passwordComplexity: '密码必须包含字母和数字，且不能包含空白字符', confirmPasswordRequired: '请再次输入新密码',
+        confirmPasswordMismatch: '两次输入的新密码不一致'
+      }
+    },
+    barcodeScan: {
+      placeholder: '扫描或输入商品条码', camera: '摄像头扫码', openCamera: '打开摄像头扫码',
+      connecting: '正在连接摄像头', unsupported: '当前浏览器不支持摄像头扫码，请使用扫码枪或手工输入',
+      previewUnavailable: '摄像头预览不可用', permissionError: '无法启用摄像头，请检查浏览器权限后重试'
     },
     login: {
       welcome: '欢迎登录', subtitle: '请输入您的账号密码', username: '请输入用户名', password: '请输入密码',
-      forgot: '忘记密码？', passwordResetHint: '请联系系统管理员重置密码', submit: '登录', submitting: '登录中...', testAccount: '本地测试账号',
-      prefilledTestAccount: 'admin / LocalAdmin123（已填充）',
+      forgot: '忘记密码？', passwordResetHint: '请联系系统管理员重置密码', submit: '登录', submitting: '登录中...',
       feature1Title: '集成管理', feature1Desc: '采购、销售、库存、财务一体化管理',
       feature2Title: '数据分析', feature2Desc: '实时报表，智能决策支持',
       feature3Title: '流程审批', feature3Desc: '多级审批，权限精细控制',
-      usernameRequired: '请输入用户名', passwordRequired: '请输入密码', passwordMin: '密码至少6位'
+      usernameRequired: '请输入用户名', passwordRequired: '请输入密码', invalidCredentials: '用户名或密码错误'
     },
     dashboard: {
       welcome: '欢迎回来，{name}', user: '用户', source: '工作台数据来自当前账套',
@@ -63,7 +88,7 @@ const coreMessages = {
     },
     workflow: {
       businessType: '业务类型', businessNo: '业务单号', status: '状态', selectBusinessType: '请选择业务类型', inputBusinessNo: '请输入业务单号', selectStatus: '请选择状态',
-      purchaseOrder: '采购订单', salesOrder: '销售订单', expense: '费用单', pending: '待审批', approved: '已通过', rejected: '已驳回', cancelled: '已取消',
+      purchaseOrder: '采购订单', purchaseRequisition: '采购请购单', salesOrder: '销售订单', expense: '费用单', pending: '待审批', approved: '已通过', rejected: '已驳回', cancelled: '已取消',
       search: '查询', reset: '重置', tasks: '审批待办', refresh: '刷新', title: '任务标题', createdTime: '创建时间', updatedTime: '更新时间', dueTime: '审批时限', overdue: '已超时', overdueOnly: '仅看超时', actions: '操作',
       view: '查看', approve: '通过', reject: '驳回', transfer: '转签', escalate: '升级', detail: '审批任务详情', businessId: '业务ID', deadline: '审批截止', escalationCount: '升级次数', close: '关闭', approveAction: '审批通过',
       escalationTitle: '超时审批升级', escalateTo: '升级给', selectAssignee: '选择新处理人', escalationComment: '升级说明', confirmEscalation: '确认升级',
@@ -229,7 +254,11 @@ const coreMessages = {
     }
   },
   'en-US': {
-    common: { cancel: 'Cancel', save: 'Save', confirm: 'Confirm' },
+    common: {
+      cancel: 'Cancel', save: 'Save', confirm: 'Confirm',
+      noPagePermission: 'You do not have permission to access this page',
+      menuNotAssigned: 'This menu is not assigned to your account'
+    },
     app: { name: 'ERP Management System', shortName: 'ERP System' },
     settings: {
       title: 'Language & Time Zone', language: 'Language', timezone: 'Display time zone',
@@ -238,16 +267,36 @@ const coreMessages = {
     },
     user: {
       profile: 'Profile', password: 'Change password', logout: 'Sign out', logoutConfirm: 'Are you sure you want to sign out?',
-      saved: 'Profile saved', saveFailed: 'Failed to save profile', preferencesSaveFailed: 'Failed to save language and time-zone preferences', passwordChanged: 'Password changed. Please sign in again.'
+      saved: 'Profile saved', saveFailed: 'Failed to save profile', preferencesSaveFailed: 'Failed to save language and time-zone preferences', passwordChanged: 'Password changed. Please sign in again.',
+      profileFields: {
+        userId: 'User ID', username: 'Username', roles: 'Roles', listSeparator: ', ', warehouseScope: 'Warehouse scope',
+        realName: 'Name', realNamePlaceholder: 'Enter your name', email: 'Email', emailPlaceholder: 'Enter your email',
+        mobile: 'Mobile', mobilePlaceholder: 'Enter your mobile number', avatarUrl: 'Avatar URL', avatarPlaceholder: 'Optional avatar image URL',
+        avatarPreview: 'Avatar preview'
+      },
+      passwordFields: {
+        oldPassword: 'Current password', oldPasswordPlaceholder: 'Enter your current password', newPassword: 'New password',
+        newPasswordPlaceholder: '12 to 72 characters with letters and numbers', confirmPassword: 'Confirm password', confirmPasswordPlaceholder: 'Re-enter your new password'
+      },
+      validation: {
+        realNameRequired: 'Name is required', emailInvalid: 'Enter a valid email address', oldPasswordRequired: 'Current password is required',
+        newPasswordRequired: 'New password is required', passwordLength: 'Password must be 12 to 72 characters long',
+        passwordComplexity: 'Password must contain letters and numbers and no whitespace', confirmPasswordRequired: 'Re-enter your new password',
+        confirmPasswordMismatch: 'The passwords do not match'
+      }
+    },
+    barcodeScan: {
+      placeholder: 'Scan or enter a product barcode', camera: 'Scan with camera', openCamera: 'Open camera scanner',
+      connecting: 'Connecting to camera', unsupported: 'Camera barcode scanning is unavailable in this browser. Use a barcode scanner or enter the code manually.',
+      previewUnavailable: 'Camera preview is unavailable', permissionError: 'Unable to start the camera. Check browser permissions and try again.'
     },
     login: {
       welcome: 'Welcome back', subtitle: 'Enter your username and password', username: 'Username', password: 'Password',
-      forgot: 'Forgot password?', passwordResetHint: 'Contact your system administrator to reset your password', submit: 'Sign in', submitting: 'Signing in...', testAccount: 'Local test account',
-      prefilledTestAccount: 'admin / LocalAdmin123 (prefilled)',
+      forgot: 'Forgot password?', passwordResetHint: 'Contact your system administrator to reset your password', submit: 'Sign in', submitting: 'Signing in...',
       feature1Title: 'Integrated operations', feature1Desc: 'Purchasing, sales, inventory, and finance in one place',
       feature2Title: 'Data analytics', feature2Desc: 'Real-time reports for better decisions',
       feature3Title: 'Approval workflows', feature3Desc: 'Multi-level approvals with fine-grained access control',
-      usernameRequired: 'Username is required', passwordRequired: 'Password is required', passwordMin: 'Password must contain at least 6 characters'
+      usernameRequired: 'Username is required', passwordRequired: 'Password is required', invalidCredentials: 'Invalid username or password'
     },
     dashboard: {
       welcome: 'Welcome back, {name}', user: 'User', source: 'Dashboard data is from the current account set',
@@ -272,7 +321,7 @@ const coreMessages = {
     },
     workflow: {
       businessType: 'Business type', businessNo: 'Document no.', status: 'Status', selectBusinessType: 'Select business type', inputBusinessNo: 'Enter document no.', selectStatus: 'Select status',
-      purchaseOrder: 'Purchase order', salesOrder: 'Sales order', expense: 'Expense', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled',
+      purchaseOrder: 'Purchase order', purchaseRequisition: 'Purchase requisition', salesOrder: 'Sales order', expense: 'Expense', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled',
       search: 'Search', reset: 'Reset', tasks: 'Approval tasks', refresh: 'Refresh', title: 'Task title', createdTime: 'Created', updatedTime: 'Updated', dueTime: 'Due', overdue: 'Overdue', overdueOnly: 'Overdue only', actions: 'Actions',
       view: 'View', approve: 'Approve', reject: 'Reject', transfer: 'Transfer', escalate: 'Escalate', detail: 'Approval task details', businessId: 'Business ID', deadline: 'Deadline', escalationCount: 'Escalations', close: 'Close', approveAction: 'Approve',
       escalationTitle: 'Escalate overdue task', escalateTo: 'Escalate to', selectAssignee: 'Select a new assignee', escalationComment: 'Reason', confirmEscalation: 'Confirm escalation',
@@ -450,7 +499,9 @@ const messages = {
     ...adminWorkflowPageMessages['zh-CN'],
     ...platformPageMessages['zh-CN'],
     ...salesCommercialPageMessages['zh-CN'],
-    ...contractPageMessages['zh-CN']
+    ...contractPageMessages['zh-CN'],
+    ...masterdataRelationMessages['zh-CN'],
+    ...documentAttachmentMessages['zh-CN']
   },
   'en-US': {
     ...coreMessages['en-US'],
@@ -459,7 +510,9 @@ const messages = {
     ...adminWorkflowPageMessages['en-US'],
     ...platformPageMessages['en-US'],
     ...salesCommercialPageMessages['en-US'],
-    ...contractPageMessages['en-US']
+    ...contractPageMessages['en-US'],
+    ...masterdataRelationMessages['en-US'],
+    ...documentAttachmentMessages['en-US']
   }
 } as const
 

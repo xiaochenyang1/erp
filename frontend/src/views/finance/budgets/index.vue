@@ -25,7 +25,7 @@
         <div class="card-header">
           <span>{{ $t('financeReportPages.budgets.title') }}</span>
           <div>
-            <el-button :icon="DataAnalysis" @click="executionVisible = true">{{ $t('financeReportPages.budgets.execution') }}</el-button>
+            <el-button :icon="DataAnalysis" @click="openExecution">{{ $t('financeReportPages.budgets.execution') }}</el-button>
             <el-button v-permission="'finance:budget:manage'" type="primary" :icon="Plus" @click="openCreate">{{ $t('financeReportPages.budgets.create') }}</el-button>
           </div>
         </div>
@@ -35,7 +35,7 @@
         <el-table-column prop="budgetYear" :label="$t('financeReportPages.budgets.year')" width="90" align="center" />
         <el-table-column prop="budgetName" :label="$t('financeReportPages.budgets.name')" min-width="180" show-overflow-tooltip />
         <el-table-column prop="controlPolicy" :label="$t('financeReportPages.budgets.policy')" width="110" align="center">
-          <template #default="{ row }">{{ $t(`financeReportPages.budgets.policyValue.${row.controlPolicy.toLowerCase()}`) }}</template>
+          <template #default="{ row }">{{ policyText(row.controlPolicy) }}</template>
         </el-table-column>
         <el-table-column prop="totalBudgetAmount" :label="$t('financeReportPages.budgets.totalBudget')" width="140" align="right">
           <template #default="{ row }">{{ formatAmount(row.totalBudgetAmount) }}</template>
@@ -50,7 +50,7 @@
           <template #default="{ row }"><span :class="{ negative: row.totalAvailableAmount < 0 }">{{ formatAmount(row.totalAvailableAmount) }}</span></template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="115" align="center">
-          <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ $t(`financeReportPages.budgets.status.${row.status.toLowerCase()}`) }}</el-tag></template>
+          <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag></template>
         </el-table-column>
         <el-table-column :label="$t('financeReportPages.common.actions')" width="390" fixed="right" align="center">
           <template #default="{ row }">
@@ -63,10 +63,10 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-pagination v-model:current-page="pagination.pageNo" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next, jumper" @size-change="loadBudgets" @current-change="loadBudgets" />
+      <el-pagination v-model:current-page="pagination.pageNo" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next, jumper" @size-change="handleSizeChange" @current-change="handlePageChange" />
     </el-card>
 
-    <el-dialog v-model="editorVisible" :title="editorId ? $t('financeReportPages.budgets.edit') : $t('financeReportPages.budgets.create')" width="1050px" destroy-on-close>
+    <el-dialog v-model="editorVisible" :title="dialogTitle" width="1050px" destroy-on-close>
       <el-form :model="editor" label-width="110px">
         <el-row :gutter="16">
           <el-col :span="8"><el-form-item :label="$t('financeReportPages.budgets.year')"><el-input-number v-model="editor.budgetYear" :disabled="Boolean(editorId)" :min="2000" :max="2100" style="width: 100%" /></el-form-item></el-col>
@@ -76,102 +76,74 @@
         <el-form-item :label="$t('financeReportPages.common.remark')"><el-input v-model="editor.remark" /></el-form-item>
         <el-table :data="editor.lines" border>
           <el-table-column :label="$t('financeReportPages.budgets.month')" width="130">
-            <template #default="{ row }"><el-select v-model="row.periodMonth" style="width: 100%"><el-option :label="$t('financeReportPages.budgets.annual')" :value="0" /><el-option v-for="month in 12" :key="month" :label="`${month}${$t('financeReportPages.budgets.monthSuffix')}`" :value="month" /></el-select></template>
+            <template #default="{ row }"><el-select v-model="row.periodMonth" style="width: 100%"><el-option :label="monthLabel(0)" :value="0" /><el-option v-for="month in 12" :key="month" :label="monthLabel(month)" :value="month" /></el-select></template>
           </el-table-column>
           <el-table-column :label="$t('financeReportPages.budgets.department')" min-width="180"><template #default="{ row }"><el-select v-model="row.deptId" clearable filterable style="width: 100%"><el-option v-for="dept in departments" :key="dept.id" :label="deptLabel(dept)" :value="dept.id" /></el-select></template></el-table-column>
           <el-table-column :label="$t('financeReportPages.budgets.subject')" min-width="240"><template #default="{ row }"><el-select v-model="row.subjectId" filterable style="width: 100%"><el-option v-for="subject in subjects" :key="subject.id" :label="subjectLabel(subject)" :value="subject.id" /></el-select></template></el-table-column>
           <el-table-column :label="$t('financeReportPages.budgets.amount')" width="160"><template #default="{ row }"><el-input-number v-model="row.budgetAmount" :min="0" :precision="2" :controls="false" style="width: 100%" /></template></el-table-column>
           <el-table-column :label="$t('financeReportPages.common.remark')" min-width="150"><template #default="{ row }"><el-input v-model="row.remark" /></template></el-table-column>
-          <el-table-column width="80"><template #default="{ $index }"><el-button link type="danger" @click="editor.lines.splice($index, 1)">{{ $t('financeReportPages.common.delete') }}</el-button></template></el-table-column>
+          <el-table-column width="80"><template #default="{ $index }"><el-button link type="danger" @click="removeLine($index)">{{ $t('financeReportPages.common.delete') }}</el-button></template></el-table-column>
         </el-table>
         <el-button class="add-line" :icon="Plus" @click="addLine">{{ $t('financeReportPages.budgets.addLine') }}</el-button>
       </el-form>
-      <template #footer><el-button @click="editorVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button><el-button type="primary" :loading="saving" @click="saveEditor">{{ $t('financeReportPages.common.save') }}</el-button></template>
+      <template #footer><el-button @click="editorVisible = false">{{ $t('financeReportPages.common.cancel') }}</el-button><el-button type="primary" :loading="saving" @click="save">{{ $t('financeReportPages.common.save') }}</el-button></template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" :title="$t('financeReportPages.budgets.detail')" width="1050px">
+    <el-dialog v-model="detailVisible" :title="$t('financeReportPages.budgets.detail')" width="1050px" @closed="resetDetail">
       <el-descriptions :column="4" border>
         <el-descriptions-item :label="$t('financeReportPages.budgets.year')">{{ selected?.budgetYear }}</el-descriptions-item>
         <el-descriptions-item :label="$t('financeReportPages.budgets.name')">{{ selected?.budgetName }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('financeReportPages.budgets.policy')">{{ selected?.controlPolicy }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('financeReportPages.common.status')">{{ selected?.status }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.budgets.policy')">{{ policyText(selected?.controlPolicy) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.common.status')">{{ statusText(selected?.status) }}</el-descriptions-item>
       </el-descriptions>
-      <el-table :data="selected?.lines || []" border stripe class="detail-table"><el-table-column prop="periodMonth" :label="$t('financeReportPages.budgets.month')" width="90" /><el-table-column :label="$t('financeReportPages.budgets.department')"><template #default="{ row }">{{ deptName(row.deptId) }}</template></el-table-column><el-table-column :label="$t('financeReportPages.budgets.subject')"><template #default="{ row }">{{ subjectName(row.subjectId) }}</template></el-table-column><el-table-column prop="budgetAmount" :label="$t('financeReportPages.budgets.amount')" align="right" /><el-table-column prop="committedAmount" :label="$t('financeReportPages.budgets.committed')" align="right" /><el-table-column prop="actualAmount" :label="$t('financeReportPages.budgets.actual')" align="right" /><el-table-column prop="availableAmount" :label="$t('financeReportPages.budgets.available')" align="right" /></el-table>
+      <el-table :data="selected?.lines || []" border stripe class="detail-table"><el-table-column :label="$t('financeReportPages.budgets.month')" width="110"><template #default="{ row }">{{ monthLabel(row.periodMonth) }}</template></el-table-column><el-table-column :label="$t('financeReportPages.budgets.department')"><template #default="{ row }">{{ deptName(row.deptId) }}</template></el-table-column><el-table-column :label="$t('financeReportPages.budgets.subject')"><template #default="{ row }">{{ subjectName(row.subjectId) }}</template></el-table-column><el-table-column :label="$t('financeReportPages.budgets.amount')" align="right"><template #default="{ row }">{{ formatAmount(row.budgetAmount) }}</template></el-table-column><el-table-column :label="$t('financeReportPages.budgets.committed')" align="right"><template #default="{ row }">{{ formatAmount(row.committedAmount) }}</template></el-table-column><el-table-column :label="$t('financeReportPages.budgets.actual')" align="right"><template #default="{ row }">{{ formatAmount(row.actualAmount) }}</template></el-table-column><el-table-column :label="$t('financeReportPages.budgets.available')" align="right"><template #default="{ row }"><span :class="{ negative: row.availableAmount < 0 }">{{ formatAmount(row.availableAmount) }}</span></template></el-table-column></el-table>
     </el-dialog>
 
-    <el-dialog v-model="executionVisible" :title="$t('financeReportPages.budgets.execution')" width="720px">
+    <el-dialog v-model="executionVisible" :title="$t('financeReportPages.budgets.execution')" width="720px" @closed="resetExecution">
       <el-form :model="executionQuery" label-width="120px">
         <el-form-item :label="$t('financeReportPages.budgets.year')"><el-input-number v-model="executionQuery.budgetYear" :min="2000" :max="2100" /></el-form-item>
-        <el-form-item :label="$t('financeReportPages.budgets.month')"><el-select v-model="executionQuery.periodMonth"><el-option v-for="month in 12" :key="month" :label="`${month}${$t('financeReportPages.budgets.monthSuffix')}`" :value="month" /></el-select></el-form-item>
+        <el-form-item :label="$t('financeReportPages.budgets.month')"><el-select v-model="executionQuery.periodMonth"><el-option v-for="month in 12" :key="month" :label="monthLabel(month)" :value="month" /></el-select></el-form-item>
         <el-form-item :label="$t('financeReportPages.budgets.department')"><el-select v-model="executionQuery.deptId" clearable filterable><el-option v-for="dept in departments" :key="dept.id" :label="deptLabel(dept)" :value="dept.id" /></el-select></el-form-item>
         <el-form-item :label="$t('financeReportPages.budgets.subject')"><el-select v-model="executionQuery.subjectId" filterable><el-option v-for="subject in subjects" :key="subject.id" :label="subjectLabel(subject)" :value="subject.id" /></el-select></el-form-item>
         <el-form-item :label="$t('financeReportPages.budgets.amount')"><el-input-number v-model="executionQuery.amount" :min="0" :precision="2" /></el-form-item>
       </el-form>
       <el-alert v-if="execution" :type="execution.overrun ? 'warning' : 'success'" :title="execution.overrun ? $t('financeReportPages.budgets.overrun') : $t('financeReportPages.budgets.withinBudget')" show-icon :closable="false" />
-      <el-descriptions v-if="execution" :column="2" border class="execution-result"><el-descriptions-item :label="$t('financeReportPages.budgets.periodSource')">{{ execution.periodSource }}</el-descriptions-item><el-descriptions-item :label="$t('financeReportPages.budgets.available')">{{ formatAmount(execution.availableAmount) }}</el-descriptions-item><el-descriptions-item :label="$t('financeReportPages.budgets.projectedAvailable')">{{ formatAmount(execution.projectedAvailableAmount) }}</el-descriptions-item><el-descriptions-item :label="$t('financeReportPages.budgets.policy')">{{ execution.controlPolicy || '-' }}</el-descriptions-item></el-descriptions>
+      <el-descriptions v-if="execution" :column="2" border class="execution-result"><el-descriptions-item :label="$t('financeReportPages.budgets.periodSource')">{{ periodSourceText(execution.periodSource) }}</el-descriptions-item><el-descriptions-item :label="$t('financeReportPages.budgets.available')">{{ formatAmount(execution.availableAmount) }}</el-descriptions-item><el-descriptions-item :label="$t('financeReportPages.budgets.projectedAvailable')">{{ formatAmount(execution.projectedAvailableAmount) }}</el-descriptions-item><el-descriptions-item :label="$t('financeReportPages.budgets.policy')">{{ policyText(execution.controlPolicy) }}</el-descriptions-item></el-descriptions>
       <template #footer><el-button @click="executionVisible = false">{{ $t('financeReportPages.common.close') }}</el-button><el-button type="primary" :loading="executionLoading" @click="loadExecution">{{ $t('financeReportPages.common.search') }}</el-button></template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DataAnalysis, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { approveBudget, cancelBudget, closeBudget, createBudget, getBudget, getBudgetExecution, getBudgets, submitBudget, updateBudget, type Budget, type BudgetExecution, type BudgetLineSaveRequest } from '@/api/finance'
-import { getAccountSubjectTree, type AccountSubject } from '@/api/finance'
-import { getDeptTree, type Dept } from '@/api/system'
-import { formatLocalizedNumber } from '@/utils/locale'
+import { approveBudget, cancelBudget, closeBudget, createBudget, getAccountSubjectTree, getBudget, getBudgetExecution, getBudgets, submitBudget, updateBudget } from '@/api/finance'
+import { getDeptTree } from '@/api/system'
+import { useBudgetExecution } from '@/composables/useBudgetExecution'
+import { useBudgetForm } from '@/composables/useBudgetForm'
+import { useBudgetList } from '@/composables/useBudgetList'
+import { useBudgetPresentation } from '@/composables/useBudgetPresentation'
 
 const { t } = useI18n()
 const statuses = ['DRAFT', 'SUBMITTED', 'APPROVED', 'CLOSED', 'CANCELLED']
-const query = reactive({ budgetYear: new Date().getFullYear(), status: '', keyword: '' })
-const pagination = reactive({ pageNo: 1, pageSize: 20, total: 0 })
-const records = ref<Budget[]>([])
-const loading = ref(false)
-const editorVisible = ref(false)
-const detailVisible = ref(false)
-const executionVisible = ref(false)
-const saving = ref(false)
-const executionLoading = ref(false)
-const editorId = ref<string>()
-const selected = ref<Budget>()
-const execution = ref<BudgetExecution>()
-const subjects = ref<AccountSubject[]>([])
-const departments = ref<Dept[]>([])
-const editor = reactive({ budgetYear: new Date().getFullYear(), budgetName: '', controlPolicy: 'REJECT', remark: '', lines: [] as BudgetLineSaveRequest[] })
-const executionQuery = reactive({ budgetYear: new Date().getFullYear(), periodMonth: new Date().getMonth() + 1, deptId: undefined as string | undefined, subjectId: '', amount: 0 })
 
-const flatten = <T extends { children?: T[] }>(items: T[]): T[] => items.flatMap((item) => [item, ...flatten(item.children || [])])
-const subjectLabel = (item: AccountSubject) => `${item.code || item.subjectCode} - ${item.name || item.subjectName}`
-const deptLabel = (item: Dept) => `${item.code || item.deptCode || ''} ${item.name || item.deptName || ''}`.trim()
-const subjectName = (id?: string | number) => subjects.value.find((item) => String(item.id) === String(id)) ? subjectLabel(subjects.value.find((item) => String(item.id) === String(id))!) : String(id || '-')
-const deptName = (id?: string | number) => departments.value.find((item) => String(item.id) === String(id)) ? deptLabel(departments.value.find((item) => String(item.id) === String(id))!) : '-'
-const formatAmount = (value?: number) => formatLocalizedNumber(Number(value || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const statusType = (status: string) => ({ DRAFT: 'info', SUBMITTED: 'warning', APPROVED: 'success', CLOSED: 'primary', CANCELLED: 'danger' }[status] || 'info') as 'success' | 'warning' | 'info' | 'danger' | 'primary'
+const confirm = (message: string, title: string, options?: { type?: string }) => ElMessageBox.confirm(message, title, options as any)
+const onError = (message: string) => ElMessage.error(message)
+const onSuccess = (message: string) => ElMessage.success(message)
+const onWarning = (message: string) => ElMessage.warning(message)
 
-const loadResources = async () => {
-  const [subjectTree, deptTree] = await Promise.all([getAccountSubjectTree(), getDeptTree()])
-  subjects.value = flatten(subjectTree)
-  departments.value = flatten(deptTree)
-}
-const loadBudgets = async () => {
-  loading.value = true
-  try {
-    const page = await getBudgets({ ...query, pageNo: pagination.pageNo, pageSize: pagination.pageSize, status: query.status || undefined, keyword: query.keyword || undefined })
-    records.value = page.records
-    pagination.total = page.total
-  } catch { ElMessage.error(t('financeReportPages.budgets.message.loadFailed')) } finally { loading.value = false }
-}
-const resetQuery = () => { Object.assign(query, { budgetYear: new Date().getFullYear(), status: '', keyword: '' }); pagination.pageNo = 1; loadBudgets() }
-const addLine = () => editor.lines.push({ periodMonth: 0, deptId: undefined, subjectId: '', budgetAmount: 0, remark: '' })
-const openCreate = () => { editorId.value = undefined; Object.assign(editor, { budgetYear: new Date().getFullYear(), budgetName: '', controlPolicy: 'REJECT', remark: '', lines: [] }); addLine(); editorVisible.value = true }
-const openEdit = async (row: Budget) => { const detail = await getBudget(row.id); editorId.value = detail.id; Object.assign(editor, { budgetYear: detail.budgetYear, budgetName: detail.budgetName, controlPolicy: detail.controlPolicy, remark: detail.remark || '', lines: detail.lines.map((line) => ({ periodMonth: line.periodMonth, deptId: line.deptId, subjectId: line.subjectId, budgetAmount: line.budgetAmount, remark: line.remark })) }); editorVisible.value = true }
-const openDetail = async (row: Budget) => { selected.value = await getBudget(row.id); detailVisible.value = true }
-const saveEditor = async () => { if (!editor.budgetName.trim() || !editor.lines.length || editor.lines.some((line) => !line.subjectId)) { ElMessage.warning(t('financeReportPages.budgets.validation.completeForm')); return } saving.value = true; try { const payload = { budgetYear: editor.budgetYear, budgetName: editor.budgetName, controlPolicy: editor.controlPolicy, remark: editor.remark, lines: editor.lines }; if (editorId.value) await updateBudget(editorId.value, payload); else await createBudget(payload); ElMessage.success(t('financeReportPages.budgets.message.saved')); editorVisible.value = false; await loadBudgets() } catch { ElMessage.error(t('financeReportPages.budgets.message.saveFailed')) } finally { saving.value = false } }
-const runAction = async (action: (id: string) => Promise<Budget>, row: Budget, actionLabelKey: string) => { try { await ElMessageBox.confirm(t('financeReportPages.budgets.message.confirmAction', { action: t(actionLabelKey), name: row.budgetName }), t('financeReportPages.budgets.message.prompt'), { type: 'warning' }); await action(row.id); ElMessage.success(t('financeReportPages.budgets.message.actionDone')); await loadBudgets() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(t('financeReportPages.budgets.message.actionFailed')) } }
-const loadExecution = async () => { if (!executionQuery.subjectId) { ElMessage.warning(t('financeReportPages.budgets.validation.subject')); return } executionLoading.value = true; try { execution.value = await getBudgetExecution({ ...executionQuery, amount: executionQuery.amount || undefined }) } catch { ElMessage.error(t('financeReportPages.budgets.message.executionLoadFailed')) } finally { executionLoading.value = false } }
+const { departments, detailVisible, handlePageChange, handleSizeChange, loadBudgets, loadResources, loading, openDetail, pagination, query, records, resetDetail, resetQuery, runAction, selected, subjects } = useBudgetList(t, { getBudgets, getBudget, getAccountSubjectTree, getDeptTree, confirm, onError, onSuccess })
+
+const { deptLabel, deptName, formatAmount, monthLabel, periodSourceText, policyText, statusText, statusType, subjectLabel, subjectName } = useBudgetPresentation(t, { subjects, departments })
+
+const reload = async () => { await loadBudgets() }
+
+const { addLine, dialogTitle, editor, editorId, editorVisible, openCreate, openEdit, removeLine, save, saving } = useBudgetForm(t, { getBudget, createBudget, updateBudget, onError, onSuccess, onWarning, onSubmitted: reload })
+
+const { execution, executionLoading, executionQuery, executionVisible, loadExecution, openExecution, resetExecution } = useBudgetExecution(t, { getBudgetExecution, onError, onWarning })
+
 onMounted(async () => { await loadResources(); await loadBudgets() })
 </script>
 

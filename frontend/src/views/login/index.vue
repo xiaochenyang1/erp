@@ -106,14 +106,6 @@
           </el-form-item>
         </el-form>
 
-        <div class="login-footer">
-          <el-divider>
-            <span class="divider-text">{{ $t('login.testAccount') }}</span>
-          </el-divider>
-          <div class="test-accounts">
-            <el-tag type="success" size="small">{{ $t('login.prefilledTestAccount') }}</el-tag>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -139,8 +131,8 @@ const loginFormRef = ref<FormInstance>()
 
 // 表单数据
 const loginForm = reactive({
-  username: 'admin',
-  password: 'LocalAdmin123'
+  username: '',
+  password: ''
 })
 
 // 加载状态
@@ -173,8 +165,7 @@ const features = computed(() => [
 const rules = computed<FormRules>(() => ({
   username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
   password: [
-    { required: true, message: t('login.passwordRequired'), trigger: 'blur' },
-    { min: 6, message: t('login.passwordMin'), trigger: 'blur' }
+    { required: true, message: t('login.passwordRequired'), trigger: 'blur' }
   ]
 }))
 
@@ -426,23 +417,6 @@ const handleLogin = async () => {
   font-weight: 500;
   letter-spacing: 1px;
   margin-top: 10px;
-}
-
-.login-footer {
-  margin-top: 30px;
-}
-
-.divider-text {
-  font-size: 12px;
-  color: #909399;
-  padding: 0 12px;
-}
-
-.test-accounts {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 16px;
 }
 
 /* 响应式 */

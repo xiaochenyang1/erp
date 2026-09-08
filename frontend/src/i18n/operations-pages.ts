@@ -331,6 +331,14 @@ export const operationsPageMessages = {
       directionValue: { inbound: '入库', outbound: '出库' },
       expiryStatus: { expired: '已过期', expiring: '即将过期', normal: '正常' },
       severityValue: { error: '错误', warning: '警告' },
+      issueTypeValue: {
+        reservationBalanceMissing: '预占对应库存余额缺失',
+        balanceReservedMismatch: '余额预占数量与预占汇总不一致',
+        balanceAvailableNegative: '库存可用量为负',
+        reservationQuantityInvalid: '预占数量不自洽',
+        reservationSourceMissing: '预占来源单据缺失',
+        reservationSourceStatusInvalid: '预占来源单据状态不匹配'
+      },
       sourceTypeValue: { salesOrder: '销售订单' },
       dialog: { manualRelease: '手工释放预留' },
       validation: {
@@ -355,6 +363,7 @@ export const operationsPageMessages = {
     inventoryLotGenealogy: {
       title: '批次谱系',
       noLot: '无批次',
+      listSeparator: '、',
       upstream: '上游来源',
       downstream: '下游去向',
       recallList: '客户召回清单',
@@ -861,6 +870,14 @@ export const operationsPageMessages = {
       directionValue: { inbound: 'Inbound', outbound: 'Outbound' },
       expiryStatus: { expired: 'Expired', expiring: 'Expiring soon', normal: 'Normal' },
       severityValue: { error: 'Error', warning: 'Warning' },
+      issueTypeValue: {
+        reservationBalanceMissing: 'Reserved stock has no balance record',
+        balanceReservedMismatch: 'Balance reserved quantity does not match active reservations',
+        balanceAvailableNegative: 'Available stock is negative',
+        reservationQuantityInvalid: 'Reservation quantities are inconsistent',
+        reservationSourceMissing: 'Reservation source document is missing',
+        reservationSourceStatusInvalid: 'Reservation source document status does not match'
+      },
       sourceTypeValue: { salesOrder: 'Sales order' },
       dialog: { manualRelease: 'Manually release reservation' },
       validation: {
@@ -890,6 +907,7 @@ export const operationsPageMessages = {
     inventoryLotGenealogy: {
       title: 'Lot genealogy',
       noLot: 'No lot',
+      listSeparator: ', ',
       upstream: 'Upstream sources',
       downstream: 'Downstream destinations',
       recallList: 'Customer recall list',

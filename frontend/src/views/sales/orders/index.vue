@@ -73,9 +73,10 @@
           <template #default="{ row }">{{ deliveryText(row.deliveryStatus) }}</template>
         </el-table-column>
         <el-table-column prop="remark" :label="t('salesOrder.remark')" min-width="160" show-overflow-tooltip />
-        <el-table-column :label="t('salesOrder.actions')" width="310" fixed="right" align="center">
+        <el-table-column :label="t('salesOrder.actions')" width="370" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" :icon="View" @click="handleView(row)">{{ t('salesOrder.view') }}</el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.orderNo)">{{ t('documentAttachment.entry') }}</el-button>
             <el-button link type="primary" @click="handlePrint(row)">{{ t('salesOrder.print') }}</el-button>
             <el-button v-if="!row.contractId" v-permission="'sales:order:create'" link type="primary" @click="handleCopy(row)">{{ t('salesOrder.copy') }}</el-button>
             <el-button v-if="canEdit(row)" v-permission="'sales:order:update'" link type="primary" :icon="Edit" @click="handleEdit(row)">{{ t('salesOrder.edit') }}</el-button>
@@ -301,6 +302,15 @@
         <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSave">{{ t('salesOrder.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="SALES_ORDER"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -327,12 +337,25 @@ import { getContract, getContracts, type ContractRecord } from '@/api/contracts'
 import { getCustomers, getProducts, getWarehouses } from '@/api/masterdata'
 import { printSalesOrder } from '@/utils/bizPrint'
 import { formatBusinessDate } from '@/utils/locale'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useSalesOrderPresentation } from '@/composables/useSalesOrderPresentation'
 import { useSalesOrderList } from '@/composables/useSalesOrderList'
 import { useSalesOrderForm } from '@/composables/useSalesOrderForm'
+import { useUserStore } from '@/store/modules/user'
 
 const route = useRoute()
 const { t } = useI18n()
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 const salesContracts = ref<ContractRecord[]>([])
 const readQueryString = (key: string) => {
   const value = route.query[key]
