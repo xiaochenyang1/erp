@@ -12,6 +12,7 @@ import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -82,7 +83,25 @@ public class FinanceSubledgerPostingService {
         entity.setSettledAmount(ZERO_AMOUNT);
         entity.setStatus("INCREASE".equals(direction) ? "UNSETTLED" : "OFFSET");
         setAudit(entity, remark, audit, now);
-        payableMapper.insert(entity);
+        try {
+            payableMapper.insert(entity);
+        } catch (DuplicateKeyException ex) {
+            // The source unique key arbitrates concurrent postings.  Re-read
+            // the committed winner under a row lock and treat it as the
+            // idempotent result; preserve unrelated unique-key failures.
+            PayableEntity existing = payableMapper.selectOne(sourceWrapper(
+                    audit,
+                    sourceType,
+                    sourceId,
+                    PayableEntity::getCompanyId,
+                    PayableEntity::getAccountBookId,
+                    PayableEntity::getSourceType,
+                    PayableEntity::getSourceId
+            ).last("FOR UPDATE"));
+            if (existing == null) {
+                throw ex;
+            }
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -124,7 +143,24 @@ public class FinanceSubledgerPostingService {
         entity.setSettledAmount(ZERO_AMOUNT);
         entity.setStatus("INCREASE".equals(direction) ? "UNSETTLED" : "OFFSET");
         setAudit(entity, remark, audit, now);
-        receivableMapper.insert(entity);
+        try {
+            receivableMapper.insert(entity);
+        } catch (DuplicateKeyException ex) {
+            // See payable posting above.  The tenant/source lookup prevents
+            // us from swallowing a collision on an unrelated unique key.
+            ReceivableEntity existing = receivableMapper.selectOne(sourceWrapper(
+                    audit,
+                    sourceType,
+                    sourceId,
+                    ReceivableEntity::getCompanyId,
+                    ReceivableEntity::getAccountBookId,
+                    ReceivableEntity::getSourceType,
+                    ReceivableEntity::getSourceId
+            ).last("FOR UPDATE"));
+            if (existing == null) {
+                throw ex;
+            }
+        }
     }
 
     private LocalDate resolveCustomerDueDate(Long customerId, LocalDate bizDate, AuditMetadata audit) {

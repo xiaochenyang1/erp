@@ -3,6 +3,7 @@ package com.tuowei.erp.finance.receipt.service;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptAllocationMapper;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptMapper;
 import com.tuowei.erp.finance.receipt.web.ReceiptCancelRequest;
@@ -34,12 +35,13 @@ public class ReceiptService {
             ReceivableMapper receivableMapper,
             ReceiptNumberService receiptNumberService,
             AuditMetadataFactory auditMetadataFactory,
-            AccountPeriodGuard accountPeriodGuard
+            AccountPeriodGuard accountPeriodGuard,
+            FinancePostingService financePostingService
     ) {
         this.queryService = new ReceiptQueryService(receiptMapper, receiptAllocationMapper, auditMetadataFactory);
         this.commandService = new ReceiptCommandService(
                 receiptMapper, receiptAllocationMapper, receivableMapper, receiptNumberService,
-                auditMetadataFactory, accountPeriodGuard, queryService
+                auditMetadataFactory, accountPeriodGuard, queryService, financePostingService
         );
     }
 

@@ -10,6 +10,7 @@ import com.tuowei.erp.finance.payment.web.PaymentCreateRequest;
 import com.tuowei.erp.finance.payment.web.PaymentPageQuery;
 import com.tuowei.erp.finance.payment.web.PaymentResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.posting.FinancePostingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,9 +24,9 @@ public class PaymentService {
     @Autowired
     public PaymentService(PaymentQueryService queryService, PaymentCommandService commandService) { this.queryService = queryService; this.commandService = commandService; }
     /** Keeps direct construction in existing non-Spring tests compatible. */
-    public PaymentService(PaymentMapper paymentMapper, PaymentAllocationMapper paymentAllocationMapper, PayableMapper payableMapper, PaymentNumberService paymentNumberService, AuditMetadataFactory auditMetadataFactory, AccountPeriodGuard accountPeriodGuard) {
+    public PaymentService(PaymentMapper paymentMapper, PaymentAllocationMapper paymentAllocationMapper, PayableMapper payableMapper, PaymentNumberService paymentNumberService, AuditMetadataFactory auditMetadataFactory, AccountPeriodGuard accountPeriodGuard, FinancePostingService financePostingService) {
         this.queryService = new PaymentQueryService(paymentMapper, paymentAllocationMapper, auditMetadataFactory);
-        this.commandService = new PaymentCommandService(paymentMapper, paymentAllocationMapper, payableMapper, paymentNumberService, auditMetadataFactory, accountPeriodGuard, queryService);
+        this.commandService = new PaymentCommandService(paymentMapper, paymentAllocationMapper, payableMapper, paymentNumberService, auditMetadataFactory, accountPeriodGuard, queryService, financePostingService);
     }
     @Transactional
     public PaymentResponse create(PaymentCreateRequest request) { return commandService.create(request); }

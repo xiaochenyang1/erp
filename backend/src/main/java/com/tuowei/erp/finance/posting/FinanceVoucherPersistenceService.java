@@ -72,8 +72,28 @@ public class FinanceVoucherPersistenceService {
         entity.setAmount(amount);
         entity.setStatus("POSTED");
         setAudit(entity, remark, audit, now);
-        voucherMapper.insert(entity);
-        return entity;
+        try {
+            voucherMapper.insert(entity);
+            return entity;
+        } catch (DuplicateKeyException ex) {
+            // A concurrent poster may have won the source unique key after
+            // the initial read.  Locking read observes that committed winner
+            // even under MySQL REPEATABLE READ, then the caller can continue
+            // idempotently with its voucher and entries.
+            VoucherEntity concurrent = voucherMapper.selectOne(sourceWrapper(
+                    audit,
+                    sourceType,
+                    sourceId,
+                    VoucherEntity::getCompanyId,
+                    VoucherEntity::getAccountBookId,
+                    VoucherEntity::getSourceType,
+                    VoucherEntity::getSourceId
+            ).last("FOR UPDATE"));
+            if (concurrent != null) {
+                return concurrent;
+            }
+            throw ex;
+        }
     }
 
     void insertVoucherEntriesIfAbsent(
@@ -206,6 +226,72 @@ public class FinanceVoucherPersistenceService {
         insertVoucherEntry(voucher, taxSubject, 3, ZERO_AMOUNT, tax, "采购退货凭证", audit, now);
     }
 
+    /**
+     * 收付款凭证分录：资金科目一条腿走全额，结算科目走核销金额，未核销余额落预收/预付科目。
+     *
+     * <p>{@code cashOnDebit} 为 true 表示资金流入（收款、付款作废冲回），false 表示资金流出（付款、收款作废冲回）。
+     * 资金腿金额恒等于结算金额与预收预付金额之和，因此分录天然平衡。
+     */
+    void insertCashSettlementEntriesIfAbsent(
+            VoucherEntity voucher,
+            String cashSubjectCode,
+            boolean cashOnDebit,
+            String settlementSubjectCode,
+            BigDecimal settlementAmount,
+            String advanceSubjectCode,
+            BigDecimal advanceAmount,
+            String summary,
+            AuditMetadata audit
+    ) {
+        if (hasVoucherEntries(voucher, audit)) {
+            return;
+        }
+        BigDecimal settlement = ScalePrecision.amount(ScalePrecision.zeroDefault(settlementAmount));
+        BigDecimal advance = ScalePrecision.amount(ScalePrecision.zeroDefault(advanceAmount));
+        if (settlement.compareTo(BigDecimal.ZERO) < 0 || advance.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("收付款凭证金额不能为负数");
+        }
+        BigDecimal cash = ScalePrecision.amount(settlement.add(advance));
+        if (cash.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("收付款凭证金额必须大于0");
+        }
+        AccountSubjectEntity cashSubject = requireSubjectByCode(cashSubjectCode, audit);
+        LocalDateTime now = audit.now();
+        int lineNo = 1;
+        if (cashOnDebit) {
+            insertVoucherEntry(voucher, cashSubject, lineNo++, cash, ZERO_AMOUNT, summary, audit, now);
+        }
+        if (settlement.compareTo(BigDecimal.ZERO) > 0) {
+            AccountSubjectEntity settlementSubject = requireSubjectByCode(settlementSubjectCode, audit);
+            insertVoucherEntry(
+                    voucher,
+                    settlementSubject,
+                    lineNo++,
+                    cashOnDebit ? ZERO_AMOUNT : settlement,
+                    cashOnDebit ? settlement : ZERO_AMOUNT,
+                    summary,
+                    audit,
+                    now
+            );
+        }
+        if (advance.compareTo(BigDecimal.ZERO) > 0) {
+            AccountSubjectEntity advanceSubject = requireSubjectByCode(advanceSubjectCode, audit);
+            insertVoucherEntry(
+                    voucher,
+                    advanceSubject,
+                    lineNo++,
+                    cashOnDebit ? ZERO_AMOUNT : advance,
+                    cashOnDebit ? advance : ZERO_AMOUNT,
+                    summary,
+                    audit,
+                    now
+            );
+        }
+        if (!cashOnDebit) {
+            insertVoucherEntry(voucher, cashSubject, lineNo, ZERO_AMOUNT, cash, summary, audit, now);
+        }
+    }
+
     boolean hasVoucherEntries(VoucherEntity voucher, AuditMetadata audit) {
         return voucherEntryMapper.selectCount(new LambdaQueryWrapper<VoucherEntryEntity>()
                 .eq(VoucherEntryEntity::getCompanyId, audit.companyId())
@@ -255,7 +341,35 @@ public class FinanceVoucherPersistenceService {
         entry.setUpdatedBy(audit.userId());
         entry.setUpdatedTime(now);
         entry.setVersion(0);
-        voucherEntryMapper.insert(entry);
+        try {
+            voucherEntryMapper.insert(entry);
+        } catch (DuplicateKeyException ex) {
+            // The voucher line unique key is the concurrency backstop.  A
+            // duplicate line from another poster is already the desired
+            // idempotent result; unrelated conflicts must remain visible.
+            VoucherEntryEntity existing = voucherEntryMapper.selectOne(
+                    new LambdaQueryWrapper<VoucherEntryEntity>()
+                            .eq(VoucherEntryEntity::getCompanyId, audit.companyId())
+                            .eq(VoucherEntryEntity::getAccountBookId, audit.accountBookId())
+                            .eq(VoucherEntryEntity::getVoucherId, voucher.getId())
+                            .eq(VoucherEntryEntity::getLineNo, lineNo)
+                            .last("FOR UPDATE")
+            );
+            if (existing == null
+                    || !sameEntry(existing, entry)) {
+                throw ex;
+            }
+        }
+    }
+
+    private boolean sameEntry(VoucherEntryEntity left, VoucherEntryEntity right) {
+        return java.util.Objects.equals(left.getSubjectCode(), right.getSubjectCode())
+                && sameAmount(left.getDebitAmount(), right.getDebitAmount())
+                && sameAmount(left.getCreditAmount(), right.getCreditAmount());
+    }
+
+    private boolean sameAmount(BigDecimal left, BigDecimal right) {
+        return left == null ? right == null : right != null && left.compareTo(right) == 0;
     }
 
     private int nextLineNo(VoucherEntity voucher, AuditMetadata audit) {
@@ -304,6 +418,7 @@ public class FinanceVoucherPersistenceService {
                             .eq(AccountSubjectEntity::getSubjectCode, subjectCode)
                             .eq(AccountSubjectEntity::getStatus, "ACTIVE")
                             .eq(AccountSubjectEntity::getDeletedFlag, 0)
+                            .last("FOR UPDATE")
             );
             if (existing != null) {
                 return existing;
@@ -317,7 +432,9 @@ public class FinanceVoucherPersistenceService {
             case "1001" -> new SubjectDefinition("1001", "库存商品", "ASSET", "DEBIT");
             case "1002" -> new SubjectDefinition("1002", "银行存款", "ASSET", "DEBIT");
             case "1122" -> new SubjectDefinition("1122", "应收账款", "ASSET", "DEBIT");
+            case "1123" -> new SubjectDefinition("1123", "预付账款", "ASSET", "DEBIT");
             case "2202" -> new SubjectDefinition("2202", "应付账款", "LIABILITY", "CREDIT");
+            case "2203" -> new SubjectDefinition("2203", "预收账款", "LIABILITY", "CREDIT");
             case "222101" -> new SubjectDefinition("222101", "应交税费-进项税额", "LIABILITY", "DEBIT");
             case "5001" -> new SubjectDefinition("5001", "生产成本", "ASSET", "DEBIT");
             case "6001" -> new SubjectDefinition("6001", "主营业务收入", "REVENUE", "CREDIT");

@@ -6,6 +6,7 @@ import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptAllocationMapper;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptMapper;
 import com.tuowei.erp.finance.receipt.model.ReceiptAllocationEntity;
@@ -36,6 +37,7 @@ public class ReceiptCommandService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final AccountPeriodGuard accountPeriodGuard;
     private final ReceiptQueryService queryService;
+    private final FinancePostingService financePostingService;
 
     public ReceiptCommandService(
             ReceiptMapper receiptMapper,
@@ -44,7 +46,8 @@ public class ReceiptCommandService {
             ReceiptNumberService receiptNumberService,
             AuditMetadataFactory auditMetadataFactory,
             AccountPeriodGuard accountPeriodGuard,
-            ReceiptQueryService queryService
+            ReceiptQueryService queryService,
+            FinancePostingService financePostingService
     ) {
         this.receiptMapper = receiptMapper;
         this.receiptAllocationMapper = receiptAllocationMapper;
@@ -53,6 +56,7 @@ public class ReceiptCommandService {
         this.auditMetadataFactory = auditMetadataFactory;
         this.accountPeriodGuard = accountPeriodGuard;
         this.queryService = queryService;
+        this.financePostingService = financePostingService;
     }
 
     @Transactional
@@ -72,6 +76,7 @@ public class ReceiptCommandService {
         receipt.setStatus("POSTED"); receipt.setDeletedFlag(0); receipt.setRemark(request.remark()); setAudit(receipt, audit, now);
         if (receiptMapper.insert(receipt) != 1) throw new IllegalStateException("保存收款单失败");
         for (ReceiptAllocationRequest allocation : request.allocations()) allocateReceivable(receipt, allocation, audit, now);
+        financePostingService.recordReceipt(receipt, audit);
         return queryService.detail(receipt.getId());
     }
 
@@ -87,6 +92,7 @@ public class ReceiptCommandService {
         receipt.setUpdatedBy(audit.userId()); receipt.setUpdatedTime(now);
         OptimisticLockGuard.requireUpdated(receiptMapper.updateById(receipt), "收款单已被其他操作修改，请刷新后重试");
         for (ReceiptAllocationEntity allocation : queryService.allocations(receipt)) revertReceivableSettlement(receipt, allocation, audit, now);
+        financePostingService.recordReceiptCancellation(receipt, audit);
         return queryService.detail(id);
     }
 

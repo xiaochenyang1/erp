@@ -2,6 +2,8 @@ package com.tuowei.erp.finance.posting;
 
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.finance.payment.model.PaymentEntity;
+import com.tuowei.erp.finance.receipt.model.ReceiptEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentLineEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
@@ -69,6 +71,30 @@ public class FinancePostingService {
                 audit
         );
         voucherPostingService.recordPurchaseReturn(purchaseReturn, inventoryAmount, taxAmount, amount, audit);
+    }
+
+    /** 收款单过账：资金流入并核销应收，未核销部分计入预收账款。 */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordReceipt(ReceiptEntity receipt, AuditMetadata audit) {
+        voucherPostingService.recordReceipt(receipt, settledAmount(receipt.getAllocatedAmount()), advanceAmount(receipt.getAmount(), receipt.getAllocatedAmount()), audit);
+    }
+
+    /** 收款单作废：按原金额生成反向凭证，冲回资金与应收。 */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordReceiptCancellation(ReceiptEntity receipt, AuditMetadata audit) {
+        voucherPostingService.recordReceiptCancellation(receipt, settledAmount(receipt.getAllocatedAmount()), advanceAmount(receipt.getAmount(), receipt.getAllocatedAmount()), audit);
+    }
+
+    /** 付款单过账：资金流出并核销应付，未核销部分计入预付账款。 */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordPayment(PaymentEntity payment, AuditMetadata audit) {
+        voucherPostingService.recordPayment(payment, settledAmount(payment.getAllocatedAmount()), advanceAmount(payment.getAmount(), payment.getAllocatedAmount()), audit);
+    }
+
+    /** 付款单作废：按原金额生成反向凭证，冲回资金与应付。 */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordPaymentCancellation(PaymentEntity payment, AuditMetadata audit) {
+        voucherPostingService.recordPaymentCancellation(payment, settledAmount(payment.getAllocatedAmount()), advanceAmount(payment.getAmount(), payment.getAllocatedAmount()), audit);
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -244,6 +270,18 @@ public class FinancePostingService {
                 summary,
                 audit
         );
+    }
+
+    private BigDecimal settledAmount(BigDecimal allocatedAmount) {
+        return ScalePrecision.amount(ScalePrecision.zeroDefault(allocatedAmount));
+    }
+
+    /** 收付款总额超出核销额的部分构成预收/预付，凭证必须把它单独列腿才能借贷平衡。 */
+    private BigDecimal advanceAmount(BigDecimal totalAmount, BigDecimal allocatedAmount) {
+        BigDecimal advance = ScalePrecision.amount(
+                ScalePrecision.zeroDefault(totalAmount).subtract(ScalePrecision.zeroDefault(allocatedAmount))
+        );
+        return advance.compareTo(BigDecimal.ZERO) > 0 ? advance : ScalePrecision.amount(BigDecimal.ZERO);
     }
 
     private BigDecimal inventoryAmount(BigDecimal totalAmount) {

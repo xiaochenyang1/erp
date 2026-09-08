@@ -2,6 +2,8 @@ package com.tuowei.erp.finance.posting;
 
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.finance.payment.model.PaymentEntity;
+import com.tuowei.erp.finance.receipt.model.ReceiptEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentLineEntity;
@@ -20,6 +22,8 @@ import java.util.List;
 /** Business-document accounting strategies backed by tenant-scoped persistence. */
 @Service
 public class FinanceVoucherPostingService {
+
+    private static final String CASH_SUBJECT = "1002";
 
     private final FinanceVoucherPersistenceService persistenceService;
 
@@ -72,9 +76,37 @@ public class FinanceVoucherPostingService {
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
+    public void recordReceipt(ReceiptEntity receipt, BigDecimal settledAmount, BigDecimal advanceAmount, AuditMetadata audit) {
+        VoucherEntity voucher = persistenceService.insertVoucherIfAbsent("RECEIPT", receipt.getId(), receipt.getReceiptNo(), receipt.getReceiptDate(), cashAmount(settledAmount, advanceAmount), "收款单凭证", audit);
+        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, true, "1122", settledAmount, "2203", advanceAmount, "收款核销应收", audit);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordReceiptCancellation(ReceiptEntity receipt, BigDecimal settledAmount, BigDecimal advanceAmount, AuditMetadata audit) {
+        VoucherEntity voucher = persistenceService.insertVoucherIfAbsent("RECEIPT_REVERSAL", receipt.getId(), receipt.getReceiptNo(), receipt.getReceiptDate(), cashAmount(settledAmount, advanceAmount), "收款单作废冲回凭证", audit);
+        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, false, "1122", settledAmount, "2203", advanceAmount, "收款作废冲回应收", audit);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordPayment(PaymentEntity payment, BigDecimal settledAmount, BigDecimal advanceAmount, AuditMetadata audit) {
+        VoucherEntity voucher = persistenceService.insertVoucherIfAbsent("PAYMENT", payment.getId(), payment.getPaymentNo(), payment.getPaymentDate(), cashAmount(settledAmount, advanceAmount), "付款单凭证", audit);
+        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, false, "2202", settledAmount, "1123", advanceAmount, "付款核销应付", audit);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordPaymentCancellation(PaymentEntity payment, BigDecimal settledAmount, BigDecimal advanceAmount, AuditMetadata audit) {
+        VoucherEntity voucher = persistenceService.insertVoucherIfAbsent("PAYMENT_REVERSAL", payment.getId(), payment.getPaymentNo(), payment.getPaymentDate(), cashAmount(settledAmount, advanceAmount), "付款单作废冲回凭证", audit);
+        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, true, "2202", settledAmount, "1123", advanceAmount, "付款作废冲回应付", audit);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
     public void recordTwoSidedVoucher(String sourceType, Long sourceId, String sourceNo, java.time.LocalDate bizDate, BigDecimal amount, String voucherRemark, String debitSubjectCode, String creditSubjectCode, String summary, AuditMetadata audit) {
         VoucherEntity voucher = persistenceService.insertVoucherIfAbsent(sourceType, sourceId, sourceNo, bizDate, amount, voucherRemark, audit);
         persistenceService.insertVoucherEntriesIfAbsent(voucher, debitSubjectCode, creditSubjectCode, amount, summary, audit);
+    }
+
+    private BigDecimal cashAmount(BigDecimal settledAmount, BigDecimal advanceAmount) {
+        return ScalePrecision.amount(ScalePrecision.zeroDefault(settledAmount).add(ScalePrecision.zeroDefault(advanceAmount)));
     }
 
     private BigDecimal inventoryAdjustmentVoucherAmount(List<InventoryAdjustmentLineEntity> lines) {

@@ -12,6 +12,7 @@ import com.tuowei.erp.finance.payment.web.PaymentCancelRequest;
 import com.tuowei.erp.finance.payment.web.PaymentCreateRequest;
 import com.tuowei.erp.finance.payment.web.PaymentPageQuery;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.posting.FinancePostingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
@@ -29,7 +30,7 @@ class PaymentServiceDecompositionTest {
     @Test void dependenciesAreOneWay() {
         assertThat(autowired(PaymentService.class)).containsExactlyInAnyOrder(PaymentQueryService.class, PaymentCommandService.class);
         assertThat(deps(PaymentQueryService.class)).containsExactlyInAnyOrder(PaymentMapper.class, PaymentAllocationMapper.class, AuditMetadataFactory.class).doesNotContain(PaymentService.class, PaymentCommandService.class);
-        assertThat(deps(PaymentCommandService.class)).containsExactlyInAnyOrder(PaymentMapper.class, PaymentAllocationMapper.class, PayableMapper.class, PaymentNumberService.class, AuditMetadataFactory.class, AccountPeriodGuard.class, PaymentQueryService.class).doesNotContain(PaymentService.class);
+        assertThat(deps(PaymentCommandService.class)).containsExactlyInAnyOrder(PaymentMapper.class, PaymentAllocationMapper.class, PayableMapper.class, PaymentNumberService.class, AuditMetadataFactory.class, AccountPeriodGuard.class, PaymentQueryService.class, FinancePostingService.class).doesNotContain(PaymentService.class);
     }
     @Test void facadeDelegates() {
         PaymentQueryService query = mock(PaymentQueryService.class); PaymentCommandService command = mock(PaymentCommandService.class); PaymentService service = new PaymentService(query, command); PaymentCreateRequest create = null; PaymentCancelRequest cancel = null;
