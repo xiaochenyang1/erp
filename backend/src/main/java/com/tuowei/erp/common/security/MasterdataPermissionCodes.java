@@ -28,6 +28,8 @@ public interface MasterdataPermissionCodes {
 
     String MASTERDATA_LOCATION_VIEW = "masterdata:location:view";
     String MASTERDATA_LOCATION_MANAGE = "masterdata:location:manage";
+    String MASTERDATA_CURRENCY_VIEW = "masterdata:currency:view";
+    String MASTERDATA_CURRENCY_MANAGE = "masterdata:currency:manage";
 
     String HAS_MASTERDATA_PRODUCT_VIEW = "hasAuthority('" + MASTERDATA_PRODUCT_VIEW + "')";
     String HAS_MASTERDATA_PRODUCT_CREATE = "hasAuthority('" + MASTERDATA_PRODUCT_CREATE + "')";
@@ -55,4 +57,6 @@ public interface MasterdataPermissionCodes {
 
     String HAS_MASTERDATA_LOCATION_VIEW = "hasAuthority('" + MASTERDATA_LOCATION_VIEW + "')";
     String HAS_MASTERDATA_LOCATION_MANAGE = "hasAuthority('" + MASTERDATA_LOCATION_MANAGE + "')";
+    String HAS_MASTERDATA_CURRENCY_VIEW = "hasAuthority('" + MASTERDATA_CURRENCY_VIEW + "')";
+    String HAS_MASTERDATA_CURRENCY_MANAGE = "hasAuthority('" + MASTERDATA_CURRENCY_MANAGE + "')";
 }
