@@ -19,15 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /** Write-side commands, events and notifications for exception tickets. */
@@ -42,7 +39,6 @@ public class ExceptionTicketCommandService {
     private static final String DEFAULT_PRIORITY = "MEDIUM";
     private static final long SYSTEM_USER_ID = 0L;
     private static final String NOTIFICATION_BUSINESS_TYPE = "EXCEPTION_TICKET";
-    private static final DateTimeFormatter TICKET_DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
 
     private final AuditMetadataFactory auditMetadataFactory;
     private final ExceptionTicketMapper ticketMapper;
@@ -50,8 +46,8 @@ public class ExceptionTicketCommandService {
     private final NotificationService notificationService;
     private final ExceptionSlaPolicyService slaPolicyService;
     private final ExceptionTicketQueryService exceptionTicketQueryService;
+    private final ExceptionTicketNumberService exceptionTicketNumberService;
     private final Clock clock;
-    private final AtomicLong ticketNoCounter = new AtomicLong();
 
     public ExceptionTicketCommandService(
             AuditMetadataFactory auditMetadataFactory,
@@ -60,6 +56,7 @@ public class ExceptionTicketCommandService {
             NotificationService notificationService,
             ExceptionSlaPolicyService slaPolicyService,
             ExceptionTicketQueryService exceptionTicketQueryService,
+            ExceptionTicketNumberService exceptionTicketNumberService,
             Clock clock
     ) {
         this.auditMetadataFactory = auditMetadataFactory;
@@ -68,6 +65,7 @@ public class ExceptionTicketCommandService {
         this.notificationService = notificationService;
         this.slaPolicyService = slaPolicyService;
         this.exceptionTicketQueryService = exceptionTicketQueryService;
+        this.exceptionTicketNumberService = exceptionTicketNumberService;
         this.clock = clock;
     }
 
@@ -86,7 +84,7 @@ public class ExceptionTicketCommandService {
         ExceptionTicketEntity ticket = new ExceptionTicketEntity();
         ticket.setCompanyId(audit.companyId());
         ticket.setAccountBookId(audit.accountBookId());
-        ticket.setTicketNo(nextTicketNo(audit));
+        ticket.setTicketNo(exceptionTicketNumberService.nextTicketNo(audit));
         ticket.setCategory(normalizeCodeOrDefault(safeRequest.getCategory(), DEFAULT_CATEGORY));
         ticket.setPriority(normalizeCodeOrDefault(safeRequest.getPriority(), DEFAULT_PRIORITY));
         ticket.setTitle(truncate(title, 128));
@@ -209,18 +207,40 @@ public class ExceptionTicketCommandService {
 
     @Transactional
     public int escalateOverdueTickets(LocalDateTime now) {
+        return escalateOverdueTickets(now, null, null);
+    }
+
+    @Transactional
+    public int escalateOverdueTickets(LocalDateTime now, Long companyId, Long accountBookId) {
         LocalDateTime effectiveNow = now == null ? LocalDateTime.now(clock) : now;
-        List<ExceptionTicketEntity> tickets = ticketMapper.selectList(new LambdaQueryWrapper<ExceptionTicketEntity>()
+        LambdaQueryWrapper<ExceptionTicketEntity> ticketQuery = new LambdaQueryWrapper<ExceptionTicketEntity>()
                 .eq(ExceptionTicketEntity::getDeletedFlag, 0)
                 .in(ExceptionTicketEntity::getStatus, List.of(STATUS_OPEN, STATUS_PROCESSING))
                 .isNotNull(ExceptionTicketEntity::getDueTime)
                 .le(ExceptionTicketEntity::getDueTime, effectiveNow)
                 .orderByAsc(ExceptionTicketEntity::getDueTime)
-                .orderByAsc(ExceptionTicketEntity::getId));
-        Set<Long> escalatedTicketIds = escalatedTicketIds(tickets);
+                .orderByAsc(ExceptionTicketEntity::getId);
+        if (companyId != null) {
+            ticketQuery.eq(ExceptionTicketEntity::getCompanyId, companyId);
+        }
+        if (accountBookId != null) {
+            ticketQuery.eq(ExceptionTicketEntity::getAccountBookId, accountBookId);
+        }
+        List<ExceptionTicketEntity> tickets = ticketMapper.selectList(ticketQuery);
+        Set<Long> escalatedTicketIds = escalatedTicketIds(tickets, companyId, accountBookId);
         int count = 0;
-        for (ExceptionTicketEntity ticket : tickets) {
-            if (ticket.getId() == null || escalatedTicketIds.contains(ticket.getId())) {
+        for (ExceptionTicketEntity candidate : tickets) {
+            if (candidate == null || candidate.getId() == null
+                    || escalatedTicketIds.contains(candidate.getId())) {
+                continue;
+            }
+            // The candidate list is only a snapshot.  Re-read and lock the
+            // current row before checking the escalation event so two
+            // scheduler instances cannot both pass the pre-check and emit
+            // duplicate events/notifications.
+            ExceptionTicketEntity ticket = lockCurrentOverdueTicket(
+                    candidate, effectiveNow, companyId, accountBookId);
+            if (ticket == null || hasEscalationEvent(ticket, companyId, accountBookId)) {
                 continue;
             }
             AuditMetadata audit = systemAudit(ticket, effectiveNow);
@@ -232,7 +252,11 @@ public class ExceptionTicketCommandService {
             String toPriority = normalizeCodeOrDefault(escalationPolicy.targetPriority(), fromPriority);
             ticket.setPriority(toPriority);
             touch(ticket, audit, effectiveNow);
-            ticketMapper.updateById(ticket);
+            if (ticketMapper.updateById(ticket) != 1) {
+                // Optimistic locking lost to another writer.  Do not append an
+                // event or notification for an update that did not commit.
+                continue;
+            }
             String comment = "异常工单已超时，优先级从 " + fromPriority + " 升级为 " + toPriority;
             createEvent(ticket, "ESCALATE", ticket.getStatus(), ticket.getStatus(), comment, audit, effectiveNow);
             notifyTicket(
@@ -248,6 +272,50 @@ public class ExceptionTicketCommandService {
             count++;
         }
         return count;
+    }
+
+    private ExceptionTicketEntity lockCurrentOverdueTicket(
+            ExceptionTicketEntity candidate,
+            LocalDateTime effectiveNow,
+            Long companyId,
+            Long accountBookId
+    ) {
+        LambdaQueryWrapper<ExceptionTicketEntity> query = new LambdaQueryWrapper<ExceptionTicketEntity>()
+                .eq(ExceptionTicketEntity::getId, candidate.getId())
+                .eq(ExceptionTicketEntity::getDeletedFlag, 0)
+                .in(ExceptionTicketEntity::getStatus, List.of(STATUS_OPEN, STATUS_PROCESSING))
+                .isNotNull(ExceptionTicketEntity::getDueTime)
+                .le(ExceptionTicketEntity::getDueTime, effectiveNow)
+                .last("FOR UPDATE");
+        Long scopedCompanyId = companyId != null ? companyId : candidate.getCompanyId();
+        Long scopedAccountBookId = accountBookId != null ? accountBookId : candidate.getAccountBookId();
+        if (scopedCompanyId != null) {
+            query.eq(ExceptionTicketEntity::getCompanyId, scopedCompanyId);
+        }
+        if (scopedAccountBookId != null) {
+            query.eq(ExceptionTicketEntity::getAccountBookId, scopedAccountBookId);
+        }
+        return ticketMapper.selectOne(query);
+    }
+
+    private boolean hasEscalationEvent(
+            ExceptionTicketEntity ticket,
+            Long companyId,
+            Long accountBookId
+    ) {
+        LambdaQueryWrapper<ExceptionTicketEventEntity> query = new LambdaQueryWrapper<ExceptionTicketEventEntity>()
+                .eq(ExceptionTicketEventEntity::getTicketId, ticket.getId())
+                .eq(ExceptionTicketEventEntity::getAction, "ESCALATE")
+                .last("FOR UPDATE");
+        Long scopedCompanyId = companyId != null ? companyId : ticket.getCompanyId();
+        Long scopedAccountBookId = accountBookId != null ? accountBookId : ticket.getAccountBookId();
+        if (scopedCompanyId != null) {
+            query.eq(ExceptionTicketEventEntity::getCompanyId, scopedCompanyId);
+        }
+        if (scopedAccountBookId != null) {
+            query.eq(ExceptionTicketEventEntity::getAccountBookId, scopedAccountBookId);
+        }
+        return !eventMapper.selectList(query).isEmpty();
     }
 
     private ExceptionTicketResponse transition(
@@ -294,7 +362,11 @@ public class ExceptionTicketCommandService {
         return event;
     }
 
-    private Set<Long> escalatedTicketIds(List<ExceptionTicketEntity> tickets) {
+    private Set<Long> escalatedTicketIds(
+            List<ExceptionTicketEntity> tickets,
+            Long companyId,
+            Long accountBookId
+    ) {
         List<Long> ticketIds = tickets.stream()
                 .map(ExceptionTicketEntity::getId)
                 .filter(java.util.Objects::nonNull)
@@ -303,9 +375,16 @@ public class ExceptionTicketCommandService {
         if (ticketIds.isEmpty()) {
             return Set.of();
         }
-        return eventMapper.selectList(new LambdaQueryWrapper<ExceptionTicketEventEntity>()
+        LambdaQueryWrapper<ExceptionTicketEventEntity> eventQuery = new LambdaQueryWrapper<ExceptionTicketEventEntity>()
                         .in(ExceptionTicketEventEntity::getTicketId, ticketIds)
-                        .eq(ExceptionTicketEventEntity::getAction, "ESCALATE"))
+                        .eq(ExceptionTicketEventEntity::getAction, "ESCALATE");
+        if (companyId != null) {
+            eventQuery.eq(ExceptionTicketEventEntity::getCompanyId, companyId);
+        }
+        if (accountBookId != null) {
+            eventQuery.eq(ExceptionTicketEventEntity::getAccountBookId, accountBookId);
+        }
+        return eventMapper.selectList(eventQuery)
                 .stream()
                 .map(ExceptionTicketEventEntity::getTicketId)
                 .collect(Collectors.toSet());
@@ -417,39 +496,6 @@ public class ExceptionTicketCommandService {
     private void rejectClosed(ExceptionTicketEntity ticket) {
         if (STATUS_CLOSED.equals(ticket.getStatus())) {
             throw new IllegalArgumentException("已关闭的异常工单不能修改");
-        }
-    }
-
-    private String nextTicketNo(AuditMetadata audit) {
-        String bizDate = LocalDate.now(clock).format(TICKET_DATE_FORMATTER);
-        long persistedValue = latestTicketSequence(audit, bizDate);
-        long nextValue = ticketNoCounter.updateAndGet(value -> {
-            long baseline = Math.max(value, persistedValue);
-            return baseline >= 9999L ? 1L : baseline + 1L;
-        });
-        return "ET-" + bizDate + "-" + String.format("%04d", nextValue);
-    }
-
-    private long latestTicketSequence(AuditMetadata audit, String bizDate) {
-        String prefix = "ET-" + bizDate + "-";
-        ExceptionTicketEntity latest = ticketMapper.selectOne(new LambdaQueryWrapper<ExceptionTicketEntity>()
-                .eq(ExceptionTicketEntity::getCompanyId, audit.companyId())
-                .eq(ExceptionTicketEntity::getAccountBookId, audit.accountBookId())
-                .eq(ExceptionTicketEntity::getDeletedFlag, 0)
-                .likeRight(ExceptionTicketEntity::getTicketNo, prefix)
-                .orderByDesc(ExceptionTicketEntity::getTicketNo)
-                .last("LIMIT 1"));
-        return parseTicketSequence(latest == null ? null : latest.getTicketNo(), prefix);
-    }
-
-    private long parseTicketSequence(String ticketNo, String prefix) {
-        if (ticketNo == null || !ticketNo.startsWith(prefix)) {
-            return 0L;
-        }
-        try {
-            return Long.parseLong(ticketNo.substring(prefix.length()));
-        } catch (NumberFormatException ex) {
-            return 0L;
         }
     }
 

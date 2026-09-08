@@ -67,4 +67,9 @@ public class ExceptionTicketService {
     public int escalateOverdueTickets(LocalDateTime now) {
         return exceptionTicketCommandService.escalateOverdueTickets(now);
     }
+
+    @Transactional
+    public int escalateOverdueTickets(LocalDateTime now, Long companyId, Long accountBookId) {
+        return exceptionTicketCommandService.escalateOverdueTickets(now, companyId, accountBookId);
+    }
 }

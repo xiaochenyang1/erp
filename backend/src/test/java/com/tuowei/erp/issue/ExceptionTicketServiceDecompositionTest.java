@@ -6,6 +6,7 @@ import com.tuowei.erp.issue.mapper.ExceptionTicketEventMapper;
 import com.tuowei.erp.issue.mapper.ExceptionTicketMapper;
 import com.tuowei.erp.issue.service.ExceptionTicketQueryService;
 import com.tuowei.erp.issue.service.ExceptionTicketCommandService;
+import com.tuowei.erp.issue.service.ExceptionTicketNumberService;
 import com.tuowei.erp.issue.service.ExceptionTicketService;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyService;
 import com.tuowei.erp.system.notification.service.NotificationService;
@@ -59,6 +60,7 @@ class ExceptionTicketServiceDecompositionTest {
                         NotificationService.class,
                         ExceptionSlaPolicyService.class,
                         ExceptionTicketQueryService.class,
+                        ExceptionTicketNumberService.class,
                         Clock.class
                 )
                 .doesNotContain(ExceptionTicketService.class);

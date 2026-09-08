@@ -12,6 +12,7 @@ import com.tuowei.erp.issue.model.ExceptionTicketEventEntity;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaEscalationPolicy;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyService;
 import com.tuowei.erp.issue.service.ExceptionTicketCommandService;
+import com.tuowei.erp.issue.service.ExceptionTicketNumberService;
 import com.tuowei.erp.issue.service.ExceptionTicketQueryService;
 import com.tuowei.erp.issue.service.ExceptionTicketService;
 import com.tuowei.erp.issue.web.ExceptionTicketActionRequest;
@@ -70,6 +71,9 @@ class ExceptionTicketServiceTest {
     @Mock
     private ExceptionSlaPolicyService slaPolicyService;
 
+    @Mock
+    private ExceptionTicketNumberService exceptionTicketNumberService;
+
     @BeforeAll
     static void initTableInfo() {
         initTableInfo(ExceptionTicketEntity.class);
@@ -122,7 +126,9 @@ class ExceptionTicketServiceTest {
         existing.setTicketNo("ET-20260630-0042");
         lenient().when(ticketMapper.selectOne(any())).thenReturn(existing);
 
-        var response = service().create(createRequest());
+        ExceptionTicketService service = service();
+        when(exceptionTicketNumberService.nextTicketNo(AUDIT)).thenReturn("ET-20260630-0043");
+        var response = service.create(createRequest());
 
         assertThat(response.ticketNo()).isEqualTo("ET-20260630-0043");
     }
@@ -213,6 +219,8 @@ class ExceptionTicketServiceTest {
         overdue.setPriority("MEDIUM");
         overdue.setDueTime(AUDIT.now().minusMinutes(1));
         when(ticketMapper.selectList(any())).thenReturn(List.of(overdue));
+        when(ticketMapper.selectOne(any())).thenReturn(overdue);
+        when(ticketMapper.updateById(any(ExceptionTicketEntity.class))).thenReturn(1);
         when(eventMapper.selectList(any())).thenReturn(List.of());
         when(slaPolicyService.resolveEscalation(any(ExceptionTicketEntity.class), any(AuditMetadata.class)))
                 .thenReturn(new ExceptionSlaEscalationPolicy(true, "URGENT"));
@@ -251,6 +259,7 @@ class ExceptionTicketServiceTest {
         overdue.setPriority("HIGH");
         overdue.setDueTime(AUDIT.now().minusMinutes(1));
         when(ticketMapper.selectList(any())).thenReturn(List.of(overdue));
+        when(ticketMapper.selectOne(any())).thenReturn(overdue);
         when(eventMapper.selectList(any())).thenReturn(List.of());
         when(slaPolicyService.resolveEscalation(any(ExceptionTicketEntity.class), any(AuditMetadata.class)))
                 .thenReturn(new ExceptionSlaEscalationPolicy(false, "HIGH"));
@@ -287,6 +296,8 @@ class ExceptionTicketServiceTest {
     }
 
     private ExceptionTicketService service() {
+        lenient().when(exceptionTicketNumberService.nextTicketNo(any(AuditMetadata.class)))
+                .thenReturn("ET-20260630-0001");
         Clock clock = Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"));
         ExceptionTicketQueryService queryService = new ExceptionTicketQueryService(
                 auditMetadataFactory,
@@ -301,6 +312,7 @@ class ExceptionTicketServiceTest {
                 notificationService,
                 slaPolicyService,
                 queryService,
+                exceptionTicketNumberService,
                 clock
         );
         return new ExceptionTicketService(

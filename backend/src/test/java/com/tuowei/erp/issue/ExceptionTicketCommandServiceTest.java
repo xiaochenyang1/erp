@@ -9,6 +9,7 @@ import com.tuowei.erp.issue.mapper.ExceptionTicketMapper;
 import com.tuowei.erp.issue.model.ExceptionTicketEntity;
 import com.tuowei.erp.issue.model.ExceptionTicketEventEntity;
 import com.tuowei.erp.issue.service.ExceptionTicketCommandService;
+import com.tuowei.erp.issue.service.ExceptionTicketNumberService;
 import com.tuowei.erp.issue.service.ExceptionTicketQueryService;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaEscalationPolicy;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyService;
@@ -38,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,6 +71,9 @@ class ExceptionTicketCommandServiceTest {
 
     @Mock
     private ExceptionSlaPolicyService slaPolicyService;
+
+    @Mock
+    private ExceptionTicketNumberService exceptionTicketNumberService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -174,8 +179,6 @@ class ExceptionTicketCommandServiceTest {
         ExceptionTicketCreateRequest request = createRequest();
         LocalDateTime dueTime = LocalDateTime.of(2026, 7, 1, 9, 15);
         request.setDueTime(dueTime);
-        when(ticketMapper.selectOne(any())).thenReturn(null);
-
         var response = commandService().create(request, AUDIT);
 
         verifyNoInteractions(auditMetadataFactory);
@@ -192,6 +195,8 @@ class ExceptionTicketCommandServiceTest {
         overdue.setPriority("MEDIUM");
         overdue.setDueTime(CLOCK_NOW.minusMinutes(1));
         when(ticketMapper.selectList(any())).thenReturn(List.of(overdue));
+        when(ticketMapper.selectOne(any())).thenReturn(overdue);
+        when(ticketMapper.updateById(any(ExceptionTicketEntity.class))).thenReturn(1);
         when(eventMapper.selectList(any())).thenReturn(List.of());
         when(slaPolicyService.resolveEscalation(any(ExceptionTicketEntity.class), any(AuditMetadata.class)))
                 .thenReturn(new ExceptionSlaEscalationPolicy(true, "HIGH"));
@@ -222,7 +227,68 @@ class ExceptionTicketCommandServiceTest {
         );
     }
 
+    @Test
+    void skipsWhenLockedTicketIsNoLongerEligible() {
+        ExceptionTicketEntity candidate = ticket("OPEN");
+        candidate.setDueTime(CLOCK_NOW.minusMinutes(1));
+        when(ticketMapper.selectList(any())).thenReturn(List.of(candidate));
+        // The row changed status or due time after the candidate snapshot.
+        when(ticketMapper.selectOne(any())).thenReturn(null);
+        when(eventMapper.selectList(any())).thenReturn(List.of());
+
+        int count = commandService().escalateOverdueTickets(CLOCK_NOW);
+
+        assertThat(count).isZero();
+        verify(ticketMapper, never()).updateById(any(ExceptionTicketEntity.class));
+        verify(eventMapper, never()).insert(any(ExceptionTicketEventEntity.class));
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void skipsEventsAndNotificationsWhenOptimisticUpdateLosesRace() {
+        ExceptionTicketEntity overdue = ticket("OPEN");
+        overdue.setPriority("MEDIUM");
+        overdue.setDueTime(CLOCK_NOW.minusMinutes(1));
+        when(ticketMapper.selectList(any())).thenReturn(List.of(overdue));
+        when(ticketMapper.selectOne(any())).thenReturn(overdue);
+        when(ticketMapper.updateById(any(ExceptionTicketEntity.class))).thenReturn(0);
+        when(eventMapper.selectList(any())).thenReturn(List.of());
+        when(slaPolicyService.resolveEscalation(any(ExceptionTicketEntity.class), any(AuditMetadata.class)))
+                .thenReturn(new ExceptionSlaEscalationPolicy(true, "HIGH"));
+
+        int count = commandService().escalateOverdueTickets(CLOCK_NOW);
+
+        assertThat(count).isZero();
+        verify(eventMapper, never()).insert(any(ExceptionTicketEventEntity.class));
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void rechecksEscalationEventAfterTakingTicketLock() {
+        ExceptionTicketEntity overdue = ticket("OPEN");
+        overdue.setPriority("MEDIUM");
+        overdue.setDueTime(CLOCK_NOW.minusMinutes(1));
+        when(ticketMapper.selectList(any())).thenReturn(List.of(overdue));
+        when(ticketMapper.selectOne(any())).thenReturn(overdue);
+        // First result is the batch snapshot; the second is the lock-held
+        // current read and represents a concurrent escalation that committed
+        // while this worker waited for the ticket row.
+        when(eventMapper.selectList(any())).thenReturn(
+                List.of(),
+                List.of(event(2002L, "ESCALATE", "OPEN", "OPEN"))
+        );
+
+        int count = commandService().escalateOverdueTickets(CLOCK_NOW);
+
+        assertThat(count).isZero();
+        verify(ticketMapper, never()).updateById(any(ExceptionTicketEntity.class));
+        verify(eventMapper, never()).insert(any(ExceptionTicketEventEntity.class));
+        verifyNoInteractions(notificationService);
+    }
+
     private ExceptionTicketCommandService commandService() {
+        lenient().when(exceptionTicketNumberService.nextTicketNo(any(AuditMetadata.class)))
+                .thenReturn("ET-20260630-0001");
         ExceptionTicketQueryService queryService = new ExceptionTicketQueryService(
                 auditMetadataFactory,
                 ticketMapper,
@@ -236,6 +302,7 @@ class ExceptionTicketCommandServiceTest {
                 notificationService,
                 slaPolicyService,
                 queryService,
+                exceptionTicketNumberService,
                 CLOCK
         );
     }
@@ -277,6 +344,26 @@ class ExceptionTicketCommandServiceTest {
         entity.setUpdatedBy(AUDIT.userId());
         entity.setUpdatedTime(AUDIT.now());
         entity.setVersion(0);
+        return entity;
+    }
+
+    private static ExceptionTicketEventEntity event(
+            Long id,
+            String action,
+            String fromStatus,
+            String toStatus
+    ) {
+        ExceptionTicketEventEntity entity = new ExceptionTicketEventEntity();
+        entity.setId(id);
+        entity.setCompanyId(AUDIT.companyId());
+        entity.setAccountBookId(AUDIT.accountBookId());
+        entity.setTicketId(1001L);
+        entity.setAction(action);
+        entity.setFromStatus(fromStatus);
+        entity.setToStatus(toStatus);
+        entity.setComment("事件");
+        entity.setOperatorUserId(AUDIT.userId());
+        entity.setCreatedTime(AUDIT.now());
         return entity;
     }
 

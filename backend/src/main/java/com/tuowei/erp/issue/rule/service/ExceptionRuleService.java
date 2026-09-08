@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /** Compatibility facade for exception rule queries, commands and scans. */
@@ -75,4 +76,13 @@ public class ExceptionRuleService {
 
     @Transactional
     public List<ExceptionRuleScanResultResponse> scanDueRules() { return commandService.scanDueRules(); }
+
+    @Transactional
+    public List<ExceptionRuleScanResultResponse> scanDueRulesForScope(
+            Long companyId,
+            Long accountBookId,
+            LocalDateTime now
+    ) {
+        return commandService.scanDueRulesForScope(companyId, accountBookId, now);
+    }
 }

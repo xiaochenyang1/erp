@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -108,6 +109,15 @@ public class ExceptionRuleCommandService {
 
     @Transactional
     public List<ExceptionRuleScanResultResponse> scanDueRules() { return scanService.scanDueRules(); }
+
+    @Transactional
+    public List<ExceptionRuleScanResultResponse> scanDueRulesForScope(
+            Long companyId,
+            Long accountBookId,
+            LocalDateTime now
+    ) {
+        return scanService.scanDueRulesForScope(companyId, accountBookId, now);
+    }
 
     private void ensureBuiltInRules(AuditMetadata audit) {
         Long count = ruleMapper.selectCount(new LambdaQueryWrapper<ExceptionRuleEntity>()

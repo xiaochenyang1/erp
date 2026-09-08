@@ -115,6 +115,38 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.unreadCount").value(0));
     }
 
+    @Test
+    void currentAccountBookCannotReadOrBatchUpdateAnotherAccountBookRecipient() throws Exception {
+        seedNotification(885121L, 885221L, 1L, 1L, USER_ID, "NOTICE", "SYSTEM", "当前账套", "book-1");
+        seedNotification(885122L, 885222L, 1L, 2L, USER_ID, "NOTICE", "SYSTEM", "其他账套", "book-2");
+        String token = login(USERNAME);
+
+        mockMvc.perform(get("/api/system/notifications")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].recipientId").value(885221L));
+
+        mockMvc.perform(post("/api/system/notifications/{recipientId}/read", 885222L)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("400"));
+
+        mockMvc.perform(post("/api/system/notifications/read-batch")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"recipientIds\":[885221,885222]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updated").value(1));
+
+        Integer currentBookReadFlag = jdbcTemplate.queryForObject(
+                "select read_flag from sys_notification_recipient where id = 885221", Integer.class);
+        Integer otherBookReadFlag = jdbcTemplate.queryForObject(
+                "select read_flag from sys_notification_recipient where id = 885222", Integer.class);
+        org.assertj.core.api.Assertions.assertThat(currentBookReadFlag).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(otherBookReadFlag).isEqualTo(0);
+    }
+
     private void seedNotification(
             long notificationId,
             long recipientId,
@@ -135,9 +167,10 @@ class NotificationControllerTest {
                 "content-" + businessNo, notificationId, businessNo, businessNo);
         jdbcTemplate.update("""
                 insert into sys_notification_recipient
-                (id, company_id, notification_id, recipient_user_id, read_flag, status, created_by, updated_by, version)
-                values (?, ?, ?, ?, 0, 'ACTIVE', 0, 0, 0)
-                """, recipientId, companyId, notificationId, recipientUserId);
+                (id, company_id, account_book_id, notification_id, recipient_user_id,
+                 read_flag, status, created_by, updated_by, version)
+                values (?, ?, ?, ?, ?, 0, 'ACTIVE', 0, 0, 0)
+                """, recipientId, companyId, accountBookId, notificationId, recipientUserId);
     }
 
     private String login(String username) throws Exception {

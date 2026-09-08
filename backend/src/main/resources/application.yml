@@ -44,14 +44,47 @@ erp:
   report:
     max-export-rows: ${ERP_REPORT_MAX_EXPORT_ROWS:5000}
     export-batch-size: ${ERP_REPORT_EXPORT_BATCH_SIZE:500}
+  rate-limit:
+    # 通用限流仅用于非登录接口；登录由 LoginRateLimiter 统一处理。
+    enabled: ${ERP_RATE_LIMIT_ENABLED:true}
+    max-counters: ${ERP_RATE_LIMIT_MAX_COUNTERS:10000}
+    cleanup-interval-ms: ${ERP_RATE_LIMIT_CLEANUP_INTERVAL_MS:60000}
+  notification:
+    webhook:
+      enabled: ${ERP_NOTIFICATION_WEBHOOK_ENABLED:true}
+      pool-size: ${ERP_NOTIFICATION_WEBHOOK_POOL_SIZE:2}
+      queue-capacity: ${ERP_NOTIFICATION_WEBHOOK_QUEUE_CAPACITY:500}
+      request-timeout: ${ERP_NOTIFICATION_WEBHOOK_REQUEST_TIMEOUT:5s}
+      allowed-hosts: ${ERP_NOTIFICATION_WEBHOOK_ALLOWED_HOSTS:}
+      allow-private-addresses: ${ERP_NOTIFICATION_WEBHOOK_ALLOW_PRIVATE_ADDRESSES:false}
   exception-rule:
     scheduler:
       enabled: ${ERP_EXCEPTION_RULE_SCHEDULER_ENABLED:true}
       fixed-delay-ms: ${ERP_EXCEPTION_RULE_SCHEDULER_FIXED_DELAY_MS:60000}
       initial-delay-ms: ${ERP_EXCEPTION_RULE_SCHEDULER_INITIAL_DELAY_MS:60000}
+      lease-enabled: ${ERP_EXCEPTION_RULE_SCHEDULER_LEASE_ENABLED:true}
+      lease-ttl-seconds: ${ERP_EXCEPTION_RULE_SCHEDULER_LEASE_TTL_SECONDS:600}
+      # 调度器会按数据库中的有效规则发现公司/账套；以下 ID 仅作为兼容路径的系统身份默认值。
+      system-user-id: ${ERP_EXCEPTION_RULE_SCHEDULER_SYSTEM_USER_ID:0}
+      system-company-id: ${ERP_EXCEPTION_RULE_SCHEDULER_SYSTEM_COMPANY_ID:1}
+      system-account-book-id: ${ERP_EXCEPTION_RULE_SCHEDULER_SYSTEM_ACCOUNT_BOOK_ID:1}
+  workflow:
+    task-timeout-hours: ${ERP_WORKFLOW_TASK_TIMEOUT_HOURS:24}
+  contract-alert:
+    scheduler:
+      # 合同到期/执行率预警扫描。没有数据库租约，多实例会各扫一遍；
+      # 重复通知由 sys_notification 的 dedup_key 唯一索引挡住（V155）。
+      enabled: ${ERP_CONTRACT_ALERT_SCHEDULER_ENABLED:true}
+      fixed-delay-ms: ${ERP_CONTRACT_ALERT_SCHEDULER_FIXED_DELAY_MS:3600000}
+      initial-delay-ms: ${ERP_CONTRACT_ALERT_SCHEDULER_INITIAL_DELAY_MS:120000}
+      expiration-warning-days: ${ERP_CONTRACT_ALERT_SCHEDULER_EXPIRATION_WARNING_DAYS:30}
+      low-execution-rate: ${ERP_CONTRACT_ALERT_SCHEDULER_LOW_EXECUTION_RATE:0.5}
+      system-user-id: ${ERP_CONTRACT_ALERT_SCHEDULER_SYSTEM_USER_ID:0}
   security:
     public-api-docs-enabled: false
     trusted-proxies: ${ERP_TRUSTED_PROXIES:}
+    principal-cache-ttl-seconds: ${ERP_PRINCIPAL_CACHE_TTL_SECONDS:60}
+    scoped-user-cache-ttl-seconds: ${ERP_SCOPED_USER_CACHE_TTL_SECONDS:60}
     principal-cache-invalidation:
       mode: ${ERP_PRINCIPAL_CACHE_INVALIDATION_MODE:local}
     jwt:

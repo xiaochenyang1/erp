@@ -476,8 +476,14 @@ class WorkflowNotificationIntegrationTest {
     }
 
     private void cleanup() {
-        jdbcTemplate.update("delete from sys_notification_recipient where recipient_user_id in (?, ?, ?, ?, ?)",
-                SUBMITTER_ID, APPROVER_ID, OTHER_COMPANY_APPROVER_ID, FALLBACK_VIEWER_ID, SECOND_APPROVER_ID);
+        jdbcTemplate.update("""
+                delete from sys_notification_recipient
+                where notification_id in (
+                    select id
+                    from sys_notification
+                    where business_no = ?
+                )
+                """, BUSINESS_NO);
         jdbcTemplate.update("delete from sys_notification where business_no = ?", BUSINESS_NO);
         jdbcTemplate.update("delete from wf_approval_task where business_no = ?", BUSINESS_NO);
         jdbcTemplate.update("delete from wf_approval_record where business_no = ?", BUSINESS_NO);

@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.security.CurrentUser;
 import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.security.DataScopeService;
-import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
@@ -28,6 +27,7 @@ import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
 import com.tuowei.erp.workflow.model.WorkflowTaskEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -44,7 +44,7 @@ public class BusinessTraceService {
     private static final int SOURCE_LIMIT = 20;
     private final CurrentUserContext currentUserContext;
     private final DataScopeService dataScopeService;
-    private final ScopedUserResolver scopedUserResolver;
+    private final BusinessTraceScopeService scopeService;
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final SalesOrderMapper salesOrderMapper;
     private final PurchaseReceiptMapper purchaseReceiptMapper;
@@ -58,6 +58,42 @@ public class BusinessTraceService {
     private final Clock clock;
     private final BusinessTraceAssemblyService assemblyService;
 
+    @Autowired
+    public BusinessTraceService(
+            CurrentUserContext currentUserContext,
+            DataScopeService dataScopeService,
+            BusinessTraceScopeService scopeService,
+            PurchaseOrderMapper purchaseOrderMapper,
+            SalesOrderMapper salesOrderMapper,
+            PurchaseReceiptMapper purchaseReceiptMapper,
+            SalesDeliveryMapper salesDeliveryMapper,
+            PayableMapper payableMapper,
+            ReceivableMapper receivableMapper,
+            InventoryTransactionMapper inventoryTransactionMapper,
+            WorkflowTaskMapper workflowTaskMapper,
+            OperationLogMapper operationLogMapper,
+            ExceptionTicketMapper exceptionTicketMapper,
+            Clock clock,
+            BusinessTraceAssemblyService assemblyService
+    ) {
+        this.currentUserContext = currentUserContext;
+        this.dataScopeService = dataScopeService;
+        this.scopeService = scopeService;
+        this.purchaseOrderMapper = purchaseOrderMapper;
+        this.salesOrderMapper = salesOrderMapper;
+        this.purchaseReceiptMapper = purchaseReceiptMapper;
+        this.salesDeliveryMapper = salesDeliveryMapper;
+        this.payableMapper = payableMapper;
+        this.receivableMapper = receivableMapper;
+        this.inventoryTransactionMapper = inventoryTransactionMapper;
+        this.workflowTaskMapper = workflowTaskMapper;
+        this.operationLogMapper = operationLogMapper;
+        this.exceptionTicketMapper = exceptionTicketMapper;
+        this.clock = clock;
+        this.assemblyService = assemblyService;
+    }
+
+    /** Compatibility constructor for isolated tests and external integrations. */
     public BusinessTraceService(
             CurrentUserContext currentUserContext,
             DataScopeService dataScopeService,
@@ -75,21 +111,11 @@ public class BusinessTraceService {
             Clock clock,
             BusinessTraceAssemblyService assemblyService
     ) {
-        this.currentUserContext = currentUserContext;
-        this.dataScopeService = dataScopeService;
-        this.scopedUserResolver = scopedUserResolver;
-        this.purchaseOrderMapper = purchaseOrderMapper;
-        this.salesOrderMapper = salesOrderMapper;
-        this.purchaseReceiptMapper = purchaseReceiptMapper;
-        this.salesDeliveryMapper = salesDeliveryMapper;
-        this.payableMapper = payableMapper;
-        this.receivableMapper = receivableMapper;
-        this.inventoryTransactionMapper = inventoryTransactionMapper;
-        this.workflowTaskMapper = workflowTaskMapper;
-        this.operationLogMapper = operationLogMapper;
-        this.exceptionTicketMapper = exceptionTicketMapper;
-        this.clock = clock;
-        this.assemblyService = assemblyService;
+        this(currentUserContext, dataScopeService,
+                new BusinessTraceScopeService(currentUserContext, scopedUserResolver),
+                purchaseOrderMapper, salesOrderMapper, purchaseReceiptMapper, salesDeliveryMapper,
+                payableMapper, receivableMapper, inventoryTransactionMapper, workflowTaskMapper,
+                operationLogMapper, exceptionTicketMapper, clock, assemblyService);
     }
 
     @Transactional(readOnly = true)
@@ -101,7 +127,7 @@ public class BusinessTraceService {
         }
 
         CurrentUser currentUser = currentUserContext.requireCurrentUser();
-        ScopedUsers scopedUsers = scopedUsers(currentUser);
+        BusinessTraceScopeService.Scope scopedUsers = scopeService.resolve(currentUser);
         List<SalesOrderEntity> salesOrders = listSalesOrders(keyword, scopedUsers);
         List<PurchaseOrderEntity> purchaseOrders = listPurchaseOrders(keyword, scopedUsers);
 
@@ -146,7 +172,7 @@ public class BusinessTraceService {
         );
     }
 
-    private List<SalesOrderEntity> listSalesOrders(String keyword, ScopedUsers scopedUsers) {
+    private List<SalesOrderEntity> listSalesOrders(String keyword, BusinessTraceScopeService.Scope scopedUsers) {
         return salesOrderMapper.selectList(salesOrderWrapper(scopedUsers)
                 .eq(SalesOrderEntity::getDeletedFlag, 0)
                 .like(SalesOrderEntity::getOrderNo, keyword)
@@ -155,7 +181,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<PurchaseOrderEntity> listPurchaseOrders(String keyword, ScopedUsers scopedUsers) {
+    private List<PurchaseOrderEntity> listPurchaseOrders(String keyword, BusinessTraceScopeService.Scope scopedUsers) {
         return purchaseOrderMapper.selectList(purchaseOrderWrapper(scopedUsers)
                 .eq(PurchaseOrderEntity::getDeletedFlag, 0)
                 .like(PurchaseOrderEntity::getOrderNo, keyword)
@@ -164,7 +190,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<SalesDeliveryEntity> listSalesDeliveries(String keyword, Set<Long> orderIds, ScopedUsers scopedUsers) {
+    private List<SalesDeliveryEntity> listSalesDeliveries(String keyword, Set<Long> orderIds, BusinessTraceScopeService.Scope scopedUsers) {
         LambdaQueryWrapper<SalesDeliveryEntity> wrapper = salesDeliveryWrapper(scopedUsers)
                 .eq(SalesDeliveryEntity::getDeletedFlag, 0);
         if (orderIds.isEmpty()) {
@@ -185,7 +211,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<PurchaseReceiptEntity> listPurchaseReceipts(String keyword, Set<Long> orderIds, ScopedUsers scopedUsers) {
+    private List<PurchaseReceiptEntity> listPurchaseReceipts(String keyword, Set<Long> orderIds, BusinessTraceScopeService.Scope scopedUsers) {
         LambdaQueryWrapper<PurchaseReceiptEntity> wrapper = purchaseReceiptWrapper(scopedUsers)
                 .eq(PurchaseReceiptEntity::getDeletedFlag, 0);
         if (orderIds.isEmpty()) {
@@ -206,7 +232,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<ReceivableEntity> listReceivables(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+    private List<ReceivableEntity> listReceivables(String keyword, Set<String> knownBizNos, BusinessTraceScopeService.Scope scopedUsers) {
         if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
             return List.of();
         }
@@ -232,7 +258,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<PayableEntity> listPayables(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+    private List<PayableEntity> listPayables(String keyword, Set<String> knownBizNos, BusinessTraceScopeService.Scope scopedUsers) {
         if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
             return List.of();
         }
@@ -258,7 +284,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<InventoryTransactionEntity> listInventoryTransactions(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+    private List<InventoryTransactionEntity> listInventoryTransactions(String keyword, Set<String> knownBizNos, BusinessTraceScopeService.Scope scopedUsers) {
         LambdaQueryWrapper<InventoryTransactionEntity> wrapper = inventoryTransactionWrapper(scopedUsers.currentUser());
         wrapper.and(nested -> {
             nested.like(InventoryTransactionEntity::getBizNo, keyword);
@@ -274,7 +300,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<WorkflowTaskEntity> listWorkflowTasks(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+    private List<WorkflowTaskEntity> listWorkflowTasks(String keyword, Set<String> knownBizNos, BusinessTraceScopeService.Scope scopedUsers) {
         if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
             return List.of();
         }
@@ -297,7 +323,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<OperationLogEntity> listOperationLogs(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+    private List<OperationLogEntity> listOperationLogs(String keyword, Set<String> knownBizNos, BusinessTraceScopeService.Scope scopedUsers) {
         if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
             return List.of();
         }
@@ -320,7 +346,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private List<ExceptionTicketEntity> listExceptionTickets(String keyword, Set<String> knownBizNos, ScopedUsers scopedUsers) {
+    private List<ExceptionTicketEntity> listExceptionTickets(String keyword, Set<String> knownBizNos, BusinessTraceScopeService.Scope scopedUsers) {
         if (!scopedUsers.snapshot().hasAllScope() && knownBizNos.isEmpty()) {
             return List.of();
         }
@@ -345,7 +371,7 @@ public class BusinessTraceService {
                 .last(limitSql()));
     }
 
-    private LambdaQueryWrapper<SalesOrderEntity> salesOrderWrapper(ScopedUsers scopedUsers) {
+    private LambdaQueryWrapper<SalesOrderEntity> salesOrderWrapper(BusinessTraceScopeService.Scope scopedUsers) {
         return dataScopeService.applySalesOrderScope(
                 new LambdaQueryWrapper<SalesOrderEntity>(),
                 scopedUsers.currentUser(),
@@ -354,7 +380,7 @@ public class BusinessTraceService {
                 scopedUsers.postUserIds());
     }
 
-    private LambdaQueryWrapper<PurchaseOrderEntity> purchaseOrderWrapper(ScopedUsers scopedUsers) {
+    private LambdaQueryWrapper<PurchaseOrderEntity> purchaseOrderWrapper(BusinessTraceScopeService.Scope scopedUsers) {
         return dataScopeService.applyPurchaseOrderScope(
                 new LambdaQueryWrapper<PurchaseOrderEntity>(),
                 scopedUsers.currentUser(),
@@ -363,13 +389,13 @@ public class BusinessTraceService {
                 scopedUsers.postUserIds());
     }
 
-    private LambdaQueryWrapper<SalesDeliveryEntity> salesDeliveryWrapper(ScopedUsers scopedUsers) {
+    private LambdaQueryWrapper<SalesDeliveryEntity> salesDeliveryWrapper(BusinessTraceScopeService.Scope scopedUsers) {
         return new LambdaQueryWrapper<SalesDeliveryEntity>()
                 .eq(SalesDeliveryEntity::getCompanyId, scopedUsers.currentUser().companyId())
                 .eq(SalesDeliveryEntity::getAccountBookId, scopedUsers.currentUser().accountBookId());
     }
 
-    private LambdaQueryWrapper<PurchaseReceiptEntity> purchaseReceiptWrapper(ScopedUsers scopedUsers) {
+    private LambdaQueryWrapper<PurchaseReceiptEntity> purchaseReceiptWrapper(BusinessTraceScopeService.Scope scopedUsers) {
         return new LambdaQueryWrapper<PurchaseReceiptEntity>()
                 .eq(PurchaseReceiptEntity::getCompanyId, scopedUsers.currentUser().companyId())
                 .eq(PurchaseReceiptEntity::getAccountBookId, scopedUsers.currentUser().accountBookId());
@@ -434,17 +460,4 @@ public class BusinessTraceService {
         return "limit " + SOURCE_LIMIT;
     }
 
-    private ScopedUsers scopedUsers(CurrentUser currentUser) {
-        DataScopeSnapshot snapshot = currentUserContext.requirePrincipal().dataScopeSnapshot();
-        ScopedUserResolver.ScopedUserIds ids = scopedUserResolver.resolve(currentUser, snapshot);
-        return new ScopedUsers(currentUser, snapshot, ids.deptUserIds(), ids.postUserIds());
-    }
-
-    private record ScopedUsers(
-            CurrentUser currentUser,
-            DataScopeSnapshot snapshot,
-            Set<Long> deptUserIds,
-            Set<Long> postUserIds
-    ) {
-    }
 }

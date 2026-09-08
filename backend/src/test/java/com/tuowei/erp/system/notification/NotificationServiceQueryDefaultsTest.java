@@ -157,6 +157,7 @@ class NotificationServiceQueryDefaultsTest {
         NotificationRecipientEntity entity = new NotificationRecipientEntity();
         entity.setId(11L);
         entity.setCompanyId(AUDIT.companyId());
+        entity.setAccountBookId(AUDIT.accountBookId());
         entity.setNotificationId(21L);
         entity.setRecipientUserId(AUDIT.userId());
         entity.setReadFlag(0);

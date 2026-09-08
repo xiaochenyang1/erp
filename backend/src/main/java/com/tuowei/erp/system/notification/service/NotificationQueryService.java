@@ -74,6 +74,8 @@ public class NotificationQueryService {
 
     NotificationRecipientEntity requireMineRecipient(Long recipientId, AuditMetadata audit) {
         NotificationRecipientEntity recipient = recipientMapper.selectOne(baseMineRecipientQuery(audit)
+                .inSql(NotificationRecipientEntity::getNotificationId,
+                        activeNotificationSubQuery(audit, null, null))
                 .eq(NotificationRecipientEntity::getId, recipientId));
         if (recipient == null) {
             throw new IllegalArgumentException("通知不存在");
@@ -157,6 +159,7 @@ public class NotificationQueryService {
     private LambdaQueryWrapper<NotificationRecipientEntity> baseMineRecipientQuery(AuditMetadata audit) {
         return new LambdaQueryWrapper<NotificationRecipientEntity>()
                 .eq(NotificationRecipientEntity::getCompanyId, audit.companyId())
+                .eq(NotificationRecipientEntity::getAccountBookId, audit.accountBookId())
                 .eq(NotificationRecipientEntity::getRecipientUserId, audit.userId())
                 .eq(NotificationRecipientEntity::getStatus, STATUS_ACTIVE);
     }

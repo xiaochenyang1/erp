@@ -12,6 +12,7 @@ import com.tuowei.erp.system.notification.model.NotificationRecipientEntity;
 import com.tuowei.erp.system.notification.web.NotificationPageQuery;
 import com.tuowei.erp.system.notification.web.NotificationResponse;
 import com.tuowei.erp.workflow.model.WorkflowInstanceEntity;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -69,11 +70,27 @@ public class NotificationService {
         NotificationRecipientEntity recipient = queryService.requireMineRecipient(recipientId, audit);
         if (!Integer.valueOf(1).equals(recipient.getReadFlag())) {
             LocalDateTime now = audit.now();
-            recipient.setReadFlag(1);
-            recipient.setReadTime(now);
-            recipient.setUpdatedBy(audit.userId());
-            recipient.setUpdatedTime(now);
-            recipientMapper.updateById(recipient);
+            LambdaUpdateWrapper<NotificationRecipientEntity> update = new LambdaUpdateWrapper<NotificationRecipientEntity>()
+                    .eq(NotificationRecipientEntity::getId, recipientId)
+                    .eq(NotificationRecipientEntity::getCompanyId, audit.companyId())
+                    .eq(NotificationRecipientEntity::getAccountBookId, audit.accountBookId())
+                    .eq(NotificationRecipientEntity::getRecipientUserId, audit.userId())
+                    .eq(NotificationRecipientEntity::getStatus, STATUS_ACTIVE)
+                    .eq(NotificationRecipientEntity::getReadFlag, 0)
+                    .inSql(NotificationRecipientEntity::getNotificationId,
+                            queryService.activeNotificationSubQuery(audit, null, null))
+                    .set(NotificationRecipientEntity::getReadFlag, 1)
+                    .set(NotificationRecipientEntity::getReadTime, now)
+                    .set(NotificationRecipientEntity::getUpdatedBy, audit.userId())
+                    .set(NotificationRecipientEntity::getUpdatedTime, now);
+            if (recipient.getVersion() != null) {
+                update.eq(NotificationRecipientEntity::getVersion, recipient.getVersion())
+                        .set(NotificationRecipientEntity::getVersion, recipient.getVersion() + 1);
+            }
+            recipientMapper.update(null, update);
+            // Re-read the row so the response reflects a concurrent/idempotent update
+            // and never returns data outside the current account book.
+            recipient = queryService.requireMineRecipient(recipientId, audit);
         }
         NotificationEntity notification = queryService.requireNotification(recipient.getNotificationId(), audit);
         return queryService.toResponse(recipient, notification);
@@ -85,6 +102,7 @@ public class NotificationService {
         LocalDateTime now = audit.now();
         recipientMapper.update(null, new LambdaUpdateWrapper<NotificationRecipientEntity>()
                 .eq(NotificationRecipientEntity::getCompanyId, audit.companyId())
+                .eq(NotificationRecipientEntity::getAccountBookId, audit.accountBookId())
                 .eq(NotificationRecipientEntity::getRecipientUserId, audit.userId())
                 .eq(NotificationRecipientEntity::getStatus, STATUS_ACTIVE)
                 .eq(NotificationRecipientEntity::getReadFlag, 0)
@@ -109,10 +127,13 @@ public class NotificationService {
         }
         return recipientMapper.update(null, new LambdaUpdateWrapper<NotificationRecipientEntity>()
                 .eq(NotificationRecipientEntity::getCompanyId, audit.companyId())
+                .eq(NotificationRecipientEntity::getAccountBookId, audit.accountBookId())
                 .eq(NotificationRecipientEntity::getRecipientUserId, audit.userId())
                 .eq(NotificationRecipientEntity::getStatus, STATUS_ACTIVE)
                 .eq(NotificationRecipientEntity::getReadFlag, 0)
                 .in(NotificationRecipientEntity::getId, ids)
+                .inSql(NotificationRecipientEntity::getNotificationId,
+                        queryService.activeNotificationSubQuery(audit, null, null))
                 .set(NotificationRecipientEntity::getReadFlag, 1)
                 .set(NotificationRecipientEntity::getReadTime, now)
                 .set(NotificationRecipientEntity::getUpdatedBy, audit.userId())
@@ -139,7 +160,8 @@ public class NotificationService {
                 audit,
                 now
         );
-        createRecipients(notification.getId(), audit.companyId(), recipientUserIds, audit.userId(), now);
+        createRecipients(notification.getId(), audit.companyId(), audit.accountBookId(), recipientUserIds,
+                audit.userId(), now);
         try {
             webhookPublisher.publishWorkflowPending(notification, recipientUserIds);
         } catch (Exception ignored) {
@@ -156,6 +178,7 @@ public class NotificationService {
         List<Long> notificationIds = notifications.stream().map(NotificationEntity::getId).toList();
         recipientMapper.update(null, new LambdaUpdateWrapper<NotificationRecipientEntity>()
                 .eq(NotificationRecipientEntity::getCompanyId, audit.companyId())
+                .eq(NotificationRecipientEntity::getAccountBookId, audit.accountBookId())
                 .in(NotificationRecipientEntity::getNotificationId, notificationIds)
                 .eq(NotificationRecipientEntity::getStatus, STATUS_ACTIVE)
                 .set(NotificationRecipientEntity::getStatus, STATUS_CLOSED)
@@ -179,6 +202,7 @@ public class NotificationService {
         List<Long> notificationIds = notifications.stream().map(NotificationEntity::getId).toList();
         recipientMapper.update(null, new LambdaUpdateWrapper<NotificationRecipientEntity>()
                 .eq(NotificationRecipientEntity::getCompanyId, audit.companyId())
+                .eq(NotificationRecipientEntity::getAccountBookId, audit.accountBookId())
                 .in(NotificationRecipientEntity::getNotificationId, notificationIds)
                 .eq(NotificationRecipientEntity::getRecipientUserId, recipientUserId)
                 .eq(NotificationRecipientEntity::getStatus, STATUS_ACTIVE)
@@ -221,7 +245,8 @@ public class NotificationService {
                 audit,
                 now
         );
-        createRecipients(notification.getId(), audit.companyId(), List.of(instance.getSubmitUserId()), audit.userId(), now);
+        createRecipients(notification.getId(), audit.companyId(), audit.accountBookId(),
+                List.of(instance.getSubmitUserId()), audit.userId(), now);
     }
 
     @Transactional
@@ -238,10 +263,7 @@ public class NotificationService {
             AuditMetadata audit,
             LocalDateTime now
     ) {
-        if (recipientUserIds == null || recipientUserIds.isEmpty()) {
-            return;
-        }
-        NotificationEntity notification = createNotification(
+        createBusinessNotificationIfAbsent(
                 category,
                 notificationType,
                 title,
@@ -250,10 +272,74 @@ public class NotificationService {
                 businessId,
                 businessNo,
                 targetUrl,
+                recipientUserIds,
+                null,
                 audit,
                 now
         );
-        createRecipients(notification.getId(), audit.companyId(), recipientUserIds, audit.userId(), now);
+    }
+
+    /**
+     * Creates an automation notification once for a tenant-scoped key.
+     *
+     * <p>The unique index is the concurrency backstop.  A duplicate insert is
+     * read back using a locking query and reported as a normal "already
+     * present" result, so concurrent scheduler instances do not fail the
+     * surrounding business transaction.</p>
+     */
+    @Transactional(noRollbackFor = DuplicateKeyException.class)
+    public boolean createBusinessNotificationIfAbsent(
+            String category,
+            String notificationType,
+            String title,
+            String content,
+            String businessType,
+            Long businessId,
+            String businessNo,
+            String targetUrl,
+            List<Long> recipientUserIds,
+            String dedupKey,
+            AuditMetadata audit,
+            LocalDateTime now
+    ) {
+        if (recipientUserIds == null || recipientUserIds.isEmpty()) {
+            return false;
+        }
+        String normalizedDedupKey = normalizeDedupKey(dedupKey);
+        NotificationEntity notification = buildNotification(
+                category,
+                notificationType,
+                title,
+                content,
+                businessType,
+                businessId,
+                businessNo,
+                targetUrl,
+                normalizedDedupKey,
+                audit,
+                now
+        );
+        try {
+            notificationMapper.insert(notification);
+        } catch (DuplicateKeyException ex) {
+            if (normalizedDedupKey == null) {
+                throw ex;
+            }
+            NotificationEntity existing = notificationMapper.selectOne(
+                    new LambdaQueryWrapper<NotificationEntity>()
+                            .eq(NotificationEntity::getCompanyId, audit.companyId())
+                            .eq(NotificationEntity::getAccountBookId, audit.accountBookId())
+                            .eq(NotificationEntity::getDedupKey, normalizedDedupKey)
+                            .last("FOR UPDATE")
+            );
+            if (existing == null) {
+                throw ex;
+            }
+            return false;
+        }
+        createRecipients(notification.getId(), audit.companyId(), audit.accountBookId(), recipientUserIds,
+                audit.userId(), now);
+        return true;
     }
 
     private String defaultWorkflowResultContent(String action, String title) {
@@ -293,6 +379,37 @@ public class NotificationService {
             Long businessId,
             String businessNo,
             String targetUrl,
+            String dedupKey,
+            AuditMetadata audit,
+            LocalDateTime now
+    ) {
+        NotificationEntity notification = buildNotification(
+                category,
+                notificationType,
+                title,
+                content,
+                businessType,
+                businessId,
+                businessNo,
+                targetUrl,
+                dedupKey,
+                audit,
+                now
+        );
+        notificationMapper.insert(notification);
+        return notification;
+    }
+
+    private NotificationEntity buildNotification(
+            String category,
+            String notificationType,
+            String title,
+            String content,
+            String businessType,
+            Long businessId,
+            String businessNo,
+            String targetUrl,
+            String dedupKey,
             AuditMetadata audit,
             LocalDateTime now
     ) {
@@ -307,6 +424,7 @@ public class NotificationService {
         notification.setBusinessId(businessId);
         notification.setBusinessNo(businessNo);
         notification.setTargetUrl(targetUrl);
+        notification.setDedupKey(dedupKey);
         notification.setStatus(STATUS_ACTIVE);
         notification.setDeletedFlag(0);
         notification.setCreatedBy(audit.userId());
@@ -314,8 +432,34 @@ public class NotificationService {
         notification.setUpdatedBy(audit.userId());
         notification.setUpdatedTime(now);
         notification.setVersion(0);
-        notificationMapper.insert(notification);
         return notification;
+    }
+
+    private NotificationEntity createNotification(
+            String category,
+            String notificationType,
+            String title,
+            String content,
+            String businessType,
+            Long businessId,
+            String businessNo,
+            String targetUrl,
+            AuditMetadata audit,
+            LocalDateTime now
+    ) {
+        return createNotification(
+                category,
+                notificationType,
+                title,
+                content,
+                businessType,
+                businessId,
+                businessNo,
+                targetUrl,
+                null,
+                audit,
+                now
+        );
     }
 
     private List<NotificationEntity> activeWorkflowPendingNotifications(
@@ -336,6 +480,7 @@ public class NotificationService {
     private void createRecipients(
             Long notificationId,
             Long companyId,
+            Long accountBookId,
             List<Long> recipientUserIds,
             Long operatorUserId,
             LocalDateTime now
@@ -346,6 +491,7 @@ public class NotificationService {
             }
             NotificationRecipientEntity recipient = new NotificationRecipientEntity();
             recipient.setCompanyId(companyId);
+            recipient.setAccountBookId(accountBookId);
             recipient.setNotificationId(notificationId);
             recipient.setRecipientUserId(userId);
             recipient.setReadFlag(0);
@@ -368,6 +514,13 @@ public class NotificationService {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    private String normalizeDedupKey(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return truncate(value.trim(), 191);
     }
 
 }
