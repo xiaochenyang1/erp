@@ -15,6 +15,12 @@ public record InvoiceUpdateRequest(
         @NotNull(message = "invoiceDate不能为空") LocalDate invoiceDate,
         String relatedBizType,
         Long relatedBizId,
-        String remark
+        String remark,
+        String currencyCode,
+        BigDecimal exchangeRate
 ) {
+    public InvoiceUpdateRequest(String invoiceType, String partnerName, BigDecimal amount, BigDecimal taxAmount,
+                                LocalDate invoiceDate, String relatedBizType, Long relatedBizId, String remark) {
+        this(invoiceType, partnerName, amount, taxAmount, invoiceDate, relatedBizType, relatedBizId, remark, null, null);
+    }
 }

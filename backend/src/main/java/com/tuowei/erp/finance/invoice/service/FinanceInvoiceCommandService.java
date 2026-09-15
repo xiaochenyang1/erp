@@ -16,12 +16,16 @@ import com.tuowei.erp.sales.order.model.SalesOrderEntity;
 import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.finance.invoice.service.InvoiceNumberService;
+import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -41,6 +45,8 @@ public class FinanceInvoiceCommandService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final AttachmentService attachmentService;
     private final FinanceInvoiceQueryService queryService;
+    @Autowired
+    private SettlementCurrencyService settlementCurrencyService;
 
     public FinanceInvoiceCommandService(
             InvoiceRegisterMapper invoiceRegisterMapper,
@@ -60,6 +66,14 @@ public class FinanceInvoiceCommandService {
         this.queryService = queryService;
     }
 
+    private void setAudit(InvoiceRegisterEntity e, AuditMetadata a, LocalDateTime now) {
+        e.setCreatedBy(a.userId());
+        e.setCreatedTime(now);
+        e.setUpdatedBy(a.userId());
+        e.setUpdatedTime(now);
+        e.setVersion(0);
+    }
+
     @Transactional
     public InvoiceResponse create(InvoiceCreateRequest request) {
         AuditMetadata audit = auditMetadataFactory.current();
@@ -77,6 +91,11 @@ public class FinanceInvoiceCommandService {
         entity.setInvoiceType(invoiceType); entity.setPartnerName(partnerName); entity.setAmount(amount); entity.setTaxAmount(taxAmount);
         entity.setInvoiceDate(request.invoiceDate()); entity.setRelatedBizType(trimToNull(request.relatedBizType())); entity.setRelatedBizId(request.relatedBizId());
         entity.setStatus(DRAFT); entity.setDeletedFlag(0); entity.setRemark(trimToNull(request.remark())); setAudit(entity, audit, now);
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.invoiceDate(), audit);
+        entity.setCurrencyCode(currency.currencyCode());
+        entity.setExchangeRate(currency.exchangeRate());
+        entity.setBaseAmount(toBaseAmount(amount, currency.exchangeRate()));
+        entity.setBaseTaxAmount(toBaseAmount(taxAmount, currency.exchangeRate()));
         invoiceRegisterMapper.insert(entity);
         return FinanceInvoiceQueryService.toResponse(entity);
     }
@@ -94,6 +113,11 @@ public class FinanceInvoiceCommandService {
         entity.setAmount(amount); entity.setTaxAmount(taxAmount); entity.setInvoiceDate(request.invoiceDate());
         validateRelatedBiz(request.relatedBizType(), request.relatedBizId(), audit);
         entity.setRelatedBizType(trimToNull(request.relatedBizType())); entity.setRelatedBizId(request.relatedBizId()); entity.setRemark(trimToNull(request.remark()));
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.invoiceDate(), audit);
+        entity.setCurrencyCode(currency.currencyCode());
+        entity.setExchangeRate(currency.exchangeRate());
+        entity.setBaseAmount(toBaseAmount(amount, currency.exchangeRate()));
+        entity.setBaseTaxAmount(toBaseAmount(taxAmount, currency.exchangeRate()));
         entity.setUpdatedBy(audit.userId()); entity.setUpdatedTime(audit.now());
         OptimisticLockGuard.requireUpdated(invoiceRegisterMapper.updateById(entity), "发票登记已被其他操作修改，请刷新后重试");
         return queryService.detail(id);
@@ -135,5 +159,22 @@ public class FinanceInvoiceCommandService {
         if ("SALES_ORDER".equals(upper)) { SalesOrderEntity so = salesOrderMapper.selectById(relatedBizId); if (so == null || !Objects.equals(so.getCompanyId(), audit.companyId()) || !Objects.equals(so.getAccountBookId(), audit.accountBookId())) throw new IllegalArgumentException("关联销售订单不存在"); return; }
         throw new IllegalArgumentException("关联业务类型仅支持 PURCHASE_ORDER 或 SALES_ORDER");
     }
-    private void setAudit(InvoiceRegisterEntity entity, AuditMetadata audit, LocalDateTime now) { entity.setCreatedBy(audit.userId()); entity.setCreatedTime(now); entity.setUpdatedBy(audit.userId()); entity.setUpdatedTime(now); entity.setVersion(0); }
+    private SettlementCurrencyService.Resolution resolveCurrency(String requestedCurrency, BigDecimal requestedRate, LocalDate businessDate, AuditMetadata audit) {
+        if (settlementCurrencyService != null) {
+            return settlementCurrencyService.resolve(requestedCurrency, requestedRate, businessDate, audit);
+        }
+        String code = requestedCurrency == null || requestedCurrency.isBlank() ? "CNY" : requestedCurrency.trim().toUpperCase(Locale.ROOT);
+        if (!code.matches("[A-Z]{3}")) throw new IllegalArgumentException("币种编码必须为3位大写字母");
+        BigDecimal rate = requestedRate == null ? BigDecimal.ONE : requestedRate;
+        if (rate.signum() <= 0) throw new IllegalArgumentException("汇率必须大于0");
+        if ("CNY".equals(code) && rate.compareTo(BigDecimal.ONE) != 0) throw new IllegalArgumentException("本位币汇率必须为1");
+        return new SettlementCurrencyService.Resolution(code, rate);
+    }
+
+    private BigDecimal toBaseAmount(BigDecimal amount, BigDecimal rate) {
+        if (settlementCurrencyService != null) {
+            return settlementCurrencyService.toBaseAmount(amount, rate);
+        }
+        return amount.multiply(rate).setScale(6, RoundingMode.HALF_UP);
+    }
 }

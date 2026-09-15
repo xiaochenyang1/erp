@@ -81,7 +81,8 @@ public class FinanceInvoiceQueryService {
     static InvoiceResponse toResponse(InvoiceRegisterEntity entity) {
         return new InvoiceResponse(entity.getId(), entity.getInvoiceNo(), entity.getInvoiceType(), entity.getPartnerName(),
                 entity.getAmount(), entity.getTaxAmount(), entity.getInvoiceDate(), entity.getRelatedBizType(),
-                entity.getRelatedBizId(), entity.getStatus(), entity.getRemark());
+                entity.getRelatedBizId(), entity.getStatus(), entity.getRemark(), entity.getCurrencyCode(),
+                entity.getExchangeRate(), entity.getBaseAmount(), entity.getBaseTaxAmount());
     }
 
     private boolean hasText(String value) { return value != null && !value.trim().isEmpty(); }
