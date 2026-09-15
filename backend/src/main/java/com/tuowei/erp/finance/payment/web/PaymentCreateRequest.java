@@ -17,4 +17,18 @@ public record PaymentCreateRequest(
         String remark,
         @Valid @NotEmpty(message = "allocations不能为空") List<PaymentAllocationRequest> allocations
 ) {
+    /**
+     * Backward-compatible constructor for base-currency payments.
+     * A null currency and exchange rate are resolved as the account book's
+     * base currency by the settlement command service.
+     */
+    public PaymentCreateRequest(
+            Long supplierId,
+            LocalDate paymentDate,
+            BigDecimal amount,
+            String remark,
+            List<PaymentAllocationRequest> allocations
+    ) {
+        this(supplierId, paymentDate, amount, null, null, remark, allocations);
+    }
 }

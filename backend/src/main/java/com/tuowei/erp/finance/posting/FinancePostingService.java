@@ -76,25 +76,30 @@ public class FinancePostingService {
     /** 收款单过账：资金流入并核销应收，未核销部分计入预收账款。 */
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordReceipt(ReceiptEntity receipt, AuditMetadata audit) {
-        voucherPostingService.recordReceipt(receipt, settledAmount(receipt.getAllocatedAmount()), advanceAmount(receipt.getAmount(), receipt.getAllocatedAmount()), audit);
+        voucherPostingService.recordReceipt(receipt, baseAmount(receipt.getAllocatedAmount(), receipt.getExchangeRate()), baseAmount(advanceAmount(receipt.getAmount(), receipt.getAllocatedAmount()), receipt.getExchangeRate()), audit);
     }
 
     /** 收款单作废：按原金额生成反向凭证，冲回资金与应收。 */
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordReceiptCancellation(ReceiptEntity receipt, AuditMetadata audit) {
-        voucherPostingService.recordReceiptCancellation(receipt, settledAmount(receipt.getAllocatedAmount()), advanceAmount(receipt.getAmount(), receipt.getAllocatedAmount()), audit);
+        voucherPostingService.recordReceiptCancellation(receipt, baseAmount(receipt.getAllocatedAmount(), receipt.getExchangeRate()), baseAmount(advanceAmount(receipt.getAmount(), receipt.getAllocatedAmount()), receipt.getExchangeRate()), audit);
     }
 
     /** 付款单过账：资金流出并核销应付，未核销部分计入预付账款。 */
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordPayment(PaymentEntity payment, AuditMetadata audit) {
-        voucherPostingService.recordPayment(payment, settledAmount(payment.getAllocatedAmount()), advanceAmount(payment.getAmount(), payment.getAllocatedAmount()), audit);
+        voucherPostingService.recordPayment(payment, baseAmount(payment.getAllocatedAmount(), payment.getExchangeRate()), baseAmount(advanceAmount(payment.getAmount(), payment.getAllocatedAmount()), payment.getExchangeRate()), audit);
     }
 
     /** 付款单作废：按原金额生成反向凭证，冲回资金与应付。 */
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordPaymentCancellation(PaymentEntity payment, AuditMetadata audit) {
-        voucherPostingService.recordPaymentCancellation(payment, settledAmount(payment.getAllocatedAmount()), advanceAmount(payment.getAmount(), payment.getAllocatedAmount()), audit);
+        voucherPostingService.recordPaymentCancellation(payment, baseAmount(payment.getAllocatedAmount(), payment.getExchangeRate()), baseAmount(advanceAmount(payment.getAmount(), payment.getAllocatedAmount()), payment.getExchangeRate()), audit);
+    }
+
+    private BigDecimal baseAmount(BigDecimal amount, BigDecimal exchangeRate) {
+        BigDecimal rate = exchangeRate == null ? BigDecimal.ONE : exchangeRate;
+        return ScalePrecision.amount(ScalePrecision.zeroDefault(amount).multiply(rate));
     }
 
     @Transactional(propagation = Propagation.REQUIRED)

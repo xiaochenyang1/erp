@@ -31,9 +31,9 @@ CREATE TABLE md_exchange_rate (
 );
 
 INSERT INTO md_currency (id, currency_code, currency_name, currency_symbol, decimal_places)
-VALUES (1, 'CNY', 'Chinese Yuan', '¥', 2)
-ON DUPLICATE KEY UPDATE currency_name = VALUES(currency_name), currency_symbol = VALUES(currency_symbol);
+SELECT 1, 'CNY', 'Chinese Yuan', '¥', 2
+WHERE NOT EXISTS (SELECT 1 FROM md_currency WHERE id = 1);
 
 INSERT INTO sys_config (id, config_code, config_name, config_value, status, deleted_flag, remark)
-VALUES (910020, 'finance.base.currency', 'Base currency', 'CNY', 'ENABLED', 0, 'Default base currency for legacy documents')
-ON DUPLICATE KEY UPDATE config_name = VALUES(config_name), config_value = VALUES(config_value);
+SELECT 910020, 'finance.base.currency', 'Base currency', 'CNY', 'ENABLED', 0, 'Default base currency for legacy documents'
+WHERE NOT EXISTS (SELECT 1 FROM sys_config WHERE id = 910020);

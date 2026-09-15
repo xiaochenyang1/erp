@@ -26,6 +26,10 @@ public class PayableEntity {
     private LocalDate dueDate;
     private BigDecimal originalAmount;
     private BigDecimal settledAmount;
+    private String currencyCode;
+    private BigDecimal exchangeRate;
+    private BigDecimal baseOriginalAmount;
+    private BigDecimal baseSettledAmount;
     private String status;
     private Integer deletedFlag;
     private String remark;
@@ -62,6 +66,14 @@ public class PayableEntity {
     public void setOriginalAmount(BigDecimal originalAmount) { this.originalAmount = originalAmount; }
     public BigDecimal getSettledAmount() { return settledAmount; }
     public void setSettledAmount(BigDecimal settledAmount) { this.settledAmount = settledAmount; }
+    public String getCurrencyCode() { return currencyCode; }
+    public void setCurrencyCode(String currencyCode) { this.currencyCode = currencyCode; }
+    public BigDecimal getExchangeRate() { return exchangeRate; }
+    public void setExchangeRate(BigDecimal exchangeRate) { this.exchangeRate = exchangeRate; }
+    public BigDecimal getBaseOriginalAmount() { return baseOriginalAmount; }
+    public void setBaseOriginalAmount(BigDecimal baseOriginalAmount) { this.baseOriginalAmount = baseOriginalAmount; }
+    public BigDecimal getBaseSettledAmount() { return baseSettledAmount; }
+    public void setBaseSettledAmount(BigDecimal baseSettledAmount) { this.baseSettledAmount = baseSettledAmount; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Integer getDeletedFlag() { return deletedFlag; }

@@ -5,6 +5,7 @@ import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ProductAuxUnitConversion;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -44,9 +45,38 @@ public class SalesOrderCommandService {
     private final SalesOrderQueryService salesOrderQueryService;
     private final SalesCreditEvaluator salesCreditEvaluator;
     private final SalesPriceEvaluator salesPriceEvaluator;
+    private final SettlementCurrencyService settlementCurrencyService;
     @Autowired
     private com.tuowei.erp.commercial.contract.service.ContractOrderBindingService contractOrderBindingService;
 
+    @Autowired
+    public SalesOrderCommandService(
+            SalesOrderMapper salesOrderMapper,
+            SalesOrderLineMapper salesOrderLineMapper,
+            CustomerMapper customerMapper,
+            ProductValidator productValidator,
+            WarehouseMapper warehouseMapper,
+            SalesOrderNumberService salesOrderNumberService,
+            AuditMetadataFactory auditMetadataFactory,
+            SalesOrderQueryService salesOrderQueryService,
+            SalesCreditEvaluator salesCreditEvaluator,
+            SalesPriceEvaluator salesPriceEvaluator,
+            SettlementCurrencyService settlementCurrencyService
+    ) {
+        this.salesOrderMapper = salesOrderMapper;
+        this.salesOrderLineMapper = salesOrderLineMapper;
+        this.customerMapper = customerMapper;
+        this.productValidator = productValidator;
+        this.warehouseMapper = warehouseMapper;
+        this.salesOrderNumberService = salesOrderNumberService;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.salesOrderQueryService = salesOrderQueryService;
+        this.salesCreditEvaluator = salesCreditEvaluator;
+        this.salesPriceEvaluator = salesPriceEvaluator;
+        this.settlementCurrencyService = settlementCurrencyService;
+    }
+
+    /** Compatibility constructor retained for direct callers from older releases. */
     public SalesOrderCommandService(
             SalesOrderMapper salesOrderMapper,
             SalesOrderLineMapper salesOrderLineMapper,
@@ -59,16 +89,9 @@ public class SalesOrderCommandService {
             SalesCreditEvaluator salesCreditEvaluator,
             SalesPriceEvaluator salesPriceEvaluator
     ) {
-        this.salesOrderMapper = salesOrderMapper;
-        this.salesOrderLineMapper = salesOrderLineMapper;
-        this.customerMapper = customerMapper;
-        this.productValidator = productValidator;
-        this.warehouseMapper = warehouseMapper;
-        this.salesOrderNumberService = salesOrderNumberService;
-        this.auditMetadataFactory = auditMetadataFactory;
-        this.salesOrderQueryService = salesOrderQueryService;
-        this.salesCreditEvaluator = salesCreditEvaluator;
-        this.salesPriceEvaluator = salesPriceEvaluator;
+        this(salesOrderMapper, salesOrderLineMapper, customerMapper, productValidator, warehouseMapper,
+                salesOrderNumberService, auditMetadataFactory, salesOrderQueryService, salesCreditEvaluator,
+                salesPriceEvaluator, null);
     }
 
     @Transactional
@@ -85,6 +108,7 @@ public class SalesOrderCommandService {
                     request.lines(), null, audit);
         }
         OrderTotals totals = calculateTotals(request.lines());
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         LocalDateTime now = audit.now();
 
         SalesOrderEntity entity = new SalesOrderEntity();
@@ -102,10 +126,10 @@ public class SalesOrderCommandService {
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
-        entity.setCurrencyCode(request.currencyCode() == null ? "CNY" : request.currencyCode().toUpperCase());
-        entity.setExchangeRate(request.exchangeRate() == null ? java.math.BigDecimal.ONE : request.exchangeRate());
-        entity.setBaseTotalAmount(totals.totalAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
-        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setCurrencyCode(currency.currencyCode());
+        entity.setExchangeRate(currency.exchangeRate());
+        entity.setBaseTotalAmount(totals.totalAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         entity.setDeletedFlag(0);
         entity.setRemark(request.remark());
         fillCreateAudit(entity, audit, now);
@@ -160,6 +184,7 @@ public class SalesOrderCommandService {
                     request.lines(), id, audit);
         }
         OrderTotals totals = calculateTotals(request.lines());
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         LocalDateTime now = audit.now();
 
         entity.setCustomerId(customer.getId());
@@ -170,10 +195,10 @@ public class SalesOrderCommandService {
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
-        entity.setCurrencyCode(request.currencyCode() == null ? "CNY" : request.currencyCode().toUpperCase());
-        entity.setExchangeRate(request.exchangeRate() == null ? java.math.BigDecimal.ONE : request.exchangeRate());
-        entity.setBaseTotalAmount(totals.totalAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
-        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setCurrencyCode(currency.currencyCode());
+        entity.setExchangeRate(currency.exchangeRate());
+        entity.setBaseTotalAmount(totals.totalAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         entity.setRemark(request.remark());
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(now);
@@ -216,6 +241,30 @@ public class SalesOrderCommandService {
             totals = totals.add(SalesAmountCalculator.line(line.qty(), line.price(), line.taxRate()));
         }
         return new OrderTotals(totals.totalQuantity(), totals.totalAmount(), totals.totalTaxAmount());
+    }
+
+    private SettlementCurrencyService.Resolution resolveCurrency(
+            String requestedCurrency,
+            BigDecimal requestedRate,
+            java.time.LocalDate businessDate,
+            AuditMetadata audit
+    ) {
+        if (settlementCurrencyService != null) {
+            return settlementCurrencyService.resolve(requestedCurrency, requestedRate, businessDate, audit);
+        }
+        String code = requestedCurrency == null || requestedCurrency.isBlank()
+                ? "CNY" : requestedCurrency.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!code.matches("[A-Z]{3}")) {
+            throw new IllegalArgumentException("币种编码必须为3位大写字母");
+        }
+        BigDecimal rate = requestedRate == null ? BigDecimal.ONE : requestedRate;
+        if (rate.signum() <= 0) {
+            throw new IllegalArgumentException("汇率必须大于0");
+        }
+        if ("CNY".equals(code) && rate.compareTo(BigDecimal.ONE) != 0) {
+            throw new IllegalArgumentException("本位币汇率必须为1");
+        }
+        return new SettlementCurrencyService.Resolution(code, rate);
     }
 
     private List<SalesOrderLineEntity> saveOrderLines(

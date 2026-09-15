@@ -127,6 +127,8 @@ public class MybatisPlusConfig {
             "pur_requisition_line",
             "md_sales_price",
             "md_purchase_price",
+            "md_exchange_rate",
+            "md_account_book_currency",
             "inv_mrp_run",
             "inv_mrp_run_line",
             "inv_serial_number"

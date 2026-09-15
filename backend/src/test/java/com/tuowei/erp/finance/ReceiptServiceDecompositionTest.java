@@ -2,6 +2,7 @@ package com.tuowei.erp.finance;
 
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptAllocationMapper;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptMapper;
@@ -30,7 +31,7 @@ class ReceiptServiceDecompositionTest {
     @Test void dependenciesAreOneWay() {
         assertThat(autowired(ReceiptService.class)).containsExactlyInAnyOrder(ReceiptQueryService.class, ReceiptCommandService.class);
         assertThat(deps(ReceiptQueryService.class)).containsExactlyInAnyOrder(ReceiptMapper.class, ReceiptAllocationMapper.class, AuditMetadataFactory.class).doesNotContain(ReceiptService.class, ReceiptCommandService.class);
-        assertThat(deps(ReceiptCommandService.class)).containsExactlyInAnyOrder(ReceiptMapper.class, ReceiptAllocationMapper.class, ReceivableMapper.class, ReceiptNumberService.class, AuditMetadataFactory.class, AccountPeriodGuard.class, ReceiptQueryService.class, FinancePostingService.class).doesNotContain(ReceiptService.class);
+        assertThat(deps(ReceiptCommandService.class)).containsExactlyInAnyOrder(ReceiptMapper.class, ReceiptAllocationMapper.class, ReceivableMapper.class, ReceiptNumberService.class, AuditMetadataFactory.class, AccountPeriodGuard.class, ReceiptQueryService.class, FinancePostingService.class, SettlementCurrencyService.class).doesNotContain(ReceiptService.class);
     }
     @Test void facadeDelegates() {
         ReceiptQueryService query = mock(ReceiptQueryService.class); ReceiptCommandService command = mock(ReceiptCommandService.class); ReceiptService service = new ReceiptService(query, command); ReceiptCreateRequest create = null; ReceiptCancelRequest cancel = null;

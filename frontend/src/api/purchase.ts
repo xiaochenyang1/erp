@@ -14,6 +14,11 @@ export interface PurchaseOrder {
   totalAmount: number
   totalTaxAmount?: number
   totalQuantity?: number
+  /** Amounts are stored in the order currency; base* fields are in the account-book currency. */
+  currencyCode?: string
+  exchangeRate?: number
+  baseTotalAmount?: number
+  baseTotalTaxAmount?: number
   status: 'DRAFT' | 'SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CLOSED' | 'COMPLETED' | 'CANCELLED'
   approvalStatus?: 'NOT_SUBMITTED' | 'IN_APPROVAL' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | string
   receiptStatus?: 'NOT_RECEIVED' | 'PARTIAL_RECEIVED' | 'RECEIVED' | string
@@ -102,6 +107,8 @@ export interface PurchaseOrderSaveRequest {
   orderDate: string
   expectedDate?: string
   deliveryDate?: string
+  currencyCode?: string
+  exchangeRate?: number
   items: PurchaseOrderItem[]
   remark?: string
 }
@@ -213,6 +220,8 @@ const toPurchaseOrderPayload = (data: PurchaseOrderSaveRequest) => ({
   supplierId: data.supplierId,
   orderDate: data.orderDate,
   deliveryDate: data.deliveryDate || data.expectedDate || undefined,
+  currencyCode: data.currencyCode || 'CNY',
+  exchangeRate: data.exchangeRate ?? 1,
   remark: data.remark,
   lines: data.items.map((item) => ({
     productId: item.productId,
@@ -247,6 +256,9 @@ const normalizePurchaseOrderLine = (item: PurchaseOrderItem): PurchaseOrderItem 
 
 const normalizePurchaseOrder = (order: PurchaseOrder): PurchaseOrder => {
   const lines = (order.lines || order.items || []).map(normalizePurchaseOrderLine)
+  const totalAmount = Number(order.totalAmount ?? 0)
+  const totalTaxAmount = Number(order.totalTaxAmount ?? 0)
+  const exchangeRate = Number(order.exchangeRate ?? 1)
   return {
     ...order,
     id: String(order.id),
@@ -255,9 +267,13 @@ const normalizePurchaseOrder = (order: PurchaseOrder): PurchaseOrder => {
     sourceInquiryId: order.sourceInquiryId != null ? String(order.sourceInquiryId) : order.sourceInquiryId,
     sourceQuoteId: order.sourceQuoteId != null ? String(order.sourceQuoteId) : order.sourceQuoteId,
     expectedDate: order.expectedDate || order.deliveryDate,
-    totalAmount: Number(order.totalAmount ?? 0),
-    totalTaxAmount: Number(order.totalTaxAmount ?? 0),
+    totalAmount,
+    totalTaxAmount,
     totalQuantity: Number(order.totalQuantity ?? 0),
+    currencyCode: String(order.currencyCode || 'CNY').trim().toUpperCase(),
+    exchangeRate,
+    baseTotalAmount: Number(order.baseTotalAmount ?? totalAmount * exchangeRate),
+    baseTotalTaxAmount: Number(order.baseTotalTaxAmount ?? totalTaxAmount * exchangeRate),
     items: lines,
     lines,
     createdAt: order.createdAt || '',

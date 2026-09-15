@@ -15,6 +15,11 @@ export interface SalesOrder {
   totalAmount: number
   totalQuantity?: number
   totalTaxAmount?: number
+  /** Amounts are stored in the order currency; base* fields are in the account-book currency. */
+  currencyCode?: string
+  exchangeRate?: number
+  baseTotalAmount?: number
+  baseTotalTaxAmount?: number
   status: 'DRAFT' | 'SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELIVERING' | 'COMPLETED' | 'CANCELLED' | 'CONFIRMED' | 'CLOSED'
   approvalStatus?: string
   deliveryStatus?: string
@@ -72,6 +77,8 @@ export interface SalesOrderSaveRequest {
   warehouseId?: string | number
   orderDate: string
   deliveryDate?: string
+  currencyCode?: string
+  exchangeRate?: number
   items: SalesOrderItem[]
   remark?: string
   carrierName?: string
@@ -161,12 +168,21 @@ const normalizeSalesOrderItem = (item: SalesOrderItem): SalesOrderItem => ({
 
 const normalizeSalesOrder = (order: SalesOrder): SalesOrder => {
   const items = (order.items || order.lines || []).map(normalizeSalesOrderItem)
+  const totalAmount = Number(order.totalAmount ?? 0)
+  const totalTaxAmount = Number(order.totalTaxAmount ?? 0)
+  const exchangeRate = Number(order.exchangeRate ?? 1)
   return {
     ...order,
     id: String(order.id),
     contractId: order.contractId != null ? String(order.contractId) : undefined,
     customerId: String(order.customerId),
     warehouseId: order.warehouseId != null ? String(order.warehouseId) : undefined,
+    totalAmount,
+    totalTaxAmount,
+    currencyCode: String(order.currencyCode || 'CNY').trim().toUpperCase(),
+    exchangeRate,
+    baseTotalAmount: Number(order.baseTotalAmount ?? totalAmount * exchangeRate),
+    baseTotalTaxAmount: Number(order.baseTotalTaxAmount ?? totalTaxAmount * exchangeRate),
     items,
     lines: items
   }
@@ -183,6 +199,8 @@ const toSalesOrderPayload = (data: SalesOrderSaveRequest) => ({
   warehouseId: data.warehouseId,
   orderDate: data.orderDate,
   deliveryDate: data.deliveryDate,
+  currencyCode: data.currencyCode || 'CNY',
+  exchangeRate: data.exchangeRate ?? 1,
   remark: data.remark,
     carrierName: data.carrierName,
     trackingNo: data.trackingNo,

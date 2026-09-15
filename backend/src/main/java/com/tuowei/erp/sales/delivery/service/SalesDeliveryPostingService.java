@@ -7,6 +7,7 @@ import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.commercial.contract.service.ContractExecutionService;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
@@ -154,6 +155,8 @@ public class SalesDeliveryPostingService {
         // 出库质检闸门：需检验商品必须存在已判定 OQC 检验单，且出库数量=合格数量。
         qcInspectionGate.assertDeliveryInspected(delivery, deliveryLines, audit);
 
+        applyCurrencySnapshot(delivery, order);
+
         delivery.setStatus("POSTED");
         delivery.setUpdatedBy(audit.userId());
         delivery.setUpdatedTime(now);
@@ -193,7 +196,7 @@ public class SalesDeliveryPostingService {
                             delivery.getDeliveryNo(),
                             deliveryLine.getId(),
                             deliveryLine.getQty(),
-                            deliveryLine.getAmount(),
+                            CurrencyAmountSupport.posting(deliveryLine.getAmount(), delivery.getExchangeRate()),
                             deliveryLine.getRemark(),
                             delivery.getDeliveryDate(),
                             deliveryLine.getLotNo(),
@@ -358,5 +361,14 @@ public class SalesDeliveryPostingService {
                 ScalePrecision.quantity(orderLine.getQty())
                         .subtract(ScalePrecision.quantity(ScalePrecision.zeroDefault(orderLine.getDeliveredQty())))
         );
+    }
+
+    private void applyCurrencySnapshot(SalesDeliveryEntity delivery, SalesOrderEntity order) {
+        String currencyCode = CurrencyAmountSupport.currency(order.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(order.getExchangeRate());
+        delivery.setCurrencyCode(currencyCode);
+        delivery.setExchangeRate(exchangeRate);
+        delivery.setBaseTotalAmount(CurrencyAmountSupport.base(delivery.getTotalAmount(), exchangeRate));
+        delivery.setBaseTotalTaxAmount(CurrencyAmountSupport.base(delivery.getTotalTaxAmount(), exchangeRate));
     }
 }

@@ -18,6 +18,7 @@ public class PaymentAllocationEntity {
     private Long paymentId;
     private Long payableId;
     private BigDecimal amount;
+    private BigDecimal baseAmount;
     private Long createdBy;
     private LocalDateTime createdTime;
     private Long updatedBy;
@@ -37,6 +38,8 @@ public class PaymentAllocationEntity {
     public void setPayableId(Long payableId) { this.payableId = payableId; }
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public BigDecimal getBaseAmount() { return baseAmount; }
+    public void setBaseAmount(BigDecimal baseAmount) { this.baseAmount = baseAmount; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public LocalDateTime getCreatedTime() { return createdTime; }

@@ -5,6 +5,7 @@ import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ProductAuxUnitConversion;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
 import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
@@ -21,6 +22,7 @@ import com.tuowei.erp.purchase.order.web.PurchaseOrderUpdateRequest;
 import com.tuowei.erp.purchase.support.PurchaseAmountCalculator;
 import com.tuowei.erp.commercial.contract.service.ContractOrderBindingService;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -29,6 +31,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Locale;
 
 /** Creation and editing commands for purchase orders. */
 @Service
@@ -44,7 +47,36 @@ public class PurchaseOrderCommandService {
     private final PurchasePriceEvaluator purchasePriceEvaluator;
     private final SupplierProductRelationService supplierProductRelationService;
     private final ContractOrderBindingService contractOrderBindingService;
+    private final SettlementCurrencyService settlementCurrencyService;
 
+    @Autowired
+    public PurchaseOrderCommandService(
+            PurchaseOrderMapper purchaseOrderMapper,
+            PurchaseOrderLineMapper purchaseOrderLineMapper,
+            SupplierMapper supplierMapper,
+            ProductValidator productValidator,
+            PurchaseOrderNumberService purchaseOrderNumberService,
+            AuditMetadataFactory auditMetadataFactory,
+            PurchaseOrderQueryService purchaseOrderQueryService,
+            PurchasePriceEvaluator purchasePriceEvaluator,
+            SupplierProductRelationService supplierProductRelationService,
+            ContractOrderBindingService contractOrderBindingService,
+            SettlementCurrencyService settlementCurrencyService
+    ) {
+        this.purchaseOrderMapper = purchaseOrderMapper;
+        this.purchaseOrderLineMapper = purchaseOrderLineMapper;
+        this.supplierMapper = supplierMapper;
+        this.productValidator = productValidator;
+        this.purchaseOrderNumberService = purchaseOrderNumberService;
+        this.auditMetadataFactory = auditMetadataFactory;
+        this.purchaseOrderQueryService = purchaseOrderQueryService;
+        this.purchasePriceEvaluator = purchasePriceEvaluator;
+        this.supplierProductRelationService = supplierProductRelationService;
+        this.contractOrderBindingService = contractOrderBindingService;
+        this.settlementCurrencyService = settlementCurrencyService;
+    }
+
+    /** Compatibility constructor retained for direct callers from older releases. */
     public PurchaseOrderCommandService(
             PurchaseOrderMapper purchaseOrderMapper,
             PurchaseOrderLineMapper purchaseOrderLineMapper,
@@ -57,16 +89,9 @@ public class PurchaseOrderCommandService {
             SupplierProductRelationService supplierProductRelationService,
             ContractOrderBindingService contractOrderBindingService
     ) {
-        this.purchaseOrderMapper = purchaseOrderMapper;
-        this.purchaseOrderLineMapper = purchaseOrderLineMapper;
-        this.supplierMapper = supplierMapper;
-        this.productValidator = productValidator;
-        this.purchaseOrderNumberService = purchaseOrderNumberService;
-        this.auditMetadataFactory = auditMetadataFactory;
-        this.purchaseOrderQueryService = purchaseOrderQueryService;
-        this.purchasePriceEvaluator = purchasePriceEvaluator;
-        this.supplierProductRelationService = supplierProductRelationService;
-        this.contractOrderBindingService = contractOrderBindingService;
+        this(purchaseOrderMapper, purchaseOrderLineMapper, supplierMapper, productValidator,
+                purchaseOrderNumberService, auditMetadataFactory, purchaseOrderQueryService,
+                purchasePriceEvaluator, supplierProductRelationService, contractOrderBindingService, null);
     }
 
     @Transactional
@@ -111,6 +136,7 @@ public class PurchaseOrderCommandService {
             );
         }
         OrderTotals totals = calculateTotals(request.lines());
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         LocalDateTime now = audit.now();
         entity.setSupplierId(supplier.getId());
         entity.setContractId(request.contractId());
@@ -119,10 +145,10 @@ public class PurchaseOrderCommandService {
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
-        entity.setCurrencyCode(request.currencyCode() == null ? "CNY" : request.currencyCode().toUpperCase());
-        entity.setExchangeRate(request.exchangeRate() == null ? java.math.BigDecimal.ONE : request.exchangeRate());
-        entity.setBaseTotalAmount(totals.totalAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
-        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setCurrencyCode(currency.currencyCode());
+        entity.setExchangeRate(currency.exchangeRate());
+        entity.setBaseTotalAmount(totals.totalAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         entity.setRemark(request.remark());
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(now);
@@ -155,6 +181,7 @@ public class PurchaseOrderCommandService {
             );
         }
         OrderTotals totals = calculateTotals(request.lines());
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         LocalDateTime now = audit.now();
         PurchaseOrderEntity entity = new PurchaseOrderEntity();
         entity.setCompanyId(audit.companyId());
@@ -175,10 +202,10 @@ public class PurchaseOrderCommandService {
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
-        entity.setCurrencyCode(request.currencyCode() == null ? "CNY" : request.currencyCode().toUpperCase());
-        entity.setExchangeRate(request.exchangeRate() == null ? java.math.BigDecimal.ONE : request.exchangeRate());
-        entity.setBaseTotalAmount(totals.totalAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
-        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(entity.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setCurrencyCode(currency.currencyCode());
+        entity.setExchangeRate(currency.exchangeRate());
+        entity.setBaseTotalAmount(totals.totalAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         entity.setDeletedFlag(0);
         entity.setRemark(request.remark());
         entity.setCreatedBy(audit.userId());
@@ -208,6 +235,30 @@ public class PurchaseOrderCommandService {
             totals = totals.add(PurchaseAmountCalculator.line(line.qty(), line.price(), line.taxRate()));
         }
         return new OrderTotals(totals.totalQuantity(), totals.totalAmount(), totals.totalTaxAmount());
+    }
+
+    private SettlementCurrencyService.Resolution resolveCurrency(
+            String requestedCurrency,
+            BigDecimal requestedRate,
+            java.time.LocalDate businessDate,
+            AuditMetadata audit
+    ) {
+        if (settlementCurrencyService != null) {
+            return settlementCurrencyService.resolve(requestedCurrency, requestedRate, businessDate, audit);
+        }
+        String code = requestedCurrency == null || requestedCurrency.isBlank()
+                ? "CNY" : requestedCurrency.trim().toUpperCase(Locale.ROOT);
+        if (!code.matches("[A-Z]{3}")) {
+            throw new IllegalArgumentException("币种编码必须为3位大写字母");
+        }
+        BigDecimal rate = requestedRate == null ? BigDecimal.ONE : requestedRate;
+        if (rate.signum() <= 0) {
+            throw new IllegalArgumentException("汇率必须大于0");
+        }
+        if ("CNY".equals(code) && rate.compareTo(BigDecimal.ONE) != 0) {
+            throw new IllegalArgumentException("本位币汇率必须为1");
+        }
+        return new SettlementCurrencyService.Resolution(code, rate);
     }
 
     private void assertSupplierProductRules(

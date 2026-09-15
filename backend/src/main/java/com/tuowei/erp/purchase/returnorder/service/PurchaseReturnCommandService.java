@@ -5,6 +5,7 @@ import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper;
@@ -85,6 +86,7 @@ public class PurchaseReturnCommandService {
         entity.setWarehouseId(receipt.getWarehouseId());
         entity.setReturnDate(request.returnDate());
         entity.setStatus("DRAFT");
+        applyCurrencySnapshot(entity, receipt);
         entity.setDeletedFlag(0);
         entity.setRemark(request.remark());
         entity.setCreatedBy(audit.userId());
@@ -116,6 +118,7 @@ public class PurchaseReturnCommandService {
         AuditMetadata audit = auditMetadataFactory.current();
         LocalDateTime now = audit.now();
         entity.setReturnDate(request.returnDate());
+        applyCurrencySnapshot(entity, receipt);
         entity.setRemark(request.remark());
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(now);
@@ -152,7 +155,18 @@ public class PurchaseReturnCommandService {
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
+        entity.setBaseTotalAmount(CurrencyAmountSupport.base(entity.getTotalAmount(), entity.getExchangeRate()));
+        entity.setBaseTotalTaxAmount(CurrencyAmountSupport.base(entity.getTotalTaxAmount(), entity.getExchangeRate()));
         OptimisticLockGuard.requireUpdated(purchaseReturnMapper.updateById(entity), "采购退货单已被其他操作修改，请刷新后重试");
+    }
+
+    private void applyCurrencySnapshot(PurchaseReturnEntity entity, PurchaseReceiptEntity receipt) {
+        String currencyCode = CurrencyAmountSupport.currency(receipt.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(receipt.getExchangeRate());
+        entity.setCurrencyCode(currencyCode);
+        entity.setExchangeRate(exchangeRate);
+        entity.setBaseTotalAmount(CurrencyAmountSupport.base(entity.getTotalAmount(), exchangeRate));
+        entity.setBaseTotalTaxAmount(CurrencyAmountSupport.base(entity.getTotalTaxAmount(), exchangeRate));
     }
 
     private List<PurchaseReturnLineEntity> saveLines(Long returnId, List<PurchaseReturnLineRequest> requests,

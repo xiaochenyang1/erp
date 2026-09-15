@@ -35,6 +35,11 @@ public class SalesReturnEntity {
 
     private BigDecimal totalTaxAmount;
 
+    private String currencyCode;
+    private BigDecimal exchangeRate;
+    private BigDecimal baseTotalAmount;
+    private BigDecimal baseTotalTaxAmount;
+
     private Integer deletedFlag;
 
     private String remark;
@@ -72,6 +77,14 @@ public class SalesReturnEntity {
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public BigDecimal getTotalTaxAmount() { return totalTaxAmount; }
     public void setTotalTaxAmount(BigDecimal totalTaxAmount) { this.totalTaxAmount = totalTaxAmount; }
+    public String getCurrencyCode() { return currencyCode; }
+    public void setCurrencyCode(String currencyCode) { this.currencyCode = currencyCode; }
+    public BigDecimal getExchangeRate() { return exchangeRate; }
+    public void setExchangeRate(BigDecimal exchangeRate) { this.exchangeRate = exchangeRate; }
+    public BigDecimal getBaseTotalAmount() { return baseTotalAmount; }
+    public void setBaseTotalAmount(BigDecimal baseTotalAmount) { this.baseTotalAmount = baseTotalAmount; }
+    public BigDecimal getBaseTotalTaxAmount() { return baseTotalTaxAmount; }
+    public void setBaseTotalTaxAmount(BigDecimal baseTotalTaxAmount) { this.baseTotalTaxAmount = baseTotalTaxAmount; }
     public Integer getDeletedFlag() { return deletedFlag; }
     public void setDeletedFlag(Integer deletedFlag) { this.deletedFlag = deletedFlag; }
     public String getRemark() { return remark; }

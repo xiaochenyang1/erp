@@ -5,6 +5,7 @@ export interface Currency { id: string; currencyCode: string; currencyName: stri
 export interface ExchangeRate { id: string; fromCurrencyCode: string; toCurrencyCode: string; rate: number; effectiveFrom: string; effectiveTo?: string; status: string }
 export interface ExchangeRateRequest { fromCurrencyCode: string; toCurrencyCode: string; rate: number; effectiveFrom: string; effectiveTo?: string }
 export const getCurrencies = () => request.get<Currency[]>('/finance/currencies')
+export const getBaseCurrency = () => request.get<string>('/finance/currencies/base')
 export const getExchangeRates = (params?: { from?: string; to?: string }) => request.get<ExchangeRate[]>('/finance/currencies/rates', { params })
 export const createExchangeRate = (data: ExchangeRateRequest) => request.post<ExchangeRate>('/finance/currencies/rates', data)
 
@@ -155,6 +156,8 @@ export interface ReceiptCreateRequest {
   receiptMethod: string
   bankAccount?: string
   allocations: ReceiptAllocation[]
+  currencyCode?: string
+  exchangeRate?: number
   remark?: string
 }
 
@@ -221,6 +224,8 @@ export interface PaymentCreateRequest {
   paymentMethod: string
   bankAccount?: string
   allocations: PaymentAllocation[]
+  currencyCode?: string
+  exchangeRate?: number
   remark?: string
 }
 
@@ -313,6 +318,8 @@ const toReceiptPayload = (data: ReceiptCreateRequest) => ({
   customerId: data.customerId,
   receiptDate: data.receiptDate,
   amount: data.receiptAmount,
+  currencyCode: data.currencyCode,
+  exchangeRate: data.exchangeRate,
   remark: data.remark,
   allocations: data.allocations.map((allocation) => ({
     receivableId: allocation.receivableId,
@@ -324,6 +331,8 @@ const toPaymentPayload = (data: PaymentCreateRequest) => ({
   supplierId: data.supplierId,
   paymentDate: data.paymentDate,
   amount: data.paymentAmount,
+  currencyCode: data.currencyCode,
+  exchangeRate: data.exchangeRate,
   remark: data.remark,
   allocations: data.allocations.map((allocation) => ({
     payableId: allocation.payableId,

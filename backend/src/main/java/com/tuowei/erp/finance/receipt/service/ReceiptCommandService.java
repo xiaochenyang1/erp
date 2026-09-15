@@ -6,6 +6,8 @@ import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
+import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptAllocationMapper;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptMapper;
@@ -19,12 +21,14 @@ import com.tuowei.erp.finance.receipt.web.ReceiptResponse;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Locale;
 
 @Service
 public class ReceiptCommandService {
@@ -38,7 +42,11 @@ public class ReceiptCommandService {
     private final AccountPeriodGuard accountPeriodGuard;
     private final ReceiptQueryService queryService;
     private final FinancePostingService financePostingService;
+    private final BaseCurrencyService baseCurrencyService;
+    private final SettlementCurrencyService settlementCurrencyService;
+    public ReceiptCommandService(ReceiptMapper a, ReceiptAllocationMapper b, ReceivableMapper c, ReceiptNumberService d, AuditMetadataFactory e, AccountPeriodGuard f, ReceiptQueryService g, FinancePostingService h) { this(a,b,c,d,e,f,g,h,null); }
 
+    @Autowired
     public ReceiptCommandService(
             ReceiptMapper receiptMapper,
             ReceiptAllocationMapper receiptAllocationMapper,
@@ -47,7 +55,8 @@ public class ReceiptCommandService {
             AuditMetadataFactory auditMetadataFactory,
             AccountPeriodGuard accountPeriodGuard,
             ReceiptQueryService queryService,
-            FinancePostingService financePostingService
+            FinancePostingService financePostingService,
+            SettlementCurrencyService settlementCurrencyService
     ) {
         this.receiptMapper = receiptMapper;
         this.receiptAllocationMapper = receiptAllocationMapper;
@@ -57,6 +66,8 @@ public class ReceiptCommandService {
         this.accountPeriodGuard = accountPeriodGuard;
         this.queryService = queryService;
         this.financePostingService = financePostingService;
+        this.baseCurrencyService = null;
+        this.settlementCurrencyService = settlementCurrencyService;
     }
 
     @Transactional
@@ -69,10 +80,20 @@ public class ReceiptCommandService {
         BigDecimal allocatedAmount = allocationTotal(request.allocations());
         if (allocatedAmount.compareTo(ZERO_AMOUNT) <= 0) throw new IllegalArgumentException("收款核销金额必须大于0");
         if (allocatedAmount.compareTo(amount) > 0) throw new IllegalArgumentException("收款核销金额不能超过收款金额");
+        String currencyCode;
+        BigDecimal exchangeRate;
+        if (settlementCurrencyService != null) {
+            SettlementCurrencyService.Resolution resolution = settlementCurrencyService.resolve(request.currencyCode(), request.exchangeRate(), request.receiptDate(), audit);
+            currencyCode = resolution.currencyCode();
+            exchangeRate = resolution.exchangeRate();
+        } else {
+            currencyCode = normalizeCurrency(request.currencyCode());
+            exchangeRate = normalizeRate(request.exchangeRate());
+        }
         ReceiptEntity receipt = new ReceiptEntity();
         receipt.setCompanyId(audit.companyId()); receipt.setAccountBookId(audit.accountBookId());
         receipt.setReceiptNo(receiptNumberService.nextReceiptNo(request.receiptDate())); receipt.setCustomerId(request.customerId());
-        receipt.setReceiptDate(request.receiptDate()); receipt.setAmount(amount); receipt.setAllocatedAmount(allocatedAmount); receipt.setCurrencyCode(request.currencyCode() == null ? "CNY" : request.currencyCode().toUpperCase()); receipt.setExchangeRate(request.exchangeRate() == null ? BigDecimal.ONE : request.exchangeRate()); receipt.setBaseAmount(amount.multiply(receipt.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
+        receipt.setReceiptDate(request.receiptDate()); receipt.setAmount(amount); receipt.setAllocatedAmount(allocatedAmount); receipt.setCurrencyCode(currencyCode); receipt.setExchangeRate(exchangeRate); receipt.setBaseAmount(amount.multiply(exchangeRate).setScale(6, java.math.RoundingMode.HALF_UP));
         receipt.setStatus("POSTED"); receipt.setDeletedFlag(0); receipt.setRemark(request.remark()); setAudit(receipt, audit, now);
         if (receiptMapper.insert(receipt) != 1) throw new IllegalStateException("保存收款单失败");
         for (ReceiptAllocationRequest allocation : request.allocations()) allocateReceivable(receipt, allocation, audit, now);
@@ -121,6 +142,8 @@ public class ReceiptCommandService {
     }
 
     private void validateCreateRequest(ReceiptCreateRequest request) { if (request == null) throw new IllegalArgumentException("收款单请求不能为空"); if (request.allocations() == null || request.allocations().stream().anyMatch(Objects::isNull)) throw new IllegalArgumentException("收款核销明细不能为空"); }
+    private String normalizeCurrency(String value) { return value == null || value.isBlank() ? (baseCurrencyService == null ? "CNY" : baseCurrencyService.current()) : value.trim().toUpperCase(Locale.ROOT); }
+    private BigDecimal normalizeRate(BigDecimal value) { if (value == null) return BigDecimal.ONE; if (value.signum() <= 0) throw new IllegalArgumentException("汇率必须大于0"); return value; }
     private BigDecimal allocationTotal(List<ReceiptAllocationRequest> allocations) { return ScalePrecision.amount(allocations.stream().map(ReceiptAllocationRequest::amount).map(ScalePrecision::zeroDefault).reduce(BigDecimal.ZERO, BigDecimal::add)); }
     private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) { return ScalePrecision.amount(ScalePrecision.zeroDefault(originalAmount).subtract(ScalePrecision.zeroDefault(settledAmount))); }
     private String settlementStatus(BigDecimal originalAmount, BigDecimal settledAmount) { BigDecimal settled = ScalePrecision.zeroDefault(settledAmount); if (settled.compareTo(ZERO_AMOUNT) <= 0) return "UNSETTLED"; if (settled.compareTo(ScalePrecision.zeroDefault(originalAmount)) >= 0) return "SETTLED"; return "PARTIALLY_SETTLED"; }

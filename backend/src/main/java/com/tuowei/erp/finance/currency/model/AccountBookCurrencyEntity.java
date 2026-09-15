@@ -1,24 +1,23 @@
-package com.tuowei.erp.finance.receipt.model;
+package com.tuowei.erp.finance.currency.model;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@TableName("fin_receipt_allocation")
-public class ReceiptAllocationEntity {
+/** Base currency selected for one company/account-book scope. */
+@TableName("md_account_book_currency")
+public class AccountBookCurrencyEntity {
 
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
     private Long companyId;
     private Long accountBookId;
-    private Long receiptId;
-    private Long receivableId;
-    private BigDecimal amount;
-    private BigDecimal baseAmount;
+    private String currencyCode;
+    private String status;
+    private Integer deletedFlag;
     private Long createdBy;
     private LocalDateTime createdTime;
     private Long updatedBy;
@@ -32,14 +31,12 @@ public class ReceiptAllocationEntity {
     public void setCompanyId(Long companyId) { this.companyId = companyId; }
     public Long getAccountBookId() { return accountBookId; }
     public void setAccountBookId(Long accountBookId) { this.accountBookId = accountBookId; }
-    public Long getReceiptId() { return receiptId; }
-    public void setReceiptId(Long receiptId) { this.receiptId = receiptId; }
-    public Long getReceivableId() { return receivableId; }
-    public void setReceivableId(Long receivableId) { this.receivableId = receivableId; }
-    public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal amount) { this.amount = amount; }
-    public BigDecimal getBaseAmount() { return baseAmount; }
-    public void setBaseAmount(BigDecimal baseAmount) { this.baseAmount = baseAmount; }
+    public String getCurrencyCode() { return currencyCode; }
+    public void setCurrencyCode(String currencyCode) { this.currencyCode = currencyCode; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public Integer getDeletedFlag() { return deletedFlag; }
+    public void setDeletedFlag(Integer deletedFlag) { this.deletedFlag = deletedFlag; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public LocalDateTime getCreatedTime() { return createdTime; }

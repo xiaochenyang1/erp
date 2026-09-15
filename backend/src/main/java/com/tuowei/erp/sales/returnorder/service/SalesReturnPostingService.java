@@ -7,6 +7,7 @@ import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.commercial.contract.service.ContractExecutionService;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
@@ -132,6 +133,8 @@ public class SalesReturnPostingService {
                 audit.companyId(),
                 audit.accountBookId()
         );
+
+        applyCurrencySnapshot(entity, delivery);
 
         entity.setStatus("POSTED");
         entity.setUpdatedBy(audit.userId());
@@ -442,6 +445,15 @@ public class SalesReturnPostingService {
                 ScalePrecision.quantity(deliveryLine.getQty())
                         .subtract(ScalePrecision.quantity(ScalePrecision.zeroDefault(deliveryLine.getReturnedQty())))
         );
+    }
+
+    private void applyCurrencySnapshot(SalesReturnEntity entity, SalesDeliveryEntity delivery) {
+        String currencyCode = CurrencyAmountSupport.currency(delivery.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(delivery.getExchangeRate());
+        entity.setCurrencyCode(currencyCode);
+        entity.setExchangeRate(exchangeRate);
+        entity.setBaseTotalAmount(CurrencyAmountSupport.base(entity.getTotalAmount(), exchangeRate));
+        entity.setBaseTotalTaxAmount(CurrencyAmountSupport.base(entity.getTotalTaxAmount(), exchangeRate));
     }
 
     private String normalizeNullableText(String value) {

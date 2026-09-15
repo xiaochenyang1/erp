@@ -93,7 +93,7 @@ public class ReceiptQueryService {
 
     private ReceiptResponse toResponse(ReceiptEntity receipt, List<ReceiptAllocationResponse> allocations) {
         return new ReceiptResponse(receipt.getId(), receipt.getReceiptNo(), receipt.getCustomerId(), receipt.getReceiptDate(),
-                receipt.getAmount(), receipt.getAllocatedAmount(), receipt.getStatus(), receipt.getRemark(),
+                receipt.getAmount(), receipt.getAllocatedAmount(), receipt.getCurrencyCode(), receipt.getExchangeRate(), receipt.getBaseAmount(), receipt.getStatus(), receipt.getRemark(),
                 receipt.getCancelReason(), receipt.getCancelledBy(), receipt.getCancelledTime(), allocations);
     }
 

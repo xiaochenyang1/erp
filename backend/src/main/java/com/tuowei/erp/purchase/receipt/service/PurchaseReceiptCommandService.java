@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
@@ -77,6 +78,7 @@ public class PurchaseReceiptCommandService {
         receipt.setReceiptDate(request.receiptDate()); receipt.setStatus("DRAFT");
         receipt.setTotalQuantity(totals.totalQuantity()); receipt.setTotalAmount(totals.totalAmount());
         receipt.setTotalTaxAmount(totals.totalTaxAmount()); receipt.setDeletedFlag(0); receipt.setRemark(request.remark());
+        applyCurrencySnapshot(receipt, order);
         receipt.setCreatedBy(audit.userId()); receipt.setCreatedTime(now); receipt.setUpdatedBy(audit.userId());
         receipt.setUpdatedTime(now); receipt.setVersion(0);
         assertCanView(receipt);
@@ -100,6 +102,7 @@ public class PurchaseReceiptCommandService {
         receipt.setOrderId(request.orderId()); receipt.setWarehouseId(request.warehouseId());
         receipt.setReceiptDate(request.receiptDate()); receipt.setTotalQuantity(totals.totalQuantity());
         receipt.setTotalAmount(totals.totalAmount()); receipt.setTotalTaxAmount(totals.totalTaxAmount());
+        applyCurrencySnapshot(receipt, order);
         receipt.setRemark(request.remark()); receipt.setUpdatedBy(audit.userId()); receipt.setUpdatedTime(now);
         assertCanView(receipt);
         OptimisticLockGuard.requireUpdated(purchaseReceiptMapper.updateById(receipt), "采购入库单已被其他操作修改，请刷新后重试");
@@ -192,6 +195,15 @@ public class PurchaseReceiptCommandService {
     private void touch(PurchaseReceiptEntity receipt) {
         AuditMetadata audit = auditMetadataFactory.current();
         receipt.setUpdatedBy(audit.userId()); receipt.setUpdatedTime(audit.now());
+    }
+
+    private void applyCurrencySnapshot(PurchaseReceiptEntity receipt, PurchaseOrderEntity order) {
+        String currencyCode = CurrencyAmountSupport.currency(order.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(order.getExchangeRate());
+        receipt.setCurrencyCode(currencyCode);
+        receipt.setExchangeRate(exchangeRate);
+        receipt.setBaseTotalAmount(CurrencyAmountSupport.base(receipt.getTotalAmount(), exchangeRate));
+        receipt.setBaseTotalTaxAmount(CurrencyAmountSupport.base(receipt.getTotalTaxAmount(), exchangeRate));
     }
 
     private void assertCanView(PurchaseReceiptEntity receipt) { purchaseReceiptQueryService.assertCanView(receipt); }

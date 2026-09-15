@@ -251,6 +251,8 @@ describe('settlement form', () => {
     expect(createDoc).toHaveBeenCalledWith(expect.objectContaining({
       customerId: 'c1',
       receiptAmount: 100,
+      currencyCode: 'CNY',
+      exchangeRate: 1,
       receiptMethod: 'BANK_TRANSFER',
       allocations: [{ receivableId: 'r1', allocatedAmount: 100 }]
     }))
@@ -274,6 +276,8 @@ describe('settlement form', () => {
     expect(createDoc).toHaveBeenCalledWith(expect.objectContaining({
       supplierId: 's1',
       paymentAmount: 80,
+      currencyCode: 'CNY',
+      exchangeRate: 1,
       paymentMethod: 'BANK_TRANSFER',
       allocations: [{ payableId: 'p1', allocatedAmount: 80 }]
     }))

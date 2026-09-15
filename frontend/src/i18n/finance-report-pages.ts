@@ -538,7 +538,7 @@ export const financeReportPageMessages = {
         paymentNo: '付款单号',
         receiptDate: '收款日期',
         paymentDate: '付款日期',
-        receiptAmount: '收款金额',
+        receiptAmount: '收款金额', currency: '币种', exchangeRate: '汇率',
         paymentAmount: '付款金额',
         allocated: '已核销',
         pendingReceivables: '待核销应收',
@@ -580,6 +580,7 @@ export const financeReportPageMessages = {
           paymentAllocationExceeded: '核销合计不能超过付款金额'
         },
         message: {
+          exchangeRateNotFound: '未找到该日期的有效汇率',
           receiptsLoadFailed: '加载收款数据失败',
           paymentsLoadFailed: '加载付款数据失败',
           receiptCreated: '收款创建成功',
@@ -1075,7 +1076,7 @@ export const financeReportPageMessages = {
         tabs: { receipts: 'Receipts', payments: 'Payments' }, customer: 'Customer', supplier: 'Supplier',
         selectCustomer: 'Select a customer', selectSupplier: 'Select a supplier', newReceipt: 'New receipt', newPayment: 'New payment',
         receiptNo: 'Receipt no.', paymentNo: 'Payment no.', receiptDate: 'Receipt date', paymentDate: 'Payment date',
-        receiptAmount: 'Receipt amount', paymentAmount: 'Payment amount', allocated: 'Allocated', pendingReceivables: 'Receivables to allocate',
+        receiptAmount: 'Receipt amount', paymentAmount: 'Payment amount', currency: 'Currency', exchangeRate: 'Exchange rate', allocated: 'Allocated', pendingReceivables: 'Receivables to allocate',
         pendingPayables: 'Payables to allocate', receivablesPlaceholder: 'Select open receivables', payablesPlaceholder: 'Select open payables',
         remainingOption: '{no} / Remaining {amount}', allocationDetails: 'Allocation details', autoAllocate: 'Auto-allocate remaining balances',
         allocatedSummary: 'Allocated {amount}', receiptSummary: 'Receipt {amount}', paymentSummary: 'Payment {amount}',
@@ -1092,6 +1093,7 @@ export const financeReportPageMessages = {
           paymentAllocationExceeded: 'Total allocations cannot exceed the payment amount'
         },
         message: {
+          exchangeRateNotFound: 'No effective exchange rate found for this date',
           receiptsLoadFailed: 'Failed to load receipts', paymentsLoadFailed: 'Failed to load payments', receiptCreated: 'Receipt created',
           receiptCreateFailed: 'Failed to create the receipt', paymentCreated: 'Payment created', paymentCreateFailed: 'Failed to create the payment',
           receiptDetailLoadFailed: 'Failed to load receipt details', paymentDetailLoadFailed: 'Failed to load payment details',

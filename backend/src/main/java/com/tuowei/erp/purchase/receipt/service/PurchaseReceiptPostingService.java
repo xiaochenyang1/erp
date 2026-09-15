@@ -6,6 +6,7 @@ import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.commercial.contract.service.ContractExecutionService;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
@@ -125,6 +126,8 @@ public class PurchaseReceiptPostingService {
         );
         qcInspectionGate.assertReceiptInspected(receipt, receiptLines, audit);
 
+        applyCurrencySnapshot(receipt, order);
+
         receipt.setStatus("POSTED");
         receipt.setUpdatedBy(audit.userId());
         receipt.setUpdatedTime(now);
@@ -158,7 +161,7 @@ public class PurchaseReceiptPostingService {
                             receipt.getReceiptNo(),
                             receiptLine.getId(),
                             receiptLine.getQty(),
-                            receiptLine.getAmount(),
+                            CurrencyAmountSupport.posting(receiptLine.getAmount(), receipt.getExchangeRate()),
                             receiptLine.getRemark(),
                             receipt.getReceiptDate(),
                             receiptLine.getLotNo(),
@@ -257,6 +260,15 @@ public class PurchaseReceiptPostingService {
                 orderLine.getQty(),
                 orderLine.getReceivedQty()
         ).availableReceiptQty();
+    }
+
+    private void applyCurrencySnapshot(PurchaseReceiptEntity receipt, PurchaseOrderEntity order) {
+        String currencyCode = CurrencyAmountSupport.currency(order.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(order.getExchangeRate());
+        receipt.setCurrencyCode(currencyCode);
+        receipt.setExchangeRate(exchangeRate);
+        receipt.setBaseTotalAmount(CurrencyAmountSupport.base(receipt.getTotalAmount(), exchangeRate));
+        receipt.setBaseTotalTaxAmount(CurrencyAmountSupport.base(receipt.getTotalTaxAmount(), exchangeRate));
     }
 
     private record PostingLineContext(

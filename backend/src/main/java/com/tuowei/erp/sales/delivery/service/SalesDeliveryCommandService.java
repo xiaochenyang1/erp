@@ -5,6 +5,7 @@ import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.inventory.stock.mapper.InventoryReservationMapper;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -146,6 +147,7 @@ public class SalesDeliveryCommandService {
         delivery.setTotalQuantity(totals.totalQuantity());
         delivery.setTotalAmount(totals.totalAmount());
         delivery.setTotalTaxAmount(totals.totalTaxAmount());
+        applyCurrencySnapshot(delivery, order);
         delivery.setDeletedFlag(0);
         delivery.setRemark(request.remark());
         delivery.setCarrierName(request.carrierName());
@@ -198,6 +200,7 @@ public class SalesDeliveryCommandService {
         delivery.setTotalQuantity(totals.totalQuantity());
         delivery.setTotalAmount(totals.totalAmount());
         delivery.setTotalTaxAmount(totals.totalTaxAmount());
+        applyCurrencySnapshot(delivery, order);
         delivery.setRemark(request.remark());
         delivery.setCarrierName(request.carrierName());
         delivery.setTrackingNo(request.trackingNo());
@@ -550,6 +553,15 @@ public class SalesDeliveryCommandService {
         AuditMetadata audit = auditMetadataFactory.current();
         delivery.setUpdatedBy(audit.userId());
         delivery.setUpdatedTime(audit.now());
+    }
+
+    private void applyCurrencySnapshot(SalesDeliveryEntity delivery, SalesOrderEntity order) {
+        String currencyCode = CurrencyAmountSupport.currency(order.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(order.getExchangeRate());
+        delivery.setCurrencyCode(currencyCode);
+        delivery.setExchangeRate(exchangeRate);
+        delivery.setBaseTotalAmount(CurrencyAmountSupport.base(delivery.getTotalAmount(), exchangeRate));
+        delivery.setBaseTotalTaxAmount(CurrencyAmountSupport.base(delivery.getTotalTaxAmount(), exchangeRate));
     }
 
     private record DeliveryTotals(BigDecimal totalQuantity, BigDecimal totalAmount, BigDecimal totalTaxAmount) {

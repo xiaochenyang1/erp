@@ -6,6 +6,7 @@ import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.commercial.contract.service.ContractExecutionService;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
@@ -125,6 +126,8 @@ public class PurchaseReturnPostingService {
                 audit
         );
 
+        applyCurrencySnapshot(entity, receipt);
+
         entity.setStatus("POSTED");
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(now);
@@ -170,7 +173,7 @@ public class PurchaseReturnPostingService {
                             entity.getReturnNo(),
                             returnLine.getId(),
                             returnLine.getQty(),
-                            returnLine.getAmount(),
+                            CurrencyAmountSupport.posting(returnLine.getAmount(), entity.getExchangeRate()),
                             returnLine.getRemark(),
                             entity.getReturnDate(),
                             returnLine.getLotNo(),
@@ -289,6 +292,15 @@ public class PurchaseReturnPostingService {
                 receiptLine.getQty(),
                 receiptLine.getReturnedQty()
         ).availableReturnQty();
+    }
+
+    private void applyCurrencySnapshot(PurchaseReturnEntity entity, PurchaseReceiptEntity receipt) {
+        String currencyCode = CurrencyAmountSupport.currency(receipt.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(receipt.getExchangeRate());
+        entity.setCurrencyCode(currencyCode);
+        entity.setExchangeRate(exchangeRate);
+        entity.setBaseTotalAmount(CurrencyAmountSupport.base(entity.getTotalAmount(), exchangeRate));
+        entity.setBaseTotalTaxAmount(CurrencyAmountSupport.base(entity.getTotalTaxAmount(), exchangeRate));
     }
 
     private record PostingLineContext(

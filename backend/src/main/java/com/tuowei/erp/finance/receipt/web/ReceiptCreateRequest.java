@@ -17,4 +17,18 @@ public record ReceiptCreateRequest(
         String remark,
         @Valid @NotEmpty(message = "allocations不能为空") List<ReceiptAllocationRequest> allocations
 ) {
+    /**
+     * Backward-compatible constructor for base-currency receipts.
+     * A null currency and exchange rate are resolved as the account book's
+     * base currency by the settlement command service.
+     */
+    public ReceiptCreateRequest(
+            Long customerId,
+            LocalDate receiptDate,
+            BigDecimal amount,
+            String remark,
+            List<ReceiptAllocationRequest> allocations
+    ) {
+        this(customerId, receiptDate, amount, null, null, remark, allocations);
+    }
 }

@@ -16,25 +16,43 @@ import com.tuowei.erp.finance.payment.web.PaymentCancelRequest;
 import com.tuowei.erp.finance.payment.web.PaymentCreateRequest;
 import com.tuowei.erp.finance.payment.web.PaymentResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
+import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Locale;
 
 @Service
 public class PaymentCommandService {
     private static final BigDecimal ZERO_AMOUNT = ScalePrecision.amount(BigDecimal.ZERO);
     private final PaymentMapper paymentMapper; private final PaymentAllocationMapper paymentAllocationMapper; private final PayableMapper payableMapper; private final PaymentNumberService paymentNumberService; private final AuditMetadataFactory auditMetadataFactory; private final AccountPeriodGuard accountPeriodGuard; private final PaymentQueryService queryService; private final FinancePostingService financePostingService;
-    public PaymentCommandService(PaymentMapper paymentMapper, PaymentAllocationMapper paymentAllocationMapper, PayableMapper payableMapper, PaymentNumberService paymentNumberService, AuditMetadataFactory auditMetadataFactory, AccountPeriodGuard accountPeriodGuard, PaymentQueryService queryService, FinancePostingService financePostingService) { this.paymentMapper = paymentMapper; this.paymentAllocationMapper = paymentAllocationMapper; this.payableMapper = payableMapper; this.paymentNumberService = paymentNumberService; this.auditMetadataFactory = auditMetadataFactory; this.accountPeriodGuard = accountPeriodGuard; this.queryService = queryService; this.financePostingService = financePostingService; }
+    private final BaseCurrencyService baseCurrencyService;
+    private final SettlementCurrencyService settlementCurrencyService;
+    public PaymentCommandService(PaymentMapper a, PaymentAllocationMapper b, PayableMapper c, PaymentNumberService d, AuditMetadataFactory e, AccountPeriodGuard f, PaymentQueryService g, FinancePostingService h) { this(a,b,c,d,e,f,g,h,null); }
+    @Autowired
+    public PaymentCommandService(PaymentMapper paymentMapper, PaymentAllocationMapper paymentAllocationMapper, PayableMapper payableMapper, PaymentNumberService paymentNumberService, AuditMetadataFactory auditMetadataFactory, AccountPeriodGuard accountPeriodGuard, PaymentQueryService queryService, FinancePostingService financePostingService, SettlementCurrencyService settlementCurrencyService) { this.paymentMapper = paymentMapper; this.paymentAllocationMapper = paymentAllocationMapper; this.payableMapper = payableMapper; this.paymentNumberService = paymentNumberService; this.auditMetadataFactory = auditMetadataFactory; this.accountPeriodGuard = accountPeriodGuard; this.queryService = queryService; this.financePostingService = financePostingService; this.baseCurrencyService = null; this.settlementCurrencyService = settlementCurrencyService; }
 
     @Transactional
     public PaymentResponse create(PaymentCreateRequest request) {
         validateCreateRequest(request); accountPeriodGuard.requireOpen(request.paymentDate(), "付款单创建"); AuditMetadata audit = auditMetadataFactory.current(); LocalDateTime now = audit.now(); BigDecimal amount = ScalePrecision.amount(request.amount()); BigDecimal allocatedAmount = allocationTotal(request.allocations()); if (allocatedAmount.compareTo(ZERO_AMOUNT) <= 0) throw new IllegalArgumentException("付款核销金额必须大于0"); if (allocatedAmount.compareTo(amount) > 0) throw new IllegalArgumentException("付款核销金额不能超过付款金额");
-        PaymentEntity payment = new PaymentEntity(); payment.setCompanyId(audit.companyId()); payment.setAccountBookId(audit.accountBookId()); payment.setPaymentNo(paymentNumberService.nextPaymentNo(request.paymentDate())); payment.setSupplierId(request.supplierId()); payment.setPaymentDate(request.paymentDate()); payment.setAmount(amount); payment.setAllocatedAmount(allocatedAmount); payment.setCurrencyCode(request.currencyCode() == null ? "CNY" : request.currencyCode().toUpperCase()); payment.setExchangeRate(request.exchangeRate() == null ? BigDecimal.ONE : request.exchangeRate()); payment.setBaseAmount(amount.multiply(payment.getExchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP)); payment.setStatus("POSTED"); payment.setDeletedFlag(0); payment.setRemark(request.remark()); setAudit(payment, audit, now); if (paymentMapper.insert(payment) != 1) throw new IllegalStateException("保存付款单失败"); for (PaymentAllocationRequest allocation : request.allocations()) allocatePayable(payment, allocation, audit, now); financePostingService.recordPayment(payment, audit); return queryService.detail(payment.getId());
+        String currencyCode;
+        BigDecimal exchangeRate;
+        if (settlementCurrencyService != null) {
+            SettlementCurrencyService.Resolution resolution = settlementCurrencyService.resolve(request.currencyCode(), request.exchangeRate(), request.paymentDate(), audit);
+            currencyCode = resolution.currencyCode();
+            exchangeRate = resolution.exchangeRate();
+        } else {
+            currencyCode = normalizeCurrency(request.currencyCode());
+            exchangeRate = normalizeRate(request.exchangeRate());
+        }
+        PaymentEntity payment = new PaymentEntity(); payment.setCompanyId(audit.companyId()); payment.setAccountBookId(audit.accountBookId()); payment.setPaymentNo(paymentNumberService.nextPaymentNo(request.paymentDate())); payment.setSupplierId(request.supplierId()); payment.setPaymentDate(request.paymentDate()); payment.setAmount(amount); payment.setAllocatedAmount(allocatedAmount); payment.setCurrencyCode(currencyCode); payment.setExchangeRate(exchangeRate); payment.setBaseAmount(amount.multiply(exchangeRate).setScale(6, java.math.RoundingMode.HALF_UP)); payment.setStatus("POSTED"); payment.setDeletedFlag(0); payment.setRemark(request.remark()); setAudit(payment, audit, now); if (paymentMapper.insert(payment) != 1) throw new IllegalStateException("保存付款单失败"); for (PaymentAllocationRequest allocation : request.allocations()) allocatePayable(payment, allocation, audit, now); financePostingService.recordPayment(payment, audit); return queryService.detail(payment.getId());
     }
     @Transactional
     public PaymentResponse cancel(Long id, PaymentCancelRequest request) {
@@ -45,6 +63,8 @@ public class PaymentCommandService {
     }
     private void revertPayableSettlement(PaymentEntity payment, PaymentAllocationEntity allocation, AuditMetadata audit, LocalDateTime now) { PayableEntity payable = payableMapper.selectById(allocation.getPayableId()); if (payable == null || payable.getDeletedFlag() == null || payable.getDeletedFlag() != 0 || !Objects.equals(payment.getCompanyId(), payable.getCompanyId()) || !Objects.equals(payment.getAccountBookId(), payable.getAccountBookId())) throw new BusinessConflictException("付款核销的应付记录不存在，不能作废付款单"); BigDecimal allocationAmount = ScalePrecision.amount(allocation.getAmount()); BigDecimal settledAmount = ScalePrecision.amount(ScalePrecision.zeroDefault(payable.getSettledAmount())); if (settledAmount.compareTo(allocationAmount) < 0) throw new BusinessConflictException("应付已核销金额小于付款核销金额，不能作废付款单"); payable.setSettledAmount(ScalePrecision.amount(settledAmount.subtract(allocationAmount))); payable.setStatus(settlementStatus(payable.getOriginalAmount(), payable.getSettledAmount())); payable.setUpdatedBy(audit.userId()); payable.setUpdatedTime(now); OptimisticLockGuard.requireUpdated(payableMapper.updateById(payable), "应付记录已被其他操作修改，请刷新后重试"); }
     private void validateCreateRequest(PaymentCreateRequest request) { if (request == null) throw new IllegalArgumentException("付款单请求不能为空"); if (request.allocations() == null || request.allocations().stream().anyMatch(Objects::isNull)) throw new IllegalArgumentException("付款核销明细不能为空"); }
+    private String normalizeCurrency(String value) { return value == null || value.isBlank() ? (baseCurrencyService == null ? "CNY" : baseCurrencyService.current()) : value.trim().toUpperCase(Locale.ROOT); }
+    private BigDecimal normalizeRate(BigDecimal value) { if (value == null) return BigDecimal.ONE; if (value.signum() <= 0) throw new IllegalArgumentException("汇率必须大于0"); return value; }
     private BigDecimal allocationTotal(List<PaymentAllocationRequest> allocations) { return ScalePrecision.amount(allocations.stream().map(PaymentAllocationRequest::amount).map(ScalePrecision::zeroDefault).reduce(BigDecimal.ZERO, BigDecimal::add)); }
     private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) { return ScalePrecision.amount(ScalePrecision.zeroDefault(originalAmount).subtract(ScalePrecision.zeroDefault(settledAmount))); }
     private String settlementStatus(BigDecimal originalAmount, BigDecimal settledAmount) { BigDecimal settled = ScalePrecision.zeroDefault(settledAmount); if (settled.compareTo(ZERO_AMOUNT) <= 0) return "UNSETTLED"; if (settled.compareTo(ScalePrecision.zeroDefault(originalAmount)) >= 0) return "SETTLED"; return "PARTIALLY_SETTLED"; }

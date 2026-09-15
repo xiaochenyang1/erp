@@ -5,6 +5,7 @@ import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.purchase.support.AccumulatedQuantityValidator;
@@ -90,6 +91,7 @@ public class SalesReturnService {
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
+        applyCurrencySnapshot(entity, delivery);
         entity.setDeletedFlag(0);
         entity.setRemark(request.remark());
         entity.setCreatedBy(audit.userId());
@@ -137,6 +139,7 @@ public class SalesReturnService {
         entity.setTotalQuantity(totals.totalQuantity());
         entity.setTotalAmount(totals.totalAmount());
         entity.setTotalTaxAmount(totals.totalTaxAmount());
+        applyCurrencySnapshot(entity, delivery);
         entity.setRemark(request.remark());
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(now);
@@ -286,6 +289,15 @@ public class SalesReturnService {
 
     private void assertCanView(SalesDeliveryEntity entity) {
         salesReturnQueryService.assertCanView(entity);
+    }
+
+    private void applyCurrencySnapshot(SalesReturnEntity entity, SalesDeliveryEntity delivery) {
+        String currencyCode = CurrencyAmountSupport.currency(delivery.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(delivery.getExchangeRate());
+        entity.setCurrencyCode(currencyCode);
+        entity.setExchangeRate(exchangeRate);
+        entity.setBaseTotalAmount(CurrencyAmountSupport.base(entity.getTotalAmount(), exchangeRate));
+        entity.setBaseTotalTaxAmount(CurrencyAmountSupport.base(entity.getTotalTaxAmount(), exchangeRate));
     }
 
     private ReturnLotIntent resolveReturnLotIntent(SalesReturnLineRequest request, SalesDeliveryLineEntity deliveryLine) {
