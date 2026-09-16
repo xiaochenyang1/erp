@@ -1236,11 +1236,11 @@ async function runSlaPolicyWorkflow(cdp) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return Boolean(${dialogExpression('配置SLA策略')});
+        return Boolean(${dialogExpression('配置 SLA 策略')});
       })()
     `, 'SLA edit dialog')
 
-    const dialog = dialogExpression('配置SLA策略')
+    const dialog = dialogExpression('配置 SLA 策略')
     await setElementValue(cdp, `${dialog}.querySelector('textarea[placeholder^="说明 SLA"]')`, remark, 'SLA remark input')
     await clickButton(cdp, '保存', dialog)
     await waitForPage(cdp, `
@@ -1251,7 +1251,7 @@ async function runSlaPolicyWorkflow(cdp) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return !${dialogExpression('配置SLA策略')} && document.body.innerText.includes(${JSON.stringify(remark)});
+        return !${dialogExpression('配置 SLA 策略')} && document.body.innerText.includes(${JSON.stringify(remark)});
       })()
     `, 'SLA policy saved').catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after SLA save'))}`)
