@@ -241,6 +241,7 @@ async function prepareSalesOrderFixture(auth) {
   const customer = await apiRequest(auth, 'POST', '/masterdata/customers', {
     customerCode: `UICS${suffix}`,
     customerName: `UI销售客户${suffix}`,
+    customerType: 'ENTERPRISE',
     contactName: 'UI smoke',
     contactPhone: '13800000000',
     settlementMethod: 'BANK_TRANSFER',
