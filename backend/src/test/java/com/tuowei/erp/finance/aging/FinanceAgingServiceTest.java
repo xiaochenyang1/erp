@@ -6,6 +6,7 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.aging.service.FinanceAgingService;
 import com.tuowei.erp.finance.aging.web.FinanceAgingSummaryResponse;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -44,6 +45,8 @@ class FinanceAgingServiceTest {
     private CustomerMapper customerMapper;
     @Mock
     private SupplierMapper supplierMapper;
+    @Mock
+    private BaseCurrencyService baseCurrencyService;
     @Mock
     private AuditMetadataFactory auditMetadataFactory;
 
@@ -128,6 +131,41 @@ class FinanceAgingServiceTest {
         assertThat(summary.overdueReceivables().get(0).partnerName()).isNull();
     }
 
+    @Test
+    void aggregatesMixedCurrenciesInBaseCurrencyAndBreaksExposureDownByCurrency() {
+        LocalDate asOf = LocalDate.of(2026, 9, 18);
+        when(auditMetadataFactory.current()).thenReturn(new AuditMetadata(COMPANY_ID, BOOK_ID, 9L, LocalDateTime.now()));
+        when(baseCurrencyService.current(any(AuditMetadata.class))).thenReturn("CNY");
+        // 一张 CNY 单和两张 USD 单：桶合计只有折成本位币才有意义。
+        ReceivableEntity usd = ar(31L, 11L, asOf.minusDays(10), "1000.00", "0.00");
+        usd.setCurrencyCode("USD");
+        usd.setExchangeRate(new BigDecimal("7.20"));
+        ReceivableEntity usdPartial = ar(32L, 11L, asOf.minusDays(10), "500.00", "200.00");
+        usdPartial.setCurrencyCode("USD");
+        usdPartial.setExchangeRate(new BigDecimal("7.30"));
+        when(receivableMapper.selectList(any())).thenReturn(List.of(
+                ar(30L, 11L, asOf.minusDays(10), "100.00", "0.00"),
+                usd,
+                usdPartial
+        ));
+        when(payableMapper.selectList(any())).thenReturn(List.of());
+        when(customerMapper.selectBatchIds(any())).thenReturn(List.of());
+
+        FinanceAgingSummaryResponse summary = service().summary(asOf);
+
+        // 100 + 1000×7.20 + 300×7.30 = 100 + 7200 + 2190
+        assertThat(summary.baseCurrencyCode()).isEqualTo("CNY");
+        assertThat(summary.receivableTotal()).isEqualByComparingTo("9490.00");
+        assertThat(summary.receivableBuckets().get(0).amount()).isEqualByComparingTo("9490.00");
+        assertThat(summary.receivableCurrencyExposures())
+                .extracting("currencyCode", "count", "originalAmount", "baseAmount")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("CNY", 1L, new BigDecimal("100.00"), new BigDecimal("100.00")),
+                        org.assertj.core.groups.Tuple.tuple("USD", 2L, new BigDecimal("1300.00"), new BigDecimal("9390.00"))
+                );
+        assertThat(summary.payableCurrencyExposures()).isEmpty();
+    }
+
     private ReceivableEntity ar(Long id, Long customerId, LocalDate bizDate, String original, String settled) {
         ReceivableEntity entity = new ReceivableEntity();
         entity.setId(id);
@@ -164,6 +202,7 @@ class FinanceAgingServiceTest {
                 payableMapper,
                 customerMapper,
                 supplierMapper,
+                baseCurrencyService,
                 auditMetadataFactory
         );
     }

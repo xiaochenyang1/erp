@@ -227,10 +227,15 @@ public class FinanceVoucherPersistenceService {
     }
 
     /**
-     * 收付款凭证分录：资金科目一条腿走全额，结算科目走核销金额，未核销余额落预收/预付科目。
+     * 收付款凭证分录：资金科目一条腿走全额，结算科目走按子账入账汇率折算的本位币冲减额，
+     * 未核销余额落预收/预付科目，原币结算汇率与子账入账汇率的差额落汇兑损益科目。
      *
      * <p>{@code cashOnDebit} 为 true 表示资金流入（收款、付款作废冲回），false 表示资金流出（付款、收款作废冲回）。
-     * 资金腿金额恒等于结算金额与预收预付金额之和，因此分录天然平衡。
+     * 资金腿金额恒等于冲减金额、预收预付金额与汇兑损益之和，因此分录天然平衡。
+     *
+     * <p>{@code fxAmount} 带符号：为正表示按结算汇率折算的本位币多于子账入账口径，分录与结算腿同侧
+     * （收款时贷记形成汇兑收益，付款时借记形成汇兑损失）；为负则与资金腿同侧。本位币单据汇率恒为 1，
+     * 差额为 0 时不生成汇兑腿，凭证与多币种改造前逐行一致。
      */
     void insertCashSettlementEntriesIfAbsent(
             VoucherEntity voucher,
@@ -240,6 +245,8 @@ public class FinanceVoucherPersistenceService {
             BigDecimal settlementAmount,
             String advanceSubjectCode,
             BigDecimal advanceAmount,
+            String fxSubjectCode,
+            BigDecimal fxAmount,
             String summary,
             AuditMetadata audit
     ) {
@@ -248,10 +255,11 @@ public class FinanceVoucherPersistenceService {
         }
         BigDecimal settlement = ScalePrecision.amount(ScalePrecision.zeroDefault(settlementAmount));
         BigDecimal advance = ScalePrecision.amount(ScalePrecision.zeroDefault(advanceAmount));
+        BigDecimal fx = ScalePrecision.amount(ScalePrecision.zeroDefault(fxAmount));
         if (settlement.compareTo(BigDecimal.ZERO) < 0 || advance.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("收付款凭证金额不能为负数");
         }
-        BigDecimal cash = ScalePrecision.amount(settlement.add(advance));
+        BigDecimal cash = ScalePrecision.amount(settlement.add(advance).add(fx));
         if (cash.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("收付款凭证金额必须大于0");
         }
@@ -282,6 +290,22 @@ public class FinanceVoucherPersistenceService {
                     lineNo++,
                     cashOnDebit ? ZERO_AMOUNT : advance,
                     cashOnDebit ? advance : ZERO_AMOUNT,
+                    summary,
+                    audit,
+                    now
+            );
+        }
+        if (fx.compareTo(BigDecimal.ZERO) != 0) {
+            AccountSubjectEntity fxSubject = requireSubjectByCode(fxSubjectCode, audit);
+            boolean fxOnCashSide = fx.compareTo(BigDecimal.ZERO) < 0;
+            BigDecimal fxLegAmount = fx.abs();
+            boolean fxOnDebit = fxOnCashSide == cashOnDebit;
+            insertVoucherEntry(
+                    voucher,
+                    fxSubject,
+                    lineNo++,
+                    fxOnDebit ? fxLegAmount : ZERO_AMOUNT,
+                    fxOnDebit ? ZERO_AMOUNT : fxLegAmount,
                     summary,
                     audit,
                     now
@@ -438,6 +462,7 @@ public class FinanceVoucherPersistenceService {
             case "222101" -> new SubjectDefinition("222101", "应交税费-进项税额", "LIABILITY", "DEBIT");
             case "5001" -> new SubjectDefinition("5001", "生产成本", "ASSET", "DEBIT");
             case "6001" -> new SubjectDefinition("6001", "主营业务收入", "REVENUE", "CREDIT");
+            case "6061" -> new SubjectDefinition("6061", "财务费用-汇兑损益", "EXPENSE", "DEBIT");
             case "6401" -> new SubjectDefinition("6401", "销售退回", "REVENUE", "DEBIT");
             case "6402" -> new SubjectDefinition("6402", "主营业务成本", "EXPENSE", "DEBIT");
             case "6602" -> new SubjectDefinition("6602", "管理费用", "EXPENSE", "DEBIT");

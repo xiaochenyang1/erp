@@ -13,6 +13,10 @@ public record OrderReportResponse(
         String fulfillmentStatus,
         BigDecimal totalQuantity,
         BigDecimal totalAmount,
-        BigDecimal totalTaxAmount
+        BigDecimal totalTaxAmount,
+        String currencyCode,
+        BigDecimal exchangeRate,
+        BigDecimal baseTotalAmount,
+        BigDecimal baseTotalTaxAmount
 ) {
 }

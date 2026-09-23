@@ -248,6 +248,9 @@ class FinanceSettlementReportQueryServiceTest {
                 new BigDecimal("100.00"),
                 new BigDecimal("20.00"),
                 new BigDecimal("80.00"),
+                "CNY",
+                BigDecimal.ONE,
+                new BigDecimal("80.00"),
                 "PARTIALLY_SETTLED"
         );
     }

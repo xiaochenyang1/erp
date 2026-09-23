@@ -112,7 +112,9 @@ const coreMessages = {
     financeAging: {
       asOfDate: '基准日', todayPlaceholder: '默认今天', search: '查询', reset: '重置', receivableTotal: '应收未结总额', payableTotal: '应付未结总额', asOfDateValue: '基准日 {date}', outstandingOnly: '仅统计剩余金额大于 0 的未结单据',
       receivableBuckets: '应收账龄分段', payableBuckets: '应付账龄分段', bucket: '账龄段', count: '笔数', amount: '金额', overdueReceivables: '应收逾期 TOP20', overduePayables: '应付逾期 TOP20', receivablesLedger: '去应收台账', payablesLedger: '去应付台账',
-      receivableNo: '应收单号', payableNo: '应付单号', customer: '客户', supplier: '供应商', bizDate: '业务日期', dueDate: '到期日', agingDays: '账龄天数', outstandingAmount: '未结金额',
+      receivableNo: '应收单号', payableNo: '应付单号', customer: '客户', supplier: '供应商', bizDate: '业务日期', dueDate: '到期日', agingDays: '账龄天数', outstandingAmount: '未结金额（原币）',
+      baseCurrency: '本位币', baseCurrencyCaliber: '总额与账龄分段均为本位币口径', currency: '币种', baseOutstandingAmount: '未结金额（本位币）',
+      receivableExposure: '应收币种敞口', payableExposure: '应付币种敞口', originalExposure: '原币未结', baseExposure: '本位币未结',
       bucketLabel: { d0_30: '0-30 天', d31_60: '31-60 天', d61_90: '61-90 天', d90Plus: '90 天以上' },
       message: { loadFailed: '加载账龄分析失败' }
     },
@@ -345,7 +347,9 @@ const coreMessages = {
     financeAging: {
       asOfDate: 'As-of date', todayPlaceholder: 'Defaults to today', search: 'Search', reset: 'Reset', receivableTotal: 'Open receivables', payableTotal: 'Open payables', asOfDateValue: 'As of {date}', outstandingOnly: 'Includes only open documents with a remaining amount greater than 0',
       receivableBuckets: 'Receivable aging buckets', payableBuckets: 'Payable aging buckets', bucket: 'Aging bucket', count: 'Count', amount: 'Amount', overdueReceivables: 'Top 20 overdue receivables', overduePayables: 'Top 20 overdue payables', receivablesLedger: 'Open receivables', payablesLedger: 'Open payables',
-      receivableNo: 'Receivable no.', payableNo: 'Payable no.', customer: 'Customer', supplier: 'Supplier', bizDate: 'Business date', dueDate: 'Due date', agingDays: 'Aging days', outstandingAmount: 'Outstanding amount',
+      receivableNo: 'Receivable no.', payableNo: 'Payable no.', customer: 'Customer', supplier: 'Supplier', bizDate: 'Business date', dueDate: 'Due date', agingDays: 'Aging days', outstandingAmount: 'Outstanding (original)',
+      baseCurrency: 'Base currency', baseCurrencyCaliber: 'Totals and aging buckets are stated in the base currency', currency: 'Currency', baseOutstandingAmount: 'Outstanding (base)',
+      receivableExposure: 'Receivable currency exposure', payableExposure: 'Payable currency exposure', originalExposure: 'Original outstanding', baseExposure: 'Base outstanding',
       bucketLabel: { d0_30: '0-30 days', d31_60: '31-60 days', d61_90: '61-90 days', d90Plus: 'Over 90 days' },
       message: { loadFailed: 'Failed to load aging analysis' }
     },

@@ -2,6 +2,7 @@ import { computed, type ComputedRef, type Ref } from 'vue'
 
 import type {
   FinanceSettlementReportRow,
+  FxGainLossReportRow,
   InventoryBalanceReportRow,
   InventoryTransactionReportRow,
   InventoryValuationReportRow,
@@ -18,6 +19,7 @@ export const reportKeys = [
   'inventoryBalance',
   'inventoryTransaction',
   'financeSettlement',
+  'fxGainLoss',
   'inventoryValuation',
   'productionCost'
 ] as const
@@ -28,6 +30,7 @@ export type ReportRecord =
   | InventoryBalanceReportRow
   | InventoryTransactionReportRow
   | FinanceSettlementReportRow
+  | FxGainLossReportRow
   | InventoryValuationReportRow
   | ProductionCostReportRow
 
@@ -45,6 +48,7 @@ const reportTabMessageKeys: Record<ReportKey, string> = {
   inventoryBalance: 'financeReportPages.reports.tabs.inventoryBalance',
   inventoryTransaction: 'financeReportPages.reports.tabs.inventoryTransaction',
   financeSettlement: 'financeReportPages.reports.tabs.financeSettlement',
+  fxGainLoss: 'financeReportPages.reports.tabs.fxGainLoss',
   inventoryValuation: 'financeReportPages.reports.tabs.inventoryValuation',
   productionCost: 'financeReportPages.reports.tabs.productionCost'
 }
@@ -100,6 +104,10 @@ export const getReportTabLabel = (t: Translate, key: ReportKey) =>
 
 export const sumReportAmount = (records: ReportRecord[]) =>
   records.reduce((sum, row) => {
+    if ('fxGainLossAmount' in row) return sum + Number(row.fxGainLossAmount || 0)
+    if ('baseTotalAmount' in row && Number(row.baseTotalAmount || 0) !== 0) {
+      return sum + Number(row.baseTotalAmount || 0)
+    }
     if ('totalAmount' in row) return sum + Number(row.totalAmount || 0)
     if ('amountOnHand' in row) return sum + Number(row.amountOnHand || 0)
     if ('amount' in row) return sum + Number(row.amount || 0)
@@ -145,8 +153,17 @@ export const useReportPresentation = (
   const reportDirectionLabel = (direction?: string) => {
     if (direction === 'IN') return t('financeReportPages.reports.directionValue.inbound')
     if (direction === 'OUT') return t('financeReportPages.reports.directionValue.outbound')
+    if (direction === 'RECEIVABLE') return t('financeReportPages.reports.directionValue.receivable')
+    if (direction === 'PAYABLE') return t('financeReportPages.reports.directionValue.payable')
     return direction || '-'
   }
+
+  // Rates render with up to 6 decimals, a readable projection of the DECIMAL(24,12) snapshot.
+  const formatExchangeRate = (rate?: number) =>
+    formatLocalizedNumber(Number(rate || 0), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6
+    })
 
   const reportBusinessTypeLabel = (type?: string) => {
     if (!type) return '-'
@@ -171,6 +188,7 @@ export const useReportPresentation = (
     activeReport,
     costStatusLabel,
     costStatusType,
+    formatExchangeRate,
     formatMoney,
     formatNumber,
     isReportKey,

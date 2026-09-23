@@ -8,6 +8,8 @@ import com.tuowei.erp.report.service.ReportExportService;
 import com.tuowei.erp.report.service.ReportQueryService;
 import com.tuowei.erp.report.web.FinanceSettlementReportQuery;
 import com.tuowei.erp.report.web.FinanceSettlementReportResponse;
+import com.tuowei.erp.report.web.FxGainLossReportQuery;
+import com.tuowei.erp.report.web.FxGainLossReportResponse;
 import com.tuowei.erp.report.web.InventoryBalanceReportQuery;
 import com.tuowei.erp.report.web.InventoryBalanceReportResponse;
 import com.tuowei.erp.report.web.InventoryTransactionReportQuery;
@@ -101,6 +103,18 @@ public class ReportController {
     @GetMapping("/finance-settlements/export")
     public ResponseEntity<StreamingResponseBody> exportFinanceSettlements(FinanceSettlementReportQuery query) {
         return csv("finance-settlements.csv", reportExportService.exportFinanceSettlements(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_REPORT_VIEW)
+    @GetMapping("/fx-gain-loss")
+    public ApiResponse<PageResponse<FxGainLossReportResponse>> fxGainLoss(FxGainLossReportQuery query) {
+        return ApiResponse.success(reportQueryService.listFxGainLoss(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_REPORT_VIEW)
+    @GetMapping("/fx-gain-loss/export")
+    public ResponseEntity<StreamingResponseBody> exportFxGainLoss(FxGainLossReportQuery query) {
+        return csv("fx-gain-loss.csv", reportExportService.exportFxGainLoss(query));
     }
 
     @PreAuthorize(PermissionCodes.HAS_REPORT_VIEW)

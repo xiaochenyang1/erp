@@ -2,6 +2,7 @@ package com.tuowei.erp.finance.aging.service;
 
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.aging.web.FinanceAgingSummaryResponse;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
@@ -34,6 +35,7 @@ public class FinanceAgingService {
             PayableMapper payableMapper,
             CustomerMapper customerMapper,
             SupplierMapper supplierMapper,
+            BaseCurrencyService baseCurrencyService,
             AuditMetadataFactory auditMetadataFactory
     ) {
         this.queryService = new FinanceAgingQueryService(
@@ -41,6 +43,7 @@ public class FinanceAgingService {
                 payableMapper,
                 customerMapper,
                 supplierMapper,
+                baseCurrencyService,
                 auditMetadataFactory
         );
         this.assemblyService = new FinanceAgingAssemblyService();

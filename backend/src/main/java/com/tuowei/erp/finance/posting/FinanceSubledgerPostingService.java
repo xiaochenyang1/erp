@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -53,6 +54,8 @@ public class FinanceSubledgerPostingService {
             Long supplierId,
             LocalDate bizDate,
             BigDecimal amount,
+            String currencyCode,
+            BigDecimal exchangeRate,
             String remark,
             AuditMetadata audit
     ) {
@@ -81,6 +84,7 @@ public class FinanceSubledgerPostingService {
         entity.setDueDate(resolveSupplierDueDate(supplierId, bizDate, audit));
         entity.setOriginalAmount(amount);
         entity.setSettledAmount(ZERO_AMOUNT);
+        applyCurrencySnapshot(entity, amount, currencyCode, exchangeRate);
         entity.setStatus("INCREASE".equals(direction) ? "UNSETTLED" : "OFFSET");
         setAudit(entity, remark, audit, now);
         try {
@@ -113,6 +117,8 @@ public class FinanceSubledgerPostingService {
             Long customerId,
             LocalDate bizDate,
             BigDecimal amount,
+            String currencyCode,
+            BigDecimal exchangeRate,
             String remark,
             AuditMetadata audit
     ) {
@@ -141,6 +147,7 @@ public class FinanceSubledgerPostingService {
         entity.setDueDate(resolveCustomerDueDate(customerId, bizDate, audit));
         entity.setOriginalAmount(amount);
         entity.setSettledAmount(ZERO_AMOUNT);
+        applyCurrencySnapshot(entity, amount, currencyCode, exchangeRate);
         entity.setStatus("INCREASE".equals(direction) ? "UNSETTLED" : "OFFSET");
         setAudit(entity, remark, audit, now);
         try {
@@ -161,6 +168,28 @@ public class FinanceSubledgerPostingService {
                 throw ex;
             }
         }
+    }
+
+    /**
+     * 子账登记来源单据的币种快照。原币金额留在 {@code original_amount}/{@code settled_amount}，
+     * {@code base_*} 列是不可变的本位币口径，供凭证过账和结算时的汇兑损益计算对齐。
+     * 已核销本位币额随收付款核销按入账汇率累加，建账时恒为 0。
+     */
+    private void applyCurrencySnapshot(PayableEntity entity, BigDecimal amount, String currencyCode, BigDecimal exchangeRate) {
+        BigDecimal rate = CurrencyAmountSupport.rate(exchangeRate);
+        entity.setCurrencyCode(CurrencyAmountSupport.currency(currencyCode));
+        entity.setExchangeRate(rate);
+        entity.setBaseOriginalAmount(CurrencyAmountSupport.base(amount, rate));
+        entity.setBaseSettledAmount(CurrencyAmountSupport.base(BigDecimal.ZERO, rate));
+    }
+
+    /** 见 {@link #applyCurrencySnapshot(PayableEntity, BigDecimal, String, BigDecimal)}。 */
+    private void applyCurrencySnapshot(ReceivableEntity entity, BigDecimal amount, String currencyCode, BigDecimal exchangeRate) {
+        BigDecimal rate = CurrencyAmountSupport.rate(exchangeRate);
+        entity.setCurrencyCode(CurrencyAmountSupport.currency(currencyCode));
+        entity.setExchangeRate(rate);
+        entity.setBaseOriginalAmount(CurrencyAmountSupport.base(amount, rate));
+        entity.setBaseSettledAmount(CurrencyAmountSupport.base(BigDecimal.ZERO, rate));
     }
 
     private LocalDate resolveCustomerDueDate(Long customerId, LocalDate bizDate, AuditMetadata audit) {

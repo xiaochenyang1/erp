@@ -2,8 +2,10 @@ package com.tuowei.erp.finance.aging.service;
 
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.finance.aging.web.FinanceAgingBucketResponse;
+import com.tuowei.erp.finance.aging.web.FinanceAgingCurrencyExposureResponse;
 import com.tuowei.erp.finance.aging.web.FinanceAgingOpenItemResponse;
 import com.tuowei.erp.finance.aging.web.FinanceAgingSummaryResponse;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +29,8 @@ public class FinanceAgingAssemblyService {
     public FinanceAgingSummaryResponse assemble(FinanceAgingQueryService.AgingData data) {
         Map<String, BucketAgg> arBuckets = emptyBuckets();
         Map<String, BucketAgg> apBuckets = emptyBuckets();
+        Map<String, CurrencyAgg> arCurrencies = new LinkedHashMap<>();
+        Map<String, CurrencyAgg> apCurrencies = new LinkedHashMap<>();
         List<FinanceAgingOpenItemResponse> arItems = new ArrayList<>();
         List<FinanceAgingOpenItemResponse> apItems = new ArrayList<>();
 
@@ -34,14 +39,18 @@ public class FinanceAgingAssemblyService {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
+            String currencyCode = CurrencyAmountSupport.currency(entity.getCurrencyCode());
+            BigDecimal exchangeRate = CurrencyAmountSupport.rate(entity.getExchangeRate());
+            BigDecimal baseRemaining = baseRemaining(remaining, exchangeRate);
             LocalDate dueDate = effectiveDueDate(entity.getDueDate(), entity.getBizDate());
             long days = agingDays(dueDate, data.asOfDate());
             String bucket = bucketCode(days);
-            arBuckets.get(bucket).add(remaining);
+            arBuckets.get(bucket).add(baseRemaining);
+            arCurrencies.computeIfAbsent(currencyCode, CurrencyAgg::new).add(remaining, baseRemaining);
             arItems.add(new FinanceAgingOpenItemResponse(
                     "RECEIVABLE", entity.getId(), entity.getReceivableNo(), entity.getCustomerId(),
                     data.customerNames().get(entity.getCustomerId()), entity.getBizDate(), dueDate, days,
-                    bucket, remaining, entity.getStatus()
+                    bucket, remaining, currencyCode, exchangeRate, baseRemaining, entity.getStatus()
             ));
         }
 
@@ -50,20 +59,25 @@ public class FinanceAgingAssemblyService {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
+            String currencyCode = CurrencyAmountSupport.currency(entity.getCurrencyCode());
+            BigDecimal exchangeRate = CurrencyAmountSupport.rate(entity.getExchangeRate());
+            BigDecimal baseRemaining = baseRemaining(remaining, exchangeRate);
             LocalDate dueDate = effectiveDueDate(entity.getDueDate(), entity.getBizDate());
             long days = agingDays(dueDate, data.asOfDate());
             String bucket = bucketCode(days);
-            apBuckets.get(bucket).add(remaining);
+            apBuckets.get(bucket).add(baseRemaining);
+            apCurrencies.computeIfAbsent(currencyCode, CurrencyAgg::new).add(remaining, baseRemaining);
             apItems.add(new FinanceAgingOpenItemResponse(
                     "PAYABLE", entity.getId(), entity.getPayableNo(), entity.getSupplierId(),
                     data.supplierNames().get(entity.getSupplierId()), entity.getBizDate(), dueDate, days,
-                    bucket, remaining, entity.getStatus()
+                    bucket, remaining, currencyCode, exchangeRate, baseRemaining, entity.getStatus()
             ));
         }
 
+        // 逾期排序按本位币未结额，跨币种比较才有意义。
         Comparator<FinanceAgingOpenItemResponse> byDaysDesc =
                 Comparator.comparingLong(FinanceAgingOpenItemResponse::agingDays).reversed()
-                        .thenComparing(FinanceAgingOpenItemResponse::remainingAmount, Comparator.reverseOrder());
+                        .thenComparing(FinanceAgingOpenItemResponse::baseRemainingAmount, Comparator.reverseOrder());
         List<FinanceAgingOpenItemResponse> overdueAr = arItems.stream()
                 .filter(item -> item.agingDays() > 0)
                 .sorted(byDaysDesc)
@@ -77,13 +91,26 @@ public class FinanceAgingAssemblyService {
 
         return new FinanceAgingSummaryResponse(
                 data.asOfDate(),
+                CurrencyAmountSupport.currency(data.baseCurrencyCode()),
                 sumBuckets(arBuckets),
                 sumBuckets(apBuckets),
                 toBucketList(arBuckets),
                 toBucketList(apBuckets),
+                toCurrencyList(arCurrencies),
+                toCurrencyList(apCurrencies),
                 overdueAr,
                 overdueAp
         );
+    }
+
+    /**
+     * 本位币未结额按子账入账汇率折算，而不是读 {@code base_*} 列。
+     *
+     * <p>V161 之前的历史行 {@code base_original_amount}/{@code base_settled_amount} 是 0 默认值，
+     * 直接相减会把未结额算成 0；按行自带汇率折算对历史行（汇率 1）与新行都成立。
+     */
+    private BigDecimal baseRemaining(BigDecimal remaining, BigDecimal exchangeRate) {
+        return CurrencyAmountSupport.posting(remaining, exchangeRate);
     }
 
     private LocalDate effectiveDueDate(LocalDate dueDate, LocalDate bizDate) {
@@ -132,10 +159,42 @@ public class FinanceAgingAssemblyService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    private List<FinanceAgingCurrencyExposureResponse> toCurrencyList(Map<String, CurrencyAgg> currencies) {
+        return currencies.values().stream()
+                .sorted(Comparator.comparing(CurrencyAgg::currencyCode))
+                .map(CurrencyAgg::toResponse)
+                .toList();
+    }
+
     private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) {
         return ScalePrecision.amount(
                 ScalePrecision.zeroDefault(originalAmount).subtract(ScalePrecision.zeroDefault(settledAmount))
         );
+    }
+
+    private static final class CurrencyAgg {
+        private final String currencyCode;
+        private long count;
+        private BigDecimal originalAmount = BigDecimal.ZERO;
+        private BigDecimal baseAmount = BigDecimal.ZERO;
+
+        private CurrencyAgg(String currencyCode) {
+            this.currencyCode = currencyCode;
+        }
+
+        private String currencyCode() {
+            return currencyCode;
+        }
+
+        private void add(BigDecimal original, BigDecimal base) {
+            count++;
+            originalAmount = ScalePrecision.amount(originalAmount.add(original));
+            baseAmount = ScalePrecision.amount(baseAmount.add(base));
+        }
+
+        private FinanceAgingCurrencyExposureResponse toResponse() {
+            return new FinanceAgingCurrencyExposureResponse(currencyCode, count, originalAmount, baseAmount);
+        }
     }
 
     private static final class BucketAgg {

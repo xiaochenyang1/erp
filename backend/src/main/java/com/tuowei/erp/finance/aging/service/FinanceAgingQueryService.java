@@ -3,6 +3,7 @@ package com.tuowei.erp.finance.aging.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -32,6 +33,7 @@ public class FinanceAgingQueryService {
     private final PayableMapper payableMapper;
     private final CustomerMapper customerMapper;
     private final SupplierMapper supplierMapper;
+    private final BaseCurrencyService baseCurrencyService;
     private final AuditMetadataFactory auditMetadataFactory;
 
     public FinanceAgingQueryService(
@@ -39,12 +41,14 @@ public class FinanceAgingQueryService {
             PayableMapper payableMapper,
             CustomerMapper customerMapper,
             SupplierMapper supplierMapper,
+            BaseCurrencyService baseCurrencyService,
             AuditMetadataFactory auditMetadataFactory
     ) {
         this.receivableMapper = receivableMapper;
         this.payableMapper = payableMapper;
         this.customerMapper = customerMapper;
         this.supplierMapper = supplierMapper;
+        this.baseCurrencyService = baseCurrencyService;
         this.auditMetadataFactory = auditMetadataFactory;
     }
 
@@ -68,6 +72,7 @@ public class FinanceAgingQueryService {
         );
         return new AgingData(
                 asOf,
+                baseCurrencyService.current(audit),
                 receivables,
                 payables,
                 loadCustomerNames(receivables, audit),
@@ -115,6 +120,7 @@ public class FinanceAgingQueryService {
 
     public record AgingData(
             LocalDate asOfDate,
+            String baseCurrencyCode,
             List<ReceivableEntity> receivables,
             List<PayableEntity> payables,
             Map<Long, String> customerNames,

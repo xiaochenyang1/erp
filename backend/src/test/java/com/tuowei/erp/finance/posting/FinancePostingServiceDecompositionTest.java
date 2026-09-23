@@ -62,6 +62,8 @@ class FinancePostingServiceDecompositionTest {
                         java.time.LocalDate.class,
                         java.math.BigDecimal.class,
                         String.class,
+                        java.math.BigDecimal.class,
+                        String.class,
                         com.tuowei.erp.common.security.AuditMetadata.class
                 )
         );
@@ -74,6 +76,8 @@ class FinancePostingServiceDecompositionTest {
                         String.class,
                         Long.class,
                         java.time.LocalDate.class,
+                        java.math.BigDecimal.class,
+                        String.class,
                         java.math.BigDecimal.class,
                         String.class,
                         com.tuowei.erp.common.security.AuditMetadata.class

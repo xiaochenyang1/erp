@@ -19,6 +19,8 @@ public class ReceiptAllocationEntity {
     private Long receivableId;
     private BigDecimal amount;
     private BigDecimal baseAmount;
+    private BigDecimal baseSettledAmount;
+    private BigDecimal fxGainLossAmount;
     private Long createdBy;
     private LocalDateTime createdTime;
     private Long updatedBy;
@@ -40,6 +42,10 @@ public class ReceiptAllocationEntity {
     public void setAmount(BigDecimal amount) { this.amount = amount; }
     public BigDecimal getBaseAmount() { return baseAmount; }
     public void setBaseAmount(BigDecimal baseAmount) { this.baseAmount = baseAmount; }
+    public BigDecimal getBaseSettledAmount() { return baseSettledAmount; }
+    public void setBaseSettledAmount(BigDecimal baseSettledAmount) { this.baseSettledAmount = baseSettledAmount; }
+    public BigDecimal getFxGainLossAmount() { return fxGainLossAmount; }
+    public void setFxGainLossAmount(BigDecimal fxGainLossAmount) { this.fxGainLossAmount = fxGainLossAmount; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public LocalDateTime getCreatedTime() { return createdTime; }

@@ -227,6 +227,10 @@ export interface OrderReportRow {
   totalQuantity: number
   totalAmount: number
   totalTaxAmount: number
+  currencyCode?: string
+  exchangeRate?: number
+  baseTotalAmount?: number
+  baseTotalTaxAmount?: number
 }
 
 export interface InventoryBalanceReportRow {
@@ -265,8 +269,36 @@ export interface FinanceSettlementReportRow {
   sourceNo: string
   originalAmount: number
   settledAmount: number
+  /** 原币未结额 */
   remainingAmount: number
+  currencyCode: string
+  exchangeRate: number
+  /** 本位币未结额，跨币种汇总只能用它 */
+  baseRemainingAmount: number
   status: string
+}
+
+/** 已实现汇兑损益：一笔收付款核销明细产生的汇兑差额 */
+export interface FxGainLossReportRow {
+  allocationId: string
+  direction: 'RECEIVABLE' | 'PAYABLE'
+  settlementNo: string
+  settlementDate: string
+  partnerId: string
+  subledgerNo: string
+  currencyCode: string
+  /** 原币核销额 */
+  allocatedAmount: number
+  /** 子账入账汇率 */
+  bookingRate: number
+  /** 结算汇率 */
+  settlementRate: number
+  /** 按结算汇率折算的本位币核销额 */
+  baseAllocatedAmount: number
+  /** 按入账汇率折算的本位币冲减额 */
+  baseSettledAmount: number
+  /** 收款为正是汇兑收益，付款为正是汇兑损失 */
+  fxGainLossAmount: number
 }
 
 export interface InventoryValuationReportRow {
@@ -330,6 +362,11 @@ export const getFinanceSettlementReport = (params: ReportQuery) => {
   return request.get<PageResponse<FinanceSettlementReportRow>>('/reports/finance-settlements', { params }).then((page) => normalizeReportPage(page, normalizeFinanceSettlementReportRow))
 }
 
+export const getFxGainLossReport = (params: ReportQuery) => {
+  return request.get<PageResponse<FxGainLossReportRow>>('/reports/fx-gain-loss', { params })
+    .then((page) => normalizeReportPage(page, normalizeFxGainLossReportRow))
+}
+
 export const getInventoryValuationReport = (params: ReportQuery) => {
   return request.get<PageResponse<InventoryValuationReportRow>>('/reports/inventory-valuations', { params })
     .then((page) => normalizeReportPage(page, normalizeInventoryValuationReportRow))
@@ -370,6 +407,19 @@ const normalizeFinanceSettlementReportRow = (row: FinanceSettlementReportRow): F
   ...row,
   id: String(row.id),
   partnerId: String(row.partnerId)
+})
+
+const normalizeFxGainLossReportRow = (row: FxGainLossReportRow): FxGainLossReportRow => ({
+  ...row,
+  allocationId: String(row.allocationId),
+  partnerId: String(row.partnerId),
+  currencyCode: row.currencyCode || 'CNY',
+  allocatedAmount: Number(row.allocatedAmount ?? 0),
+  bookingRate: Number(row.bookingRate ?? 1),
+  settlementRate: Number(row.settlementRate ?? 1),
+  baseAllocatedAmount: Number(row.baseAllocatedAmount ?? 0),
+  baseSettledAmount: Number(row.baseSettledAmount ?? 0),
+  fxGainLossAmount: Number(row.fxGainLossAmount ?? 0)
 })
 
 const normalizeInventoryValuationReportRow = (row: InventoryValuationReportRow): InventoryValuationReportRow => ({
@@ -418,6 +468,10 @@ export const exportFinanceSettlementReport = (params: ReportQuery) => {
     params,
     responseType: 'blob'
   })
+}
+
+export const exportFxGainLossReport = (params: ReportQuery) => {
+  return request.get<Blob>('/reports/fx-gain-loss/export', { params, responseType: 'blob' })
 }
 
 export const exportInventoryValuationReport = (params: ReportQuery) => {

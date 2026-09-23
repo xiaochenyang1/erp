@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.export.CsvExport;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -153,6 +154,9 @@ public class ReceivableQueryService {
                 entity.getOriginalAmount(),
                 entity.getSettledAmount(),
                 remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
+                CurrencyAmountSupport.currency(entity.getCurrencyCode()),
+                CurrencyAmountSupport.rate(entity.getExchangeRate()),
+                baseRemaining(entity.getOriginalAmount(), entity.getSettledAmount(), entity.getExchangeRate()),
                 entity.getStatus(),
                 entity.getCreatedTime(),
                 entity.getUpdatedTime(),
@@ -209,6 +213,14 @@ public class ReceivableQueryService {
                 record.status(),
                 record.remark()
         );
+    }
+
+    /**
+     * 本位币未结额按行自带的入账汇率折算，而不是读 base_* 列：V161 之前的历史行那两列是 0
+     * 默认值，相减会算成 0；按汇率折算对历史行（汇率 1）和新行都成立。
+     */
+    private BigDecimal baseRemaining(BigDecimal originalAmount, BigDecimal settledAmount, BigDecimal exchangeRate) {
+        return CurrencyAmountSupport.posting(remaining(originalAmount, settledAmount), exchangeRate);
     }
 
     private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) {

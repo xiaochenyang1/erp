@@ -200,7 +200,7 @@ class FinanceVoucherPostingServiceTest {
                 .thenReturn(activeSubject(8301L, "1002"))
                 .thenReturn(activeSubject(8302L, "1122"));
 
-        service.recordReceipt(receipt(711L, "FR-711"), new BigDecimal("100.00"), new BigDecimal("0.00"), AUDIT);
+        service.recordReceipt(receipt(711L, "FR-711"), noFxAmounts("100.00", "0.00"), AUDIT);
 
         ArgumentCaptor<VoucherEntity> voucherCaptor = ArgumentCaptor.forClass(VoucherEntity.class);
         verify(voucherMapper).insert(voucherCaptor.capture());
@@ -222,7 +222,7 @@ class FinanceVoucherPostingServiceTest {
                 .thenReturn(activeSubject(8304L, "1122"))
                 .thenReturn(activeSubject(8305L, "2203"));
 
-        service.recordReceipt(receipt(712L, "FR-712"), new BigDecimal("60.00"), new BigDecimal("40.00"), AUDIT);
+        service.recordReceipt(receipt(712L, "FR-712"), noFxAmounts("60.00", "40.00"), AUDIT);
 
         assertEntries(3).containsExactly(
                 org.assertj.core.groups.Tuple.tuple(1, "1002", new BigDecimal("100.00"), new BigDecimal("0.00")),
@@ -239,7 +239,7 @@ class FinanceVoucherPostingServiceTest {
                 .thenReturn(activeSubject(8307L, "2202"))
                 .thenReturn(activeSubject(8308L, "1123"));
 
-        service.recordPayment(payment(713L, "FP-713"), new BigDecimal("80.00"), new BigDecimal("20.00"), AUDIT);
+        service.recordPayment(payment(713L, "FP-713"), noFxAmounts("80.00", "20.00"), AUDIT);
 
         assertEntries(3).containsExactly(
                 org.assertj.core.groups.Tuple.tuple(1, "2202", new BigDecimal("80.00"), new BigDecimal("0.00")),
@@ -255,7 +255,7 @@ class FinanceVoucherPostingServiceTest {
                 .thenReturn(activeSubject(8309L, "1002"))
                 .thenReturn(activeSubject(8310L, "1122"));
 
-        service.recordReceiptCancellation(receipt(714L, "FR-714"), new BigDecimal("30.00"), new BigDecimal("0.00"), AUDIT);
+        service.recordReceiptCancellation(receipt(714L, "FR-714"), noFxAmounts("30.00", "0.00"), AUDIT);
 
         ArgumentCaptor<VoucherEntity> voucherCaptor = ArgumentCaptor.forClass(VoucherEntity.class);
         verify(voucherMapper).insert(voucherCaptor.capture());
@@ -268,17 +268,134 @@ class FinanceVoucherPostingServiceTest {
     }
 
     @Test
+    void receiptAtAHigherSettlementRateCreditsRealisedExchangeGain() {
+        stubFreshVoucher(817L);
+        when(accountSubjectMapper.selectOne(any()))
+                .thenReturn(activeSubject(8313L, "1002"))
+                .thenReturn(activeSubject(8314L, "1122"))
+                .thenReturn(activeSubject(8315L, "6061"));
+
+        // 1000 USD 应收按 7.20 入账，7.30 收款：资金 7300 = 应收冲减 7200 + 汇兑收益 100。
+        service.recordReceipt(
+                receipt(717L, "FR-717"),
+                SettlementPostingAmounts.fromAllocations(new BigDecimal("7300.00"), new BigDecimal("7200.00"), BigDecimal.ZERO),
+                AUDIT
+        );
+
+        ArgumentCaptor<VoucherEntity> voucherCaptor = ArgumentCaptor.forClass(VoucherEntity.class);
+        verify(voucherMapper).insert(voucherCaptor.capture());
+        assertThat(voucherCaptor.getValue().getAmount()).isEqualByComparingTo("7300.00");
+
+        assertEntries(3).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(1, "1002", new BigDecimal("7300.00"), new BigDecimal("0.00")),
+                org.assertj.core.groups.Tuple.tuple(2, "1122", new BigDecimal("0.00"), new BigDecimal("7200.00")),
+                org.assertj.core.groups.Tuple.tuple(3, "6061", new BigDecimal("0.00"), new BigDecimal("100.00"))
+        );
+    }
+
+    @Test
+    void receiptAtALowerSettlementRateDebitsRealisedExchangeLossAndStaysBalanced() {
+        stubFreshVoucher(818L);
+        when(accountSubjectMapper.selectOne(any()))
+                .thenReturn(activeSubject(8316L, "1002"))
+                .thenReturn(activeSubject(8317L, "1122"))
+                .thenReturn(activeSubject(8318L, "6061"));
+
+        // 1000 USD 应收按 7.30 入账，7.20 收款：资金 7200 + 汇兑损失 100 = 应收冲减 7300。
+        service.recordReceipt(
+                receipt(718L, "FR-718"),
+                SettlementPostingAmounts.fromAllocations(new BigDecimal("7200.00"), new BigDecimal("7300.00"), BigDecimal.ZERO),
+                AUDIT
+        );
+
+        assertEntries(3).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(1, "1002", new BigDecimal("7200.00"), new BigDecimal("0.00")),
+                org.assertj.core.groups.Tuple.tuple(2, "1122", new BigDecimal("0.00"), new BigDecimal("7300.00")),
+                org.assertj.core.groups.Tuple.tuple(3, "6061", new BigDecimal("100.00"), new BigDecimal("0.00"))
+        );
+    }
+
+    @Test
+    void paymentAtAHigherSettlementRateDebitsRealisedExchangeLossBeforeCash() {
+        stubFreshVoucher(819L);
+        when(accountSubjectMapper.selectOne(any()))
+                .thenReturn(activeSubject(8319L, "1002"))
+                .thenReturn(activeSubject(8320L, "2202"))
+                .thenReturn(activeSubject(8321L, "1123"))
+                .thenReturn(activeSubject(8322L, "6061"));
+
+        // 1000 USD 应付按 7.20 入账，7.30 付款并多付 100 USD 形成预付：
+        // 应付冲减 7200 + 预付 730 + 汇兑损失 100 = 资金 8030。
+        service.recordPayment(
+                payment(719L, "FP-719"),
+                SettlementPostingAmounts.fromAllocations(new BigDecimal("7300.00"), new BigDecimal("7200.00"), new BigDecimal("730.00")),
+                AUDIT
+        );
+
+        assertEntries(4).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(1, "2202", new BigDecimal("7200.00"), new BigDecimal("0.00")),
+                org.assertj.core.groups.Tuple.tuple(2, "1123", new BigDecimal("730.00"), new BigDecimal("0.00")),
+                org.assertj.core.groups.Tuple.tuple(3, "6061", new BigDecimal("100.00"), new BigDecimal("0.00")),
+                org.assertj.core.groups.Tuple.tuple(4, "1002", new BigDecimal("0.00"), new BigDecimal("8030.00"))
+        );
+    }
+
+    @Test
+    void paymentCancellationMirrorsEveryLegIncludingExchangeDifference() {
+        stubFreshVoucher(820L);
+        when(accountSubjectMapper.selectOne(any()))
+                .thenReturn(activeSubject(8323L, "1002"))
+                .thenReturn(activeSubject(8324L, "2202"))
+                .thenReturn(activeSubject(8325L, "6061"));
+
+        service.recordPaymentCancellation(
+                payment(720L, "FP-720"),
+                SettlementPostingAmounts.fromAllocations(new BigDecimal("7300.00"), new BigDecimal("7200.00"), BigDecimal.ZERO),
+                AUDIT
+        );
+
+        ArgumentCaptor<VoucherEntity> voucherCaptor = ArgumentCaptor.forClass(VoucherEntity.class);
+        verify(voucherMapper).insert(voucherCaptor.capture());
+        assertThat(voucherCaptor.getValue().getVoucherNo()).isEqualTo("VO-PAYMENT_REVERSAL-720");
+
+        assertEntries(3).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(1, "1002", new BigDecimal("7300.00"), new BigDecimal("0.00")),
+                org.assertj.core.groups.Tuple.tuple(2, "2202", new BigDecimal("0.00"), new BigDecimal("7200.00")),
+                org.assertj.core.groups.Tuple.tuple(3, "6061", new BigDecimal("0.00"), new BigDecimal("100.00"))
+        );
+    }
+
+    @Test
+    void baseCurrencySettlementKeepsTheTwoLeggedVoucherWithoutAnExchangeLine() {
+        stubFreshVoucher(821L);
+        when(accountSubjectMapper.selectOne(any()))
+                .thenReturn(activeSubject(8326L, "1002"))
+                .thenReturn(activeSubject(8327L, "1122"));
+
+        service.recordReceipt(
+                receipt(721L, "FR-721"),
+                SettlementPostingAmounts.fromAllocations(new BigDecimal("500.00"), new BigDecimal("500.00"), BigDecimal.ZERO),
+                AUDIT
+        );
+
+        assertEntries(2).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(1, "1002", new BigDecimal("500.00"), new BigDecimal("0.00")),
+                org.assertj.core.groups.Tuple.tuple(2, "1122", new BigDecimal("0.00"), new BigDecimal("500.00"))
+        );
+    }
+
+    @Test
     void settlementVoucherIsIdempotentAndRejectsZeroAmount() {
         when(voucherMapper.selectOne(any())).thenReturn(existingVoucher(815L, LocalDate.of(2026, 7, 28)));
         when(voucherEntryMapper.selectCount(any())).thenReturn(1L);
 
-        service.recordPayment(payment(715L, "FP-715"), new BigDecimal("10.00"), new BigDecimal("0.00"), AUDIT);
+        service.recordPayment(payment(715L, "FP-715"), noFxAmounts("10.00", "0.00"), AUDIT);
 
         verify(voucherEntryMapper, never()).insert(any(VoucherEntryEntity.class));
         verifyNoInteractions(accountSubjectMapper);
 
         when(voucherEntryMapper.selectCount(any())).thenReturn(0L);
-        assertThatThrownBy(() -> service.recordPayment(payment(716L, "FP-716"), BigDecimal.ZERO, BigDecimal.ZERO, AUDIT))
+        assertThatThrownBy(() -> service.recordPayment(payment(716L, "FP-716"), noFxAmounts("0.00", "0.00"), AUDIT))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("收付款凭证金额必须大于0");
     }
@@ -408,6 +525,14 @@ class FinanceVoucherPostingServiceTest {
                 VoucherEntryEntity::getSubjectCode,
                 VoucherEntryEntity::getDebitAmount,
                 VoucherEntryEntity::getCreditAmount
+        );
+    }
+
+    /** 本位币结算：核销冲减额与预收预付额直接成腿，没有汇兑差额。 */
+    private SettlementPostingAmounts noFxAmounts(String reliefAmount, String advanceAmount) {
+        return SettlementPostingAmounts.withoutExchangeDifference(
+                new BigDecimal(reliefAmount),
+                new BigDecimal(advanceAmount)
         );
     }
 

@@ -31,6 +31,7 @@ const createList = (overrides: Partial<Parameters<typeof useReportList>[1]> = {}
     getInventoryBalanceReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     getInventoryTransactionReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     getFinanceSettlementReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
+    getFxGainLossReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     getInventoryValuationReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     getProductionCostReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     exportPurchaseOrderReport: vi.fn(async () => new Blob(['purchase'])),
@@ -38,6 +39,7 @@ const createList = (overrides: Partial<Parameters<typeof useReportList>[1]> = {}
     exportInventoryBalanceReport: vi.fn(async () => new Blob(['balance'])),
     exportInventoryTransactionReport: vi.fn(async () => new Blob(['transaction'])),
     exportFinanceSettlementReport: vi.fn(async () => new Blob(['settlement'])),
+    exportFxGainLossReport: vi.fn(async () => new Blob(['fx-gain-loss'])),
     exportInventoryValuationReport: vi.fn(async () => new Blob(['valuation'])),
     exportProductionCostReport: vi.fn(async () => new Blob(['production-cost'])),
     downloadBlob: vi.fn(),
@@ -71,6 +73,21 @@ describe('report list', () => {
       pageSize: 50,
       bizDateFrom: '2026-07-01',
       bizDateTo: '2026-07-31'
+    })
+    // 汇兑损益按结算日期筛选，关键字当作币种过滤
+    expect(buildReportParams('fxGainLoss', state, '  usd ', range)).toEqual({
+      pageNo: 2,
+      pageSize: 50,
+      currencyCode: 'usd',
+      settlementDateFrom: '2026-07-01',
+      settlementDateTo: '2026-07-31'
+    })
+    expect(buildReportParams('fxGainLoss', state, '', null)).toEqual({
+      pageNo: 2,
+      pageSize: 50,
+      currencyCode: undefined,
+      settlementDateFrom: undefined,
+      settlementDateTo: undefined
     })
     expect(buildReportParams('inventoryBalance', state, 'ignored', range)).toEqual({
       pageNo: 2,

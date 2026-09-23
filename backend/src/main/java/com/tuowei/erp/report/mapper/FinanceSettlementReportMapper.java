@@ -30,6 +30,9 @@ public interface FinanceSettlementReportMapper {
             @Arg(column = "original_amount", javaType = BigDecimal.class),
             @Arg(column = "settled_amount", javaType = BigDecimal.class),
             @Arg(column = "remaining_amount", javaType = BigDecimal.class),
+            @Arg(column = "currency_code", javaType = String.class),
+            @Arg(column = "exchange_rate", javaType = BigDecimal.class),
+            @Arg(column = "base_remaining_amount", javaType = BigDecimal.class),
             @Arg(column = "status", javaType = String.class)
     })
     @Select("""
@@ -45,6 +48,9 @@ public interface FinanceSettlementReportMapper {
                 original_amount,
                 settled_amount,
                 remaining_amount,
+                currency_code,
+                exchange_rate,
+                base_remaining_amount,
                 status
             FROM (
                 SELECT
@@ -58,6 +64,9 @@ public interface FinanceSettlementReportMapper {
                     original_amount,
                     settled_amount,
                     original_amount - settled_amount AS remaining_amount,
+                    currency_code,
+                    exchange_rate,
+                    ROUND((original_amount - settled_amount) * exchange_rate, 2) AS base_remaining_amount,
                     status,
                     0 AS source_order
                 FROM fin_payable
@@ -74,6 +83,9 @@ public interface FinanceSettlementReportMapper {
                     original_amount,
                     settled_amount,
                     original_amount - settled_amount AS remaining_amount,
+                    currency_code,
+                    exchange_rate,
+                    ROUND((original_amount - settled_amount) * exchange_rate, 2) AS base_remaining_amount,
                     status,
                     1 AS source_order
                 FROM fin_receivable

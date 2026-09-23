@@ -3,6 +3,8 @@ package com.tuowei.erp.report.service;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.report.web.FinanceSettlementReportQuery;
 import com.tuowei.erp.report.web.FinanceSettlementReportResponse;
+import com.tuowei.erp.report.web.FxGainLossReportQuery;
+import com.tuowei.erp.report.web.FxGainLossReportResponse;
 import com.tuowei.erp.report.web.InventoryBalanceReportQuery;
 import com.tuowei.erp.report.web.InventoryBalanceReportResponse;
 import com.tuowei.erp.report.web.InventoryTransactionReportQuery;
@@ -26,6 +28,7 @@ public class ReportQueryService {
     private final OrderReportQueryService orderReportQueryService;
     private final InventoryReportQueryService inventoryReportQueryService;
     private final FinanceSettlementReportQueryService financeSettlementReportQueryService;
+    private final FxGainLossReportQueryService fxGainLossReportQueryService;
     private final InventoryValuationReportService inventoryValuationReportService;
     private final ProductionCostReportService productionCostReportService;
 
@@ -34,20 +37,23 @@ public class ReportQueryService {
             OrderReportQueryService orderReportQueryService,
             InventoryReportQueryService inventoryReportQueryService,
             FinanceSettlementReportQueryService financeSettlementReportQueryService,
+            FxGainLossReportQueryService fxGainLossReportQueryService,
             InventoryValuationReportService inventoryValuationReportService,
             ProductionCostReportService productionCostReportService
     ) {
         this.orderReportQueryService = orderReportQueryService;
         this.inventoryReportQueryService = inventoryReportQueryService;
         this.financeSettlementReportQueryService = financeSettlementReportQueryService;
+        this.fxGainLossReportQueryService = fxGainLossReportQueryService;
         this.inventoryValuationReportService = inventoryValuationReportService;
         this.productionCostReportService = productionCostReportService;
     }
 
+    /** Keeps direct construction in existing non-Spring tests compatible. */
     public ReportQueryService(OrderReportQueryService orderReportQueryService,
                               InventoryReportQueryService inventoryReportQueryService,
                               FinanceSettlementReportQueryService financeSettlementReportQueryService) {
-        this(orderReportQueryService, inventoryReportQueryService, financeSettlementReportQueryService, null, null);
+        this(orderReportQueryService, inventoryReportQueryService, financeSettlementReportQueryService, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -128,6 +134,21 @@ public class ReportQueryService {
     @Transactional(readOnly = true)
     public void streamFinanceSettlements(FinanceSettlementReportQuery query, Consumer<FinanceSettlementReportResponse> consumer) {
         financeSettlementReportQueryService.streamFinanceSettlements(query, consumer);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<FxGainLossReportResponse> listFxGainLoss(FxGainLossReportQuery query) {
+        return fxGainLossReportQueryService.listFxGainLoss(query);
+    }
+
+    @Transactional(readOnly = true)
+    public void assertFxGainLossExportWithinLimit(FxGainLossReportQuery query) {
+        fxGainLossReportQueryService.assertFxGainLossExportWithinLimit(query);
+    }
+
+    @Transactional(readOnly = true)
+    public void streamFxGainLoss(FxGainLossReportQuery query, Consumer<FxGainLossReportResponse> consumer) {
+        fxGainLossReportQueryService.streamFxGainLoss(query, consumer);
     }
 
     @Transactional(readOnly = true)

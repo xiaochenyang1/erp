@@ -4,6 +4,7 @@ import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.aging.service.FinanceAgingAssemblyService;
 import com.tuowei.erp.finance.aging.service.FinanceAgingQueryService;
 import com.tuowei.erp.finance.aging.service.FinanceAgingService;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
@@ -35,6 +36,7 @@ class FinanceAgingServiceDecompositionTest {
                         PayableMapper.class,
                         CustomerMapper.class,
                         SupplierMapper.class,
+                        BaseCurrencyService.class,
                         AuditMetadataFactory.class
                 )
                 .doesNotContain(FinanceAgingService.class, FinanceAgingAssemblyService.class);
@@ -49,7 +51,7 @@ class FinanceAgingServiceDecompositionTest {
         FinanceAgingService facade = new FinanceAgingService(query, assembly);
         LocalDate asOf = LocalDate.of(2026, 8, 26);
         FinanceAgingQueryService.AgingData data = new FinanceAgingQueryService.AgingData(
-                asOf, java.util.List.of(), java.util.List.of(), java.util.Map.of(), java.util.Map.of());
+                asOf, "CNY", java.util.List.of(), java.util.List.of(), java.util.Map.of(), java.util.Map.of());
         when(query.load(asOf)).thenReturn(data);
 
         facade.summary(asOf);

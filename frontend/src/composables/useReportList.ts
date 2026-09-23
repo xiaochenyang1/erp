@@ -2,6 +2,7 @@ import { computed, reactive, ref } from 'vue'
 
 import type {
   FinanceSettlementReportRow,
+  FxGainLossReportRow,
   InventoryBalanceReportRow,
   InventoryTransactionReportRow,
   InventoryValuationReportRow,
@@ -52,6 +53,12 @@ export const buildReportParams = (
   } else if (key === 'financeSettlement') {
     params.bizDateFrom = dateRange?.[0]
     params.bizDateTo = dateRange?.[1]
+  } else if (key === 'fxGainLoss') {
+    // FX gain/loss filters on the settlement date: the difference is realised when the
+    // receipt/payment allocates, not on the subledger business date.
+    params.currencyCode = normalizedKeyword || undefined
+    params.settlementDateFrom = dateRange?.[0]
+    params.settlementDateTo = dateRange?.[1]
   } else if (key === 'inventoryValuation') {
     params.keyword = normalizedKeyword || undefined
     params.periodStart = dateRange?.[0]
@@ -72,6 +79,7 @@ export const useReportList = (
     getInventoryBalanceReport: (params: ReportQuery) => Promise<PageResponse<InventoryBalanceReportRow>>
     getInventoryTransactionReport: (params: ReportQuery) => Promise<PageResponse<InventoryTransactionReportRow>>
     getFinanceSettlementReport: (params: ReportQuery) => Promise<PageResponse<FinanceSettlementReportRow>>
+    getFxGainLossReport: (params: ReportQuery) => Promise<PageResponse<FxGainLossReportRow>>
     getInventoryValuationReport: (params: ReportQuery) => Promise<PageResponse<InventoryValuationReportRow>>
     getProductionCostReport: (params: ReportQuery) => Promise<PageResponse<ProductionCostReportRow>>
     exportPurchaseOrderReport: ExportReport
@@ -79,6 +87,7 @@ export const useReportList = (
     exportInventoryBalanceReport: ExportReport
     exportInventoryTransactionReport: ExportReport
     exportFinanceSettlementReport: ExportReport
+    exportFxGainLossReport: ExportReport
     exportInventoryValuationReport: ExportReport
     exportProductionCostReport: ExportReport
     downloadBlob: (blob: Blob, fileName: string) => void
@@ -103,6 +112,7 @@ export const useReportList = (
     inventoryBalance: options.getInventoryBalanceReport,
     inventoryTransaction: options.getInventoryTransactionReport,
     financeSettlement: options.getFinanceSettlementReport,
+    fxGainLoss: options.getFxGainLossReport,
     inventoryValuation: options.getInventoryValuationReport,
     productionCost: options.getProductionCostReport
   }
@@ -112,6 +122,7 @@ export const useReportList = (
     inventoryBalance: options.exportInventoryBalanceReport,
     inventoryTransaction: options.exportInventoryTransactionReport,
     financeSettlement: options.exportFinanceSettlementReport,
+    fxGainLoss: options.exportFxGainLossReport,
     inventoryValuation: options.exportInventoryValuationReport,
     productionCost: options.exportProductionCostReport
   }

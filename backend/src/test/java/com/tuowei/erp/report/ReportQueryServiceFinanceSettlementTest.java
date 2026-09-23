@@ -131,6 +131,9 @@ class ReportQueryServiceFinanceSettlementTest {
                 new BigDecimal("100.00"),
                 new BigDecimal("40.00"),
                 new BigDecimal("60.00"),
+                "CNY",
+                BigDecimal.ONE,
+                new BigDecimal("60.00"),
                 "PARTIALLY_SETTLED"
         );
     }

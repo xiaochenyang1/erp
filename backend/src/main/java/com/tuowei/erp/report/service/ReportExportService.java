@@ -3,6 +3,8 @@ package com.tuowei.erp.report.service;
 import com.tuowei.erp.common.export.CsvExport;
 import com.tuowei.erp.report.web.FinanceSettlementReportQuery;
 import com.tuowei.erp.report.web.FinanceSettlementReportResponse;
+import com.tuowei.erp.report.web.FxGainLossReportQuery;
+import com.tuowei.erp.report.web.FxGainLossReportResponse;
 import com.tuowei.erp.report.web.InventoryBalanceReportQuery;
 import com.tuowei.erp.report.web.InventoryBalanceReportResponse;
 import com.tuowei.erp.report.web.InventoryTransactionReportQuery;
@@ -30,7 +32,9 @@ import java.util.function.Function;
 public class ReportExportService {
 
     private static final List<String> ORDER_HEADERS = List.of(
-            "bizNo", "partnerId", "bizDate", "status", "approvalStatus", "fulfillmentStatus", "totalQuantity", "totalAmount", "totalTaxAmount"
+            "bizNo", "partnerId", "bizDate", "status", "approvalStatus", "fulfillmentStatus",
+            "totalQuantity", "totalAmount", "totalTaxAmount", "currencyCode", "exchangeRate",
+            "baseTotalAmount", "baseTotalTaxAmount"
     );
     private static final List<String> INVENTORY_BALANCE_HEADERS = List.of(
             "warehouseId", "productId", "qtyOnHand", "qtyReserved", "qtyAvailable", "amountOnHand", "updatedTime"
@@ -39,7 +43,13 @@ public class ReportExportService {
             "warehouseId", "productId", "bizType", "bizNo", "bizLineId", "direction", "qty", "amount", "unitCost", "occurredTime", "remark"
     );
     private static final List<String> FINANCE_SETTLEMENT_HEADERS = List.of(
-            "direction", "bizNo", "partnerId", "bizDate", "sourceType", "sourceNo", "originalAmount", "settledAmount", "remainingAmount", "status"
+            "direction", "bizNo", "partnerId", "bizDate", "sourceType", "sourceNo", "originalAmount", "settledAmount",
+            "remainingAmount", "currencyCode", "exchangeRate", "baseRemainingAmount", "status"
+    );
+    private static final List<String> FX_GAIN_LOSS_HEADERS = List.of(
+            "direction", "settlementNo", "settlementDate", "partnerId", "subledgerNo", "currencyCode",
+            "allocatedAmount", "bookingRate", "settlementRate", "baseAllocatedAmount", "baseSettledAmount",
+            "fxGainLossAmount"
     );
     private static final List<String> INVENTORY_VALUATION_HEADERS = List.of(
             "periodStart", "asOfDate", "warehouseCode", "warehouseName", "productCode", "productName",
@@ -81,6 +91,11 @@ public class ReportExportService {
     public StreamingResponseBody exportFinanceSettlements(FinanceSettlementReportQuery query) {
         reportQueryService.assertFinanceSettlementExportWithinLimit(query);
         return csvBody(FINANCE_SETTLEMENT_HEADERS, consumer -> reportQueryService.streamFinanceSettlements(query, consumer), this::financeSettlementRow);
+    }
+
+    public StreamingResponseBody exportFxGainLoss(FxGainLossReportQuery query) {
+        reportQueryService.assertFxGainLossExportWithinLimit(query);
+        return csvBody(FX_GAIN_LOSS_HEADERS, consumer -> reportQueryService.streamFxGainLoss(query, consumer), this::fxGainLossRow);
     }
 
     public StreamingResponseBody exportInventoryValuations(InventoryValuationReportQuery query) {
@@ -131,7 +146,11 @@ public class ReportExportService {
                 record.fulfillmentStatus(),
                 record.totalQuantity(),
                 record.totalAmount(),
-                record.totalTaxAmount()
+                record.totalTaxAmount(),
+                record.currencyCode(),
+                record.exchangeRate(),
+                record.baseTotalAmount(),
+                record.baseTotalTaxAmount()
         );
     }
 
@@ -163,6 +182,23 @@ public class ReportExportService {
         );
     }
 
+    private List<?> fxGainLossRow(FxGainLossReportResponse record) {
+        return Arrays.asList(
+                record.direction(),
+                record.settlementNo(),
+                record.settlementDate(),
+                record.partnerId(),
+                record.subledgerNo(),
+                record.currencyCode(),
+                record.allocatedAmount(),
+                record.bookingRate(),
+                record.settlementRate(),
+                record.baseAllocatedAmount(),
+                record.baseSettledAmount(),
+                record.fxGainLossAmount()
+        );
+    }
+
     private List<?> financeSettlementRow(FinanceSettlementReportResponse record) {
         return Arrays.asList(
                 record.direction(),
@@ -174,6 +210,9 @@ public class ReportExportService {
                 record.originalAmount(),
                 record.settledAmount(),
                 record.remainingAmount(),
+                record.currencyCode(),
+                record.exchangeRate(),
+                record.baseRemainingAmount(),
                 record.status()
         );
     }

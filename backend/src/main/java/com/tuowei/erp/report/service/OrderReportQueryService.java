@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.config.ReportProperties;
 import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.security.DataScopeService;
 import com.tuowei.erp.common.security.DataScopeSnapshot;
@@ -21,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -216,7 +219,7 @@ public class OrderReportQueryService {
     }
 
     private OrderReportResponse toPurchaseOrderReport(PurchaseOrderEntity entity) {
-        return new OrderReportResponse(
+        return orderReport(
                 entity.getId(),
                 entity.getOrderNo(),
                 entity.getSupplierId(),
@@ -226,12 +229,16 @@ public class OrderReportQueryService {
                 entity.getReceiptStatus(),
                 entity.getTotalQuantity(),
                 entity.getTotalAmount(),
-                entity.getTotalTaxAmount()
+                entity.getTotalTaxAmount(),
+                entity.getCurrencyCode(),
+                entity.getExchangeRate(),
+                entity.getBaseTotalAmount(),
+                entity.getBaseTotalTaxAmount()
         );
     }
 
     private OrderReportResponse toSalesOrderReport(SalesOrderEntity entity) {
-        return new OrderReportResponse(
+        return orderReport(
                 entity.getId(),
                 entity.getOrderNo(),
                 entity.getCustomerId(),
@@ -241,7 +248,45 @@ public class OrderReportQueryService {
                 entity.getDeliveryStatus(),
                 entity.getTotalQuantity(),
                 entity.getTotalAmount(),
-                entity.getTotalTaxAmount()
+                entity.getTotalTaxAmount(),
+                entity.getCurrencyCode(),
+                entity.getExchangeRate(),
+                entity.getBaseTotalAmount(),
+                entity.getBaseTotalTaxAmount()
+        );
+    }
+
+    private OrderReportResponse orderReport(
+            Long id,
+            String bizNo,
+            Long partnerId,
+            LocalDate bizDate,
+            String status,
+            String approvalStatus,
+            String fulfillmentStatus,
+            BigDecimal totalQuantity,
+            BigDecimal totalAmount,
+            BigDecimal totalTaxAmount,
+            String currencyCode,
+            BigDecimal exchangeRate,
+            BigDecimal baseTotalAmount,
+            BigDecimal baseTotalTaxAmount
+    ) {
+        return new OrderReportResponse(
+                id,
+                bizNo,
+                partnerId,
+                bizDate,
+                status,
+                approvalStatus,
+                fulfillmentStatus,
+                totalQuantity,
+                totalAmount,
+                totalTaxAmount,
+                CurrencyAmountSupport.currency(currencyCode),
+                CurrencyAmountSupport.rate(exchangeRate),
+                CurrencyAmountSupport.baseAmountOrFallback(baseTotalAmount, totalAmount, exchangeRate),
+                CurrencyAmountSupport.baseAmountOrFallback(baseTotalTaxAmount, totalTaxAmount, exchangeRate)
         );
     }
 

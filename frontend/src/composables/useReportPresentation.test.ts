@@ -33,7 +33,7 @@ describe('report presentation', () => {
       computed(() => state)
     )
 
-    expect(presentation.reportTabs.value).toHaveLength(7)
+    expect(presentation.reportTabs.value).toHaveLength(8)
     expect(presentation.activeReport.value.key).toBe('purchase')
     expect(presentation.pageCount.value).toBe(3)
     expect(presentation.summaryAmount.value).toBe(100)

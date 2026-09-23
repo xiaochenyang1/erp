@@ -58,6 +58,8 @@ class FinancePostingServiceTest {
                 701L,
                 LocalDate.of(2026, 7, 31),
                 new BigDecimal("113.58"),
+                "CNY",
+                BigDecimal.ONE,
                 "采购入库形成应付",
                 AUDIT
         );
@@ -91,6 +93,8 @@ class FinancePostingServiceTest {
                 702L,
                 LocalDate.of(2026, 7, 30),
                 new BigDecimal("22.60"),
+                "CNY",
+                BigDecimal.ONE,
                 "采购退货冲减应付",
                 AUDIT
         );
@@ -129,6 +133,8 @@ class FinancePostingServiceTest {
                 703L,
                 LocalDate.of(2026, 7, 29),
                 new BigDecimal("90.40"),
+                "CNY",
+                BigDecimal.ONE,
                 "销售出库形成应收",
                 AUDIT
         );
@@ -156,6 +162,8 @@ class FinancePostingServiceTest {
                 703L,
                 LocalDate.of(2026, 7, 28),
                 new BigDecimal("11.30"),
+                "CNY",
+                BigDecimal.ONE,
                 "销售退货冲减应收",
                 AUDIT
         );
@@ -163,6 +171,78 @@ class FinancePostingServiceTest {
                 salesReturn,
                 new BigDecimal("11.30"),
                 new BigDecimal("6.25"),
+                AUDIT
+        );
+    }
+
+    @Test
+    void foreignCurrencyDocumentsKeepOriginalAmountsInTheSubledgerAndPostVouchersInBaseCurrency() {
+        PurchaseReceiptEntity receipt = new PurchaseReceiptEntity();
+        receipt.setId(613L);
+        receipt.setReceiptNo("PR-613");
+        receipt.setReceiptDate(LocalDate.of(2026, 9, 1));
+        receipt.setTotalAmount(new BigDecimal("1000.00"));
+        receipt.setTotalTaxAmount(new BigDecimal("130.00"));
+        receipt.setCurrencyCode("USD");
+        receipt.setExchangeRate(new BigDecimal("7.20"));
+        PurchaseOrderEntity purchaseOrder = new PurchaseOrderEntity();
+        purchaseOrder.setSupplierId(704L);
+
+        service.recordPurchaseReceipt(receipt, purchaseOrder, AUDIT);
+
+        // 子账保留原币 1130 USD 与入账汇率快照，凭证按本位币 1130 × 7.20 = 8136.00 过账。
+        verify(subledgerPostingService).recordPayableIfAbsent(
+                "PURCHASE_RECEIPT",
+                613L,
+                "PR-613",
+                "INCREASE",
+                704L,
+                LocalDate.of(2026, 9, 1),
+                new BigDecimal("1130.00"),
+                "USD",
+                new BigDecimal("7.20"),
+                "采购入库形成应付",
+                AUDIT
+        );
+        verify(voucherPostingService).recordPurchaseReceipt(
+                receipt,
+                new BigDecimal("7200.00"),
+                new BigDecimal("936.00"),
+                new BigDecimal("8136.00"),
+                AUDIT
+        );
+
+        SalesOrderEntity salesOrder = new SalesOrderEntity();
+        salesOrder.setCustomerId(705L);
+        SalesDeliveryEntity delivery = new SalesDeliveryEntity();
+        delivery.setId(614L);
+        delivery.setDeliveryNo("SD-614");
+        delivery.setDeliveryDate(LocalDate.of(2026, 9, 2));
+        delivery.setTotalAmount(new BigDecimal("500.00"));
+        delivery.setTotalTaxAmount(new BigDecimal("65.00"));
+        delivery.setCurrencyCode("USD");
+        delivery.setExchangeRate(new BigDecimal("7.30"));
+
+        service.recordSalesDelivery(delivery, salesOrder, new BigDecimal("3100.00"), AUDIT);
+
+        verify(subledgerPostingService).recordReceivableIfAbsent(
+                "SALES_DELIVERY",
+                614L,
+                "SD-614",
+                "INCREASE",
+                705L,
+                LocalDate.of(2026, 9, 2),
+                new BigDecimal("565.00"),
+                "USD",
+                new BigDecimal("7.30"),
+                "销售出库形成应收",
+                AUDIT
+        );
+        // 成本金额来自库存移动加权平均成本，本身就是本位币，不再折算。
+        verify(voucherPostingService).recordSalesDelivery(
+                delivery,
+                new BigDecimal("4124.50"),
+                new BigDecimal("3100.00"),
                 AUDIT
         );
     }

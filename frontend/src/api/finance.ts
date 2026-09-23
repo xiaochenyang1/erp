@@ -27,6 +27,10 @@ export interface Receivable {
   remainingAmount: number
   originalAmount?: number
   settledAmount?: number
+  currencyCode?: string
+  exchangeRate?: number
+  /** 本位币未结额，跨币种汇总只能用它 */
+  baseRemainingAmount?: number
   bizDate?: string
   dueDate?: string
   status: FinanceAccountStatus
@@ -78,6 +82,10 @@ export interface Payable {
   remainingAmount: number
   originalAmount?: number
   settledAmount?: number
+  currencyCode?: string
+  exchangeRate?: number
+  /** 本位币未结额，跨币种汇总只能用它 */
+  baseRemainingAmount?: number
   bizDate?: string
   dueDate?: string
   status: FinanceAccountStatus
@@ -266,6 +274,9 @@ const normalizeReceivable = (item: Receivable): Receivable => ({
   receivableAmount: item.receivableAmount ?? item.originalAmount ?? 0,
   receivedAmount: item.receivedAmount ?? item.settledAmount ?? 0,
   remainingAmount: item.remainingAmount ?? 0,
+  currencyCode: item.currencyCode || 'CNY',
+  exchangeRate: Number(item.exchangeRate ?? 1),
+  baseRemainingAmount: Number(item.baseRemainingAmount ?? item.remainingAmount ?? 0),
   createdTime: item.createdTime || '',
   updatedTime: item.updatedTime || ''
 })
@@ -278,6 +289,9 @@ const normalizePayable = (item: Payable): Payable => ({
   payableAmount: item.payableAmount ?? item.originalAmount ?? 0,
   paidAmount: item.paidAmount ?? item.settledAmount ?? 0,
   remainingAmount: item.remainingAmount ?? 0,
+  currencyCode: item.currencyCode || 'CNY',
+  exchangeRate: Number(item.exchangeRate ?? 1),
+  baseRemainingAmount: Number(item.baseRemainingAmount ?? item.remainingAmount ?? 0),
   createdTime: item.createdTime || '',
   updatedTime: item.updatedTime || ''
 })
@@ -757,6 +771,14 @@ export const generateAccountPeriods = (year: number) => {
 
 export const lockAccountPeriod = (id: string | number) => {
   return request.post<AccountPeriod>(`/finance/periods/${id}/lock`).then(normalizeAccountPeriod)
+}
+
+export const revalueAccountPeriod = (id: string | number) => {
+  return request.post<unknown>(`/finance/periods/${id}/fx-revaluation`)
+}
+
+export const cancelAccountPeriodRevaluation = (id: string | number) => {
+  return request.post<unknown>(`/finance/periods/${id}/fx-revaluation/cancel`)
 }
 
 export const checkAccountPeriodClose = (id: string | number) => {
@@ -1375,16 +1397,32 @@ export interface FinanceAgingOpenItem {
   dueDate?: string
   agingDays: number
   bucketCode: string
+  /** 原币未结额 */
   remainingAmount: number
+  currencyCode: string
+  exchangeRate: number
+  /** 本位币未结额，跨币种汇总只能用它 */
+  baseRemainingAmount: number
   status?: string
+}
+
+export interface FinanceAgingCurrencyExposure {
+  currencyCode: string
+  count: number
+  originalAmount: number
+  baseAmount: number
 }
 
 export interface FinanceAgingSummary {
   asOfDate: string
+  /** 账套本位币，总额与账龄桶都是这个口径 */
+  baseCurrencyCode: string
   receivableTotal: number
   payableTotal: number
   receivableBuckets: FinanceAgingBucket[]
   payableBuckets: FinanceAgingBucket[]
+  receivableCurrencyExposures: FinanceAgingCurrencyExposure[]
+  payableCurrencyExposures: FinanceAgingCurrencyExposure[]
   overdueReceivables: FinanceAgingOpenItem[]
   overduePayables: FinanceAgingOpenItem[]
 }
@@ -1394,34 +1432,42 @@ export const getFinanceAgingSummary = (asOfDate?: string) => {
     .get<FinanceAgingSummary>('/finance/aging', { params: asOfDate ? { asOfDate } : undefined })
     .then((summary) => ({
       ...summary,
+      baseCurrencyCode: summary.baseCurrencyCode || 'CNY',
       receivableTotal: Number(summary.receivableTotal ?? 0),
       payableTotal: Number(summary.payableTotal ?? 0),
-      receivableBuckets: (summary.receivableBuckets || []).map((b) => ({
-        ...b,
-        count: Number(b.count ?? 0),
-        amount: Number(b.amount ?? 0)
-      })),
-      payableBuckets: (summary.payableBuckets || []).map((b) => ({
-        ...b,
-        count: Number(b.count ?? 0),
-        amount: Number(b.amount ?? 0)
-      })),
-      overdueReceivables: (summary.overdueReceivables || []).map((item) => ({
-        ...item,
-        id: String(item.id),
-        partnerId: item.partnerId != null ? String(item.partnerId) : item.partnerId,
-        agingDays: Number(item.agingDays ?? 0),
-        remainingAmount: Number(item.remainingAmount ?? 0)
-      })),
-      overduePayables: (summary.overduePayables || []).map((item) => ({
-        ...item,
-        id: String(item.id),
-        partnerId: item.partnerId != null ? String(item.partnerId) : item.partnerId,
-        agingDays: Number(item.agingDays ?? 0),
-        remainingAmount: Number(item.remainingAmount ?? 0)
-      }))
+      receivableBuckets: (summary.receivableBuckets || []).map(normalizeAgingBucket),
+      payableBuckets: (summary.payableBuckets || []).map(normalizeAgingBucket),
+      receivableCurrencyExposures: (summary.receivableCurrencyExposures || []).map(normalizeAgingExposure),
+      payableCurrencyExposures: (summary.payableCurrencyExposures || []).map(normalizeAgingExposure),
+      overdueReceivables: (summary.overdueReceivables || []).map(normalizeAgingOpenItem),
+      overduePayables: (summary.overduePayables || []).map(normalizeAgingOpenItem)
     }))
 }
+
+const normalizeAgingBucket = (bucket: FinanceAgingBucket): FinanceAgingBucket => ({
+  ...bucket,
+  count: Number(bucket.count ?? 0),
+  amount: Number(bucket.amount ?? 0)
+})
+
+const normalizeAgingExposure = (exposure: FinanceAgingCurrencyExposure): FinanceAgingCurrencyExposure => ({
+  ...exposure,
+  currencyCode: exposure.currencyCode || 'CNY',
+  count: Number(exposure.count ?? 0),
+  originalAmount: Number(exposure.originalAmount ?? 0),
+  baseAmount: Number(exposure.baseAmount ?? 0)
+})
+
+const normalizeAgingOpenItem = (item: FinanceAgingOpenItem): FinanceAgingOpenItem => ({
+  ...item,
+  id: String(item.id),
+  partnerId: item.partnerId != null ? String(item.partnerId) : item.partnerId,
+  agingDays: Number(item.agingDays ?? 0),
+  remainingAmount: Number(item.remainingAmount ?? 0),
+  currencyCode: item.currencyCode || 'CNY',
+  exchangeRate: Number(item.exchangeRate ?? 1),
+  baseRemainingAmount: Number(item.baseRemainingAmount ?? item.remainingAmount ?? 0)
+})
 
 // ==================== 往来对账 / 毛利 ====================
 
