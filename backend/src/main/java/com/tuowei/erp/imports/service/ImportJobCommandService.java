@@ -87,9 +87,9 @@ public class ImportJobCommandService {
                 audit.accountBookId(),
                 audit.userId()
         );
-        CsvImportParser.ParsedCsv parsedCsv = csvImportParser.parse(
+        CsvImportParser.ParsedCsv parsedCsv = csvImportParser.parseAccepted(
                 file,
-                templateRegistry.headers(normalizedImportType)
+                templateRegistry.acceptedHeaders(normalizedImportType)
         );
         LocalDateTime now = audit.now();
         ImportJobEntity job = new ImportJobEntity();
