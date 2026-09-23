@@ -128,9 +128,20 @@ export const updateSalesOrder = (id: string | number, data: SalesOrderSaveReques
   return request.put<SalesOrder>(`/sales/orders/${id}`, toSalesOrderPayload(data)).then(normalizeSalesOrder)
 }
 
-export const previewSalesOrderCredit = (customerId: string | number, items: SalesOrderItem[]) => {
+export interface SalesOrderCreditContext {
+  orderDate?: string
+  currencyCode?: string
+  exchangeRate?: number
+}
+
+export const previewSalesOrderCredit = (
+  customerId: string | number,
+  items: SalesOrderItem[],
+  context: SalesOrderCreditContext = {}
+) => {
   return request.post<SalesOrderCreditPreview>('/sales/orders/credit-preview', {
     customerId,
+    ...context,
     lines: toSalesOrderLinePayload(items)
   }).then(normalizeSalesOrderCreditPreview)
 }
@@ -199,8 +210,8 @@ const toSalesOrderPayload = (data: SalesOrderSaveRequest) => ({
   warehouseId: data.warehouseId,
   orderDate: data.orderDate,
   deliveryDate: data.deliveryDate,
-  currencyCode: data.currencyCode || 'CNY',
-  exchangeRate: data.exchangeRate ?? 1,
+  currencyCode: data.currencyCode || undefined,
+  exchangeRate: data.exchangeRate,
   remark: data.remark,
     carrierName: data.carrierName,
     trackingNo: data.trackingNo,

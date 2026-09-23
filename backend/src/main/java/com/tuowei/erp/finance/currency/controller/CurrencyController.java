@@ -29,7 +29,7 @@ public class CurrencyController {
         this.service = service;
     }
 
-    @PreAuthorize(PermissionCodes.HAS_MASTERDATA_CURRENCY_VIEW)
+    @PreAuthorize(PermissionCodes.HAS_ORDER_CURRENCY_REFERENCE_VIEW)
     @GetMapping
     public ApiResponse<?> currencies() {
         return ApiResponse.success(service.currencies());
@@ -53,7 +53,7 @@ public class CurrencyController {
         return ApiResponse.success(service.disableCurrency(id));
     }
 
-    @PreAuthorize(PermissionCodes.HAS_MASTERDATA_CURRENCY_VIEW)
+    @PreAuthorize(PermissionCodes.HAS_ORDER_CURRENCY_REFERENCE_VIEW)
     @GetMapping("/base")
     public ApiResponse<String> base() {
         return ApiResponse.success(service.baseCurrency());
@@ -65,7 +65,7 @@ public class CurrencyController {
         return ApiResponse.success(service.setBaseCurrency(request));
     }
 
-    @PreAuthorize(PermissionCodes.HAS_MASTERDATA_CURRENCY_VIEW)
+    @PreAuthorize(PermissionCodes.HAS_ORDER_CURRENCY_REFERENCE_VIEW)
     @GetMapping("/rates")
     public ApiResponse<?> rates(
             @RequestParam(required = false) String from,

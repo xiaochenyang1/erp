@@ -83,7 +83,8 @@ public class SalesOrderWorkflowService {
                 entity.getAccountBookId(),
                 entity.getCustomerId(),
                 entity.getOrderDate(),
-                lineRequests
+                lineRequests,
+                entity.getExchangeRate()
         );
         CustomerEntity customer = customerMapper.selectById(entity.getCustomerId());
         if (customer != null) {

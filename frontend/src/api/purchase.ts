@@ -220,8 +220,8 @@ const toPurchaseOrderPayload = (data: PurchaseOrderSaveRequest) => ({
   supplierId: data.supplierId,
   orderDate: data.orderDate,
   deliveryDate: data.deliveryDate || data.expectedDate || undefined,
-  currencyCode: data.currencyCode || 'CNY',
-  exchangeRate: data.exchangeRate ?? 1,
+  currencyCode: data.currencyCode || undefined,
+  exchangeRate: data.exchangeRate,
   remark: data.remark,
   lines: data.items.map((item) => ({
     productId: item.productId,

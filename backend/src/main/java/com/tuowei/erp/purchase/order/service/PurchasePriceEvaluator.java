@@ -1,6 +1,7 @@
 package com.tuowei.erp.purchase.order.service;
 
 import com.tuowei.erp.common.math.ScalePrecision;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderLineRequest;
 import com.tuowei.erp.purchase.price.service.PurchasePriceService;
 import org.springframework.stereotype.Component;
@@ -30,6 +31,18 @@ public class PurchasePriceEvaluator {
             LocalDate orderDate,
             List<PurchaseOrderLineRequest> lines
     ) {
+        assertLinesWithinMaxPrice(companyId, accountBookId, supplierId, orderDate, lines, BigDecimal.ONE);
+    }
+
+    /** Price-list limits are in account-book base currency; order prices are in transaction currency. */
+    public void assertLinesWithinMaxPrice(
+            Long companyId,
+            Long accountBookId,
+            Long supplierId,
+            LocalDate orderDate,
+            List<PurchaseOrderLineRequest> lines,
+            BigDecimal exchangeRate
+    ) {
         if (lines == null || lines.isEmpty()) {
             return;
         }
@@ -50,10 +63,10 @@ public class PurchasePriceEvaluator {
             if (maxPrice == null) {
                 continue;
             }
-            BigDecimal price = ScalePrecision.amount(line.price());
+            BigDecimal price = CurrencyAmountSupport.posting(ScalePrecision.amount(line.price()), exchangeRate);
             if (price.compareTo(maxPrice) > 0) {
                 throw new IllegalArgumentException(String.format(
-                        "第 %d 行单价 %s 高于生效最高价 %s，请调整价格",
+                        "第 %d 行折合本位币单价 %s 高于生效最高价 %s，请调整价格",
                         index,
                         price.toPlainString(),
                         maxPrice.toPlainString()

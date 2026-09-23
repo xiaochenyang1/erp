@@ -77,6 +77,8 @@ class SalesOrderWorkflowServiceTest {
     @Test
     void submitRunsAttachmentPriceCreditTransitionAndWorkflowInOrder() {
         SalesOrderEntity draft = order("DRAFT", "NOT_SUBMITTED", "NOT_DELIVERED");
+        draft.setCurrencyCode("USD");
+        draft.setExchangeRate(new BigDecimal("7"));
         SalesOrderLineEntity line = line(4302L, "2.0000", "15.0000", "0.1300");
         SalesOrderResponse expected = response("SUBMITTED", "IN_APPROVAL", "NOT_DELIVERED");
         when(salesOrderQueryService.requireOrder(ORDER_ID)).thenReturn(draft);
@@ -100,7 +102,7 @@ class SalesOrderWorkflowServiceTest {
         ArgumentCaptor<List<SalesOrderLineRequest>> lineRequests = ArgumentCaptor.forClass(List.class);
         order.verify(salesPriceEvaluator).assertLinesWithinMinPrice(
                 eq(AUDIT.companyId()), eq(AUDIT.accountBookId()), eq(CUSTOMER_ID),
-                eq(draft.getOrderDate()), lineRequests.capture()
+                eq(draft.getOrderDate()), lineRequests.capture(), eq(new BigDecimal("7"))
         );
         assertThat(lineRequests.getValue()).containsExactly(new SalesOrderLineRequest(
                 4302L,
@@ -167,7 +169,7 @@ class SalesOrderWorkflowServiceTest {
         when(salesOrderQueryService.selectLines(draft)).thenReturn(List.of(line));
         doThrow(new IllegalArgumentException("第 1 行单价低于生效最低价"))
                 .when(salesPriceEvaluator)
-                .assertLinesWithinMinPrice(any(), any(), any(), any(), any());
+                .assertLinesWithinMinPrice(any(), any(), any(), any(), any(), any());
 
         assertThatThrownBy(() -> service().submit(ORDER_ID, new SalesOrderSubmitRequest("price")))
                 .isInstanceOf(IllegalArgumentException.class)

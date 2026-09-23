@@ -19,6 +19,8 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -124,6 +126,44 @@ class SalesPriceEvaluatorTest {
                 LocalDate.of(2026, 7, 17),
                 List.of(line(new BigDecimal("40.00")))
         )).doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest(name = "{0}: price 10 at rate {1} meets base minimum {2}")
+    @CsvSource({"USD, 7, 70", "EUR, 8, 80"})
+    void foreignCurrencyPriceAtBaseMinimumIsAllowed(String currency, BigDecimal rate, BigDecimal minimum) {
+        when(salesPriceMapper.selectList(any()))
+                .thenReturn(List.of(price(CUSTOMER_ID, minimum, minimum)));
+
+        assertThatCode(() -> evaluator().assertLinesWithinMinPrice(
+                COMPANY_ID, BOOK_ID, CUSTOMER_ID, LocalDate.of(2026, 7, 17),
+                List.of(line(new BigDecimal("10.00"))), rate))
+                .doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest(name = "{0}: price 9.99 at rate {1} is below base minimum {2}")
+    @CsvSource({"USD, 7, 70", "EUR, 8, 80"})
+    void foreignCurrencyPriceBelowBaseMinimumIsRejected(String currency, BigDecimal rate, BigDecimal minimum) {
+        when(salesPriceMapper.selectList(any()))
+                .thenReturn(List.of(price(CUSTOMER_ID, minimum, minimum)));
+
+        assertThatThrownBy(() -> evaluator().assertLinesWithinMinPrice(
+                COMPANY_ID, BOOK_ID, CUSTOMER_ID, LocalDate.of(2026, 7, 17),
+                List.of(line(new BigDecimal("9.99"))), rate))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("折合本位币单价")
+                .hasMessageContaining("低于生效最低价");
+    }
+
+    @Test
+    void convertsTheSameRoundedOriginalUnitPriceThatWillBePersisted() {
+        when(salesPriceMapper.selectList(any()))
+                .thenReturn(List.of(price(CUSTOMER_ID, new BigDecimal("70"), new BigDecimal("69.95"))));
+
+        assertThatThrownBy(() -> evaluator().assertLinesWithinMinPrice(
+                COMPANY_ID, BOOK_ID, CUSTOMER_ID, LocalDate.of(2026, 7, 17),
+                List.of(line(new BigDecimal("9.994"))), new BigDecimal("7")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("69.93");
     }
 
     private SalesOrderLineRequest line(BigDecimal price) {

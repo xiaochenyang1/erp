@@ -17,6 +17,8 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -119,6 +121,44 @@ class PurchasePriceEvaluatorTest {
                 LocalDate.of(2026, 7, 25),
                 List.of(line(new BigDecimal("60.00")))
         )).doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest(name = "{0}: price 10 at rate {1} meets base maximum {2}")
+    @CsvSource({"USD, 7, 70", "EUR, 8, 80"})
+    void foreignCurrencyPriceAtBaseMaximumIsAllowed(String currency, BigDecimal rate, BigDecimal maximum) {
+        when(purchasePriceMapper.selectList(any()))
+                .thenReturn(List.of(price(SUPPLIER_ID, maximum, maximum)));
+
+        assertThatCode(() -> evaluator().assertLinesWithinMaxPrice(
+                COMPANY_ID, BOOK_ID, SUPPLIER_ID, LocalDate.of(2026, 7, 25),
+                List.of(line(new BigDecimal("10.00"))), rate))
+                .doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest(name = "{0}: price 10.01 at rate {1} exceeds base maximum {2}")
+    @CsvSource({"USD, 7, 70", "EUR, 8, 80"})
+    void foreignCurrencyPriceAboveBaseMaximumIsRejected(String currency, BigDecimal rate, BigDecimal maximum) {
+        when(purchasePriceMapper.selectList(any()))
+                .thenReturn(List.of(price(SUPPLIER_ID, maximum, maximum)));
+
+        assertThatThrownBy(() -> evaluator().assertLinesWithinMaxPrice(
+                COMPANY_ID, BOOK_ID, SUPPLIER_ID, LocalDate.of(2026, 7, 25),
+                List.of(line(new BigDecimal("10.01"))), rate))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("折合本位币单价")
+                .hasMessageContaining("高于生效最高价");
+    }
+
+    @Test
+    void convertsTheSameRoundedOriginalUnitPriceThatWillBePersisted() {
+        when(purchasePriceMapper.selectList(any()))
+                .thenReturn(List.of(price(SUPPLIER_ID, new BigDecimal("70"), new BigDecimal("70.05"))));
+
+        assertThatThrownBy(() -> evaluator().assertLinesWithinMaxPrice(
+                COMPANY_ID, BOOK_ID, SUPPLIER_ID, LocalDate.of(2026, 7, 25),
+                List.of(line(new BigDecimal("10.005"))), new BigDecimal("7")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("70.07");
     }
 
     private PurchaseOrderLineRequest line(BigDecimal price) {

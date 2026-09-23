@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
+import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
+import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -23,7 +26,10 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,6 +42,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -64,11 +72,14 @@ class SalesOrderCommandServiceTest {
     @Mock private SalesOrderQueryService queryService;
     @Mock private SalesCreditEvaluator salesCreditEvaluator;
     @Mock private SalesPriceEvaluator salesPriceEvaluator;
+    @Mock private SettlementCurrencyService settlementCurrencyService;
+    @Mock private ReceivableMapper receivableMapper;
 
     @BeforeAll
     static void initTableInfo() {
         initTableInfo(SalesOrderEntity.class);
         initTableInfo(SalesOrderLineEntity.class);
+        initTableInfo(ReceivableEntity.class);
     }
 
     @Test
@@ -146,6 +157,43 @@ class SalesOrderCommandServiceTest {
         verify(salesOrderLineMapper).insert(any(SalesOrderLineEntity.class));
     }
 
+    @ParameterizedTest(name = "{0} {1} order uses resolved rate {2} for the price gate")
+    @CsvSource({"create, USD, 7", "update, USD, 7", "create, EUR, 8", "update, EUR, 8"})
+    void writesResolveCurrencyBeforeCheckingBaseCurrencyMinimum(
+            String operation, String currencyCode, BigDecimal rate
+    ) {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(customerMapper.selectById(CUSTOMER_ID)).thenReturn(customer());
+        when(warehouseMapper.selectById(WAREHOUSE_ID)).thenReturn(warehouse());
+        when(settlementCurrencyService.resolve(currencyCode, null, ORDER_DATE, AUDIT))
+                .thenReturn(new SettlementCurrencyService.Resolution(currencyCode, rate));
+        List<SalesOrderLineRequest> lines = List.of(new SalesOrderLineRequest(
+                PRODUCT_ID, BigDecimal.ONE, BigDecimal.TEN, BigDecimal.ZERO, null));
+        doThrow(new IllegalArgumentException("低于生效最低价"))
+                .when(salesPriceEvaluator).assertLinesWithinMinPrice(
+                        COMPANY_ID, BOOK_ID, CUSTOMER_ID, ORDER_DATE, lines, rate);
+        if ("update".equals(operation)) {
+            when(queryService.requireOrder(ORDER_ID)).thenReturn(order("DRAFT"));
+        }
+        SalesOrderCommandService service = serviceWithCurrencyResolution(salesCreditEvaluator);
+
+        assertThatThrownBy(() -> {
+            if ("create".equals(operation)) {
+                service.create(new SalesOrderCreateRequest(null, CUSTOMER_ID, WAREHOUSE_ID,
+                        ORDER_DATE, null, currencyCode, null, null, lines));
+            } else {
+                service.update(ORDER_ID, new SalesOrderUpdateRequest(null, CUSTOMER_ID, WAREHOUSE_ID,
+                        ORDER_DATE, null, currencyCode, null, null, lines));
+            }
+        }).isInstanceOf(IllegalArgumentException.class).hasMessage("低于生效最低价");
+
+        InOrder checks = inOrder(settlementCurrencyService, salesPriceEvaluator);
+        checks.verify(settlementCurrencyService).resolve(currencyCode, null, ORDER_DATE, AUDIT);
+        checks.verify(salesPriceEvaluator).assertLinesWithinMinPrice(
+                COMPANY_ID, BOOK_ID, CUSTOMER_ID, ORDER_DATE, lines, rate);
+        verifyNoInteractions(salesOrderMapper, salesOrderLineMapper);
+    }
+
     @Test
     void previewCreditNormalizesTotalsAndMapsEvaluatorResult() {
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
@@ -167,10 +215,103 @@ class SalesOrderCommandServiceTest {
         verify(salesCreditEvaluator).preview(customer, new BigDecimal("22.60"));
     }
 
+    @Test
+    void previewCreditResolvesRequestedDateAndCurrencyBeforeEvaluatingInBaseCurrency() {
+        LocalDate requestedDate = ORDER_DATE.minusDays(5);
+        BigDecimal requestedRate = new BigDecimal("7");
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        CustomerEntity customer = customer();
+        customer.setCreditLimit(new BigDecimal("5000"));
+        when(customerMapper.selectById(CUSTOMER_ID)).thenReturn(customer);
+        when(settlementCurrencyService.resolve("USD", requestedRate, requestedDate, AUDIT))
+                .thenReturn(new SettlementCurrencyService.Resolution("USD", requestedRate));
+        when(receivableMapper.selectList(any())).thenReturn(List.of());
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of());
+
+        SalesOrderCreditPreviewResponse result = serviceWithCurrencyResolution(realCreditEvaluator()).previewCredit(
+                new SalesOrderCreditPreviewRequest(CUSTOMER_ID, requestedDate, "USD", requestedRate,
+                        List.of(new SalesOrderLineRequest(PRODUCT_ID, new BigDecimal("2"), new BigDecimal("500"),
+                                new BigDecimal("13"), null))));
+
+        verify(settlementCurrencyService).resolve("USD", requestedRate, requestedDate, AUDIT);
+        assertThat(result.orderAmount()).isEqualByComparingTo("7910.00");
+        assertThat(result.projectedExposure()).isEqualByComparingTo("7910.00");
+        assertThat(result.projectedAvailableCredit()).isEqualByComparingTo("-2910.00");
+        assertThat(result.exceeded()).isTrue();
+        verify(salesOrderMapper, never()).insert(any(SalesOrderEntity.class));
+    }
+
+    @Test
+    void previewCreditUsesConfiguredRateWhenRequestOmitsRate() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        CustomerEntity customer = customer();
+        customer.setCreditLimit(new BigDecimal("5000"));
+        when(customerMapper.selectById(CUSTOMER_ID)).thenReturn(customer);
+        when(settlementCurrencyService.resolve("USD", null, ORDER_DATE, AUDIT))
+                .thenReturn(new SettlementCurrencyService.Resolution("USD", new BigDecimal("7")));
+        when(receivableMapper.selectList(any())).thenReturn(List.of());
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of());
+
+        SalesOrderCreditPreviewResponse result = serviceWithCurrencyResolution(realCreditEvaluator()).previewCredit(
+                new SalesOrderCreditPreviewRequest(CUSTOMER_ID, ORDER_DATE, "USD", null,
+                        List.of(new SalesOrderLineRequest(PRODUCT_ID, BigDecimal.ONE, new BigDecimal("1000"),
+                                BigDecimal.ZERO, null))));
+
+        verify(settlementCurrencyService).resolve("USD", null, ORDER_DATE, AUDIT);
+        assertThat(result.orderAmount()).isEqualByComparingTo("7000.00");
+        assertThat(result.exceeded()).isTrue();
+    }
+
+    @Test
+    void legacyPreviewPayloadUsesAuditDateAndConfiguredAccountBookBaseCurrency() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(customerMapper.selectById(CUSTOMER_ID)).thenReturn(customer());
+        when(settlementCurrencyService.resolve(null, null, NOW.toLocalDate(), AUDIT))
+                .thenReturn(new SettlementCurrencyService.Resolution("EUR", BigDecimal.ONE));
+        when(receivableMapper.selectList(any())).thenReturn(List.of());
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of());
+
+        SalesOrderCreditPreviewResponse result = serviceWithCurrencyResolution(realCreditEvaluator()).previewCredit(
+                new SalesOrderCreditPreviewRequest(CUSTOMER_ID,
+                        List.of(new SalesOrderLineRequest(PRODUCT_ID, BigDecimal.ONE, new BigDecimal("20"),
+                                new BigDecimal("13"), null))));
+
+        verify(settlementCurrencyService).resolve(null, null, NOW.toLocalDate(), AUDIT);
+        assertThat(result.orderAmount()).isEqualByComparingTo("22.60");
+        assertThat(result.projectedExposure()).isEqualByComparingTo("22.60");
+    }
+
+    @Test
+    void previewCreditRejectsInvalidCurrencySnapshotBeforeEvaluatingExposure() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(customerMapper.selectById(CUSTOMER_ID)).thenReturn(customer());
+        when(settlementCurrencyService.resolve("USD", BigDecimal.ONE, ORDER_DATE, AUDIT))
+                .thenThrow(new IllegalArgumentException("提交汇率与系统有效汇率不一致，请刷新后重试"));
+
+        assertThatThrownBy(() -> serviceWithCurrencyResolution(salesCreditEvaluator).previewCredit(
+                new SalesOrderCreditPreviewRequest(CUSTOMER_ID, ORDER_DATE, "USD", BigDecimal.ONE,
+                        List.of(new SalesOrderLineRequest(PRODUCT_ID, BigDecimal.ONE, new BigDecimal("1000"),
+                                BigDecimal.ZERO, null)))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("提交汇率与系统有效汇率不一致");
+
+        verifyNoInteractions(salesCreditEvaluator, receivableMapper, salesOrderMapper);
+    }
+
     private SalesOrderCommandService service() {
         return new SalesOrderCommandService(salesOrderMapper, salesOrderLineMapper, customerMapper, productValidator,
                 warehouseMapper, salesOrderNumberService, auditMetadataFactory, queryService,
                 salesCreditEvaluator, salesPriceEvaluator);
+    }
+
+    private SalesOrderCommandService serviceWithCurrencyResolution(SalesCreditEvaluator evaluator) {
+        return new SalesOrderCommandService(salesOrderMapper, salesOrderLineMapper, customerMapper, productValidator,
+                warehouseMapper, salesOrderNumberService, auditMetadataFactory, queryService,
+                evaluator, salesPriceEvaluator, settlementCurrencyService);
+    }
+
+    private SalesCreditEvaluator realCreditEvaluator() {
+        return new SalesCreditEvaluator(receivableMapper, salesOrderMapper, salesOrderLineMapper);
     }
 
     private CustomerEntity customer() {

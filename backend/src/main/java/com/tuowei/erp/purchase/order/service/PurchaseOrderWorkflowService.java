@@ -70,7 +70,8 @@ public class PurchaseOrderWorkflowService {
                 entity.getAccountBookId(),
                 entity.getSupplierId(),
                 entity.getOrderDate(),
-                lineRequests
+                lineRequests,
+                entity.getExchangeRate()
         );
         PurchaseOrderResponse response = transitionWorkflowStatus(entity, "SUBMITTED", "IN_APPROVAL");
         workflowService.submit(

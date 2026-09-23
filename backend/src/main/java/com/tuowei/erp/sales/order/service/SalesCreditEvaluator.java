@@ -2,6 +2,7 @@ package com.tuowei.erp.sales.order.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.math.ScalePrecision;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
@@ -71,9 +72,30 @@ public class SalesCreditEvaluator {
     public SalesCreditPreview preview(CustomerEntity customer, SalesOrderEntity currentOrder) {
         return preview(
                 customer,
-                documentAmount(currentOrder.getTotalAmount(), currentOrder.getTotalTaxAmount()),
+                CurrencyAmountSupport.baseDocumentTotal(
+                        currentOrder.getTotalAmount(),
+                        currentOrder.getTotalTaxAmount(),
+                        currentOrder.getBaseTotalAmount(),
+                        currentOrder.getBaseTotalTaxAmount(),
+                        currentOrder.getExchangeRate()
+                ),
                 currentOrder.getId()
         );
+    }
+
+    /**
+     * Evaluates a new order whose amount is still in transaction currency.
+     * Credit limits are maintained in the account-book base currency, so the
+     * order is converted before it is added to the exposure.
+     */
+    public SalesCreditPreview preview(
+            CustomerEntity customer,
+            BigDecimal originalOrderAmount,
+            String currencyCode,
+            BigDecimal exchangeRate
+    ) {
+        BigDecimal baseOrderAmount = CurrencyAmountSupport.posting(originalOrderAmount, exchangeRate);
+        return preview(customer, baseOrderAmount, null);
     }
 
     public SalesCreditPreview preview(CustomerEntity customer, BigDecimal orderAmount) {
@@ -124,8 +146,13 @@ public class SalesCreditEvaluator {
 
         BigDecimal total = BigDecimal.ZERO;
         for (ReceivableEntity receivable : receivables) {
-            BigDecimal remaining = ScalePrecision.zeroDefault(receivable.getOriginalAmount())
-                    .subtract(ScalePrecision.zeroDefault(receivable.getSettledAmount()));
+            BigDecimal remaining = CurrencyAmountSupport.baseRemaining(
+                    receivable.getOriginalAmount(),
+                    receivable.getSettledAmount(),
+                    receivable.getBaseOriginalAmount(),
+                    receivable.getBaseSettledAmount(),
+                    receivable.getExchangeRate()
+            );
             if ("DECREASE".equals(receivable.getDirection())) {
                 total = total.subtract(remaining);
             } else {
@@ -166,7 +193,13 @@ public class SalesCreditEvaluator {
             return BigDecimal.ZERO;
         }
         if ("NOT_DELIVERED".equals(order.getDeliveryStatus())) {
-            return documentAmount(order.getTotalAmount(), order.getTotalTaxAmount());
+            return CurrencyAmountSupport.baseDocumentTotal(
+                    order.getTotalAmount(),
+                    order.getTotalTaxAmount(),
+                    order.getBaseTotalAmount(),
+                    order.getBaseTotalTaxAmount(),
+                    order.getExchangeRate()
+            );
         }
 
         // 部分发货：逐行按未发货比例折算行含税金额
@@ -188,14 +221,10 @@ public class SalesCreditEvaluator {
             }
             BigDecimal lineAmount = ScalePrecision.zeroDefault(line.getAmount())
                     .add(ScalePrecision.zeroDefault(line.getTaxAmount()));
-            total = total.add(lineAmount.multiply(undeliveredQty).divide(qty, 2, RoundingMode.HALF_UP));
+            BigDecimal undeliveredOriginal = lineAmount.multiply(undeliveredQty)
+                    .divide(qty, 2, RoundingMode.HALF_UP);
+            total = total.add(CurrencyAmountSupport.posting(undeliveredOriginal, order.getExchangeRate()));
         }
         return ScalePrecision.amount(total);
-    }
-
-    private BigDecimal documentAmount(BigDecimal totalAmount, BigDecimal totalTaxAmount) {
-        return ScalePrecision.amount(
-                ScalePrecision.zeroDefault(totalAmount).add(ScalePrecision.zeroDefault(totalTaxAmount))
-        );
     }
 }

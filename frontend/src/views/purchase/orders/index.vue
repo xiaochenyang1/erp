@@ -101,7 +101,7 @@
       <el-table-column prop="expectedDate" :label="t('purchaseOrder.expectedArrival')" width="120" align="center" />
       <el-table-column prop="totalAmount" :label="t('purchaseOrder.orderAmount')" width="140" align="right">
         <template #default="{ row }">
-          <span class="amount-value">¥{{ formatMoney(row.totalAmount) }}</span>
+          <span class="amount-value">{{ row.currencyCode }} {{ formatMoney(row.totalAmount) }}</span>
         </template>
       </el-table-column>
       <el-table-column prop="status" :label="t('purchaseOrder.orderStatus')" width="110" align="center">
@@ -205,6 +205,7 @@
                   :placeholder="t('purchaseOrder.selectDate')"
                   style="width: 100%"
                   value-format="YYYY-MM-DD"
+                  @change="currencyFieldsRef?.refreshRate()"
                 />
               </el-form-item>
             </el-col>
@@ -220,6 +221,15 @@
               </el-form-item>
             </el-col>
           </el-row>
+          <DocumentCurrencyFields
+            v-if="dialogVisible"
+            :key="editId ?? 'new'"
+            ref="currencyFieldsRef"
+            v-model:currency-code="form.currencyCode"
+            v-model:exchange-rate="form.exchangeRate"
+            :business-date="form.orderDate"
+            :active="dialogVisible"
+          />
         </div>
 
         <el-alert v-if="contractBound" class="contract-order-notice" type="info" :closable="false" show-icon :title="t('purchaseOrder.contractOrderNotice')" />
@@ -264,7 +274,7 @@
                 <el-input-number v-model="row.quantity" :min="1" :controls="false" :disabled="contractBound" style="width: 100%" @change="calculateAmount(row)" />
               </template>
             </el-table-column>
-            <el-table-column :label="t('purchaseOrder.unitPriceCny')" width="140">
+            <el-table-column :label="`${t('purchaseOrder.unitPrice')} ${form.currencyCode || ''}`" width="140">
               <template #default="{ row }">
                 <el-input-number v-model="row.price" :min="0" :precision="2" :controls="false" :disabled="contractBound" style="width: 100%" @change="calculateAmount(row)" />
                 <div v-if="row.maxPrice != null" class="price-hint">
@@ -273,7 +283,7 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column :label="t('purchaseOrder.amountCny')" width="140" align="right">
+            <el-table-column :label="`${t('purchaseOrder.amount')} ${form.currencyCode || ''}`" width="140" align="right">
               <template #default="{ row }">
                 <span class="item-amount">{{ formatMoney(row.amount) }}</span>
               </template>
@@ -298,7 +308,7 @@
           </el-table>
           <div class="total-row">
             <span class="total-label">{{ t('purchaseOrder.totalAmount') }}</span>
-            <span class="total-amount">¥{{ formatMoney(orderTotal) }}</span>
+            <span class="total-amount">{{ form.currencyCode }} {{ formatMoney(orderTotal) }}</span>
           </div>
         </div>
 
@@ -353,7 +363,7 @@
             </div>
             <div class="detail-item">
               <div class="detail-label">{{ t('purchaseOrder.orderAmount') }}</div>
-              <div class="detail-value amount">¥{{ formatMoney(currentRow.totalAmount) }}</div>
+              <div class="detail-value amount">{{ currentRow.currencyCode }} {{ formatMoney(currentRow.totalAmount) }}</div>
             </div>
           </div>
         </div>
@@ -375,12 +385,12 @@
             <el-table-column prop="quantity" :label="t('purchaseOrder.quantity')" width="100" align="center" />
             <el-table-column prop="price" :label="t('purchaseOrder.unitPrice')" width="120" align="right">
               <template #default="{ row }">
-                ¥{{ formatMoney(row.price) }}
+                {{ currentRow.currencyCode }} {{ formatMoney(row.price) }}
               </template>
             </el-table-column>
             <el-table-column prop="amount" :label="t('purchaseOrder.amount')" width="140" align="right">
               <template #default="{ row }">
-                <span class="item-amount">¥{{ formatMoney(row.amount) }}</span>
+                <span class="item-amount">{{ currentRow.currencyCode }} {{ formatMoney(row.amount) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="remark" :label="t('purchaseOrder.remark')" min-width="120" />
@@ -426,7 +436,7 @@
           <el-descriptions-item :label="t('purchaseOrder.receivedQuantity')">{{ purchaseTrace.executionInfo.receivedQty }}</el-descriptions-item>
           <el-descriptions-item :label="t('purchaseOrder.remainingQuantity')">{{ purchaseTrace.executionInfo.remainingReceiptQty }}</el-descriptions-item>
           <el-descriptions-item :label="t('purchaseOrder.receiptStatus')">{{ purchaseTrace.executionInfo.receiptStatus || '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="t('purchaseOrder.orderAmount')">¥{{ formatMoney(purchaseTrace.order.totalAmount) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('purchaseOrder.orderAmount')">{{ purchaseTrace.order.currencyCode }} {{ formatMoney(purchaseTrace.order.totalAmount) }}</el-descriptions-item>
           <el-descriptions-item :label="t('purchaseOrder.supplier')">{{ purchaseTrace.order.supplierName }}</el-descriptions-item>
         </el-descriptions>
 
@@ -441,7 +451,7 @@
             <el-table-column prop="status" :label="t('purchaseOrder.statusLabel')" width="110" />
             <el-table-column prop="amount" :label="t('purchaseOrder.amount')" width="140" align="right">
               <template #default="{ row }">
-                ¥{{ formatMoney(row.amount) }}
+                {{ formatMoney(row.amount) }}
               </template>
             </el-table-column>
           </el-table>
@@ -501,6 +511,7 @@ import { printPurchaseOrder } from '@/utils/bizPrint'
 import { getProducts, getSuppliers } from '@/api/masterdata'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import DocumentCurrencyFields from '@/components/DocumentCurrencyFields.vue'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
@@ -513,6 +524,7 @@ const userStore = useUserStore()
 const { t } = useI18n()
 const canCreate = computed(() => userStore.hasPermission('purchase:order:create'))
 const purchaseContracts = ref<ContractRecord[]>([])
+const currencyFieldsRef = ref<InstanceType<typeof DocumentCurrencyFields>>()
 
 const {
   attachmentBusinessId,

@@ -85,6 +85,8 @@ class PurchaseOrderWorkflowServiceTest {
     @Test
     void submitChecksGatesMapsLinesUpdatesAuditReturnsDetailThenStartsWorkflow() {
         PurchaseOrderEntity draft = order("DRAFT", "NOT_SUBMITTED", "NOT_RECEIVED");
+        draft.setCurrencyCode("EUR");
+        draft.setExchangeRate(new BigDecimal("8"));
         PurchaseOrderLineEntity first = line(4201L, "2.5000", "12.3400", "13.0000", "first");
         PurchaseOrderLineEntity second = line(4202L, "3.7500", "8.9000", "0.0000", "second");
         PurchaseOrderResponse expected = response("SUBMITTED", "IN_APPROVAL", "NOT_RECEIVED");
@@ -119,7 +121,7 @@ class PurchaseOrderWorkflowServiceTest {
                 eq(AUDIT.accountBookId()),
                 eq(SUPPLIER_ID),
                 eq(ORDER_DATE),
-                lineRequestsCaptor.capture()
+                lineRequestsCaptor.capture(), eq(draft.getExchangeRate())
         );
         submitOrder.verify(auditMetadataFactory).current();
         submitOrder.verify(purchaseOrderMapper).updateById(same(draft));
@@ -196,7 +198,7 @@ class PurchaseOrderWorkflowServiceTest {
         when(purchaseOrderQueryService.selectLines(draft)).thenReturn(lines);
         doThrow(new IllegalArgumentException("第 1 行单价高于生效最高价"))
                 .when(purchasePriceEvaluator)
-                .assertLinesWithinMaxPrice(any(), any(), any(), any(), any());
+                .assertLinesWithinMaxPrice(any(), any(), any(), any(), any(), any());
 
         assertThatThrownBy(() -> service().submit(ORDER_ID, new PurchaseOrderSubmitRequest("retry")))
                 .isInstanceOf(IllegalArgumentException.class)

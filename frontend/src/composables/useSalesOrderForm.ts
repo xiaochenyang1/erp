@@ -13,6 +13,7 @@ type Translate = (key: string, params?: Record<string, unknown>) => string
 type Notify = (message: string) => void
 type PricedSalesOrderItem = SalesOrderItem & {
   minPrice?: number | null
+  baseMinPrice?: number | null
   priceLevel?: string | null
 }
 type SalesOrderForm = SalesOrderSaveRequest & {
@@ -27,7 +28,11 @@ export const useSalesOrderForm = (
     getOrder: (id: string | number) => Promise<SalesOrder>
     createOrder: (payload: SalesOrderSaveRequest) => Promise<unknown>
     updateOrder: (id: string | number, payload: SalesOrderSaveRequest) => Promise<unknown>
-    previewCredit: (customerId: string | number, items: SalesOrderItem[]) => Promise<SalesOrderCreditPreview>
+    previewCredit: (
+      customerId: string | number,
+      items: SalesOrderItem[],
+      context: { orderDate?: string; currencyCode?: string; exchangeRate?: number }
+    ) => Promise<SalesOrderCreditPreview>
     resolvePrice: (params: {
       productId: string | number
       customerId?: string | number
@@ -62,6 +67,8 @@ export const useSalesOrderForm = (
     warehouseId: '',
     orderDate: '',
     deliveryDate: '',
+    currencyCode: undefined,
+    exchangeRate: undefined,
     contractId: undefined,
     remark: '',
     items: []
@@ -91,6 +98,8 @@ export const useSalesOrderForm = (
       warehouseId: '',
       orderDate: '',
       deliveryDate: '',
+      currencyCode: undefined,
+      exchangeRate: undefined,
       contractId: undefined,
       remark: '',
       items: []
@@ -121,6 +130,8 @@ export const useSalesOrderForm = (
       warehouseId: order.warehouseId || '',
       orderDate: order.orderDate,
       deliveryDate: order.deliveryDate || '',
+      currencyCode: order.currencyCode,
+      exchangeRate: order.exchangeRate,
       contractId: order.contractId,
       remark: order.remark || '',
       items: order.items.map((item) => ({
@@ -180,21 +191,31 @@ export const useSalesOrderForm = (
   )
 
   const loadCreditPreview = async () => {
+    const requestId = ++creditPreviewRequestId
+    const signature = creditPreviewSignature.value
+    const isCurrentRequest = () => requestId === creditPreviewRequestId
+      && signature === creditPreviewSignature.value
     if (!dialogVisible.value || isView.value || !formData.customerId) {
       creditPreviewLoading.value = false
       creditPreview.value = undefined
       return
     }
-    const requestId = ++creditPreviewRequestId
     creditPreviewLoading.value = true
     try {
-      creditPreview.value = await options.previewCredit(formData.customerId, buildCreditPreviewItems())
+      const preview = await options.previewCredit(formData.customerId, buildCreditPreviewItems(), {
+        orderDate: formData.orderDate || undefined,
+        currencyCode: formData.currencyCode,
+        exchangeRate: formData.exchangeRate
+      })
+      if (isCurrentRequest()) {
+        creditPreview.value = preview
+      }
     } catch {
-      if (requestId === creditPreviewRequestId) {
+      if (isCurrentRequest()) {
         creditPreview.value = undefined
       }
     } finally {
-      if (requestId === creditPreviewRequestId) {
+      if (isCurrentRequest()) {
         creditPreviewLoading.value = false
       }
     }
@@ -202,9 +223,11 @@ export const useSalesOrderForm = (
 
   const scheduleCreditPreviewReload = () => {
     clearCreditPreviewTimer()
+    // Invalidate in-flight results immediately, including the debounce window.
+    creditPreviewRequestId += 1
+    creditPreviewLoading.value = false
+    creditPreview.value = undefined
     if (!dialogVisible.value || isView.value || !formData.customerId) {
-      creditPreviewLoading.value = false
-      creditPreview.value = undefined
       return
     }
     creditPreviewTimer = setTimeout(() => {
@@ -212,9 +235,13 @@ export const useSalesOrderForm = (
     }, 250)
   }
 
+  const orderRate = () => Number(formData.exchangeRate) > 0 ? Number(formData.exchangeRate) : 1
+  const originalPrice = (basePrice: number) => Number((basePrice / orderRate()).toFixed(2))
+
   const applyResolvedPrice = async (line: PricedSalesOrderItem) => {
     if (!line.productId) {
       line.minPrice = null
+      line.baseMinPrice = null
       line.priceLevel = null
       return
     }
@@ -227,16 +254,18 @@ export const useSalesOrderForm = (
         bizDate: formData.orderDate || undefined
       })
       if (resolved.matched) {
-        line.price = Number(resolved.listPrice ?? fallback)
-        line.minPrice = resolved.minPrice != null ? Number(resolved.minPrice) : null
+        line.price = originalPrice(Number(resolved.listPrice ?? fallback))
+        line.baseMinPrice = resolved.minPrice != null ? Number(resolved.minPrice) : null
+        line.minPrice = line.baseMinPrice != null ? originalPrice(line.baseMinPrice) : null
         line.priceLevel = resolved.matchLevel || null
         return
       }
     } catch {
       // Fallback to product sale price when resolve fails.
     }
-    line.price = fallback
+    line.price = originalPrice(fallback)
     line.minPrice = null
+    line.baseMinPrice = null
     line.priceLevel = null
   }
 
@@ -274,7 +303,10 @@ export const useSalesOrderForm = (
       }
       for (let i = 0; i < validLines.length; i++) {
         const line = validLines[i] as PricedSalesOrderItem
-        if (line.minPrice != null && Number(line.price) < Number(line.minPrice)) {
+        const belowMinimum = line.baseMinPrice != null
+          ? Number((Number(Number(line.price).toFixed(2)) * orderRate()).toFixed(2)) < line.baseMinPrice
+          : line.minPrice != null && Number(line.price) < Number(line.minPrice)
+        if (belowMinimum) {
           options.onWarning?.(t('salesOrder.validation.belowMinimum', {
             line: i + 1,
             amount: options.formatMoney(line.minPrice)
@@ -314,6 +346,9 @@ export const useSalesOrderForm = (
     dialogVisible: dialogVisible.value,
     isView: isView.value,
     customerId: formData.customerId || '',
+    orderDate: formData.orderDate,
+    currencyCode: formData.currencyCode,
+    exchangeRate: formData.exchangeRate,
     items: formData.items.map((item) => ({
       productId: item.productId || '',
       quantity: Number(item.quantity ?? 0),
@@ -327,9 +362,16 @@ export const useSalesOrderForm = (
     scheduleCreditPreviewReload()
   })
 
+  watch(() => formData.exchangeRate, () => {
+    for (const line of formData.items) {
+      if (line.baseMinPrice != null) line.minPrice = originalPrice(line.baseMinPrice)
+    }
+  })
+
   if (getCurrentInstance()) {
     onBeforeUnmount(() => {
       clearCreditPreviewTimer()
+      creditPreviewRequestId += 1
     })
   }
 

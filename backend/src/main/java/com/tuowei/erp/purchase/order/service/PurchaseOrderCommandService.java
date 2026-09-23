@@ -125,9 +125,10 @@ public class PurchaseOrderCommandService {
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = requireActiveSupplier(request.supplierId(), audit.companyId(), audit.accountBookId());
         assertSupplierProductRules(supplier.getId(), request.orderDate(), request.deliveryDate(), request.lines(), audit);
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         if (request.contractId() == null) {
             purchasePriceEvaluator.assertLinesWithinMaxPrice(
-                    audit.companyId(), audit.accountBookId(), supplier.getId(), request.orderDate(), request.lines()
+                    audit.companyId(), audit.accountBookId(), supplier.getId(), request.orderDate(), request.lines(), currency.exchangeRate()
             );
         }
         if (hasContractBinding(request.contractId(), request.lines())) {
@@ -136,7 +137,6 @@ public class PurchaseOrderCommandService {
             );
         }
         OrderTotals totals = calculateTotals(request.lines());
-        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         LocalDateTime now = audit.now();
         entity.setSupplierId(supplier.getId());
         entity.setContractId(request.contractId());
@@ -170,9 +170,10 @@ public class PurchaseOrderCommandService {
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = requireActiveSupplier(request.supplierId(), audit.companyId(), audit.accountBookId());
         assertSupplierProductRules(supplier.getId(), request.orderDate(), request.deliveryDate(), request.lines(), audit);
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         if (request.contractId() == null) {
             purchasePriceEvaluator.assertLinesWithinMaxPrice(
-                    audit.companyId(), audit.accountBookId(), supplier.getId(), request.orderDate(), request.lines()
+                    audit.companyId(), audit.accountBookId(), supplier.getId(), request.orderDate(), request.lines(), currency.exchangeRate()
             );
         }
         if (hasContractBinding(request.contractId(), request.lines())) {
@@ -181,7 +182,6 @@ public class PurchaseOrderCommandService {
             );
         }
         OrderTotals totals = calculateTotals(request.lines());
-        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         LocalDateTime now = audit.now();
         PurchaseOrderEntity entity = new PurchaseOrderEntity();
         entity.setCompanyId(audit.companyId());

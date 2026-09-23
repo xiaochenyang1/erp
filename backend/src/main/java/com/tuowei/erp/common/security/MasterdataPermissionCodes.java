@@ -58,5 +58,11 @@ public interface MasterdataPermissionCodes {
     String HAS_MASTERDATA_LOCATION_VIEW = "hasAuthority('" + MASTERDATA_LOCATION_VIEW + "')";
     String HAS_MASTERDATA_LOCATION_MANAGE = "hasAuthority('" + MASTERDATA_LOCATION_MANAGE + "')";
     String HAS_MASTERDATA_CURRENCY_VIEW = "hasAuthority('" + MASTERDATA_CURRENCY_VIEW + "')";
+    // Order editors need currency reference data, but cannot administer it.
+    String HAS_ORDER_CURRENCY_REFERENCE_VIEW = HAS_MASTERDATA_CURRENCY_VIEW
+            + " or " + SalesPermissionCodes.HAS_SALES_ORDER_CREATE
+            + " or " + SalesPermissionCodes.HAS_SALES_ORDER_UPDATE
+            + " or " + PurchasePermissionCodes.HAS_PURCHASE_ORDER_CREATE
+            + " or " + PurchasePermissionCodes.HAS_PURCHASE_ORDER_UPDATE;
     String HAS_MASTERDATA_CURRENCY_MANAGE = "hasAuthority('" + MASTERDATA_CURRENCY_MANAGE + "')";
 }

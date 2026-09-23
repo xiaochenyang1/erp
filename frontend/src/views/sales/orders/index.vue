@@ -147,7 +147,7 @@
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
                 :disabled="isView"
-                @change="onCustomerOrDateChange"
+                @change="onOrderDateChange"
               />
             </el-form-item>
           </el-col>
@@ -157,6 +157,16 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <DocumentCurrencyFields
+          v-if="dialogVisible"
+          :key="formData.id ?? 'new'"
+          ref="currencyFieldsRef"
+          v-model:currency-code="formData.currencyCode"
+          v-model:exchange-rate="formData.exchangeRate"
+          :business-date="formData.orderDate"
+          :active="dialogVisible"
+          :disabled="isView"
+        />
 
         <el-form-item :label="t('salesOrder.remark')">
           <el-input v-model="formData.remark" type="textarea" :rows="2" :placeholder="t('salesOrder.remarkPlaceholder')" :disabled="isView" />
@@ -167,6 +177,7 @@
             <div>
               <div class="credit-preview-title">{{ t('salesOrder.creditPreview') }}</div>
               <div class="credit-preview-subtitle">{{ t('salesOrder.creditFormula') }}</div>
+              <div class="credit-preview-subtitle">{{ t('documentCurrency.baseAmounts') }}</div>
             </div>
             <el-tag v-if="creditPreview" :type="creditPreview.exceeded ? 'danger' : 'success'">
               {{ creditPreview.unlimited ? t('salesOrder.unlimitedCustomer') : creditPreview.exceeded ? t('salesOrder.exceededAfterSubmit') : t('salesOrder.sufficientCredit') }}
@@ -337,6 +348,7 @@ import { getContract, getContracts, type ContractRecord } from '@/api/contracts'
 import { getCustomers, getProducts, getWarehouses } from '@/api/masterdata'
 import { printSalesOrder } from '@/utils/bizPrint'
 import { formatBusinessDate } from '@/utils/locale'
+import DocumentCurrencyFields from '@/components/DocumentCurrencyFields.vue'
 import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
 import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useSalesOrderPresentation } from '@/composables/useSalesOrderPresentation'
@@ -347,6 +359,7 @@ import { useUserStore } from '@/store/modules/user'
 const route = useRoute()
 const { t } = useI18n()
 const userStore = useUserStore()
+const currencyFieldsRef = ref<InstanceType<typeof DocumentCurrencyFields>>()
 const {
   attachmentBusinessId,
   attachmentBusinessNo,
@@ -454,6 +467,11 @@ const {
 })
 
 const contractBound = computed(() => Boolean(formData.contractId))
+
+const onOrderDateChange = async () => {
+  await currencyFieldsRef.value?.refreshRate()
+  if (formData.exchangeRate != null) await onCustomerOrDateChange()
+}
 
 const loadSalesContracts = async () => {
   const page = await getContracts({ pageNo: 1, pageSize: 200, contractType: 'SALES', status: 'ACTIVE' })

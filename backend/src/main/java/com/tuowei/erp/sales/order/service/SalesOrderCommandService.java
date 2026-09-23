@@ -6,6 +6,7 @@ import com.tuowei.erp.common.math.ProductAuxUnitConversion;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -99,16 +100,16 @@ public class SalesOrderCommandService {
         AuditMetadata audit = auditMetadataFactory.current();
         CustomerEntity customer = requireActiveCustomer(request.customerId(), audit.companyId(), audit.accountBookId());
         WarehouseEntity warehouse = requireActiveWarehouse(request.warehouseId(), audit.companyId(), audit.accountBookId());
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         if (request.contractId() == null) {
             salesPriceEvaluator.assertLinesWithinMinPrice(
-                    audit.companyId(), audit.accountBookId(), customer.getId(), request.orderDate(), request.lines());
+                    audit.companyId(), audit.accountBookId(), customer.getId(), request.orderDate(), request.lines(), currency.exchangeRate());
         }
         if (hasContractBinding(request.contractId(), request.lines())) {
             contractOrderBindingService.validateSales(request.contractId(), customer.getId(), request.orderDate(),
                     request.lines(), null, audit);
         }
         OrderTotals totals = calculateTotals(request.lines());
-        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         LocalDateTime now = audit.now();
 
         SalesOrderEntity entity = new SalesOrderEntity();
@@ -145,8 +146,30 @@ public class SalesOrderCommandService {
         CustomerEntity customer = requireActiveCustomer(request.customerId(), audit.companyId(), audit.accountBookId());
         List<SalesOrderLineRequest> lines = request.lines() == null ? List.of() : request.lines();
         OrderTotals totals = calculateTotals(lines);
-        SalesCreditPreview preview = salesCreditEvaluator.preview(
-                customer, totals.totalAmount().add(totals.totalTaxAmount()));
+        BigDecimal originalOrderAmount = totals.totalAmount().add(totals.totalTaxAmount());
+        SalesCreditPreview preview;
+        if (settlementCurrencyService == null
+                && (request.currencyCode() == null || request.currencyCode().isBlank())
+                && request.exchangeRate() == null) {
+            // Keep the old direct-construction contract used by integrations and
+            // tests: an amount without currency metadata is already base-currency.
+            preview = salesCreditEvaluator.preview(customer, originalOrderAmount);
+        } else {
+            SettlementCurrencyService.Resolution currency = settlementCurrencyService == null
+                    ? new SettlementCurrencyService.Resolution(
+                    CurrencyAmountSupport.currency(request.currencyCode()),
+                    CurrencyAmountSupport.rate(request.exchangeRate()))
+                    : settlementCurrencyService.resolve(
+                    request.currencyCode(),
+                    request.exchangeRate(),
+                    request.orderDate() == null ? audit.now().toLocalDate() : request.orderDate(),
+                    audit);
+            preview = salesCreditEvaluator.preview(
+                    customer,
+                    originalOrderAmount,
+                    currency.currencyCode(),
+                    currency.exchangeRate());
+        }
         return new SalesOrderCreditPreviewResponse(
                 customer.getId(),
                 preview.creditLimit(),
@@ -175,16 +198,16 @@ public class SalesOrderCommandService {
 
         CustomerEntity customer = requireActiveCustomer(request.customerId(), audit.companyId(), audit.accountBookId());
         WarehouseEntity warehouse = requireActiveWarehouse(request.warehouseId(), audit.companyId(), audit.accountBookId());
+        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         if (request.contractId() == null) {
             salesPriceEvaluator.assertLinesWithinMinPrice(
-                    audit.companyId(), audit.accountBookId(), customer.getId(), request.orderDate(), request.lines());
+                    audit.companyId(), audit.accountBookId(), customer.getId(), request.orderDate(), request.lines(), currency.exchangeRate());
         }
         if (hasContractBinding(request.contractId(), request.lines())) {
             contractOrderBindingService.validateSales(request.contractId(), customer.getId(), request.orderDate(),
                     request.lines(), id, audit);
         }
         OrderTotals totals = calculateTotals(request.lines());
-        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.orderDate(), audit);
         LocalDateTime now = audit.now();
 
         entity.setCustomerId(customer.getId());
