@@ -17,4 +17,6 @@
 - 已发布迁移禁止重命名、重排或复用缺口版本号；新修正只能追加新版本。
 - V145 及以前的部分历史脚本仍使用 MySQL 已弃用的 `VALUES(column)` 写法；为避免已部署库 checksum 漂移，不回改这些脚本。V146 起必须使用行别名写法，构建测试会阻止再次引入旧语法。
 - V156 新增 `sys_scheduler_lease`，为异常规则自动化提供单行全局租约。该表不含租户列，租约获取与释放均按 `lease_key` 和 `owner_token` 条件更新，避免多实例重复扫描以及旧实例误释放新租约。
+- V164 补种 6061「财务费用-汇兑损益」科目，V165 给 `fin_receipt_allocation`/`fin_payment_allocation` 增加 `base_settled_amount` 与 `fx_gain_loss_amount`。两者连续追加、无跳号；V165 为纯 DDL，历史行保留 0 默认值，不回填虚构汇率。
+- V166 新增 `fin_fx_revaluation`，记录期末未实现汇兑损益调汇。已过账行占用 `generation = 0`，撤销时把 generation 改为行 id，以便同一期间再次调汇。纯 DDL，无跳号。
 - 发布复核看到版本缺口时，先查本文档，再核对 `flyway_schema_history`。
