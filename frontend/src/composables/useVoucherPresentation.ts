@@ -28,7 +28,15 @@ const voucherSourceTypes: ReadonlyArray<{ value: string; messageKey: string; tag
   { value: 'PRODUCTION_COMPLETION_REVERSAL', messageKey: 'productionCompletionReversal', tag: 'warning' },
   { value: 'PRODUCTION_RETURN', messageKey: 'productionReturn', tag: 'warning' },
   { value: 'MANUAL', messageKey: 'manual', tag: 'info' },
-  { value: 'MANUAL_REVERSAL', messageKey: 'manualReversal', tag: 'warning' }
+  { value: 'MANUAL_REVERSAL', messageKey: 'manualReversal', tag: 'warning' },
+  { value: 'FX_REVALUATION_AR', messageKey: 'fxRevaluationAr', tag: 'info' },
+  { value: 'FX_REVALUATION_AP', messageKey: 'fxRevaluationAp', tag: 'info' },
+  { value: 'FX_REVALUATION_AR_REVERSAL', messageKey: 'fxRevaluationArReversal', tag: 'warning' },
+  { value: 'FX_REVALUATION_AP_REVERSAL', messageKey: 'fxRevaluationApReversal', tag: 'warning' },
+  { value: 'FX_REVALUATION_AR_CANCEL', messageKey: 'fxRevaluationArCancel', tag: 'warning' },
+  { value: 'FX_REVALUATION_AP_CANCEL', messageKey: 'fxRevaluationApCancel', tag: 'warning' },
+  { value: 'FX_REVALUATION_AR_REVERSAL_CANCEL', messageKey: 'fxRevaluationArReversalCancel', tag: 'warning' },
+  { value: 'FX_REVALUATION_AP_REVERSAL_CANCEL', messageKey: 'fxRevaluationApReversalCancel', tag: 'warning' }
 ]
 
 const sourceMessageKey = (messageKey: string) => `financeReportPages.vouchers.sourceValue.${messageKey}`

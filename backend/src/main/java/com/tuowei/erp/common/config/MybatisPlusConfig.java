@@ -67,6 +67,7 @@ public class MybatisPlusConfig {
             "fin_manual_voucher_line",
             "fin_account_subject",
             "fin_account_period",
+            "fin_fx_revaluation",
             "fin_period_close_snapshot",
             "fin_period_close_snapshot_item",
             "fin_expense",

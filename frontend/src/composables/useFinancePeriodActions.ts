@@ -32,6 +32,8 @@ export const useFinancePeriodActions = (
     lockPeriod: (id: string | number) => Promise<unknown>
     closePeriod: (id: string | number) => Promise<unknown>
     unlockPeriod: (id: string | number) => Promise<unknown>
+    revaluePeriod?: (id: string | number) => Promise<unknown>
+    cancelRevaluePeriod?: (id: string | number) => Promise<unknown>
     getReconciliation: (id: string | number) => Promise<InventoryFinanceReconciliation>
     getDifferences: (
       id: string | number,
@@ -218,6 +220,42 @@ export const useFinancePeriodActions = (
     }
   }
 
+  const handleRevalue = async (row: AccountPeriod) => {
+    if (!options.revaluePeriod) return
+    try {
+      await options.confirm(
+        t('financeReportPages.periods.message.confirmRevalue', { period: row.periodMonth }),
+        t('financeReportPages.periods.revalue'),
+        { type: 'warning' }
+      )
+      await options.revaluePeriod(row.id)
+      options.onSuccess?.(t('financeReportPages.periods.message.revalued'))
+      await loadData()
+    } catch (error) {
+      if (error !== 'cancel') {
+        options.onError?.(t('financeReportPages.periods.message.revalueFailed'))
+      }
+    }
+  }
+
+  const handleCancelRevalue = async (row: AccountPeriod) => {
+    if (!options.cancelRevaluePeriod) return
+    try {
+      await options.confirm(
+        t('financeReportPages.periods.message.confirmCancelRevalue', { period: row.periodMonth }),
+        t('financeReportPages.periods.cancelRevalue'),
+        { type: 'warning' }
+      )
+      await options.cancelRevaluePeriod(row.id)
+      options.onSuccess?.(t('financeReportPages.periods.message.revalueCancelled'))
+      await loadData()
+    } catch (error) {
+      if (error !== 'cancel') {
+        options.onError?.(t('financeReportPages.periods.message.cancelRevalueFailed'))
+      }
+    }
+  }
+
   const handleClose = async (row: AccountPeriod) => {
     // The backend re-checks as well; the UI blocks explicitly so users do not mistake a failed check for an override path.
     let check: AccountPeriodCloseCheck | undefined
@@ -388,6 +426,8 @@ export const useFinancePeriodActions = (
     handleClose,
     handleGenerate,
     handleLock,
+    handleRevalue,
+    handleCancelRevalue,
     handleReset,
     handleUnlock,
     loadData,

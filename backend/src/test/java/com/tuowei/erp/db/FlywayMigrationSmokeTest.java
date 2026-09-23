@@ -1175,6 +1175,62 @@ class FlywayMigrationSmokeTest {
         Assertions.assertThat(staleRelease).isZero();
     }
 
+    @Test
+    void createsFxRevaluationTableAndReusesGenerationAfterCancel() {
+        assertColumnsExist("fin_fx_revaluation",
+                "period_id", "status", "open_original_total", "ar_adjustment", "ap_adjustment",
+                "revaluation_date", "reversal_date", "generation");
+        assertIndexColumns("fin_fx_revaluation", "uk_fin_fx_revaluation_generation",
+                "company_id", "account_book_id", "period_id", "generation");
+
+        jdbcTemplate.update("""
+                insert into fin_fx_revaluation
+                    (id, company_id, account_book_id, period_id, status,
+                     open_original_total, ar_adjustment, ap_adjustment,
+                     revaluation_date, reversal_date, generation)
+                values
+                    (996101, 996101, 1, 996201, 'POSTED',
+                     100.00, 20.00, 0.00,
+                     date '2026-06-30', date '2026-07-01', 0)
+                """);
+        jdbcTemplate.update("""
+                insert into fin_fx_revaluation
+                    (id, company_id, account_book_id, period_id, status,
+                     open_original_total, ar_adjustment, ap_adjustment,
+                     revaluation_date, reversal_date, generation)
+                values
+                    (996102, 996101, 1, 996202, 'POSTED',
+                     50.00, 0.00, -5.00,
+                     date '2026-07-31', date '2026-08-01', 0)
+                """);
+        Assertions.assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into fin_fx_revaluation
+                    (id, company_id, account_book_id, period_id, status,
+                     open_original_total, ar_adjustment, ap_adjustment,
+                     revaluation_date, reversal_date, generation)
+                values
+                    (996103, 996101, 1, 996201, 'POSTED',
+                     100.00, 20.00, 0.00,
+                     date '2026-06-30', date '2026-07-01', 0)
+                """)).isInstanceOf(Exception.class);
+
+        jdbcTemplate.update("""
+                update fin_fx_revaluation
+                set status = 'CANCELLED', generation = id
+                where id = 996101
+                """);
+        jdbcTemplate.update("""
+                insert into fin_fx_revaluation
+                    (id, company_id, account_book_id, period_id, status,
+                     open_original_total, ar_adjustment, ap_adjustment,
+                     revaluation_date, reversal_date, generation)
+                values
+                    (996104, 996101, 1, 996201, 'POSTED',
+                     80.00, 10.00, 0.00,
+                     date '2026-06-30', date '2026-07-01', 0)
+                """);
+    }
+
     private void insertNotification(long id, long companyId, long accountBookId, String dedupKey) {
         jdbcTemplate.update("""
                 insert into sys_notification

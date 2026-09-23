@@ -74,7 +74,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="380" align="center" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="520" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleCheck(row)">
               {{ $t('financeReportPages.periods.check') }}
@@ -101,6 +101,26 @@
               @click="handleLock(row)"
             >
               {{ $t('financeReportPages.periods.lock') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'OPEN'"
+              v-permission="'finance:period:close'"
+              type="primary"
+              link
+              :icon="Coin"
+              @click="handleRevalue(row)"
+            >
+              {{ $t('financeReportPages.periods.revalue') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'OPEN'"
+              v-permission="'finance:period:close'"
+              type="danger"
+              link
+              :icon="CircleClose"
+              @click="handleCancelRevalue(row)"
+            >
+              {{ $t('financeReportPages.periods.cancelRevalue') }}
             </el-button>
             <el-button
               v-if="row.status === 'LOCKED'"
@@ -570,6 +590,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Calendar,
   CircleCheck,
+  CircleClose,
+  Coin,
   DataAnalysis,
   Guide,
   Lock,
@@ -588,6 +610,8 @@ import {
   getInventoryFinanceDifferences,
   getInventoryFinanceReconciliation,
   lockAccountPeriod,
+  revalueAccountPeriod,
+  cancelAccountPeriodRevaluation,
   reopenAccountPeriod as unlockAccountPeriod
 } from '@/api/finance'
 import { useFinancePeriodPresentation } from '@/composables/useFinancePeriodPresentation'
@@ -627,6 +651,8 @@ const {
   handleClose,
   handleGenerate,
   handleLock,
+  handleRevalue,
+  handleCancelRevalue,
   handleReset,
   handleUnlock,
   loadData,
@@ -662,6 +688,8 @@ const {
   lockPeriod: lockAccountPeriod,
   closePeriod: closeAccountPeriod,
   unlockPeriod: unlockAccountPeriod,
+  revaluePeriod: revalueAccountPeriod,
+  cancelRevaluePeriod: cancelAccountPeriodRevaluation,
   getReconciliation: getInventoryFinanceReconciliation,
   getDifferences: getInventoryFinanceDifferences,
   getDifferenceDetail: getInventoryFinanceDifferenceDetail,

@@ -114,6 +114,12 @@ class AccountPeriodCloseCheckerTenantScopeTest {
         @Override
         public <T> T queryForObject(String sql, Class<T> requiredType, Object... args) {
             sqls.add(sql.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim());
+            if (BigDecimal.class.equals(requiredType)) {
+                return requiredType.cast(BigDecimal.ZERO);
+            }
+            if (String.class.equals(requiredType)) {
+                return requiredType.cast("CNY");
+            }
             return requiredType.cast(0L);
         }
 

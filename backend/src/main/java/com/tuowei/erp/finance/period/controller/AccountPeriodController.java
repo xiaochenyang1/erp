@@ -2,6 +2,8 @@ package com.tuowei.erp.finance.period.controller;
 
 import com.tuowei.erp.common.security.PermissionCodes;
 import com.tuowei.erp.common.web.ApiResponse;
+import com.tuowei.erp.finance.fx.service.FxRevaluationService;
+import com.tuowei.erp.finance.fx.web.FxRevaluationResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodCloseChecker;
 import com.tuowei.erp.finance.period.service.AccountPeriodService;
 import com.tuowei.erp.finance.period.service.InventoryFinanceReconciliationService;
@@ -33,15 +35,18 @@ public class AccountPeriodController {
     private final AccountPeriodService accountPeriodService;
     private final AccountPeriodCloseChecker closeChecker;
     private final InventoryFinanceReconciliationService reconciliationService;
+    private final FxRevaluationService fxRevaluationService;
 
     public AccountPeriodController(
             AccountPeriodService accountPeriodService,
             AccountPeriodCloseChecker closeChecker,
-            InventoryFinanceReconciliationService reconciliationService
+            InventoryFinanceReconciliationService reconciliationService,
+            FxRevaluationService fxRevaluationService
     ) {
         this.accountPeriodService = accountPeriodService;
         this.closeChecker = closeChecker;
         this.reconciliationService = reconciliationService;
+        this.fxRevaluationService = fxRevaluationService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_MANAGE)
@@ -68,6 +73,20 @@ public class AccountPeriodController {
     @GetMapping("/{id}/close-check")
     public ApiResponse<AccountPeriodCloseCheckResponse> closeCheck(@PathVariable Long id) {
         return ApiResponse.success(closeChecker.check(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_CLOSE)
+    @PostMapping("/{id}/fx-revaluation")
+    @OperationLog(module = "finance", operation = "fx-revaluation", message = "期末调汇", bizNo = "#id")
+    public ApiResponse<FxRevaluationResponse> revalue(@PathVariable Long id) {
+        return ApiResponse.success(fxRevaluationService.revalue(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_CLOSE)
+    @PostMapping("/{id}/fx-revaluation/cancel")
+    @OperationLog(module = "finance", operation = "cancel-fx-revaluation", message = "撤销期末调汇", bizNo = "#id")
+    public ApiResponse<FxRevaluationResponse> cancelRevalue(@PathVariable Long id) {
+        return ApiResponse.success(fxRevaluationService.cancel(id));
     }
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_CLOSE)
