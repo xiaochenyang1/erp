@@ -3,6 +3,7 @@ package com.tuowei.erp.finance.statement.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
@@ -104,7 +105,8 @@ public class PartnerStatementService {
                 .eq(ReceiptEntity::getDeletedFlag, 0)
                 .eq(ReceiptEntity::getStatus, "POSTED"))) {
             if (r.getReceiptDate() == null) continue;
-            BigDecimal amt = ScalePrecision.amount(ScalePrecision.zeroDefault(r.getAmount()));
+            BigDecimal amt = CurrencyAmountSupport.baseAmountOrFallback(
+                    r.getBaseAmount(), r.getAmount(), r.getExchangeRate());
             if (amt.compareTo(BigDecimal.ZERO) <= 0) continue;
             all.add(new RawLine(r.getReceiptDate(), "RECEIPT", r.getReceiptNo(), "DECREASE", amt, r.getRemark()));
         }
@@ -141,7 +143,8 @@ public class PartnerStatementService {
                 .eq(PaymentEntity::getDeletedFlag, 0)
                 .eq(PaymentEntity::getStatus, "POSTED"))) {
             if (p.getPaymentDate() == null) continue;
-            BigDecimal amt = ScalePrecision.amount(ScalePrecision.zeroDefault(p.getAmount()));
+            BigDecimal amt = CurrencyAmountSupport.baseAmountOrFallback(
+                    p.getBaseAmount(), p.getAmount(), p.getExchangeRate());
             if (amt.compareTo(BigDecimal.ZERO) <= 0) continue;
             all.add(new RawLine(p.getPaymentDate(), "PAYMENT", p.getPaymentNo(), "DECREASE", amt, p.getRemark()));
         }
@@ -189,13 +192,15 @@ public class PartnerStatementService {
     }
 
     private BigDecimal signedAr(ReceivableEntity r) {
-        BigDecimal original = ScalePrecision.zeroDefault(r.getOriginalAmount());
-        return "DECREASE".equalsIgnoreCase(String.valueOf(r.getDirection())) ? original.negate() : original;
+        BigDecimal base = CurrencyAmountSupport.baseAmountOrFallback(
+                r.getBaseOriginalAmount(), r.getOriginalAmount(), r.getExchangeRate());
+        return "DECREASE".equalsIgnoreCase(String.valueOf(r.getDirection())) ? base.negate() : base;
     }
 
     private BigDecimal signedAp(PayableEntity p) {
-        BigDecimal original = ScalePrecision.zeroDefault(p.getOriginalAmount());
-        return "DECREASE".equalsIgnoreCase(String.valueOf(p.getDirection())) ? original.negate() : original;
+        BigDecimal base = CurrencyAmountSupport.baseAmountOrFallback(
+                p.getBaseOriginalAmount(), p.getOriginalAmount(), p.getExchangeRate());
+        return "DECREASE".equalsIgnoreCase(String.valueOf(p.getDirection())) ? base.negate() : base;
     }
 
     private record RawLine(LocalDate date, String docType, String docNo, String direction, BigDecimal amount, String remark) {

@@ -105,6 +105,57 @@ class BusinessTraceAssemblyServiceTest {
     }
 
     @Test
+    void documentAmountsAndOpenBalancesUseBaseCurrencySnapshots() {
+        SalesOrderEntity historicalOrder = salesOrder();
+        historicalOrder.setTotalAmount(new BigDecimal("100.00"));
+        historicalOrder.setExchangeRate(new BigDecimal("7.20"));
+        historicalOrder.setBaseTotalAmount(BigDecimal.ZERO);
+
+        PurchaseOrderEntity snapshottedOrder = purchaseOrder();
+        snapshottedOrder.setTotalAmount(new BigDecimal("800.00"));
+        snapshottedOrder.setExchangeRate(new BigDecimal("2"));
+        snapshottedOrder.setBaseTotalAmount(new BigDecimal("900.00"));
+
+        ReceivableEntity foreignReceivable = receivable("OPEN", "100.00", "40.00");
+        foreignReceivable.setExchangeRate(new BigDecimal("7.20"));
+        foreignReceivable.setBaseOriginalAmount(new BigDecimal("720.00"));
+        foreignReceivable.setBaseSettledAmount(new BigDecimal("280.00"));
+
+        PayableEntity legacyPayable = payable("OPEN", "50.00", "0.00");
+        legacyPayable.setExchangeRate(new BigDecimal("7"));
+        legacyPayable.setBaseOriginalAmount(BigDecimal.ZERO);
+        legacyPayable.setBaseSettledAmount(BigDecimal.ZERO);
+
+        var response = service.assemble(
+                "FX",
+                LocalDateTime.of(2026, 8, 1, 9, 0),
+                data(
+                        List.of(historicalOrder),
+                        List.of(snapshottedOrder),
+                        List.of(),
+                        List.of(),
+                        List.of(foreignReceivable),
+                        List.of(legacyPayable),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of()
+                )
+        );
+
+        assertThat(response.documents().get(0).totalAmount()).isEqualByComparingTo("720.00");
+        assertThat(response.documents().get(1).totalAmount()).isEqualByComparingTo("900.00");
+        assertThat(response.documents().get(2).totalAmount()).isEqualByComparingTo("440.00");
+        assertThat(response.documents().get(3).totalAmount()).isEqualByComparingTo("350.00");
+        assertThat(response.summary().openReceivableAmount()).isEqualByComparingTo("440.00");
+        assertThat(response.summary().openPayableAmount()).isEqualByComparingTo("350.00");
+        assertThat(response.timeline())
+                .filteredOn(item -> "FINANCE".equals(item.eventType()))
+                .extracting(item -> item.description())
+                .containsExactly("来源 SO /001，未结 440.00", "来源 PO-001，未结 350.00");
+    }
+
+    @Test
     void summaryHandlesClosedStatusesNullValuesAbsoluteQuantitiesAndTicketClosureRules() {
         ReceivableEntity blankStatus = receivable(null, null, null);
         blankStatus.setId(5010L);

@@ -1,6 +1,7 @@
 package com.tuowei.erp.report.service;
 
 import com.tuowei.erp.common.math.ScalePrecision;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
@@ -106,7 +107,7 @@ public class BusinessTraceAssemblyService {
                 "CUSTOMER",
                 entity.getCustomerId(),
                 ScalePrecision.safeQuantity(entity.getTotalQuantity()),
-                ScalePrecision.amount(ScalePrecision.zeroDefault(entity.getTotalAmount())),
+                documentAmount(entity.getBaseTotalAmount(), entity.getTotalAmount(), entity.getExchangeRate()),
                 route("/sales/orders", entity.getOrderNo())
         );
     }
@@ -125,7 +126,7 @@ public class BusinessTraceAssemblyService {
                 "SUPPLIER",
                 entity.getSupplierId(),
                 ScalePrecision.safeQuantity(entity.getTotalQuantity()),
-                ScalePrecision.amount(ScalePrecision.zeroDefault(entity.getTotalAmount())),
+                documentAmount(entity.getBaseTotalAmount(), entity.getTotalAmount(), entity.getExchangeRate()),
                 route("/purchase/orders", entity.getOrderNo())
         );
     }
@@ -144,7 +145,7 @@ public class BusinessTraceAssemblyService {
                 "ORDER",
                 entity.getOrderId(),
                 ScalePrecision.safeQuantity(entity.getTotalQuantity()),
-                ScalePrecision.amount(ScalePrecision.zeroDefault(entity.getTotalAmount())),
+                documentAmount(entity.getBaseTotalAmount(), entity.getTotalAmount(), entity.getExchangeRate()),
                 route("/sales/deliveries", entity.getDeliveryNo())
         );
     }
@@ -163,7 +164,7 @@ public class BusinessTraceAssemblyService {
                 "ORDER",
                 entity.getOrderId(),
                 ScalePrecision.safeQuantity(entity.getTotalQuantity()),
-                ScalePrecision.amount(ScalePrecision.zeroDefault(entity.getTotalAmount())),
+                documentAmount(entity.getBaseTotalAmount(), entity.getTotalAmount(), entity.getExchangeRate()),
                 route("/purchase/receipts", entity.getReceiptNo())
         );
     }
@@ -182,7 +183,7 @@ public class BusinessTraceAssemblyService {
                 "CUSTOMER",
                 entity.getCustomerId(),
                 null,
-                remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
+                receivableRemaining(entity),
                 route("/finance/receivables", entity.getReceivableNo())
         );
     }
@@ -201,7 +202,7 @@ public class BusinessTraceAssemblyService {
                 "SUPPLIER",
                 entity.getSupplierId(),
                 null,
-                remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
+                payableRemaining(entity),
                 route("/finance/payables", entity.getPayableNo())
         );
     }
@@ -268,7 +269,7 @@ public class BusinessTraceAssemblyService {
                 "应收账款",
                 entity.getReceivableNo(),
                 "来源 " + nullSafe(entity.getSourceNo()) + "，未结 "
-                        + remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
+                        + receivableRemaining(entity),
                 occurredAt(entity.getCreatedTime(), entity.getBizDate()),
                 entity.getStatus(),
                 isOpen(entity.getStatus()) ? "WARNING" : "NORMAL",
@@ -283,7 +284,7 @@ public class BusinessTraceAssemblyService {
                 "应付账款",
                 entity.getPayableNo(),
                 "来源 " + nullSafe(entity.getSourceNo()) + "，未结 "
-                        + remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
+                        + payableRemaining(entity),
                 occurredAt(entity.getCreatedTime(), entity.getBizDate()),
                 entity.getStatus(),
                 isOpen(entity.getStatus()) ? "WARNING" : "NORMAL",
@@ -385,11 +386,11 @@ public class BusinessTraceAssemblyService {
     ) {
         BigDecimal openReceivableAmount = data.receivables().stream()
                 .filter(entity -> isOpen(entity.getStatus()))
-                .map(entity -> remaining(entity.getOriginalAmount(), entity.getSettledAmount()))
+                .map(this::receivableRemaining)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal openPayableAmount = data.payables().stream()
                 .filter(entity -> isOpen(entity.getStatus()))
-                .map(entity -> remaining(entity.getOriginalAmount(), entity.getSettledAmount()))
+                .map(this::payableRemaining)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal inventoryMovementQuantity = data.inventoryTransactions().stream()
                 .map(InventoryTransactionEntity::getQty)
@@ -413,9 +414,31 @@ public class BusinessTraceAssemblyService {
         );
     }
 
-    private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) {
-        return ScalePrecision.amount(
-                ScalePrecision.zeroDefault(originalAmount).subtract(ScalePrecision.zeroDefault(settledAmount))
+    private BigDecimal documentAmount(
+            BigDecimal baseAmount,
+            BigDecimal originalAmount,
+            BigDecimal exchangeRate
+    ) {
+        return CurrencyAmountSupport.baseAmountOrFallback(baseAmount, originalAmount, exchangeRate);
+    }
+
+    private BigDecimal receivableRemaining(ReceivableEntity entity) {
+        return CurrencyAmountSupport.baseRemaining(
+                entity.getOriginalAmount(),
+                entity.getSettledAmount(),
+                entity.getBaseOriginalAmount(),
+                entity.getBaseSettledAmount(),
+                entity.getExchangeRate()
+        );
+    }
+
+    private BigDecimal payableRemaining(PayableEntity entity) {
+        return CurrencyAmountSupport.baseRemaining(
+                entity.getOriginalAmount(),
+                entity.getSettledAmount(),
+                entity.getBaseOriginalAmount(),
+                entity.getBaseSettledAmount(),
+                entity.getExchangeRate()
         );
     }
 

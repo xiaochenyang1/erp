@@ -33,7 +33,13 @@ public class GrossMarginQueryService {
                        max(p.product_code) as productCode,
                        max(p.product_name) as productName,
                        coalesce(sum(l.qty), 0) as salesQty,
-                       coalesce(sum(l.amount), 0) as salesAmount,
+                       coalesce(sum(
+                           case
+                               when coalesce(d.base_total_amount, 0) <> 0 and coalesce(d.total_amount, 0) <> 0
+                                   then l.amount * d.base_total_amount / d.total_amount
+                               else l.amount * coalesce(nullif(d.exchange_rate, 0), 1)
+                           end
+                       ), 0) as salesAmount,
                        coalesce(sum(coalesce(c.cost_amount, 0)), 0) as costAmount
                 from sal_delivery d
                 join sal_delivery_line l

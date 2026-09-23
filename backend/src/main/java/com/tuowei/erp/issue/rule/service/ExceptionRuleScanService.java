@@ -2,6 +2,7 @@ package com.tuowei.erp.issue.rule.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -233,8 +234,7 @@ public class ExceptionRuleScanService {
                         .in(ReceivableEntity::getStatus, List.of("UNSETTLED", "PARTIALLY_SETTLED"))
                         .le(ReceivableEntity::getBizDate, cutoff))
                 .stream()
-                .filter(item -> remaining(item.getOriginalAmount(), item.getSettledAmount())
-                        .compareTo(BigDecimal.ZERO) > 0)
+                .filter(item -> receivableRemaining(item).compareTo(BigDecimal.ZERO) > 0)
                 .map(item -> toReceivableFinding(item, thresholdDays, audit.now().toLocalDate()))
                 .toList();
     }
@@ -245,7 +245,7 @@ public class ExceptionRuleScanService {
             LocalDate today
     ) {
         long overdueDays = item.getBizDate() == null ? 0 : ChronoUnit.DAYS.between(item.getBizDate(), today);
-        BigDecimal remainingAmount = remaining(item.getOriginalAmount(), item.getSettledAmount());
+        BigDecimal remainingAmount = receivableRemaining(item);
         String sourceNo = firstText(item.getReceivableNo(), item.getSourceNo(), String.valueOf(item.getId()));
         return new ExceptionRuleFinding(
                 RULE_RECEIVABLE_OVERDUE,
@@ -270,15 +270,14 @@ public class ExceptionRuleScanService {
                         .in(PayableEntity::getStatus, List.of("UNSETTLED", "PARTIALLY_SETTLED"))
                         .le(PayableEntity::getBizDate, cutoff))
                 .stream()
-                .filter(item -> remaining(item.getOriginalAmount(), item.getSettledAmount())
-                        .compareTo(BigDecimal.ZERO) > 0)
+                .filter(item -> payableRemaining(item).compareTo(BigDecimal.ZERO) > 0)
                 .map(item -> toPayableFinding(item, thresholdDays, audit.now().toLocalDate()))
                 .toList();
     }
 
     private ExceptionRuleFinding toPayableFinding(PayableEntity item, int thresholdDays, LocalDate today) {
         long overdueDays = item.getBizDate() == null ? 0 : ChronoUnit.DAYS.between(item.getBizDate(), today);
-        BigDecimal remainingAmount = remaining(item.getOriginalAmount(), item.getSettledAmount());
+        BigDecimal remainingAmount = payableRemaining(item);
         String sourceNo = firstText(item.getPayableNo(), item.getSourceNo(), String.valueOf(item.getId()));
         return new ExceptionRuleFinding(
                 RULE_PAYABLE_OVERDUE,
@@ -515,8 +514,24 @@ public class ExceptionRuleScanService {
         return Math.max(1, value.intValue());
     }
 
-    private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) {
-        return zeroDefault(originalAmount).subtract(zeroDefault(settledAmount));
+    private BigDecimal receivableRemaining(ReceivableEntity item) {
+        return CurrencyAmountSupport.baseRemaining(
+                item.getOriginalAmount(),
+                item.getSettledAmount(),
+                item.getBaseOriginalAmount(),
+                item.getBaseSettledAmount(),
+                item.getExchangeRate()
+        );
+    }
+
+    private BigDecimal payableRemaining(PayableEntity item) {
+        return CurrencyAmountSupport.baseRemaining(
+                item.getOriginalAmount(),
+                item.getSettledAmount(),
+                item.getBaseOriginalAmount(),
+                item.getBaseSettledAmount(),
+                item.getExchangeRate()
+        );
     }
 
     private BigDecimal zeroDefault(BigDecimal value) {

@@ -66,7 +66,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="bizDate" :label="$t('financeReportPages.traces.date')" width="120" />
-          <el-table-column prop="totalAmount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+          <el-table-column prop="totalAmount" :label="$t('financeReportPages.traces.baseAmount')" width="140" align="right">
             <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
           </el-table-column>
           <el-table-column :label="$t('financeReportPages.common.actions')" width="140" fixed="right">

@@ -1,6 +1,7 @@
 package com.tuowei.erp.dashboard.service;
 
 import com.tuowei.erp.common.math.ScalePrecision;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.dashboard.web.OperationsDashboardFailedOperationResponse;
 import com.tuowei.erp.dashboard.web.OperationsDashboardLowStockResponse;
 import com.tuowei.erp.dashboard.web.OperationsDashboardResponse;
@@ -153,7 +154,7 @@ public class OperationsDashboardPresentationService {
                 message("dashboard.todo.receivable.title", "应收逾期：{0}", defaultText(receivable.getReceivableNo(), receivable.getSourceNo())),
                 message("dashboard.todo.receivable.description", "业务日期 {0}，未结金额 {1}",
                         defaultText(receivable.getBizDate() == null ? null : receivable.getBizDate().toString(), "-"),
-                        remaining(receivable.getOriginalAmount(), receivable.getSettledAmount()).toPlainString()),
+                        receivableRemaining(receivable).toPlainString()),
                 "HIGH", "/finance/receivables",
                 receivable.getBizDate() == null ? null : receivable.getBizDate().atStartOfDay()
         );
@@ -165,7 +166,7 @@ public class OperationsDashboardPresentationService {
                 message("dashboard.todo.payable.title", "应付逾期：{0}", defaultText(payable.getPayableNo(), payable.getSourceNo())),
                 message("dashboard.todo.payable.description", "业务日期 {0}，未结金额 {1}",
                         defaultText(payable.getBizDate() == null ? null : payable.getBizDate().toString(), "-"),
-                        remaining(payable.getOriginalAmount(), payable.getSettledAmount()).toPlainString()),
+                        payableRemaining(payable).toPlainString()),
                 "HIGH", "/finance/payables",
                 payable.getBizDate() == null ? null : payable.getBizDate().atStartOfDay()
         );
@@ -181,18 +182,31 @@ public class OperationsDashboardPresentationService {
     }
 
     private BigDecimal sumReceivables(List<ReceivableEntity> receivables) {
-        return receivables.stream().map(entity -> remaining(entity.getOriginalAmount(), entity.getSettledAmount()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return receivables.stream().map(this::receivableRemaining).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private BigDecimal sumPayables(List<PayableEntity> payables) {
-        return payables.stream().map(entity -> remaining(entity.getOriginalAmount(), entity.getSettledAmount()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return payables.stream().map(this::payableRemaining).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) {
-        return ScalePrecision.amount(ScalePrecision.zeroDefault(originalAmount)
-                .subtract(ScalePrecision.zeroDefault(settledAmount)));
+    private BigDecimal receivableRemaining(ReceivableEntity receivable) {
+        return CurrencyAmountSupport.baseRemaining(
+                receivable.getOriginalAmount(),
+                receivable.getSettledAmount(),
+                receivable.getBaseOriginalAmount(),
+                receivable.getBaseSettledAmount(),
+                receivable.getExchangeRate()
+        );
+    }
+
+    private BigDecimal payableRemaining(PayableEntity payable) {
+        return CurrencyAmountSupport.baseRemaining(
+                payable.getOriginalAmount(),
+                payable.getSettledAmount(),
+                payable.getBaseOriginalAmount(),
+                payable.getBaseSettledAmount(),
+                payable.getExchangeRate()
+        );
     }
 
     private String defaultText(String preferred, String fallback) {

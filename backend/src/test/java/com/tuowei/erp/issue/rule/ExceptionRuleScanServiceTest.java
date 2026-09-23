@@ -148,6 +148,30 @@ class ExceptionRuleScanServiceTest {
     }
 
     @Test
+    void scanPayableOverdueDescribesBaseCurrencyRemaining() {
+        ExceptionRuleEntity rule = rule("PAYABLE_OVERDUE", new BigDecimal("45"));
+        PayableEntity foreign = payable();
+        foreign.setOriginalAmount(new BigDecimal("100"));
+        foreign.setSettledAmount(new BigDecimal("20"));
+        foreign.setExchangeRate(new BigDecimal("7.20"));
+        foreign.setBaseOriginalAmount(new BigDecimal("720.00"));
+        foreign.setBaseSettledAmount(new BigDecimal("140.00"));
+        when(payableMapper.selectList(any())).thenReturn(List.of(foreign));
+        when(slaPolicyService.resolveDueTime(any(), any(), any(), any(AuditMetadata.class)))
+                .thenReturn(AUDIT.now().plusHours(24));
+        when(ticketService.create(any(ExceptionTicketCreateRequest.class), any(AuditMetadata.class)))
+                .thenReturn(ticket(9005L));
+
+        var result = service().scanRule(rule, AUDIT);
+
+        assertThat(result.hitCount()).isEqualTo(1);
+        ArgumentCaptor<ExceptionTicketCreateRequest> requestCaptor =
+                ArgumentCaptor.forClass(ExceptionTicketCreateRequest.class);
+        verify(ticketService).create(requestCaptor.capture(), any(AuditMetadata.class));
+        assertThat(requestCaptor.getValue().getDescription()).contains("剩余金额 580");
+    }
+
+    @Test
     void scanOperationFailuresUsesConfiguredWindowAndMapsTicket() {
         ExceptionRuleEntity rule = rule("OPERATION_FAILURE", new BigDecimal("90"));
         when(operationLogMapper.selectList(any())).thenReturn(List.of(operationLog()));
