@@ -1,8 +1,7 @@
-# 后端快速启动脚本 (Windows)
-# 默认联调库：erp_codex_runtime（勿用历史脏库 erp）
-
 @echo off
 chcp 65001 >nul
+REM 后端快速启动脚本 (Windows)
+REM 默认联调库：erp_codex_runtime（勿用历史脏库 erp）
 echo.
 echo ════════════════════════════════════════════════════════════════
 echo    ERP 后端启动（local profile → erp_codex_runtime）
