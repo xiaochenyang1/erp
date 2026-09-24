@@ -31,3 +31,6 @@ frontend/.idea/
 *.core
 /core
 .vscode
+
+# 发布证据产物（JAR/SBOM 等二进制，独立归档，不入库）
+/release-evidence/

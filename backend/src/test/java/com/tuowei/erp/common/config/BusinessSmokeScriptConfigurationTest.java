@@ -138,6 +138,10 @@ class BusinessSmokeScriptConfigurationTest {
         assertThat(script)
                 .contains(": resolve(backendDir, '..', 'frontend')")
                 .contains("const chromeWindowSize = process.env.UI_SMOKE_WINDOW_SIZE || '1440,1000'")
-                .contains("`--window-size=${chromeWindowSize}`");
+                .contains("`--window-size=${chromeWindowSize}`")
+                .contains("process.env.ERP_UI_SMOKE_DATASOURCE_URL")
+                .contains("join('target', 'erp-server-1.0.0.jar')")
+                .contains("process.platform === 'win32'")
+                .contains("'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'");
     }
 }

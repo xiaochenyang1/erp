@@ -18,6 +18,8 @@ const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms)
 function resolveChromePath() {
   const candidates = [
     process.env.CHROME_PATH,
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
@@ -5799,14 +5801,27 @@ async function killProcessTree(pid) {
   if (!pid) {
     return
   }
-  await new Promise((resolveKill) => {
-    const killer = spawn('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
-      stdio: 'ignore',
-      windowsHide: true
+  if (process.platform === 'win32') {
+    await new Promise((resolveKill) => {
+      const killer = spawn('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true
+      })
+      killer.on('exit', resolveKill)
+      killer.on('error', resolveKill)
     })
+    return
+  }
+  await new Promise((resolveKill) => {
+    const killer = spawn('pkill', ['-TERM', '-P', String(pid)], { stdio: 'ignore' })
     killer.on('exit', resolveKill)
     killer.on('error', resolveKill)
   })
+  try {
+    process.kill(pid, 'SIGTERM')
+  } catch {
+    // The process already exited.
+  }
 }
 
 async function runManualVoucherWorkflow(cdp, auth) {
@@ -6616,22 +6631,30 @@ async function main() {
   const chromeProfileDir = join(targetDir, `ui-smoke-chrome-profile-${process.pid}-${Date.now()}`)
   const chromeWindowSize = process.env.UI_SMOKE_WINDOW_SIZE || '1440,1000'
 
+  const datasourceUrl = process.env.ERP_UI_SMOKE_DATASOURCE_URL
+    || 'jdbc:mysql://localhost:3306/erp_codex_runtime?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8'
+  const backendTimeoutMs = Number(process.env.ERP_UI_SMOKE_BACKEND_TIMEOUT_MS || 90000)
+
   start('backend', 'java', [
     '-jar',
-    'target\\erp-server-1.0.0.jar',
+    join('target', 'erp-server-1.0.0.jar'),
     '--spring.profiles.active=local',
-    '--spring.datasource.url=jdbc:mysql://localhost:3306/erp_codex_runtime?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8'
+    `--spring.datasource.url=${datasourceUrl}`
   ], backendDir)
 
-  await waitFor('backend', 'http://127.0.0.1:8080/actuator/health')
+  await waitFor('backend', 'http://127.0.0.1:8080/actuator/health', backendTimeoutMs)
   const { credentials, auth } = await login()
 
-  start('frontend', process.env.ComSpec || 'cmd.exe', [
-    '/d',
-    '/s',
-    '/c',
-    'npm run dev -- --host 127.0.0.1 --port 5173'
-  ], frontendDir)
+  if (process.platform === 'win32') {
+    start('frontend', process.env.ComSpec || 'cmd.exe', [
+      '/d',
+      '/s',
+      '/c',
+      'npm run dev -- --host 127.0.0.1 --port 5173'
+    ], frontendDir)
+  } else {
+    start('frontend', 'npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173'], frontendDir)
+  }
 
   await waitFor('frontend', 'http://127.0.0.1:5173/')
 
