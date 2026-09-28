@@ -140,7 +140,11 @@ class CustomerProductRelationServiceTest {
     }
 
     private CustomerProductRelationService service() {
-        return new CustomerProductRelationService(mapper, customerMapper, productMapper, audit);
+        CustomerProductRelationQueryService queryService =
+                new CustomerProductRelationQueryService(mapper, customerMapper, productMapper, audit);
+        CustomerProductRelationCommandService commandService =
+                new CustomerProductRelationCommandService(mapper, productMapper, audit, queryService);
+        return new CustomerProductRelationService(queryService, commandService);
     }
 
     private CustomerProductRelationEntity relation(Long id, Long productId) {
