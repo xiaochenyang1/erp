@@ -16,7 +16,7 @@ class SecurityPrincipalCacheInvalidationConfigurationTest {
         String userCommandService = readSource("system", "user", "service", "UserCommandService.java");
         String roleService = readSource("system", "role", "service", "RoleCommandService.java");
         String menuCommandService = readSource("system", "menu", "service", "MenuCommandService.java");
-        String authService = readSource("system", "auth", "service", "AuthService.java");
+        String authAccountService = readSource("system", "auth", "service", "AuthAccountService.java");
 
         assertThat(userCommandService)
                 .contains("SecurityPrincipalCache principalCache")
@@ -31,7 +31,7 @@ class SecurityPrincipalCacheInvalidationConfigurationTest {
                 .contains("SecurityPrincipalCache principalCache")
                 .contains("principalCache.evictAll();");
 
-        assertThat(authService)
+        assertThat(authAccountService)
                 .contains("SecurityPrincipalCache principalCache")
                 .contains("principalCache.evictUser(principal.userId());");
     }
