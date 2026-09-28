@@ -6,6 +6,8 @@ import com.tuowei.erp.finance.budget.mapper.BudgetLineMapper;
 import com.tuowei.erp.finance.budget.mapper.BudgetMapper;
 import com.tuowei.erp.finance.budget.model.BudgetEntity;
 import com.tuowei.erp.finance.budget.model.BudgetLineEntity;
+import com.tuowei.erp.finance.budget.service.BudgetExecutionCommandService;
+import com.tuowei.erp.finance.budget.service.BudgetExecutionQueryService;
 import com.tuowei.erp.finance.budget.service.BudgetExecutionService;
 import com.tuowei.erp.finance.budget.web.BudgetExecutionResponse;
 import com.tuowei.erp.finance.expense.mapper.ExpenseMapper;
@@ -42,7 +44,11 @@ class BudgetExecutionServiceTest {
     @BeforeEach
     void setUp() {
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
-        service = new BudgetExecutionService(budgetMapper, budgetLineMapper, expenseMapper, auditMetadataFactory);
+        BudgetExecutionQueryService queryService =
+                new BudgetExecutionQueryService(budgetMapper, budgetLineMapper, auditMetadataFactory);
+        BudgetExecutionCommandService commandService =
+                new BudgetExecutionCommandService(budgetLineMapper, expenseMapper, auditMetadataFactory, queryService);
+        service = new BudgetExecutionService(queryService, commandService);
     }
 
     @Test
