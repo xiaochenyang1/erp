@@ -11,6 +11,8 @@ import com.tuowei.erp.commercial.contract.model.ContractLineEntity;
 import com.tuowei.erp.commercial.contract.model.ContractVersionEntity;
 import com.tuowei.erp.commercial.contract.service.ContractNumberService;
 import com.tuowei.erp.commercial.contract.service.ContractQueryService;
+import com.tuowei.erp.commercial.contract.service.ContractVersionCommandService;
+import com.tuowei.erp.commercial.contract.service.ContractVersionQueryService;
 import com.tuowei.erp.commercial.contract.service.ContractVersionService;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
@@ -54,8 +56,12 @@ class ContractVersionServiceTest {
         numberService = mock(ContractNumberService.class);
         auditMetadataFactory = mock(AuditMetadataFactory.class);
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
-        service = new ContractVersionService(versionMapper, contractMapper, lineMapper, queryService, numberService,
-                auditMetadataFactory, new ObjectMapper().findAndRegisterModules());
+        ContractVersionQueryService versionQueryService =
+                new ContractVersionQueryService(versionMapper, queryService, new ObjectMapper().findAndRegisterModules());
+        ContractVersionCommandService versionCommandService = new ContractVersionCommandService(versionMapper,
+                contractMapper, lineMapper, queryService, numberService, auditMetadataFactory,
+                new ObjectMapper().findAndRegisterModules(), versionQueryService);
+        service = new ContractVersionService(versionQueryService, versionCommandService);
     }
 
     @Test
