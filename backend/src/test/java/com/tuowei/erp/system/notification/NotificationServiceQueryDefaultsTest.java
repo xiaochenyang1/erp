@@ -11,9 +11,9 @@ import com.tuowei.erp.system.notification.mapper.NotificationMapper;
 import com.tuowei.erp.system.notification.mapper.NotificationRecipientMapper;
 import com.tuowei.erp.system.notification.model.NotificationEntity;
 import com.tuowei.erp.system.notification.model.NotificationRecipientEntity;
+import com.tuowei.erp.system.notification.service.NotificationCommandService;
 import com.tuowei.erp.system.notification.service.NotificationQueryService;
 import com.tuowei.erp.system.notification.service.NotificationService;
-import com.tuowei.erp.system.notification.service.NotificationWebhookPublisher;
 import com.tuowei.erp.system.notification.web.NotificationPageQuery;
 import com.tuowei.erp.system.notification.web.NotificationResponse;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -66,11 +66,8 @@ class NotificationServiceQueryDefaultsTest {
                 auditMetadataFactory
         );
         NotificationService service = new NotificationService(
-                notificationMapper,
-                recipientMapper,
-                auditMetadataFactory,
-                mock(NotificationWebhookPublisher.class),
-                queryService
+                queryService,
+                mock(NotificationCommandService.class)
         );
 
         PageResponse<NotificationResponse> response = service.listMine(null);
