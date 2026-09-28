@@ -144,7 +144,11 @@ class SupplierProductRelationServiceTest {
     }
 
     private SupplierProductRelationService service() {
-        return new SupplierProductRelationService(mapper, supplierMapper, productMapper, audit);
+        SupplierProductRelationQueryService queryService =
+                new SupplierProductRelationQueryService(mapper, supplierMapper, productMapper, audit);
+        SupplierProductRelationCommandService commandService =
+                new SupplierProductRelationCommandService(mapper, productMapper, audit, queryService);
+        return new SupplierProductRelationService(queryService, commandService);
     }
 
     private SupplierProductRelationEntity relation(Long id, Long productId) {
