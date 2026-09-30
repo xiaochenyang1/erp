@@ -1,4 +1,5 @@
 package com.tuowei.erp.purchase;
+import com.tuowei.erp.common.security.DataScopePolicyService;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -102,7 +103,7 @@ class PurchaseOrderQueryServiceTest {
         query.setApprovalStatus("  in_approval  ");
         query.setSupplierId(SUPPLIER_ID);
 
-        PurchaseOrderQueryService service = service(new DataScopeService(null, null, null, null));
+        PurchaseOrderQueryService service = service(new DataScopeService(null, new DataScopePolicyService()));
         service.list(query);
         service.exportOrders(query).writeTo(new ByteArrayOutputStream());
 
@@ -135,7 +136,7 @@ class PurchaseOrderQueryServiceTest {
         query.setPageNo(0);
         query.setPageSize(999);
 
-        var result = service(new DataScopeService(null, null, null, null)).list(query);
+        var result = service(new DataScopeService(null, new DataScopePolicyService())).list(query);
 
         assertThat(result.pageNo()).isEqualTo(1L);
         assertThat(result.pageSize()).isEqualTo(200L);
@@ -173,7 +174,7 @@ class PurchaseOrderQueryServiceTest {
         when(supplierMapper.selectBatchIds(any())).thenReturn(List.of(crossTenantSupplier));
         when(userMapper.selectBatchIds(any())).thenReturn(List.of(crossTenantCreator));
 
-        PurchaseOrderQueryService service = service(new DataScopeService(null, null, null, null));
+        PurchaseOrderQueryService service = service(new DataScopeService(null, new DataScopePolicyService()));
         var result = service.list(new PurchaseOrderPageQuery());
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         service.exportOrders(new PurchaseOrderPageQuery()).writeTo(output);
@@ -409,7 +410,7 @@ class PurchaseOrderQueryServiceTest {
         Authentication streamingThreadAuthentication = mock(Authentication.class);
         SecurityContextHolder.getContext().setAuthentication(capturedAuthentication);
         try {
-            var export = service(new DataScopeService(null, null, null, null))
+            var export = service(new DataScopeService(null, new DataScopePolicyService()))
                     .exportOrders(new PurchaseOrderPageQuery());
             SecurityContextHolder.getContext().setAuthentication(streamingThreadAuthentication);
             when(purchaseOrderMapper.selectList(any())).thenAnswer(invocation -> {

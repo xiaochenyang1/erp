@@ -1,4 +1,5 @@
 package com.tuowei.erp.sales;
+import com.tuowei.erp.common.security.DataScopePolicyService;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -96,7 +97,7 @@ class SalesReturnQueryServiceTest {
         query.setReturnDateFrom(DATE_FROM);
         query.setReturnDateTo(DATE_TO);
 
-        service(new DataScopeService(null, null, null, null)).list(query);
+        service(new DataScopeService(null, new DataScopePolicyService())).list(query);
 
         ArgumentCaptor<LambdaQueryWrapper<SalesReturnEntity>> queryCaptor =
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
@@ -118,7 +119,7 @@ class SalesReturnQueryServiceTest {
         query.setPageNo(0);
         query.setPageSize(999);
 
-        var result = service(new DataScopeService(null, null, null, null)).list(query);
+        var result = service(new DataScopeService(null, new DataScopePolicyService())).list(query);
 
         assertThat(result.pageNo()).isEqualTo(1L);
         assertThat(result.pageSize()).isEqualTo(200L);
@@ -150,7 +151,7 @@ class SalesReturnQueryServiceTest {
             return page;
         });
 
-        var result = service(new DataScopeService(null, null, null, null)).list(null);
+        var result = service(new DataScopeService(null, new DataScopePolicyService())).list(null);
 
         assertThat(result.pageNo()).isEqualTo(1L);
         assertThat(result.pageSize()).isEqualTo(20L);

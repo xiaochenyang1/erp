@@ -1,4 +1,5 @@
 package com.tuowei.erp.inventory.transfer;
+import com.tuowei.erp.common.security.DataScopePolicyService;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -278,7 +279,7 @@ class InventoryTransferServiceTenantBoundaryTest {
             return page;
         });
 
-        service(new DataScopeService(null, null, null, null)).list(null);
+        service(new DataScopeService(null, new DataScopePolicyService())).list(null);
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         org.mockito.ArgumentCaptor<LambdaQueryWrapper<InventoryTransferEntity>> wrapperCaptor =

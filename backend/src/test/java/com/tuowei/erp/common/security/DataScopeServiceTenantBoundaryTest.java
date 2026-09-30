@@ -37,7 +37,7 @@ class DataScopeServiceTenantBoundaryTest {
     );
     private static final DataScopeSnapshot ALL_SCOPE = DataScopeSnapshot.all();
 
-    private final DataScopeService dataScopeService = new DataScopeService(null, null, null, null);
+    private final DataScopeService dataScopeService = new DataScopeService(null, new DataScopePolicyService());
 
     @BeforeAll
     static void initTableInfo() {

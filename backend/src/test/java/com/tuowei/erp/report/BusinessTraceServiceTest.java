@@ -1,4 +1,5 @@
 package com.tuowei.erp.report;
+import com.tuowei.erp.common.security.DataScopePolicyService;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -243,7 +244,7 @@ class BusinessTraceServiceTest {
     private BusinessTraceService service() {
         return new BusinessTraceService(
                 currentUserContext,
-                new DataScopeService(null, null, null, null),
+                new DataScopeService(null, new DataScopePolicyService()),
                 scopedUserResolver,
                 purchaseOrderMapper,
                 salesOrderMapper,

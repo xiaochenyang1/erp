@@ -1,4 +1,5 @@
 package com.tuowei.erp.inventory.check;
+import com.tuowei.erp.common.security.DataScopePolicyService;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -111,7 +112,7 @@ class InventoryStockCheckServiceTenantBoundaryTest {
     @Mock
     private UserMapper userMapper;
 
-    private final DataScopeService dataScopeService = new DataScopeService(null, null, null, null);
+    private final DataScopeService dataScopeService = new DataScopeService(null, new DataScopePolicyService());
 
     @BeforeAll
     static void initTableInfo() {
