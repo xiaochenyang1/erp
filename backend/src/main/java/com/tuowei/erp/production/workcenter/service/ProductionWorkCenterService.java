@@ -40,7 +40,8 @@ public class ProductionWorkCenterService {
 
     @Transactional(readOnly = true)
     public PageResponse<ProductionWorkCenterResponse> list(ProductionWorkCenterPageQuery query) {
-        return queryService.list(query);
+        ProductionWorkCenterPageQuery safeQuery = query == null ? new ProductionWorkCenterPageQuery() : query;
+        return queryService.list(safeQuery);
     }
 
     @Transactional

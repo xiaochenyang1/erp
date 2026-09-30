@@ -31,7 +31,8 @@ public class AccountSubjectService {
 
     @Transactional(readOnly = true)
     public PageResponse<AccountSubjectResponse> list(AccountSubjectPageQuery query) {
-        return queryService.list(query);
+        AccountSubjectPageQuery safeQuery = query == null ? new AccountSubjectPageQuery() : query;
+        return queryService.list(safeQuery);
     }
 
     @Transactional(readOnly = true)

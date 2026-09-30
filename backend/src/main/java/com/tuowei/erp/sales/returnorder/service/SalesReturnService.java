@@ -33,7 +33,8 @@ public class SalesReturnService {
 
     @Transactional(readOnly = true)
     public PageResponse<SalesReturnResponse> list(SalesReturnPageQuery query) {
-        return salesReturnQueryService.list(query);
+        SalesReturnPageQuery safeQuery = query == null ? new SalesReturnPageQuery() : query;
+        return salesReturnQueryService.list(safeQuery);
     }
 
     @Transactional(readOnly = true)

@@ -28,7 +28,8 @@ public class ExceptionSlaPolicyService {
 
     @Transactional
     public PageResponse<ExceptionSlaPolicyResponse> list(ExceptionSlaPolicyPageQuery query) {
-        return commandService.list(query);
+        ExceptionSlaPolicyPageQuery safeQuery = query == null ? new ExceptionSlaPolicyPageQuery() : query;
+        return commandService.list(safeQuery);
     }
 
     @Transactional

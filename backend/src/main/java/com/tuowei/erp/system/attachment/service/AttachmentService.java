@@ -34,7 +34,8 @@ public class AttachmentService {
 
     @Transactional(readOnly = true)
     public PageResponse<AttachmentResponse> list(AttachmentPageQuery query) {
-        return queryService.list(query);
+        AttachmentPageQuery safeQuery = query == null ? new AttachmentPageQuery() : query;
+        return queryService.list(safeQuery);
     }
 
     @Transactional(readOnly = true)

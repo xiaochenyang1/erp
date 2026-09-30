@@ -23,7 +23,8 @@ public class BusinessTimelineService {
 
     @Transactional(readOnly = true)
     public PageResponse<BusinessTimelineResponse> list(BusinessTimelineQuery query) {
-        return queryService.list(query);
+        BusinessTimelineQuery safeQuery = query == null ? new BusinessTimelineQuery() : query;
+        return queryService.list(safeQuery);
     }
 
     @Transactional

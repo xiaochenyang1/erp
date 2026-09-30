@@ -20,7 +20,8 @@ public class UserSessionService {
 
     @Transactional(readOnly = true)
     public PageResponse<UserSessionResponse> list(UserSessionPageQuery query) {
-        return queryService.list(query);
+        UserSessionPageQuery safeQuery = query == null ? new UserSessionPageQuery() : query;
+        return queryService.list(safeQuery);
     }
 
     @Transactional
