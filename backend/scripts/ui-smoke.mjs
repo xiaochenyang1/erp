@@ -10,6 +10,8 @@ const frontendDir = process.env.ERP_FRONTEND_DIR
   : resolve(backendDir, '..', 'frontend')
 const targetDir = join(backendDir, 'target')
 const chromePath = resolveChromePath()
+const frontendPort = Number(process.env.UI_SMOKE_FRONTEND_PORT || 5173)
+const frontendBaseUrl = `http://127.0.0.1:${frontendPort}`
 
 const children = []
 const loginCache = new Map()
@@ -128,6 +130,25 @@ async function apiRequest(auth, method, path, body) {
   return payload.data
 }
 
+async function apiUploadAttachment(auth, businessType, businessId, businessNo, filename) {
+  const form = new FormData()
+  form.set('businessType', businessType)
+  form.set('businessId', String(businessId))
+  form.set('businessNo', businessNo)
+  form.set('file', new Blob([`UI smoke attachment for ${businessNo}`], { type: 'text/plain' }), filename)
+  const response = await fetch('http://127.0.0.1:8080/api/system/attachments', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${auth.accessToken}` },
+    body: form
+  })
+  const text = await response.text()
+  const payload = text ? JSON.parse(text) : null
+  if (!response.ok || payload?.code !== '0') {
+    throw new Error(`POST /system/attachments failed: HTTP ${response.status} ${text.slice(0, 1000)}`)
+  }
+  return payload.data
+}
+
 async function ensureOpenPeriod(auth, dateText) {
   const year = Number(dateText.slice(0, 4))
   const periodMonth = dateText.slice(0, 7)
@@ -139,6 +160,23 @@ async function ensureOpenPeriod(auth, dateText) {
   if (!period || period.status !== 'OPEN') {
     throw new Error(`required open account period ${periodMonth}, actual=${period ? period.status : 'missing'}`)
   }
+}
+
+async function prepareExpenseBudget(auth, subjectId, suffix) {
+  const budgetYear = new Date().getFullYear()
+  const page = await apiRequest(auth, 'GET', `/finance/budgets?pageNo=1&pageSize=100&budgetYear=${budgetYear}`)
+  const approved = (page?.records || []).find((budget) => budget.status === 'APPROVED')
+  if (approved) await apiRequest(auth, 'POST', `/finance/budgets/${approved.id}/close`)
+  const budget = await apiRequest(auth, 'POST', '/finance/budgets', {
+    budgetYear,
+    budgetName: `UI smoke 费用预算 ${suffix}`,
+    controlPolicy: 'APPROVAL',
+    remark: 'Isolated UI smoke budget fixture',
+    lines: [{ periodMonth: 0, subjectId, budgetAmount: 10000, remark: 'UI smoke expense allowance' }]
+  })
+  await apiRequest(auth, 'POST', `/finance/budgets/${budget.id}/submit`)
+  await apiRequest(auth, 'POST', `/finance/budgets/${budget.id}/approve`)
+  return budget
 }
 
 async function prepareProductionOrderFixture(auth) {
@@ -1069,7 +1107,7 @@ async function runExceptionTicketWorkflow(cdp) {
   const sourceNo = `UI-SMOKE-${Date.now()}`
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/exception-tickets' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/exception-tickets` })
     await waitForPage(cdp, `document.body.innerText.includes('异常工单')`, 'exception ticket page')
 
     await clickButton(cdp, '新建')
@@ -1226,7 +1264,7 @@ async function runSlaPolicyWorkflow(cdp) {
   const remark = `UI smoke SLA策略保存 ${Date.now()}`
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/exception-sla-policies' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/exception-sla-policies` })
     await waitForPage(cdp, `document.body.innerText.includes('SLA策略') && document.body.innerText.includes('配置')`, 'SLA policy page')
 
     await invokeButton(cdp, '配置', 'rule config button')
@@ -1243,7 +1281,7 @@ async function runSlaPolicyWorkflow(cdp) {
     `, 'SLA edit dialog')
 
     const dialog = dialogExpression('配置 SLA 策略')
-    await setElementValue(cdp, `${dialog}.querySelector('textarea[placeholder^="说明 SLA"]')`, remark, 'SLA remark input')
+    await setElementValue(cdp, `${dialog}.querySelector('textarea')`, remark, 'SLA remark input')
     await clickButton(cdp, '保存', dialog)
     await waitForPage(cdp, `
       (() => {
@@ -1285,7 +1323,7 @@ async function runExceptionRuleWorkflow(cdp) {
   let restoredTo = ''
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/exception-rules' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/exception-rules` })
     await waitForPage(cdp, `document.body.innerText.includes('异常规则') && document.body.innerText.includes('扫描全部')`, 'exception rule page')
 
     const readFirstToggleButton = `
@@ -1442,7 +1480,7 @@ async function runBusinessTraceWorkflow(cdp) {
   resetEvents(cdp.events)
   const keyword = await findTraceKeyword(cdp)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/reports/traces' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/reports/traces` })
     await waitForPage(cdp, `document.body.innerText.includes('生命周期时间线')`, 'business trace page')
 
     if (keyword) {
@@ -1492,7 +1530,7 @@ async function runBusinessTraceWorkflow(cdp) {
 async function runFinancePeriodWorkflow(cdp) {
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/periods' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/periods` })
     await waitForPage(cdp, `document.body.innerText.includes('会计期间管理') && document.body.innerText.includes('生成年期间')`, 'finance periods page')
 
     await invokeButton(cdp, '生成年期间', 'generate periods button')
@@ -1571,7 +1609,7 @@ async function runFinancePeriodWorkflow(cdp) {
 async function runReportExportWorkflow(cdp) {
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/reports' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/reports` })
     await waitForPage(cdp, `document.body.innerText.includes('当前报表') && document.body.innerText.includes('导出')`, 'reports page')
     await evaluatePage(cdp, `
       (() => {
@@ -1623,7 +1661,7 @@ async function runAttachmentWorkflow(cdp) {
   const filename = `attachment-smoke-${Date.now()}.txt`
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/system/attachments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/system/attachments` })
     await waitForPage(cdp, `document.body.innerText.includes('附件中心') && document.body.innerText.includes('上传')`, 'attachments page')
 
     await clickButton(cdp, '上传')
@@ -1752,7 +1790,7 @@ async function runReadinessWorkflow(cdp) {
   const actualResult = `UI smoke 发布门禁通过 ${Date.now()}`
   const decisionComment = `UI smoke No-Go 决策 ${Date.now()}`
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/system/readiness' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/system/readiness` })
     await waitForPage(cdp, `
       document.body.innerText.includes('预生产验收')
         && document.body.innerText.includes('迁移前健康检查')
@@ -1988,7 +2026,7 @@ async function runFundWorkflow(cdp) {
   const counterpartyName = `UI往来方${suffix}`
   const summary = `UI smoke 银行流水 ${suffix}`
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/funds' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/funds` })
     await waitForPage(cdp, `
       document.body.innerText.includes('资金对账')
         && document.body.innerText.includes('新增账户')
@@ -2179,7 +2217,7 @@ async function runFundMatchUnmatchWorkflow(cdp, auth) {
     }
 
     await markSmokeStep(cdp, 'fund-match:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/funds' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/funds` })
     await waitForPage(cdp, `
       document.body.innerText.includes('资金对账')
         && document.body.innerText.includes('银行流水')
@@ -2350,10 +2388,11 @@ async function runExpenseWorkflow(cdp, auth) {
       balanceDirection: 'DEBIT',
       remark: 'UI smoke 支付科目'
     })
+    await prepareExpenseBudget(auth, expenseSubject.id, suffix)
 
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'expense:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/expenses' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/expenses` })
     await waitForPage(cdp, `
       document.body.innerText.includes('费用管理')
         && document.body.innerText.includes('新增费用')
@@ -2380,7 +2419,8 @@ async function runExpenseWorkflow(cdp, auth) {
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(expenseSubject.subjectCode)}))`,
       'expense subject option'
     )
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'expense payment subject select')
+    // Expense form selects are subject, department, then payment subject.
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[2].querySelector('.el-select__wrapper')`, 'expense payment subject select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(paymentSubject.subjectCode)}))`,
@@ -2409,6 +2449,8 @@ async function runExpenseWorkflow(cdp, auth) {
     `, 'expense created as draft', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after expense create'))}`)
     })
+
+    await apiUploadAttachment(submitterAuth, 'EXPENSE', expense.id, expense.expenseNo, `expense-smoke-${suffix}.txt`)
 
     await waitForPage(cdp, `
       (() => {
@@ -2571,7 +2613,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'finance-subject:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/subjects' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/subjects` })
     await waitForPage(cdp, `
       document.body.innerText.includes('会计科目管理')
         && document.body.innerText.includes('新增科目')
@@ -2735,6 +2777,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
       balanceDirection: 'DEBIT',
       remark: 'UI smoke 凭证支付科目'
     })
+    await prepareExpenseBudget(auth, expenseSubject.id, suffix)
     const expense = await apiRequest(submitterAuth, 'POST', '/finance/expenses', {
       expenseDate,
       subjectId: expenseSubject.id,
@@ -2742,6 +2785,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
       amount: 88.88,
       remark: `UI smoke 凭证查询 ${suffix}`
     })
+    await apiUploadAttachment(submitterAuth, 'EXPENSE', expense.id, expense.expenseNo, `voucher-expense-smoke-${suffix}.txt`)
     await apiRequest(submitterAuth, 'POST', `/finance/expenses/${expense.id}/submit`, { remark: 'UI smoke 提交费用' })
     await apiRequest(auth, 'POST', `/finance/expenses/${expense.id}/approve`, { remark: 'UI smoke 审批费用' })
     const postedExpense = await apiRequest(auth, 'POST', `/finance/expenses/${expense.id}/post`)
@@ -2752,7 +2796,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
 
     await markSmokeStep(cdp, 'finance-voucher:navigate')
     await setBrowserAuth(cdp, auth)
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/vouchers' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/vouchers` })
     await waitForPage(cdp, `
       document.body.innerText.includes('凭证查询')
         && document.body.innerText.includes(${JSON.stringify(voucherNo)})
@@ -2810,7 +2854,7 @@ async function runInventoryAdjustmentWorkflow(cdp, auth) {
   const remark = `UI smoke 库存调整 ${fixture.suffix}`
   let adjustment = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/inventory/adjustments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/adjustments` })
     await waitForPage(cdp, `
       document.body.innerText.includes('新增调整')
         && document.body.innerText.includes('调整单号')
@@ -3051,7 +3095,7 @@ async function runInventoryTransferWorkflow(cdp, auth) {
   const remark = `UI smoke 库存调拨 ${fixture.suffix}`
   let transfer = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/inventory/transfers' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/transfers` })
     await waitForPage(cdp, `
       document.body.innerText.includes('新增调拨')
         && document.body.innerText.includes('调拨单号')
@@ -3270,7 +3314,7 @@ async function runInventoryCheckWorkflow(cdp, auth) {
   const remark = `UI smoke 库存盘点 ${fixture.suffix}`
   let check = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/inventory/checks' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/checks` })
     await waitForPage(cdp, `
       document.body.innerText.includes('新增盘点')
         && document.body.innerText.includes('盘点单号')
@@ -3471,7 +3515,7 @@ async function runSalesOrderWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'sales:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售订单')
         && document.body.innerText.includes('新增订单')
@@ -3493,14 +3537,15 @@ async function runSalesOrderWorkflow(cdp, auth) {
 
     const createDialog = `(${dialogExpression('新增销售订单')} || document.createElement('div'))`
     await markSmokeStep(cdp, 'sales:select-customer')
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[0].querySelector('.el-select__wrapper')`, 'sales customer select')
+    // The form starts with an optional contract, then customer and warehouse.
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'sales customer select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.customer.customerName)}))`,
       'sales customer option'
     )
     await markSmokeStep(cdp, 'sales:select-warehouse')
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'sales warehouse select')
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[2].querySelector('.el-select__wrapper')`, 'sales warehouse select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.warehouse.warehouseName)}))`,
@@ -3509,7 +3554,7 @@ async function runSalesOrderWorkflow(cdp, auth) {
     await markSmokeStep(cdp, 'sales:skip-hidden-date-fields')
     await markSmokeStep(cdp, 'sales:set-remark-and-product')
     await setElementValue(cdp, `${createDialog}.querySelector('textarea')`, remark, 'sales remark input')
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[2].querySelector('.el-select__wrapper')`, 'sales product select')
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[3].querySelector('.el-select__wrapper')`, 'sales product select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.product.productCode)}))`,
@@ -3596,7 +3641,7 @@ async function runSalesOrderWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales:search-submitted-order-as-approver')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售订单')
         && document.body.innerText.includes('新增订单')
@@ -3773,7 +3818,7 @@ async function runWorkflowTaskApprovalWorkflow(cdp, auth) {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'workflow-task:navigate')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
+      url: `${frontendBaseUrl}/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批待办')
@@ -3850,7 +3895,7 @@ async function runWorkflowTaskApprovalWorkflow(cdp, auth) {
 
     await markSmokeStep(cdp, 'workflow-record:navigate-filtered')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=APPROVE`
+      url: `${frontendBaseUrl}/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=APPROVE`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批记录')
@@ -3914,7 +3959,7 @@ async function runWorkflowTaskRejectWorkflow(cdp, auth) {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'workflow-reject:navigate')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
+      url: `${frontendBaseUrl}/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批待办')
@@ -3934,8 +3979,8 @@ async function runWorkflowTaskRejectWorkflow(cdp, auth) {
       })()`,
       'workflow task reject button'
     )
-    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('审批驳回')}); })()`, 'workflow reject dialog')
-    const rejectDialog = dialogExpression('审批驳回')
+    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('驳回')}); })()`, 'workflow reject dialog')
+    const rejectDialog = dialogExpression('驳回')
     await setElementValue(cdp, `${rejectDialog}.querySelector('textarea')`, rejectComment, 'workflow reject comment input')
     await clickButton(cdp, '确定', rejectDialog)
 
@@ -4019,7 +4064,7 @@ async function runWorkflowWithdrawWorkflow(cdp, auth) {
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'workflow-withdraw:navigate-records')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=SUBMIT`
+      url: `${frontendBaseUrl}/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=SUBMIT`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批记录')
@@ -4039,8 +4084,8 @@ async function runWorkflowWithdrawWorkflow(cdp, auth) {
       })()`,
       'workflow withdraw button'
     )
-    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('撤回审批')}); })()`, 'workflow withdraw dialog')
-    const withdrawDialog = dialogExpression('撤回审批')
+    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('撤回工作流')}); })()`, 'workflow withdraw dialog')
+    const withdrawDialog = dialogExpression('撤回工作流')
     await setElementValue(cdp, `${withdrawDialog}.querySelector('textarea')`, withdrawComment, 'workflow withdraw comment input')
     await clickButton(cdp, '确认撤回', withdrawDialog)
 
@@ -4093,7 +4138,7 @@ async function runSalesDeliveryWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-delivery:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/deliveries' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/deliveries` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售发货')
         && document.body.innerText.includes('新增发货')
@@ -4253,7 +4298,7 @@ async function runSalesReceiptWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-receipt:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/payments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/payments` })
     await waitForPage(cdp, `
       document.body.innerText.includes('收款管理')
         && document.body.innerText.includes('新增收款')
@@ -4365,7 +4410,7 @@ async function runSalesReturnWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-return:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/returns' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/returns` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售退货')
         && document.body.innerText.includes('新增退货')
@@ -4830,7 +4875,7 @@ function runPurchaseReceiptDraftEditWorkflow(cdp, auth) {
     name: 'purchase-receipt-draft-edit',
     step: 'purchase-receipt-draft-edit',
     docLabel: '采购收货',
-    url: 'http://127.0.0.1:5173/purchase/receipts',
+    url: `${frontendBaseUrl}/purchase/receipts`,
     pageText: '采购收货管理',
     searchPlaceholder: '请输入收货单号',
     searchButton: '搜索',
@@ -4850,7 +4895,7 @@ function runPurchaseReturnDraftEditWorkflow(cdp, auth) {
     name: 'purchase-return-draft-edit',
     step: 'purchase-return-draft-edit',
     docLabel: '采购退货',
-    url: 'http://127.0.0.1:5173/purchase/returns',
+    url: `${frontendBaseUrl}/purchase/returns`,
     pageText: '采购退货',
     searchPlaceholder: '请输入退货单号',
     searchButton: '搜索',
@@ -4864,7 +4909,7 @@ function runSalesDeliveryDraftEditWorkflow(cdp, auth) {
     name: 'sales-delivery-draft-edit',
     step: 'sales-delivery-draft-edit',
     docLabel: '销售发货',
-    url: 'http://127.0.0.1:5173/sales/deliveries',
+    url: `${frontendBaseUrl}/sales/deliveries`,
     pageText: '销售发货',
     searchPlaceholder: '请输入发货单号',
     searchButton: '查询',
@@ -4884,7 +4929,7 @@ function runSalesReturnDraftEditWorkflow(cdp, auth) {
     name: 'sales-return-draft-edit',
     step: 'sales-return-draft-edit',
     docLabel: '销售退货',
-    url: 'http://127.0.0.1:5173/sales/returns',
+    url: `${frontendBaseUrl}/sales/returns`,
     pageText: '销售退货',
     searchPlaceholder: '请输入退货单号',
     searchButton: '查询',
@@ -4902,7 +4947,7 @@ async function runPurchaseReturnWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-return:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/returns' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/returns` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购退货')
         && document.body.innerText.includes('新增退货')
@@ -5100,7 +5145,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'purchase-order:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购订单管理')
         && document.body.innerText.includes('新增订单')
@@ -5122,7 +5167,8 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
 
     const orderDialog = `(${dialogExpression('新增采购订单')} || document.createElement('div'))`
     await markSmokeStep(cdp, 'purchase-order:select-supplier')
-    await clickElement(cdp, `${orderDialog}.querySelectorAll('.el-select')[0].querySelector('.el-select__wrapper')`, 'purchase supplier select')
+    // The optional contract select precedes the supplier select.
+    await clickElement(cdp, `${orderDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'purchase supplier select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.supplier.supplierName)}))`,
@@ -5215,7 +5261,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-order:approve-as-admin')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/orders` })
     await waitForPage(cdp, `document.body.innerText.includes('采购订单管理')`, 'purchase order page as approver')
     await setElementValue(cdp, `document.querySelector('input[placeholder="请输入订单编号"]')`, order.orderNo, 'purchase order no search input after submit')
     await clickButton(cdp, '搜索')
@@ -5274,7 +5320,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
     })
 
     await markSmokeStep(cdp, 'purchase-receipt:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/receipts' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/receipts` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购收货管理')
         && document.body.innerText.includes('新增收货')
@@ -5401,7 +5447,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
     })
 
     await markSmokeStep(cdp, 'purchase-payment:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/payments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/payments` })
     await waitForPage(cdp, `document.body.innerText.includes('收款管理') && document.body.innerText.includes('付款管理')`, 'finance payments page')
     await invokeElement(
       cdp,
@@ -5493,7 +5539,7 @@ async function runProductionOrderWorkflow(cdp, auth) {
   const remark = `UI smoke 生产订单 ${fixture.suffix}`
   let order = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/production/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/production/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('生产订单管理')
         && document.body.innerText.includes('新增订单')
@@ -5684,18 +5730,16 @@ async function runProductionOrderWorkflow(cdp, auth) {
       `[...document.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '领料')`,
       'production issue button'
     )
-    await waitForPage(cdp, `
-      (() => {
-        const visible = (element) => {
-          if (!element) return false;
-          const style = window.getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-        };
-        return Boolean(${messageBoxExpression('按剩余需求领料')});
-      })()
-    `, 'production issue confirm')
-    await clickButton(cdp, '确定', messageBoxExpression('按剩余需求领料'))
+    const issueDialog = dialogExpression('生产领料')
+    await waitForPage(cdp, `Boolean(${issueDialog})`, 'production issue dialog')
+    await setElementValue(cdp, `${issueDialog}.querySelector('textarea')`, 'UI smoke 生产领料', 'production issue remark input')
+    await clickElement(cdp, `${issueDialog}.querySelector('.el-select .el-select__wrapper')`, 'production issue location select')
+    await invokeElement(
+      cdp,
+      `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && !item.classList.contains('is-disabled'))`,
+      'production issue location option'
+    )
+    await clickButton(cdp, '确认领料', issueDialog)
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -5861,7 +5905,7 @@ async function runManualVoucherWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'manual-voucher:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/vouchers/manual' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/vouchers/manual` })
     await waitForPage(cdp, `
       document.body.innerText.includes('手工凭证')
         && document.body.innerText.includes('录入凭证')
@@ -6018,7 +6062,7 @@ async function runQcInspectionWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'qc-inspection:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/qc/inspections' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/qc/inspections` })
     await waitForPage(cdp, `document.body.innerText.includes('新建检验单')`, 'qc inspection page', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after qc inspection navigate'))}`)
     })
@@ -6130,7 +6174,7 @@ async function runSystemConfigCreateWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'system-config:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/system/configs' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/system/configs` })
     await waitForPage(cdp, `
       document.body.innerText.includes('系统配置管理')
         && document.body.innerText.includes('新增配置')
@@ -6228,7 +6272,7 @@ async function runFinanceInvoiceWorkflow(cdp, auth) {
     await ensureOpenPeriod(auth, invoiceDate)
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'finance-invoice:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/invoices' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/invoices` })
     await waitForPage(cdp, `document.body.innerText.includes('发票登记') && document.body.innerText.includes('新增登记')`, 'finance invoice page', 30000)
 
     await markSmokeStep(cdp, 'finance-invoice:create')
@@ -6263,7 +6307,7 @@ async function runFinanceInvoiceWorkflow(cdp, auth) {
     })()`
 
     await markSmokeStep(cdp, 'finance-invoice:post')
-    await invokeElement(cdp, rowButton('确认'), 'invoice post button')
+    await invokeElement(cdp, rowButton('确定'), 'invoice post button')
     await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${messageBoxExpression('提示')}); })()`, 'invoice post prompt')
     await clickButton(cdp, '确定', messageBoxExpression('提示'))
     await waitForPage(cdp, `
@@ -6366,7 +6410,7 @@ async function runPurchaseInquiryConvertToPoWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-inquiry:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/inquiries' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/inquiries` })
     await waitForPage(cdp, `document.body.innerText.includes('采购询价') || document.body.innerText.includes('新建询价单')`, 'purchase inquiry page', 30000)
     await waitForPage(cdp, `(() => { ${visibleDefinition}; return [...document.querySelectorAll('.el-table__body-wrapper tbody tr')].some((row) => visible(row) && row.innerText.includes(${JSON.stringify(inquiry.inquiryNo)})); })()`, 'inquiry row visible', 30000)
 
@@ -6449,7 +6493,7 @@ async function runPurchaseOrderUnapproveWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-order-unapprove:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购订单管理')
         && document.body.innerText.includes('新增订单')
@@ -6543,7 +6587,7 @@ async function runSalesOrderUnapproveWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-order-unapprove:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售订单')
         && document.body.innerText.includes('新增订单')
@@ -6633,13 +6677,18 @@ async function main() {
 
   const datasourceUrl = process.env.ERP_UI_SMOKE_DATASOURCE_URL
     || 'jdbc:mysql://localhost:3306/erp_codex_runtime?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8'
+  const datasourceUsername = process.env.ERP_UI_SMOKE_DATASOURCE_USERNAME || 'root'
+  const datasourcePassword = process.env.ERP_UI_SMOKE_DATASOURCE_PASSWORD || '12345678'
   const backendTimeoutMs = Number(process.env.ERP_UI_SMOKE_BACKEND_TIMEOUT_MS || 90000)
 
   start('backend', 'java', [
     '-jar',
     join('target', 'erp-server-1.0.0.jar'),
     '--spring.profiles.active=local',
-    `--spring.datasource.url=${datasourceUrl}`
+    `--spring.datasource.url=${datasourceUrl}`,
+    `--spring.datasource.username=${datasourceUsername}`,
+    `--spring.datasource.password=${datasourcePassword}`,
+    `--erp.security.cors.allowed-origins=http://127.0.0.1:${frontendPort}`
   ], backendDir)
 
   await waitFor('backend', 'http://127.0.0.1:8080/actuator/health', backendTimeoutMs)
@@ -6650,13 +6699,13 @@ async function main() {
       '/d',
       '/s',
       '/c',
-      'npm run dev -- --host 127.0.0.1 --port 5173'
+      `npm run dev -- --host 127.0.0.1 --port ${frontendPort} --strictPort`
     ], frontendDir)
   } else {
-    start('frontend', 'npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173'], frontendDir)
+    start('frontend', 'npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(frontendPort), '--strictPort'], frontendDir)
   }
 
-  await waitFor('frontend', 'http://127.0.0.1:5173/')
+  await waitFor('frontend', `${frontendBaseUrl}/`)
 
   start('chrome', chromePath, [
     '--headless=new',
@@ -6679,7 +6728,7 @@ async function main() {
   await cdp.send('Page.enable')
   await cdp.send('Network.enable')
 
-  await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/login' })
+  await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/login` })
   await sleep(1500)
   await setBrowserAuth(cdp, auth)
 
@@ -6718,7 +6767,7 @@ async function main() {
   const results = []
   for (const route of shouldRunRoutes ? routes : []) {
     resetEvents(cdp.events)
-    await cdp.send('Page.navigate', { url: `http://127.0.0.1:5173${route.path}` })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}${route.path}` })
     await sleep(4500)
     const state = await cdp.send('Runtime.evaluate', {
       expression: `({
