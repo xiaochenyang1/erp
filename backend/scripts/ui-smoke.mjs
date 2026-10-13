@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -10,6 +11,10 @@ const frontendDir = process.env.ERP_FRONTEND_DIR
   : resolve(backendDir, '..', 'frontend')
 const targetDir = join(backendDir, 'target')
 const chromePath = resolveChromePath()
+const backendPort = Number(process.env.ERP_UI_SMOKE_BACKEND_PORT || 8080)
+const backendBaseUrl = `http://127.0.0.1:${backendPort}`
+const frontendPort = Number(process.env.ERP_UI_SMOKE_FRONTEND_PORT || process.env.UI_SMOKE_FRONTEND_PORT || 5173)
+const frontendBaseUrl = `http://127.0.0.1:${frontendPort}`
 
 const children = []
 const loginCache = new Map()
@@ -68,6 +73,22 @@ async function waitFor(name, url, timeoutMs = 90000) {
   throw new Error(`${name} did not become ready: ${lastError}`)
 }
 
+async function assertPortAvailable(name, port) {
+  const server = createServer()
+  await new Promise((resolveListen, rejectListen) => {
+    server.once('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        rejectListen(new Error(`${name} port ${port} is already in use`))
+      } else {
+        rejectListen(error)
+      }
+    })
+    server.listen(port, '127.0.0.1', () => {
+      server.close((error) => error ? rejectListen(error) : resolveListen())
+    })
+  })
+}
+
 async function login() {
   const candidates = [
     { username: 'admin', password: 'LocalAdmin123' },
@@ -90,7 +111,7 @@ async function loginWithCredentials(credentials) {
   if (cached) {
     return cached
   }
-  const response = await fetch('http://127.0.0.1:8080/api/auth/login', {
+  const response = await fetch(`${backendBaseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(credentials)
@@ -107,7 +128,7 @@ async function loginWithCredentials(credentials) {
 }
 
 async function apiRequest(auth, method, path, body) {
-  const response = await fetch(`http://127.0.0.1:8080/api${path}`, {
+  const response = await fetch(`${backendBaseUrl}/api${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${auth.accessToken}`,
@@ -128,6 +149,25 @@ async function apiRequest(auth, method, path, body) {
   return payload.data
 }
 
+async function apiUploadAttachment(auth, businessType, businessId, businessNo, filename) {
+  const form = new FormData()
+  form.set('businessType', businessType)
+  form.set('businessId', String(businessId))
+  form.set('businessNo', businessNo)
+  form.set('file', new Blob([`UI smoke attachment for ${businessNo}`], { type: 'text/plain' }), filename)
+  const response = await fetch(`${backendBaseUrl}/api/system/attachments`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${auth.accessToken}` },
+    body: form
+  })
+  const text = await response.text()
+  const payload = text ? JSON.parse(text) : null
+  if (!response.ok || payload?.code !== '0') {
+    throw new Error(`POST /system/attachments failed: HTTP ${response.status} ${text.slice(0, 1000)}`)
+  }
+  return payload.data
+}
+
 async function ensureOpenPeriod(auth, dateText) {
   const year = Number(dateText.slice(0, 4))
   const periodMonth = dateText.slice(0, 7)
@@ -139,6 +179,23 @@ async function ensureOpenPeriod(auth, dateText) {
   if (!period || period.status !== 'OPEN') {
     throw new Error(`required open account period ${periodMonth}, actual=${period ? period.status : 'missing'}`)
   }
+}
+
+async function prepareExpenseBudget(auth, subjectId, suffix) {
+  const budgetYear = new Date().getFullYear()
+  const page = await apiRequest(auth, 'GET', `/finance/budgets?pageNo=1&pageSize=100&budgetYear=${budgetYear}`)
+  const approved = (page?.records || []).find((budget) => budget.status === 'APPROVED')
+  if (approved) await apiRequest(auth, 'POST', `/finance/budgets/${approved.id}/close`)
+  const budget = await apiRequest(auth, 'POST', '/finance/budgets', {
+    budgetYear,
+    budgetName: `UI smoke 费用预算 ${suffix}`,
+    controlPolicy: 'APPROVAL',
+    remark: 'Isolated UI smoke budget fixture',
+    lines: [{ periodMonth: 0, subjectId, budgetAmount: 10000, remark: 'UI smoke expense allowance' }]
+  })
+  await apiRequest(auth, 'POST', `/finance/budgets/${budget.id}/submit`)
+  await apiRequest(auth, 'POST', `/finance/budgets/${budget.id}/approve`)
+  return budget
 }
 
 async function prepareProductionOrderFixture(auth) {
@@ -159,6 +216,7 @@ async function prepareProductionOrderFixture(auth) {
     taxRate: 13,
     lotControlled: false,
     shelfLifeControlled: false,
+    serialControlled: false,
     remark: 'UI smoke 生产成品'
   })
   const materialProduct = await apiRequest(auth, 'POST', '/masterdata/products', {
@@ -183,6 +241,13 @@ async function prepareProductionOrderFixture(auth) {
     address: 'UI smoke 材料仓',
     remark: 'UI smoke 生产材料仓'
   })
+  const materialLocation = await apiRequest(auth, 'POST', '/masterdata/locations', {
+    warehouseId: materialWarehouse.id,
+    locationCode: `UIML${suffix}`,
+    locationName: `UI材料库位${suffix}`,
+    isDefault: true,
+    remark: 'UI smoke 生产材料库位'
+  })
   const finishedWarehouse = await apiRequest(auth, 'POST', '/masterdata/warehouses', {
     warehouseCode: `UIFW${suffix}`,
     warehouseName: `UI成品仓${suffix}`,
@@ -190,6 +255,13 @@ async function prepareProductionOrderFixture(auth) {
     managerUserId: 4001,
     address: 'UI smoke 成品仓',
     remark: 'UI smoke 生产成品仓'
+  })
+  const finishedLocation = await apiRequest(auth, 'POST', '/masterdata/locations', {
+    warehouseId: finishedWarehouse.id,
+    locationCode: `UIFL${suffix}`,
+    locationName: `UI成品库位${suffix}`,
+    isDefault: true,
+    remark: 'UI smoke 生产成品库位'
   })
   const bom = await apiRequest(auth, 'POST', '/production/boms', {
     productId: finishedProduct.id,
@@ -214,6 +286,7 @@ async function prepareProductionOrderFixture(auth) {
         direction: 'IN',
         qty: 20,
         unitCost: 5,
+        locationId: materialLocation.id,
         reason: 'UI smoke 生产备料'
       }
     ]
@@ -229,7 +302,9 @@ async function prepareProductionOrderFixture(auth) {
     finishedProduct,
     materialProduct,
     materialWarehouse,
+    materialLocation,
     finishedWarehouse,
+    finishedLocation,
     bom
   }
 }
@@ -917,10 +992,17 @@ async function clickElement(cdp, elementExpression, label) {
       };
       const element = ${elementExpression};
       if (!visible(element)) return null;
-      const rect = element.getBoundingClientRect();
+      let rect = element.getBoundingClientRect();
+      if (rect.top < 0 || rect.bottom > window.innerHeight || rect.left < 0 || rect.right > window.innerWidth) {
+        element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+        rect = element.getBoundingClientRect();
+      }
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      if (centerX < 0 || centerX > window.innerWidth || centerY < 0 || centerY > window.innerHeight) return null;
       return {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
+        x: centerX,
+        y: centerY,
         text: element.innerText || element.getAttribute('aria-label') || ''
       };
     })()
@@ -1055,9 +1137,43 @@ async function pageDiagnostics(cdp, label) {
             ariaLabel: item.getAttribute('aria-label') || ''
           }))
           .slice(0, 80),
+        selects: [...document.querySelectorAll('.el-dialog .el-select')]
+          .filter(visible)
+          .map((item, index) => ({
+            index,
+            text: item.innerText.trim(),
+            placeholder: item.querySelector('.el-select__placeholder')?.innerText.trim() || '',
+            context: item.closest('.el-form-item')?.innerText.trim() || item.closest('td')?.innerText.trim() || '',
+            className: item.className,
+            disabled: item.classList.contains('is-disabled'),
+            rect: (() => {
+              const rect = item.getBoundingClientRect();
+              return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            })()
+          }))
+          .slice(0, 40),
+        dropdowns: [...document.querySelectorAll('.el-select-dropdown')]
+          .map((item) => {
+            const style = window.getComputedStyle(item);
+            const rect = item.getBoundingClientRect();
+            return {
+              className: item.className,
+              visibility: style.visibility,
+              display: style.display,
+              rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+              items: [...item.querySelectorAll('.el-select-dropdown__item')].map((option) => option.innerText.trim()).slice(0, 40)
+            };
+          })
+          .slice(0, 20),
+        visibleDropdownItems: [...document.querySelectorAll('.el-select-dropdown__item')]
+          .filter(visible)
+          .map((item) => ({ text: item.innerText.trim(), disabled: item.classList.contains('is-disabled') }))
+          .slice(0, 40),
+        allDropdownItems: [...document.querySelectorAll('.el-select-dropdown__item')]
+          .map((item) => ({ text: item.innerText.trim(), className: item.className }))
+          .slice(0, 40),
         smoke: window.__uiSmoke || null,
-        bodyText: document.body.innerText.slice(0, 1600)
-        ,
+        bodyText: document.body.innerText.slice(0, 1600),
         attachmentDownload: window.__uiSmokeAttachmentDownload || null
       };
     })()
@@ -1069,7 +1185,7 @@ async function runExceptionTicketWorkflow(cdp) {
   const sourceNo = `UI-SMOKE-${Date.now()}`
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/exception-tickets' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/exception-tickets` })
     await waitForPage(cdp, `document.body.innerText.includes('异常工单')`, 'exception ticket page')
 
     await clickButton(cdp, '新建')
@@ -1226,7 +1342,7 @@ async function runSlaPolicyWorkflow(cdp) {
   const remark = `UI smoke SLA策略保存 ${Date.now()}`
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/exception-sla-policies' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/exception-sla-policies` })
     await waitForPage(cdp, `document.body.innerText.includes('SLA策略') && document.body.innerText.includes('配置')`, 'SLA policy page')
 
     await invokeButton(cdp, '配置', 'rule config button')
@@ -1243,7 +1359,7 @@ async function runSlaPolicyWorkflow(cdp) {
     `, 'SLA edit dialog')
 
     const dialog = dialogExpression('配置 SLA 策略')
-    await setElementValue(cdp, `${dialog}.querySelector('textarea[placeholder^="说明 SLA"]')`, remark, 'SLA remark input')
+    await setElementValue(cdp, `${dialog}.querySelector('textarea')`, remark, 'SLA remark input')
     await clickButton(cdp, '保存', dialog)
     await waitForPage(cdp, `
       (() => {
@@ -1285,27 +1401,8 @@ async function runExceptionRuleWorkflow(cdp) {
   let restoredTo = ''
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/exception-rules' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/exception-rules` })
     await waitForPage(cdp, `document.body.innerText.includes('异常规则') && document.body.innerText.includes('扫描全部')`, 'exception rule page')
-
-    const readFirstToggleButton = `
-      (() => {
-        const visible = (element) => {
-          if (!element) return false;
-          const style = window.getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-        };
-        const actions = ${rowActionScopeExpression(0)};
-        if (!actions) return null;
-        return [...actions.querySelectorAll('button')]
-          .filter(visible)
-          .map((button) => button.innerText.trim())
-          .find((text) => text.includes('停用') || text.includes('启用')) || null;
-      })()
-    `
-
-    const initialToggleText = await waitForPage(cdp, readFirstToggleButton, 'first rule toggle button')
     await invokeElement(cdp, rowActionButtonExpression('配置'), 'rule config button')
     await waitForPage(cdp, `
       (() => {
@@ -1336,11 +1433,34 @@ async function runExceptionRuleWorkflow(cdp) {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after rule config save'))}`)
     })
 
-    const toggleText = await waitForPage(cdp, readFirstToggleButton, 'first rule toggle button after save')
-    const restoreText = toggleText.includes('停用') ? '启用' : '停用'
+    const configuredRuleActions = `
+      (() => {
+        const rows = [...document.querySelectorAll('.el-table__body-wrapper tbody tr')];
+        const row = rows.find((item) => item.innerText.includes(${JSON.stringify(remark)}));
+        if (!row) return null;
+        const localActions = row.querySelector('.row-actions');
+        if (localActions) return localActions;
+        const rowIndex = rows.indexOf(row);
+        return [...document.querySelectorAll('.row-actions')].filter(visible)[rowIndex] || null;
+      })()
+    `
+    const currentToggleText = await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        const actions = ${configuredRuleActions};
+        return [...(actions?.querySelectorAll('button') || [])]
+          .find((button) => visible(button) && /停用|启用/.test(button.innerText))?.innerText.trim() || null;
+      })()
+    `, 'configured rule toggle button')
+    const restoreText = currentToggleText.includes('停用') ? '启用' : '停用'
     toggledTo = restoreText === '启用' ? '停用' : '启用'
-    restoredTo = initialToggleText.includes('停用') ? '启用' : '停用'
-    await invokeElement(cdp, rowActionButtonExpression(toggleText), `rule ${toggleText}`)
+    restoredTo = currentToggleText.includes('停用') ? '启用' : '停用'
+    await invokeElement(cdp, buttonExpression(currentToggleText, configuredRuleActions), `rule ${currentToggleText}`)
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -1350,14 +1470,14 @@ async function runExceptionRuleWorkflow(cdp) {
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
         const messages = [...document.querySelectorAll('.el-message')].filter(visible).map((item) => item.innerText.trim());
-        const nextButton = ${rowActionButtonExpression(restoreText)};
+        const nextButton = ${buttonExpression(restoreText, configuredRuleActions)};
         return messages.some((message) => message.includes(${JSON.stringify(`规则已${toggledTo}`)})) || Boolean(nextButton);
       })()
     `, `rule toggled to ${toggledTo}`).catch(async (error) => {
-      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, `after rule ${toggleText}`))}`)
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, `after rule ${currentToggleText}`))}`)
     })
 
-    await invokeElement(cdp, rowActionButtonExpression(restoreText), `rule restore ${restoreText}`)
+    await invokeElement(cdp, buttonExpression(restoreText, configuredRuleActions), `rule restore ${restoreText}`)
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -1367,7 +1487,7 @@ async function runExceptionRuleWorkflow(cdp) {
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
         const messages = [...document.querySelectorAll('.el-message')].filter(visible).map((item) => item.innerText.trim());
-        const initialButton = ${rowActionButtonExpression(toggleText)};
+        const initialButton = ${buttonExpression(currentToggleText, configuredRuleActions)};
         return messages.some((message) => message.includes(${JSON.stringify(`规则已${restoredTo}`)})) || Boolean(initialButton);
       })()
     `, `rule restored to ${restoredTo}`).catch(async (error) => {
@@ -1442,7 +1562,7 @@ async function runBusinessTraceWorkflow(cdp) {
   resetEvents(cdp.events)
   const keyword = await findTraceKeyword(cdp)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/reports/traces' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/reports/traces` })
     await waitForPage(cdp, `document.body.innerText.includes('生命周期时间线')`, 'business trace page')
 
     if (keyword) {
@@ -1492,7 +1612,7 @@ async function runBusinessTraceWorkflow(cdp) {
 async function runFinancePeriodWorkflow(cdp) {
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/periods' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/periods` })
     await waitForPage(cdp, `document.body.innerText.includes('会计期间管理') && document.body.innerText.includes('生成年期间')`, 'finance periods page')
 
     await invokeButton(cdp, '生成年期间', 'generate periods button')
@@ -1571,7 +1691,7 @@ async function runFinancePeriodWorkflow(cdp) {
 async function runReportExportWorkflow(cdp) {
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/reports' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/reports` })
     await waitForPage(cdp, `document.body.innerText.includes('当前报表') && document.body.innerText.includes('导出')`, 'reports page')
     await evaluatePage(cdp, `
       (() => {
@@ -1623,7 +1743,7 @@ async function runAttachmentWorkflow(cdp) {
   const filename = `attachment-smoke-${Date.now()}.txt`
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/system/attachments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/system/attachments` })
     await waitForPage(cdp, `document.body.innerText.includes('附件中心') && document.body.innerText.includes('上传')`, 'attachments page')
 
     await clickButton(cdp, '上传')
@@ -1752,7 +1872,7 @@ async function runReadinessWorkflow(cdp) {
   const actualResult = `UI smoke 发布门禁通过 ${Date.now()}`
   const decisionComment = `UI smoke No-Go 决策 ${Date.now()}`
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/system/readiness' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/system/readiness` })
     await waitForPage(cdp, `
       document.body.innerText.includes('预生产验收')
         && document.body.innerText.includes('迁移前健康检查')
@@ -1988,7 +2108,7 @@ async function runFundWorkflow(cdp) {
   const counterpartyName = `UI往来方${suffix}`
   const summary = `UI smoke 银行流水 ${suffix}`
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/funds' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/funds` })
     await waitForPage(cdp, `
       document.body.innerText.includes('资金对账')
         && document.body.innerText.includes('新增账户')
@@ -2179,7 +2299,7 @@ async function runFundMatchUnmatchWorkflow(cdp, auth) {
     }
 
     await markSmokeStep(cdp, 'fund-match:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/funds' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/funds` })
     await waitForPage(cdp, `
       document.body.innerText.includes('资金对账')
         && document.body.innerText.includes('银行流水')
@@ -2350,10 +2470,11 @@ async function runExpenseWorkflow(cdp, auth) {
       balanceDirection: 'DEBIT',
       remark: 'UI smoke 支付科目'
     })
+    await prepareExpenseBudget(auth, expenseSubject.id, suffix)
 
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'expense:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/expenses' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/expenses` })
     await waitForPage(cdp, `
       document.body.innerText.includes('费用管理')
         && document.body.innerText.includes('新增费用')
@@ -2380,7 +2501,8 @@ async function runExpenseWorkflow(cdp, auth) {
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(expenseSubject.subjectCode)}))`,
       'expense subject option'
     )
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'expense payment subject select')
+    // Expense form selects are subject, department, then payment subject.
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[2].querySelector('.el-select__wrapper')`, 'expense payment subject select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(paymentSubject.subjectCode)}))`,
@@ -2409,6 +2531,8 @@ async function runExpenseWorkflow(cdp, auth) {
     `, 'expense created as draft', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after expense create'))}`)
     })
+
+    await apiUploadAttachment(submitterAuth, 'EXPENSE', expense.id, expense.expenseNo, `expense-smoke-${suffix}.txt`)
 
     await waitForPage(cdp, `
       (() => {
@@ -2571,7 +2695,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'finance-subject:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/subjects' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/subjects` })
     await waitForPage(cdp, `
       document.body.innerText.includes('会计科目管理')
         && document.body.innerText.includes('新增科目')
@@ -2735,6 +2859,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
       balanceDirection: 'DEBIT',
       remark: 'UI smoke 凭证支付科目'
     })
+    await prepareExpenseBudget(auth, expenseSubject.id, suffix)
     const expense = await apiRequest(submitterAuth, 'POST', '/finance/expenses', {
       expenseDate,
       subjectId: expenseSubject.id,
@@ -2742,6 +2867,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
       amount: 88.88,
       remark: `UI smoke 凭证查询 ${suffix}`
     })
+    await apiUploadAttachment(submitterAuth, 'EXPENSE', expense.id, expense.expenseNo, `voucher-expense-smoke-${suffix}.txt`)
     await apiRequest(submitterAuth, 'POST', `/finance/expenses/${expense.id}/submit`, { remark: 'UI smoke 提交费用' })
     await apiRequest(auth, 'POST', `/finance/expenses/${expense.id}/approve`, { remark: 'UI smoke 审批费用' })
     const postedExpense = await apiRequest(auth, 'POST', `/finance/expenses/${expense.id}/post`)
@@ -2752,7 +2878,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
 
     await markSmokeStep(cdp, 'finance-voucher:navigate')
     await setBrowserAuth(cdp, auth)
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/vouchers' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/vouchers` })
     await waitForPage(cdp, `
       document.body.innerText.includes('凭证查询')
         && document.body.innerText.includes(${JSON.stringify(voucherNo)})
@@ -2810,7 +2936,7 @@ async function runInventoryAdjustmentWorkflow(cdp, auth) {
   const remark = `UI smoke 库存调整 ${fixture.suffix}`
   let adjustment = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/inventory/adjustments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/adjustments` })
     await waitForPage(cdp, `
       document.body.innerText.includes('新增调整')
         && document.body.innerText.includes('调整单号')
@@ -2857,7 +2983,9 @@ async function runInventoryAdjustmentWorkflow(cdp, auth) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return ${createDialog}?.querySelectorAll('.el-table__body-wrapper tbody tr').length > 0;
+        const dialog = [...document.querySelectorAll('.el-dialog')]
+          .find((item) => item.innerText.includes('新增库存调整'));
+        return Boolean(dialog?.querySelector('tbody tr'));
       })()
     `, 'adjustment line added')
     await clickElement(cdp, `${createDialog}.querySelector('.el-table__body-wrapper .el-select .el-select__wrapper')`, 'adjustment product select')
@@ -3051,7 +3179,7 @@ async function runInventoryTransferWorkflow(cdp, auth) {
   const remark = `UI smoke 库存调拨 ${fixture.suffix}`
   let transfer = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/inventory/transfers' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/transfers` })
     await waitForPage(cdp, `
       document.body.innerText.includes('新增调拨')
         && document.body.innerText.includes('调拨单号')
@@ -3114,7 +3242,9 @@ async function runInventoryTransferWorkflow(cdp, auth) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return ${createDialog}?.querySelectorAll('.el-table__body-wrapper tbody tr').length > 0;
+        const dialog = [...document.querySelectorAll('.el-dialog')]
+          .find((item) => item.innerText.includes('新增库存调拨'));
+        return Boolean(dialog?.querySelector('tbody tr'));
       })()
     `, 'transfer line added')
     await clickElement(cdp, `${createDialog}.querySelector('.el-table__body-wrapper .el-select .el-select__wrapper')`, 'transfer product select')
@@ -3134,7 +3264,13 @@ async function runInventoryTransferWorkflow(cdp, auth) {
     )
     await waitForPage(cdp, visibleTextExpression(createDialog, fixture.product.productCode), 'transfer product selected')
     await setElementValue(cdp, `${createDialog}.querySelector('.el-table__body-wrapper .el-input-number input')`, String(fixture.transferQty), 'transfer qty input')
-    await setElementValue(cdp, `${createDialog}.querySelector('.el-table__body-wrapper input[placeholder="请输入备注"]')`, 'UI smoke 调拨明细', 'transfer line remark input')
+    await setElementValue(cdp, `(() => {
+      const dialog = ${createDialog};
+      const headers = [...dialog.querySelectorAll('.el-table__header-wrapper th')];
+      const remarkIndex = headers.findIndex((header) => header.innerText.trim() === '备注');
+      const row = dialog.querySelector('.el-table__body-wrapper tbody tr');
+      return remarkIndex >= 0 ? row?.querySelectorAll('td')[remarkIndex]?.querySelector('input') : null;
+    })()`, 'UI smoke 调拨明细', 'transfer line remark input')
     await clickButton(cdp, '确定', createDialog)
 
     transfer = await waitForPage(cdp, `
@@ -3154,6 +3290,7 @@ async function runInventoryTransferWorkflow(cdp, auth) {
         const line = detail?.lines?.[0];
         if (!line || String(line.productId) !== ${JSON.stringify(String(fixture.product.id))}) return false;
         if (Number(line.qty) !== ${fixture.transferQty} || Number(line.unitCost) !== 9.5) return false;
+        if (line.lotNo || line.productionDate || line.expiryDate || line.serialNos) return false;
         return detail;
       })()
     `, 'inventory transfer created', 30000).catch(async (error) => {
@@ -3203,7 +3340,54 @@ async function runInventoryTransferWorkflow(cdp, auth) {
         return Boolean(${messageBoxExpression('确认过账此库存调拨吗')});
       })()
     `, 'inventory transfer post confirm')
+    await evaluatePage(cdp, `
+      (() => {
+        window.__uiSmoke = {
+          ...(window.__uiSmoke || {}),
+          inventoryTransferPostRequests: []
+        };
+        if (!window.__uiSmokeInventoryTransferPostPatched) {
+          window.__uiSmokeInventoryTransferPostPatched = true;
+          const rawOpen = XMLHttpRequest.prototype.open;
+          XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+            this.__uiSmokeInventoryTransferPostRecord = null;
+            const normalizedMethod = String(method || 'GET').toUpperCase();
+            if (normalizedMethod === 'POST' && String(url).includes('/api/inventory/transfers/') && String(url).includes('/post')) {
+              this.__uiSmokeInventoryTransferPostRecord = {
+                method: normalizedMethod,
+                url: String(url),
+                status: null,
+                responseText: '',
+                done: false
+              };
+              window.__uiSmoke.inventoryTransferPostRequests.push(this.__uiSmokeInventoryTransferPostRecord);
+              this.addEventListener('loadend', () => {
+                this.__uiSmokeInventoryTransferPostRecord.status = this.status;
+                this.__uiSmokeInventoryTransferPostRecord.responseText = String(this.responseText || '').slice(0, 3000);
+                this.__uiSmokeInventoryTransferPostRecord.done = true;
+              });
+            }
+            return rawOpen.call(this, method, url, ...rest);
+          };
+        }
+        return true;
+      })()
+    `)
     await clickButton(cdp, '确定', messageBoxExpression('确认过账此库存调拨吗'))
+    const transferPostRequest = await waitForPage(cdp, `
+      (window.__uiSmoke?.inventoryTransferPostRequests || []).find((request) => request.done) || false
+    `, 'inventory transfer post response').catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after inventory transfer post request'))}`)
+    })
+    let transferPostPayload = null
+    try {
+      transferPostPayload = JSON.parse(transferPostRequest.responseText || '{}')
+    } catch {
+      throw new Error(`inventory transfer post returned invalid JSON: ${transferPostRequest.responseText}`)
+    }
+    if (transferPostRequest.status < 200 || transferPostRequest.status >= 300 || transferPostPayload?.code !== '0') {
+      throw new Error(`inventory transfer post failed: HTTP ${transferPostRequest.status} ${transferPostRequest.responseText}`)
+    }
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -3270,7 +3454,7 @@ async function runInventoryCheckWorkflow(cdp, auth) {
   const remark = `UI smoke 库存盘点 ${fixture.suffix}`
   let check = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/inventory/checks' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/checks` })
     await waitForPage(cdp, `
       document.body.innerText.includes('新增盘点')
         && document.body.innerText.includes('盘点单号')
@@ -3379,21 +3563,12 @@ async function runInventoryCheckWorkflow(cdp, auth) {
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
         const row = ${checkRowExpression};
-        return row?.innerText.includes('已录入') && row?.innerText.includes(${JSON.stringify(remark)});
+        return row?.innerText.includes('已盘点') && row?.innerText.includes(${JSON.stringify(remark)});
       })()
     `, 'inventory check counted row visible')
     await invokeElement(
       cdp,
-      `(() => {
-        const visible = (element) => {
-          if (!element) return false;
-          const style = window.getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-        };
-        const row = ${checkRowExpression};
-        return row && [...row.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '调整');
-      })()`,
+      `[...document.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '调整库存')`,
       'inventory check adjust button'
     )
     await waitForPage(cdp, `
@@ -3404,10 +3579,10 @@ async function runInventoryCheckWorkflow(cdp, auth) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return Boolean(${messageBoxExpression('确认根据此盘点差异调整库存吗')});
+        return Boolean(${messageBoxExpression('确认根据此盘点单调整库存吗')});
       })()
     `, 'inventory check adjust confirm')
-    await clickButton(cdp, '确定', messageBoxExpression('确认根据此盘点差异调整库存吗'))
+    await clickButton(cdp, '确定', messageBoxExpression('确认根据此盘点单调整库存吗'))
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -3471,7 +3646,7 @@ async function runSalesOrderWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'sales:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售订单')
         && document.body.innerText.includes('新增订单')
@@ -3493,14 +3668,15 @@ async function runSalesOrderWorkflow(cdp, auth) {
 
     const createDialog = `(${dialogExpression('新增销售订单')} || document.createElement('div'))`
     await markSmokeStep(cdp, 'sales:select-customer')
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[0].querySelector('.el-select__wrapper')`, 'sales customer select')
+    // The form starts with an optional contract, then customer and warehouse.
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'sales customer select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.customer.customerName)}))`,
       'sales customer option'
     )
     await markSmokeStep(cdp, 'sales:select-warehouse')
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'sales warehouse select')
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[2].querySelector('.el-select__wrapper')`, 'sales warehouse select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.warehouse.warehouseName)}))`,
@@ -3509,16 +3685,16 @@ async function runSalesOrderWorkflow(cdp, auth) {
     await markSmokeStep(cdp, 'sales:skip-hidden-date-fields')
     await markSmokeStep(cdp, 'sales:set-remark-and-product')
     await setElementValue(cdp, `${createDialog}.querySelector('textarea')`, remark, 'sales remark input')
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[2].querySelector('.el-select__wrapper')`, 'sales product select')
+    await clickElement(cdp, `${createDialog}.querySelector('.el-table__body-wrapper .el-select .el-select__wrapper')`, 'sales product select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.product.productCode)}))`,
       'sales product option'
     )
     await markSmokeStep(cdp, 'sales:set-line-and-save')
-    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-input-number input')[0]`, String(fixture.qty), 'sales qty input')
-    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-input-number input')[1]`, String(fixture.price), 'sales price input')
-    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-input-number input')[2]`, String(fixture.taxRate), 'sales tax rate input')
+    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[1]`, String(fixture.qty), 'sales qty input')
+    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[2]`, String(fixture.price), 'sales price input')
+    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[3]`, String(fixture.taxRate), 'sales tax rate input')
     await setElementValue(cdp, `${createDialog}.querySelector('.el-table__body-wrapper input[placeholder="备注"]')`, 'UI smoke 销售明细', 'sales line remark input')
     await clickElement(cdp, `${createDialog}.querySelector('.el-dialog__footer .el-button--primary')`, 'production save button')
 
@@ -3596,7 +3772,7 @@ async function runSalesOrderWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales:search-submitted-order-as-approver')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售订单')
         && document.body.innerText.includes('新增订单')
@@ -3773,7 +3949,7 @@ async function runWorkflowTaskApprovalWorkflow(cdp, auth) {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'workflow-task:navigate')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
+      url: `${frontendBaseUrl}/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批待办')
@@ -3850,7 +4026,7 @@ async function runWorkflowTaskApprovalWorkflow(cdp, auth) {
 
     await markSmokeStep(cdp, 'workflow-record:navigate-filtered')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=APPROVE`
+      url: `${frontendBaseUrl}/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=APPROVE`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批记录')
@@ -3914,7 +4090,7 @@ async function runWorkflowTaskRejectWorkflow(cdp, auth) {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'workflow-reject:navigate')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
+      url: `${frontendBaseUrl}/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批待办')
@@ -3934,8 +4110,8 @@ async function runWorkflowTaskRejectWorkflow(cdp, auth) {
       })()`,
       'workflow task reject button'
     )
-    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('审批驳回')}); })()`, 'workflow reject dialog')
-    const rejectDialog = dialogExpression('审批驳回')
+    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('驳回')}); })()`, 'workflow reject dialog')
+    const rejectDialog = dialogExpression('驳回')
     await setElementValue(cdp, `${rejectDialog}.querySelector('textarea')`, rejectComment, 'workflow reject comment input')
     await clickButton(cdp, '确定', rejectDialog)
 
@@ -4019,7 +4195,7 @@ async function runWorkflowWithdrawWorkflow(cdp, auth) {
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'workflow-withdraw:navigate-records')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=SUBMIT`
+      url: `${frontendBaseUrl}/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=SUBMIT`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批记录')
@@ -4039,8 +4215,8 @@ async function runWorkflowWithdrawWorkflow(cdp, auth) {
       })()`,
       'workflow withdraw button'
     )
-    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('撤回审批')}); })()`, 'workflow withdraw dialog')
-    const withdrawDialog = dialogExpression('撤回审批')
+    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('撤回工作流')}); })()`, 'workflow withdraw dialog')
+    const withdrawDialog = dialogExpression('撤回工作流')
     await setElementValue(cdp, `${withdrawDialog}.querySelector('textarea')`, withdrawComment, 'workflow withdraw comment input')
     await clickButton(cdp, '确认撤回', withdrawDialog)
 
@@ -4093,7 +4269,7 @@ async function runSalesDeliveryWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-delivery:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/deliveries' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/deliveries` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售发货')
         && document.body.innerText.includes('新增发货')
@@ -4253,7 +4429,7 @@ async function runSalesReceiptWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-receipt:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/payments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/payments` })
     await waitForPage(cdp, `
       document.body.innerText.includes('收款管理')
         && document.body.innerText.includes('新增收款')
@@ -4300,6 +4476,7 @@ async function runSalesReceiptWorkflow(cdp, auth) {
         return amountInput && Number(amountInput.value) > 0;
       })()
     `, 'receipt amount filled')
+    await setElementValue(cdp, `${createDialog}.querySelector('.el-input-number input')`, String(fixture.receivable.remainingAmount), 'receipt amount input')
     await setElementValue(cdp, `${createDialog}.querySelector('textarea')`, remark, 'receipt remark input')
     await clickButton(cdp, '确定', createDialog)
 
@@ -4365,7 +4542,7 @@ async function runSalesReturnWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-return:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/returns' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/returns` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售退货')
         && document.body.innerText.includes('新增退货')
@@ -4786,7 +4963,7 @@ async function runDraftEditWorkflow(cdp, auth, opts) {
       await opts.beforeSave(cdp, prepared, editDialog)
     }
     await markSmokeStep(cdp, `${opts.step}:update-remark`)
-    await setElementValue(cdp, `${editDialog}.querySelector('textarea')`, newRemark, `${opts.docLabel} remark input`)
+    await setElementValue(cdp, `${editDialog}.querySelector('.el-form-item textarea')`, newRemark, `${opts.docLabel} remark input`)
     await clickButton(cdp, '确定', editDialog)
 
     await markSmokeStep(cdp, `${opts.step}:verify`)
@@ -4830,7 +5007,7 @@ function runPurchaseReceiptDraftEditWorkflow(cdp, auth) {
     name: 'purchase-receipt-draft-edit',
     step: 'purchase-receipt-draft-edit',
     docLabel: '采购收货',
-    url: 'http://127.0.0.1:5173/purchase/receipts',
+    url: `${frontendBaseUrl}/purchase/receipts`,
     pageText: '采购收货管理',
     searchPlaceholder: '请输入收货单号',
     searchButton: '搜索',
@@ -4850,7 +5027,7 @@ function runPurchaseReturnDraftEditWorkflow(cdp, auth) {
     name: 'purchase-return-draft-edit',
     step: 'purchase-return-draft-edit',
     docLabel: '采购退货',
-    url: 'http://127.0.0.1:5173/purchase/returns',
+    url: `${frontendBaseUrl}/purchase/returns`,
     pageText: '采购退货',
     searchPlaceholder: '请输入退货单号',
     searchButton: '搜索',
@@ -4864,7 +5041,7 @@ function runSalesDeliveryDraftEditWorkflow(cdp, auth) {
     name: 'sales-delivery-draft-edit',
     step: 'sales-delivery-draft-edit',
     docLabel: '销售发货',
-    url: 'http://127.0.0.1:5173/sales/deliveries',
+    url: `${frontendBaseUrl}/sales/deliveries`,
     pageText: '销售发货',
     searchPlaceholder: '请输入发货单号',
     searchButton: '查询',
@@ -4884,7 +5061,7 @@ function runSalesReturnDraftEditWorkflow(cdp, auth) {
     name: 'sales-return-draft-edit',
     step: 'sales-return-draft-edit',
     docLabel: '销售退货',
-    url: 'http://127.0.0.1:5173/sales/returns',
+    url: `${frontendBaseUrl}/sales/returns`,
     pageText: '销售退货',
     searchPlaceholder: '请输入退货单号',
     searchButton: '查询',
@@ -4902,7 +5079,7 @@ async function runPurchaseReturnWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-return:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/returns' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/returns` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购退货')
         && document.body.innerText.includes('新增退货')
@@ -4946,7 +5123,7 @@ async function runPurchaseReturnWorkflow(cdp, auth) {
     })
     await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-date-editor input')[0]`, fixture.orderDate, 'purchase return date input')
     await setElementValue(cdp, `${createDialog}.querySelector('.el-input-number input')`, String(returnQty), 'purchase return qty input')
-    await setElementValue(cdp, `${createDialog}.querySelector('textarea')`, remark, 'purchase return remark input')
+    await setElementValue(cdp, `${createDialog}.querySelector('.el-form-item textarea')`, remark, 'purchase return remark input')
     await clickButton(cdp, '确定', createDialog)
 
     await markSmokeStep(cdp, 'purchase-return:wait-created')
@@ -5100,7 +5277,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'purchase-order:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购订单管理')
         && document.body.innerText.includes('新增订单')
@@ -5122,7 +5299,8 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
 
     const orderDialog = `(${dialogExpression('新增采购订单')} || document.createElement('div'))`
     await markSmokeStep(cdp, 'purchase-order:select-supplier')
-    await clickElement(cdp, `${orderDialog}.querySelectorAll('.el-select')[0].querySelector('.el-select__wrapper')`, 'purchase supplier select')
+    // The optional contract select precedes the supplier select.
+    await clickElement(cdp, `${orderDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'purchase supplier select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.supplier.supplierName)}))`,
@@ -5141,8 +5319,8 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.product.productCode)}))`,
       'purchase product option'
     )
-    await setElementValue(cdp, `${orderDialog}.querySelectorAll('.el-input-number input')[0]`, String(fixture.qty), 'purchase qty input')
-    await setElementValue(cdp, `${orderDialog}.querySelectorAll('.el-input-number input')[1]`, String(fixture.price), 'purchase price input')
+    await setElementValue(cdp, `${orderDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[1]`, String(fixture.qty), 'purchase qty input')
+    await setElementValue(cdp, `${orderDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[2]`, String(fixture.price), 'purchase price input')
     await setElementValue(cdp, `${orderDialog}.querySelector('.el-table__body-wrapper input[placeholder="选填"]')`, 'UI smoke 采购明细', 'purchase line remark input')
     await clickButton(cdp, '确定', orderDialog)
 
@@ -5215,7 +5393,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-order:approve-as-admin')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/orders` })
     await waitForPage(cdp, `document.body.innerText.includes('采购订单管理')`, 'purchase order page as approver')
     await setElementValue(cdp, `document.querySelector('input[placeholder="请输入订单编号"]')`, order.orderNo, 'purchase order no search input after submit')
     await clickButton(cdp, '搜索')
@@ -5274,7 +5452,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
     })
 
     await markSmokeStep(cdp, 'purchase-receipt:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/receipts' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/receipts` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购收货管理')
         && document.body.innerText.includes('新增收货')
@@ -5316,7 +5494,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.warehouse.warehouseName)}))`,
       'purchase receipt warehouse option'
     )
-    await setElementValue(cdp, `${receiptDialog}.querySelector('textarea')`, receiptRemark, 'purchase receipt remark input')
+    await setElementValue(cdp, `${receiptDialog}.querySelector('.el-form-item textarea')`, receiptRemark, 'purchase receipt remark input')
     await clickButton(cdp, '确定', receiptDialog)
 
     receipt = await waitForPage(cdp, `
@@ -5401,7 +5579,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
     })
 
     await markSmokeStep(cdp, 'purchase-payment:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/payments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/payments` })
     await waitForPage(cdp, `document.body.innerText.includes('收款管理') && document.body.innerText.includes('付款管理')`, 'finance payments page')
     await invokeElement(
       cdp,
@@ -5446,6 +5624,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
         return amountInput && Number(amountInput.value) > 0;
       })()
     `, 'payment amount filled')
+    await setElementValue(cdp, `${paymentDialog}.querySelector('.el-input-number input')`, String(payable.remainingAmount), 'payment amount input')
     await setElementValue(cdp, `${paymentDialog}.querySelector('textarea')`, paymentRemark, 'payment remark input')
     await clickButton(cdp, '确定', paymentDialog)
 
@@ -5493,7 +5672,7 @@ async function runProductionOrderWorkflow(cdp, auth) {
   const remark = `UI smoke 生产订单 ${fixture.suffix}`
   let order = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/production/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/production/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('生产订单管理')
         && document.body.innerText.includes('新增订单')
@@ -5684,18 +5863,16 @@ async function runProductionOrderWorkflow(cdp, auth) {
       `[...document.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '领料')`,
       'production issue button'
     )
-    await waitForPage(cdp, `
-      (() => {
-        const visible = (element) => {
-          if (!element) return false;
-          const style = window.getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-        };
-        return Boolean(${messageBoxExpression('按剩余需求领料')});
-      })()
-    `, 'production issue confirm')
-    await clickButton(cdp, '确定', messageBoxExpression('按剩余需求领料'))
+    const issueDialog = dialogExpression('生产领料')
+    await waitForPage(cdp, `Boolean(${issueDialog})`, 'production issue dialog')
+    await setElementValue(cdp, `${issueDialog}.querySelector('input[placeholder="请输入备注"]')`, 'UI smoke 生产领料', 'production issue remark input')
+    await invokeElement(cdp, `${issueDialog}.querySelector('.el-select .el-select__wrapper')`, 'production issue location select')
+    await invokeElement(
+      cdp,
+      `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && !item.classList.contains('is-disabled') && item.innerText.includes(${JSON.stringify(fixture.materialLocation.locationName)}))`,
+      'production issue location option'
+    )
+    await clickButton(cdp, '确认领料', issueDialog)
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -5728,8 +5905,73 @@ async function runProductionOrderWorkflow(cdp, auth) {
       })()
     `, 'production complete dialog')
     const completeDialog = dialogExpression('生产完工')
-    await setElementValue(cdp, `${completeDialog}.querySelector('textarea')`, 'UI smoke 生产完工', 'production complete remark input')
-    await clickButton(cdp, '确定完工', completeDialog)
+    await setElementValue(cdp, `${completeDialog}.querySelectorAll('textarea')[1]`, 'UI smoke 生产完工', 'production complete remark input')
+    await invokeElement(cdp, `${completeDialog}.querySelector('.el-select .el-select__wrapper')`, 'production complete location select')
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        return Boolean([...document.querySelectorAll('.el-select-dropdown__item')]
+          .find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.finishedLocation.locationName)})));
+      })()
+    `, 'production complete location option')
+    await invokeElement(
+      cdp,
+      `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.finishedLocation.locationName)}))`,
+      'production complete location option'
+    )
+    await evaluatePage(cdp, `
+      (() => {
+        window.__uiSmoke = {
+          ...(window.__uiSmoke || {}),
+          productionCompletionRequests: []
+        };
+        if (!window.__uiSmokeProductionCompletionPatched) {
+          window.__uiSmokeProductionCompletionPatched = true;
+          const rawOpen = XMLHttpRequest.prototype.open;
+          XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+            this.__uiSmokeProductionCompletionRecord = null;
+            const normalizedMethod = String(method || 'GET').toUpperCase();
+            if (normalizedMethod === 'POST' && String(url).includes('/api/production/orders/') && String(url).includes('/complete')) {
+              this.__uiSmokeProductionCompletionRecord = {
+                method: normalizedMethod,
+                url: String(url),
+                status: null,
+                responseText: '',
+                done: false
+              };
+              window.__uiSmoke.productionCompletionRequests.push(this.__uiSmokeProductionCompletionRecord);
+              this.addEventListener('loadend', () => {
+                this.__uiSmokeProductionCompletionRecord.status = this.status;
+                this.__uiSmokeProductionCompletionRecord.responseText = String(this.responseText || '').slice(0, 3000);
+                this.__uiSmokeProductionCompletionRecord.done = true;
+              });
+            }
+            return rawOpen.call(this, method, url, ...rest);
+          };
+        }
+        return true;
+      })()
+    `)
+    await invokeButton(cdp, '确定完工', 'production complete confirm button', completeDialog)
+    const completionRequest = await waitForPage(cdp, `
+      (window.__uiSmoke?.productionCompletionRequests || []).find((request) => request.done) || false
+    `, 'production completion request response').catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production completion request'))}`)
+    })
+    let completionPayload = null
+    try {
+      completionPayload = JSON.parse(completionRequest.responseText || '{}')
+    } catch {
+      throw new Error(`production completion returned invalid JSON: ${completionRequest.responseText}`)
+    }
+    if (completionRequest.status < 200 || completionRequest.status >= 300 || completionPayload?.code !== '0') {
+      throw new Error(`production completion failed: HTTP ${completionRequest.status} ${completionRequest.responseText}`)
+    }
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -5742,7 +5984,7 @@ async function runProductionOrderWorkflow(cdp, auth) {
         return !${dialogExpression('生产完工')} && row?.innerText.includes('已完成');
       })()
     `, 'production order completed', 30000).catch(async (error) => {
-      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production complete'))}`)
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production complete'))}; events=${JSON.stringify(cdp.events)}`)
     })
 
     await waitForPage(cdp, `
@@ -5861,7 +6103,7 @@ async function runManualVoucherWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'manual-voucher:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/vouchers/manual' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/vouchers/manual` })
     await waitForPage(cdp, `
       document.body.innerText.includes('手工凭证')
         && document.body.innerText.includes('录入凭证')
@@ -6018,7 +6260,7 @@ async function runQcInspectionWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'qc-inspection:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/qc/inspections' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/qc/inspections` })
     await waitForPage(cdp, `document.body.innerText.includes('新建检验单')`, 'qc inspection page', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after qc inspection navigate'))}`)
     })
@@ -6130,7 +6372,7 @@ async function runSystemConfigCreateWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'system-config:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/system/configs' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/system/configs` })
     await waitForPage(cdp, `
       document.body.innerText.includes('系统配置管理')
         && document.body.innerText.includes('新增配置')
@@ -6228,7 +6470,7 @@ async function runFinanceInvoiceWorkflow(cdp, auth) {
     await ensureOpenPeriod(auth, invoiceDate)
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'finance-invoice:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/invoices' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/invoices` })
     await waitForPage(cdp, `document.body.innerText.includes('发票登记') && document.body.innerText.includes('新增登记')`, 'finance invoice page', 30000)
 
     await markSmokeStep(cdp, 'finance-invoice:create')
@@ -6263,7 +6505,7 @@ async function runFinanceInvoiceWorkflow(cdp, auth) {
     })()`
 
     await markSmokeStep(cdp, 'finance-invoice:post')
-    await invokeElement(cdp, rowButton('确认'), 'invoice post button')
+    await invokeElement(cdp, rowButton('确定'), 'invoice post button')
     await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${messageBoxExpression('提示')}); })()`, 'invoice post prompt')
     await clickButton(cdp, '确定', messageBoxExpression('提示'))
     await waitForPage(cdp, `
@@ -6366,7 +6608,7 @@ async function runPurchaseInquiryConvertToPoWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-inquiry:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/inquiries' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/inquiries` })
     await waitForPage(cdp, `document.body.innerText.includes('采购询价') || document.body.innerText.includes('新建询价单')`, 'purchase inquiry page', 30000)
     await waitForPage(cdp, `(() => { ${visibleDefinition}; return [...document.querySelectorAll('.el-table__body-wrapper tbody tr')].some((row) => visible(row) && row.innerText.includes(${JSON.stringify(inquiry.inquiryNo)})); })()`, 'inquiry row visible', 30000)
 
@@ -6449,7 +6691,7 @@ async function runPurchaseOrderUnapproveWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-order-unapprove:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购订单管理')
         && document.body.innerText.includes('新增订单')
@@ -6543,7 +6785,7 @@ async function runSalesOrderUnapproveWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-order-unapprove:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售订单')
         && document.body.innerText.includes('新增订单')
@@ -6631,18 +6873,28 @@ async function main() {
   const chromeProfileDir = join(targetDir, `ui-smoke-chrome-profile-${process.pid}-${Date.now()}`)
   const chromeWindowSize = process.env.UI_SMOKE_WINDOW_SIZE || '1440,1000'
 
+  await assertPortAvailable('ERP backend', backendPort)
+  await assertPortAvailable('UI smoke frontend', frontendPort)
+  await assertPortAvailable('Chrome debugging', 9223)
+
   const datasourceUrl = process.env.ERP_UI_SMOKE_DATASOURCE_URL
     || 'jdbc:mysql://localhost:3306/erp_codex_runtime?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8'
+  const datasourceUsername = process.env.ERP_UI_SMOKE_DATASOURCE_USERNAME || 'root'
+  const datasourcePassword = process.env.ERP_UI_SMOKE_DATASOURCE_PASSWORD || '12345678'
   const backendTimeoutMs = Number(process.env.ERP_UI_SMOKE_BACKEND_TIMEOUT_MS || 90000)
 
   start('backend', 'java', [
     '-jar',
     join('target', 'erp-server-1.0.0.jar'),
     '--spring.profiles.active=local',
-    `--spring.datasource.url=${datasourceUrl}`
+    `--spring.datasource.url=${datasourceUrl}`,
+    `--spring.datasource.username=${datasourceUsername}`,
+    `--spring.datasource.password=${datasourcePassword}`,
+    `--server.port=${backendPort}`,
+    `--erp.security.cors.allowed-origins=http://127.0.0.1:${frontendPort}`
   ], backendDir)
 
-  await waitFor('backend', 'http://127.0.0.1:8080/actuator/health', backendTimeoutMs)
+  await waitFor('backend', `${backendBaseUrl}/actuator/health`, backendTimeoutMs)
   const { credentials, auth } = await login()
 
   if (process.platform === 'win32') {
@@ -6650,16 +6902,17 @@ async function main() {
       '/d',
       '/s',
       '/c',
-      'npm run dev -- --host 127.0.0.1 --port 5173'
+      `npm run dev -- --host 127.0.0.1 --port ${frontendPort} --strictPort`
     ], frontendDir)
   } else {
-    start('frontend', 'npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173'], frontendDir)
+    start('frontend', 'npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(frontendPort), '--strictPort'], frontendDir)
   }
 
-  await waitFor('frontend', 'http://127.0.0.1:5173/')
+  await waitFor('frontend', `${frontendBaseUrl}/`)
 
   start('chrome', chromePath, [
     '--headless=new',
+    ...(process.platform === 'linux' && process.env.CI === 'true' ? ['--no-sandbox'] : []),
     '--disable-gpu',
     '--disable-gpu-shader-disk-cache',
     '--disable-gpu-program-cache',
@@ -6679,8 +6932,8 @@ async function main() {
   await cdp.send('Page.enable')
   await cdp.send('Network.enable')
 
-  await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/login' })
-  await sleep(1500)
+  await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/login` })
+  await waitForPage(cdp, "document.body.innerText.includes('欢迎登录')", 'initial login page render', 30000)
   await setBrowserAuth(cdp, auth)
 
   const routes = [
@@ -6718,7 +6971,7 @@ async function main() {
   const results = []
   for (const route of shouldRunRoutes ? routes : []) {
     resetEvents(cdp.events)
-    await cdp.send('Page.navigate', { url: `http://127.0.0.1:5173${route.path}` })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}${route.path}` })
     await sleep(4500)
     const state = await cdp.send('Runtime.evaluate', {
       expression: `({
@@ -6729,8 +6982,22 @@ async function main() {
       })`,
       returnByValue: true
     })
-    const page = state.result.value
-    const failures = snapshotFailures(cdp.events)
+    let page = state.result.value
+    let failures = snapshotFailures(cdp.events)
+    const viteModuleLoadInterrupted = failures.some((failure) => failure.includes('Failed to fetch dynamically imported module'))
+      && failures.some((failure) => failure.includes('net::ERR_ABORTED'))
+    if (viteModuleLoadInterrupted) {
+      resetEvents(cdp.events)
+      await cdp.send('Page.navigate', { url: `${frontendBaseUrl}${route.path}` })
+      await waitForPage(cdp, `location.pathname === ${JSON.stringify(route.path)} && document.body.innerText.includes(${JSON.stringify(route.text)})`, `${route.path} after Vite optimization`, 30000)
+      await sleep(500)
+      const retryState = await cdp.send('Runtime.evaluate', {
+        expression: `({ path: location.pathname, title: document.title, text: document.body.innerText, message: document.querySelector('.el-message')?.innerText || '' })`,
+        returnByValue: true
+      })
+      page = retryState.result.value
+      failures = snapshotFailures(cdp.events)
+    }
     if (page.path !== route.path) {
       failures.push(`redirected to ${page.path}`)
     }
@@ -6824,6 +7091,18 @@ async function main() {
   const report = {
     loginUser: credentials.username,
     checkedAt: new Date().toISOString(),
+    ci: process.env.GITHUB_ACTIONS === 'true'
+      ? {
+          provider: 'github-actions',
+          revision: process.env.GITHUB_SHA || null,
+          workflow: process.env.GITHUB_WORKFLOW || null,
+          runId: process.env.GITHUB_RUN_ID || null,
+          runAttempt: process.env.GITHUB_RUN_ATTEMPT || null,
+          runUrl: process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+            ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+            : null
+        }
+      : null,
     results,
     workflows
   }
