@@ -13,7 +13,7 @@ const targetDir = join(backendDir, 'target')
 const chromePath = resolveChromePath()
 const backendPort = Number(process.env.ERP_UI_SMOKE_BACKEND_PORT || 8080)
 const backendBaseUrl = `http://127.0.0.1:${backendPort}`
-const frontendPort = Number(process.env.UI_SMOKE_FRONTEND_PORT || 5173)
+const frontendPort = Number(process.env.ERP_UI_SMOKE_FRONTEND_PORT || process.env.UI_SMOKE_FRONTEND_PORT || 5173)
 const frontendBaseUrl = `http://127.0.0.1:${frontendPort}`
 
 const children = []
@@ -6933,7 +6933,7 @@ async function main() {
   await cdp.send('Network.enable')
 
   await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/login` })
-  await sleep(1500)
+  await waitForPage(cdp, "document.body.innerText.includes('欢迎登录')", 'initial login page render', 30000)
   await setBrowserAuth(cdp, auth)
 
   const routes = [
