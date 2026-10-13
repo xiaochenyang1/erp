@@ -6982,8 +6982,22 @@ async function main() {
       })`,
       returnByValue: true
     })
-    const page = state.result.value
-    const failures = snapshotFailures(cdp.events)
+    let page = state.result.value
+    let failures = snapshotFailures(cdp.events)
+    const viteModuleLoadInterrupted = failures.some((failure) => failure.includes('Failed to fetch dynamically imported module'))
+      && failures.some((failure) => failure.includes('net::ERR_ABORTED'))
+    if (viteModuleLoadInterrupted) {
+      resetEvents(cdp.events)
+      await cdp.send('Page.navigate', { url: `${frontendBaseUrl}${route.path}` })
+      await waitForPage(cdp, `location.pathname === ${JSON.stringify(route.path)} && document.body.innerText.includes(${JSON.stringify(route.text)})`, `${route.path} after Vite optimization`, 30000)
+      await sleep(500)
+      const retryState = await cdp.send('Runtime.evaluate', {
+        expression: `({ path: location.pathname, title: document.title, text: document.body.innerText, message: document.querySelector('.el-message')?.innerText || '' })`,
+        returnByValue: true
+      })
+      page = retryState.result.value
+      failures = snapshotFailures(cdp.events)
+    }
     if (page.path !== route.path) {
       failures.push(`redirected to ${page.path}`)
     }
