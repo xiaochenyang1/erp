@@ -6897,7 +6897,6 @@ async function main() {
   await waitFor('backend', `${backendBaseUrl}/actuator/health`, backendTimeoutMs)
   const { credentials, auth } = await login()
 
-  process.env.ERP_API_PROXY_TARGET = backendBaseUrl
   if (process.platform === 'win32') {
     start('frontend', process.env.ComSpec || 'cmd.exe', [
       '/d',
@@ -6913,6 +6912,7 @@ async function main() {
 
   start('chrome', chromePath, [
     '--headless=new',
+    ...(process.platform === 'linux' && process.env.CI === 'true' ? ['--no-sandbox'] : []),
     '--disable-gpu',
     '--disable-gpu-shader-disk-cache',
     '--disable-gpu-program-cache',

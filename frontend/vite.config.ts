@@ -5,8 +5,6 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
-const apiProxyTarget = process.env.ERP_API_PROXY_TARGET || 'http://localhost:8080'
-
 export default defineConfig({
   plugins: [
     vue(),
@@ -29,11 +27,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: apiProxyTarget,
+        target: 'http://localhost:8080',
         changeOrigin: true
       },
       '/actuator': {
-        target: apiProxyTarget,
+        target: 'http://localhost:8080',
         changeOrigin: true
       }
     }

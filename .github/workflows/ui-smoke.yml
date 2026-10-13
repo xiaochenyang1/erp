@@ -88,9 +88,9 @@ jobs:
       ERP_UI_SMOKE_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/erp_codex_runtime?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
       ERP_UI_SMOKE_DATASOURCE_USERNAME: root
       ERP_UI_SMOKE_DATASOURCE_PASSWORD: ui_smoke_ci_root_password
-      ERP_UI_SMOKE_BACKEND_PORT: '8081'
+      ERP_UI_SMOKE_BACKEND_PORT: '8080'
       ERP_UI_SMOKE_FRONTEND_PORT: '5196'
-      ERP_UI_SMOKE_BACKEND_URL: http://127.0.0.1:8081
+      ERP_UI_SMOKE_BACKEND_URL: http://127.0.0.1:8080
       ERP_LOCAL_ADMIN_PASSWORD: LocalAdmin123
       ERP_UI_SMOKE_RUNTIME_PASSWORD: RuntimeSmoke123
     steps:
