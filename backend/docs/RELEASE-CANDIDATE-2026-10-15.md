@@ -22,12 +22,17 @@
 | BOM 基准 10、用料 4、损耗 10%，生产 6 | 工单用料与对应 MRP 材料需求均为 2.64 |
 | 禁用的预警规则、其他账套库存 | 不影响当前启用规则和当前账套净需求 |
 
+**依赖安全收尾**
+
+生产依赖审计发现旧锁文件中的 Vue/server-renderer、Axios、source-map-js 涉及高危告警。本轮升级为 Vue 3.5.44、Axios 1.20.0、source-map-js 1.2.2（传递依赖），更新锁文件；升级后生产依赖审计为 0 漏洞。最终候选仍须执行以下完整检查，旧候选检查不能替代升级后回归。
+
 **本地候选验证入口**
 
 前置：Java 17、Maven Wrapper、Node 22、前端依赖、Docker、PowerShell 7、Chrome/Edge；`pwsh` 位于 PATH。下面的后端和 UI 入口使用独立临时 MySQL，结束后清理，不依赖本机业务库。
 
 ```bash
 cd frontend
+npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
 npm run type-check
 npm run lint
 npm test
