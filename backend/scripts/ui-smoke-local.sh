@@ -13,6 +13,7 @@ cleanup() {
   docker rm -f "${container_name}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
+export UI_SMOKE_FRONTEND_MODE="${UI_SMOKE_FRONTEND_MODE:-preview}"
 export ERP_UI_SMOKE_BACKEND_PORT="${ERP_UI_SMOKE_BACKEND_PORT:-19381}"
 export UI_SMOKE_FRONTEND_PORT="${UI_SMOKE_FRONTEND_PORT:-19373}"
 export ERP_UI_SMOKE_BACKEND_URL="http://127.0.0.1:${ERP_UI_SMOKE_BACKEND_PORT}"
@@ -22,7 +23,11 @@ export ERP_UI_SMOKE_DATASOURCE_USERNAME="root"
 export ERP_UI_SMOKE_DATASOURCE_PASSWORD="ui_smoke_disposable_password"
 
 [[ -f "${backend_root}/target/erp-server-1.0.0.jar" ]] || { echo 'Build the backend package before running UI smoke.' >&2; exit 1; }
+if [[ "${UI_SMOKE_FRONTEND_MODE}" == preview ]]; then
+  npm --prefix "${backend_root}/../frontend" run build
+fi
 node --input-type=module -e '
+
   import { createServer } from "node:net";
   for (const port of [process.env.ERP_UI_SMOKE_BACKEND_PORT, process.env.UI_SMOKE_FRONTEND_PORT, 9223]) {
     await new Promise((resolve, reject) => {

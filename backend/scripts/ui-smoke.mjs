@@ -17,6 +17,8 @@ const backendPort = Number(process.env.ERP_UI_SMOKE_BACKEND_PORT || 8080)
 const backendBaseUrl = `http://127.0.0.1:${backendPort}`
 const frontendPort = Number(process.env.UI_SMOKE_FRONTEND_PORT || 5173)
 const frontendBaseUrl = `http://127.0.0.1:${frontendPort}`
+const frontendMode = process.env.UI_SMOKE_FRONTEND_MODE || 'dev'
+if (!['dev', 'preview'].includes(frontendMode)) throw new Error('UI_SMOKE_FRONTEND_MODE must be dev or preview')
 
 const children = []
 const loginCache = new Map()
@@ -6901,15 +6903,18 @@ async function main() {
   const { credentials, auth } = await login()
 
   process.env.ERP_API_PROXY_TARGET = backendBaseUrl
+  if (frontendMode === 'preview' && !existsSync(join(frontendDir, 'dist', 'index.html'))) {
+    throw new Error('Build the frontend before running UI smoke in preview mode')
+  }
   if (process.platform === 'win32') {
     start('frontend', process.env.ComSpec || 'cmd.exe', [
       '/d',
       '/s',
       '/c',
-      `npm run dev -- --host 127.0.0.1 --port ${frontendPort} --strictPort`
+      `npm run ${frontendMode} -- --host 127.0.0.1 --port ${frontendPort} --strictPort`
     ], frontendDir)
   } else {
-    start('frontend', 'npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(frontendPort), '--strictPort'], frontendDir)
+    start('frontend', 'npm', ['run', frontendMode, '--', '--host', '127.0.0.1', '--port', String(frontendPort), '--strictPort'], frontendDir)
   }
 
   await waitFor('frontend', `${frontendBaseUrl}/`)
@@ -6936,7 +6941,7 @@ async function main() {
   await cdp.send('Network.enable')
 
   await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/login` })
-  await sleep(1500)
+  await waitForPage(cdp, `location.pathname === '/login' && document.querySelector('input[type=\"password\"]') && document.readyState === 'complete'`, 'login page initialized', 30000)
   await setBrowserAuth(cdp, auth)
 
   const routes = [
@@ -7084,6 +7089,7 @@ async function main() {
   const failedWorkflows = workflows.filter((workflow) => !workflow.passed)
   const report = {
     loginUser: credentials.username,
+    frontendMode,
     checkedAt: new Date().toISOString(),
     sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: backendDir, encoding: 'utf8' }).trim(),
     dirtyWorktree: execFileSync('git', ['status', '--porcelain'], { cwd: backendDir, encoding: 'utf8' }).trim().length > 0,

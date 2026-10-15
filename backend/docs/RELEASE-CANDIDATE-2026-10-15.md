@@ -49,6 +49,8 @@ cd ../backend
 UI_SMOKE_ROUTES=0 UI_SMOKE_WORKFLOW=mrp ./scripts/ui-smoke-local.sh
 ```
 
+本地入口与 CI 使用构建后的前端 `preview`，避免开发服务器冷启动依赖预编译的自动刷新干扰验收。底层脚本可通过 `UI_SMOKE_FRONTEND_MODE=dev` 进行日常开发调试；正式候选使用 `preview`。
+
 完整 UI 报告包含 MRP 页面运行、建议数量、转采购及采购单数量核对，以及既有多币种和采销产等流程。不要在全量通过后用专项报告覆盖唯一的完整报告副本。
 
 **候选归档要求**
