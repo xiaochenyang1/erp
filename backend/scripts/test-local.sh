@@ -26,6 +26,13 @@ fail() {
   exit 1
 }
 
+release_check=false
+if [[ "${1:-}" == "--release-check" ]]; then
+  release_check=true
+  shift
+  command -v pwsh >/dev/null 2>&1 || fail "PowerShell 7 (pwsh) is required for the release gate."
+fi
+
 command -v docker >/dev/null 2>&1 || fail "Docker is required. Start Docker Desktop and retry."
 [[ -x "${backend_root}/mvnw" ]] || fail "Maven wrapper not found: ${backend_root}/mvnw"
 
@@ -82,6 +89,12 @@ done
 export ERP_TEST_DATASOURCE_URL="jdbc:mysql://${mysql_host}:${mysql_port}/${mysql_database}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8"
 export ERP_TEST_DATASOURCE_USERNAME="${mysql_user}"
 export ERP_TEST_DATASOURCE_PASSWORD="${mysql_password}"
+
+if [[ "${release_check}" == true ]]; then
+  cd "${backend_root}"
+  pwsh -NoLogo -NoProfile -File scripts/release-check.ps1 -IncludeTestcontainers "$@"
+  exit 0
+fi
 
 goals_present=false
 for argument in "$@"; do
