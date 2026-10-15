@@ -104,7 +104,8 @@ export const getReportTabLabel = (t: Translate, key: ReportKey) =>
 
 export const sumReportAmount = (records: ReportRecord[]) =>
   records.reduce((sum, row) => {
-    if ('fxGainLossAmount' in row) return sum + Number(row.fxGainLossAmount || 0)
+    if ('fxGainLossAmount' in row) return sum + (row.direction === 'PAYABLE' ? -1 : 1)
+      * (Number(row.fxGainLossAmount || 0) + Number(row.roundingAmount || 0))
     if ('baseTotalAmount' in row && Number(row.baseTotalAmount || 0) !== 0) {
       return sum + Number(row.baseTotalAmount || 0)
     }
@@ -120,7 +121,8 @@ export const sumReportAmount = (records: ReportRecord[]) =>
 export const useReportPresentation = (
   t: Translate,
   activeKey: Ref<ReportKey>,
-  activeState: ComputedRef<ReportState>
+  activeState: ComputedRef<ReportState>,
+  baseCurrency?: Ref<string>
 ) => {
   const reportTabs = computed(() => reportKeys.map((key) => ({
     key,
@@ -134,9 +136,15 @@ export const useReportPresentation = (
     Math.max(1, Math.ceil(activeState.value.total / activeState.value.pageSize))
   )
   const summaryAmount = computed(() => sumReportAmount(activeState.value.records))
+  const roundingTotal = computed(() => activeState.value.records.reduce((sum, row) =>
+    'fxGainLossAmount' in row
+      ? sum + (row.direction === 'PAYABLE' ? -1 : 1) * Number(row.roundingAmount || 0)
+      : sum, 0))
 
   const formatMoney = (amount?: number) =>
-    formatLocalizedCurrency(Number(amount || 0))
+    baseCurrency && !baseCurrency.value
+      ? formatLocalizedNumber(Number(amount || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : formatLocalizedCurrency(Number(amount || 0), { currency: baseCurrency?.value || 'CNY' })
 
   const formatNumber = (value?: number) =>
     formatLocalizedNumber(Number(value || 0), {
@@ -197,6 +205,7 @@ export const useReportPresentation = (
     reportDirectionLabel,
     reportStatusLabel,
     reportTabs,
-    summaryAmount
+    summaryAmount,
+    roundingTotal
   }
 }

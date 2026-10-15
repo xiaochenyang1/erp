@@ -299,6 +299,9 @@ export interface FxGainLossReportRow {
   baseSettledAmount: number
   /** 收款为正是汇兑收益，付款为正是汇兑损失 */
   fxGainLossAmount: number
+  roundingAmount?: number
+  totalGainLossAmount?: number
+  postingSnapshot?: boolean
 }
 
 export interface InventoryValuationReportRow {
@@ -419,7 +422,10 @@ const normalizeFxGainLossReportRow = (row: FxGainLossReportRow): FxGainLossRepor
   settlementRate: Number(row.settlementRate ?? 1),
   baseAllocatedAmount: Number(row.baseAllocatedAmount ?? 0),
   baseSettledAmount: Number(row.baseSettledAmount ?? 0),
-  fxGainLossAmount: Number(row.fxGainLossAmount ?? 0)
+  fxGainLossAmount: Number(row.fxGainLossAmount ?? 0),
+  roundingAmount: Number(row.roundingAmount ?? 0),
+  totalGainLossAmount: Number(row.fxGainLossAmount ?? 0) + Number(row.roundingAmount ?? 0),
+  postingSnapshot: row.postingSnapshot === true
 })
 
 const normalizeInventoryValuationReportRow = (row: InventoryValuationReportRow): InventoryValuationReportRow => ({

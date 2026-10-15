@@ -16,6 +16,7 @@ export interface FinanceStatementPrintLine extends PartnerStatementLine {
 
 export type FinanceStatementPrintDto = Omit<PartnerStatement, 'lines'> & {
   partnerTypeLabel: string
+  currencyNotice: string
   lines: FinanceStatementPrintLine[]
 }
 
@@ -28,7 +29,9 @@ const DOCUMENT_TYPE_KEYS: Record<string, string> = {
   RECEIVABLE: 'financeStatement.document.receivable',
   RECEIPT: 'financeStatement.document.receipt',
   PAYABLE: 'financeStatement.document.payable',
-  PAYMENT: 'financeStatement.document.payment'
+  PAYMENT: 'financeStatement.document.payment',
+  FX_ADJUSTMENT: 'financeStatement.document.fxAdjustment',
+  ROUNDING_ADJUSTMENT: 'financeStatement.document.roundingAdjustment'
 }
 
 const DIRECTION_KEYS: Record<string, string> = {
@@ -46,8 +49,8 @@ export const useFinanceStatementPresentation = (t: Translate) => {
     return key ? t(key) : value || ''
   }
 
-  const money = (value?: number | string | null) =>
-    formatLocalizedCurrency(Number(value ?? 0))
+  const money = (value?: number | string | null, currencyCode = 'CNY') =>
+    formatLocalizedCurrency(Number(value ?? 0), { currency: currencyCode })
 
   const formatDate = (value?: string | null) => formatLocalizedDate(value) || '-'
 
@@ -66,6 +69,7 @@ export const useFinanceStatementPresentation = (t: Translate) => {
   const toPrintDto = (statement: PartnerStatement): FinanceStatementPrintDto => ({
     ...statement,
     partnerTypeLabel: partnerTypeLabel(statement.partnerType),
+    currencyNotice: t('financeStatement.currencyNotice', { currency: statement.baseCurrencyCode || 'CNY' }),
     lines: (statement.lines || []).map((line) => ({
       ...line,
       docTypeLabel: documentTypeLabel(line.docType),

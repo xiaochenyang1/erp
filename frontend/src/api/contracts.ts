@@ -30,6 +30,10 @@ export interface ContractRecord {
   effectiveTo?: string
   status: 'DRAFT' | 'SUBMITTED' | 'REJECTED' | 'ACTIVE' | 'CLOSED' | 'CANCELLED'
   totalAmount: number
+  currencyCode?: string
+  exchangeRate?: number
+  baseTotalAmount?: number
+  baseCurrencyCode?: string
   remark?: string
   lines: ContractLine[]
 }
@@ -56,6 +60,8 @@ export interface ContractAlertRecord {
 }
 
 export interface ContractSaveRequest {
+  currencyCode?: string
+  exchangeRate?: number
   contractType: 'SALES' | 'PURCHASE'
   customerId?: string
   supplierId?: string
@@ -93,6 +99,9 @@ export interface ContractVersionRecord {
     effectiveFrom: string
     effectiveTo?: string
     totalAmount: number
+    currencyCode?: string
+    exchangeRate?: number
+    baseTotalAmount?: number
     remark?: string
   }
   lines: ContractVersionLine[]
@@ -107,6 +116,8 @@ const normalizeContract = (record: ContractRecord): ContractRecord => ({
   customerId: record.customerId != null ? String(record.customerId) : undefined,
   supplierId: record.supplierId != null ? String(record.supplierId) : undefined,
   totalAmount: Number(record.totalAmount || 0),
+  exchangeRate: record.exchangeRate == null ? undefined : Number(record.exchangeRate),
+  baseTotalAmount: record.baseTotalAmount == null ? undefined : Number(record.baseTotalAmount),
   lines: (record.lines || []).map((line) => ({
     ...line,
     id: line.id != null ? String(line.id) : undefined,
@@ -168,7 +179,9 @@ const normalizeContractVersion = (record: ContractVersionRecord): ContractVersio
     ...record.header,
     customerId: record.header?.customerId != null ? String(record.header.customerId) : undefined,
     supplierId: record.header?.supplierId != null ? String(record.header.supplierId) : undefined,
-    totalAmount: Number(record.header?.totalAmount || 0)
+    totalAmount: Number(record.header?.totalAmount || 0),
+    exchangeRate: record.header?.exchangeRate == null ? undefined : Number(record.header.exchangeRate),
+    baseTotalAmount: record.header?.baseTotalAmount == null ? undefined : Number(record.header.baseTotalAmount)
   },
   lines: (record.lines || []).map((line) => ({
     ...line,

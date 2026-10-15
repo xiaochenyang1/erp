@@ -17,6 +17,8 @@ const detail = (overrides: Partial<ContractRecord> = {}) => ({
   remark: '年度',
   status: 'DRAFT',
   totalAmount: 100,
+  currencyCode: 'CNY',
+  exchangeRate: 1,
   lines: [{ id: 'l1', productId: 'p1', quantity: 2, unitPrice: 50, amount: 100 }],
   ...overrides
 }) as ContractRecord
@@ -35,12 +37,28 @@ const createForm = (overrides: Partial<Parameters<typeof useContractForm>[1]> = 
   })
 
 const fill = (form: ReturnType<typeof createForm>['form']) => {
+  form.currencyCode = 'CNY'
+  form.exchangeRate = 1
   form.contractName = '新合同'
   form.customerId = 'cu1'
   form.lines = [{ productId: 'p1', quantity: 2, unitPrice: 5 }]
 }
 
 describe('contract form', () => {
+  it('retains an existing foreign-currency snapshot on edit and clears it for a new contract', async () => {
+    const updateContract = vi.fn(async () => ({}))
+    const form = createForm({
+      getContract: vi.fn(async () => detail({ currencyCode: 'USD', exchangeRate: 7.2, baseTotalAmount: 720 })),
+      updateContract
+    })
+    await form.openEdit({ id: 'c1' } as ContractRecord)
+    await form.save()
+    expect(updateContract).toHaveBeenCalledWith('c1', expect.objectContaining({ currencyCode: 'USD', exchangeRate: 7.2 }))
+    await form.openCreate()
+    expect(form.form.currencyCode).toBeUndefined()
+    expect(form.form.exchangeRate).toBeUndefined()
+  })
+
   it('opens a blank sales contract dated today with one line', async () => {
     const ensureOptions = vi.fn(async () => true)
     const form = createForm({ ensureOptions })

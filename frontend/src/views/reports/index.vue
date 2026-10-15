@@ -13,7 +13,7 @@
           />
         </el-form-item>
         <el-form-item :label="$t('financeReportPages.common.keyword')">
-          <el-input v-model="queryForm.keyword" :placeholder="$t('financeReportPages.reports.keywordPlaceholder')" clearable style="width: 180px" />
+          <el-input v-model="queryForm.keyword" :placeholder="$t(activeKey === 'fxGainLoss' ? 'financeReportPages.reports.currencyFilterPlaceholder' : 'financeReportPages.reports.keywordPlaceholder')" clearable style="width: 180px" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
@@ -33,7 +33,7 @@
         <strong>{{ activeState.total }}</strong>
       </el-card>
       <el-card shadow="never" class="summary-item">
-        <span>{{ $t('financeReportPages.reports.amountTotal') }}</span>
+        <span>{{ $t(activeKey === 'fxGainLoss' ? 'financeReportPages.reports.netGainLossTotal' : 'financeReportPages.reports.amountTotal') }}</span>
         <strong>{{ formatMoney(summaryAmount) }}</strong>
       </el-card>
       <el-card shadow="never" class="summary-item">
@@ -51,6 +51,9 @@
           :name="item.key"
         />
       </el-tabs>
+      <el-alert v-if="activeKey === 'fxGainLoss'" type="info" :closable="false"
+        :title="$t('financeReportPages.reports.fxPostingHint')"
+        :description="$t('financeReportPages.reports.roundingTotal', { amount: formatMoney(roundingTotal) })" />
 
       <el-table v-if="activeKey === 'purchase' || activeKey === 'sales'" v-loading="activeState.loading" :data="activeState.records" border stripe>
         <el-table-column prop="bizNo" :label="$t('financeReportPages.reports.documentNo')" min-width="170" />
@@ -182,6 +185,15 @@
             <span :class="row.fxGainLossAmount >= 0 ? 'fx-positive' : 'fx-negative'">{{ formatMoney(row.fxGainLossAmount) }}</span>
           </template>
         </el-table-column>
+        <el-table-column prop="roundingAmount" :label="$t('financeReportPages.reports.roundingAmount')" width="140" align="right">
+          <template #default="{ row }">{{ formatMoney(row.roundingAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="totalGainLossAmount" :label="$t('financeReportPages.reports.totalGainLossAmount')" width="150" align="right">
+          <template #default="{ row }">{{ formatMoney(row.totalGainLossAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="postingSnapshot" :label="$t('financeReportPages.reports.amountBasis')" width="150">
+          <template #default="{ row }">{{ $t(row.postingSnapshot ? 'financeReportPages.reports.postedAmounts' : 'financeReportPages.reports.legacyAmounts') }}</template>
+        </el-table-column>
       </el-table>
 
       <el-table v-else v-loading="activeState.loading" :data="activeState.records" border stripe>
@@ -231,7 +243,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -256,9 +268,11 @@ import {
   getSalesOrderReport
 } from '@/api/workflow'
 import { useReportList } from '@/composables/useReportList'
+import { getBaseCurrency } from '@/api/finance'
 import { useReportPresentation } from '@/composables/useReportPresentation'
 
 const { t } = useI18n()
+const baseCurrency = ref('')
 const route = useRoute()
 const {
   activeKey,
@@ -306,10 +320,12 @@ const {
   reportDirectionLabel,
   reportStatusLabel,
   reportTabs,
-  summaryAmount
-} = useReportPresentation(t, activeKey, activeState)
+  summaryAmount,
+  roundingTotal
+} = useReportPresentation(t, activeKey, activeState, baseCurrency)
 
 onMounted(() => {
+  void getBaseCurrency().then(code => { baseCurrency.value = code }).catch(() => ElMessage.error(t('documentCurrency.loadFailed')))
   if (isReportKey(route.query.tab)) {
     activeKey.value = route.query.tab
   }

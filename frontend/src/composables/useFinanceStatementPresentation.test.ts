@@ -59,6 +59,14 @@ describe('finance statement presentation', () => {
     expect(formatDate(null)).toBe('-')
   })
 
+  it('formats statement amounts in the account book base currency', () => {
+    const { money } = useFinanceStatementPresentation(t)
+
+    expect(money(1234.5, 'USD')).toBe('$1,234.50')
+    expect(money(-20, 'EUR')).toBe('-€20.00')
+    expect(money('0.01', 'CNY')).toBe('CN¥0.01')
+  })
+
   it('resolves partner display fields with the template precedence', () => {
     const { partnerLabel } = useFinanceStatementPresentation(t)
 
@@ -90,6 +98,10 @@ describe('finance statement presentation', () => {
       .toBe('translated:financeStatement.document.payable')
     expect(presentation.documentTypeLabel('PAYMENT'))
       .toBe('translated:financeStatement.document.payment')
+    expect(presentation.documentTypeLabel('FX_ADJUSTMENT'))
+      .toBe('translated:financeStatement.document.fxAdjustment')
+    expect(presentation.documentTypeLabel('ROUNDING_ADJUSTMENT'))
+      .toBe('translated:financeStatement.document.roundingAdjustment')
 
     expect(presentation.directionLabel('INCREASE'))
       .toBe('translated:financeStatement.directionValue.increase')
@@ -128,6 +140,7 @@ describe('finance statement presentation', () => {
       totalDecrease: 30.75,
       closingBalance: 150,
       partnerTypeLabel: 'translated:financeStatement.customer',
+      currencyNotice: 'translated:financeStatement.currencyNotice',
       lines: [
         {
           bizDate: '2026-07-05',

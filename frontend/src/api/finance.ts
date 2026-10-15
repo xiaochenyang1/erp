@@ -1309,6 +1309,10 @@ export const deleteManualVoucher = (id: string | number) => {
 // ==================== 发票登记 ====================
 
 export interface FinanceInvoice {
+  currencyCode?: string
+  exchangeRate?: number
+  baseAmount?: number
+  baseTaxAmount?: number
   id: string
   invoiceNo: string
   invoiceType: 'INPUT' | 'OUTPUT' | string
@@ -1331,6 +1335,8 @@ export interface FinanceInvoiceQuery extends PageQuery {
 }
 
 export interface FinanceInvoiceSaveRequest {
+  currencyCode?: string
+  exchangeRate?: number
   invoiceType: string
   partnerName: string
   amount: number
@@ -1373,7 +1379,10 @@ const normalizeFinanceInvoice = (invoice: FinanceInvoice): FinanceInvoice => ({
   id: String(invoice.id),
   relatedBizId: invoice.relatedBizId != null ? String(invoice.relatedBizId) : undefined,
   amount: Number(invoice.amount ?? 0),
-  taxAmount: Number(invoice.taxAmount ?? 0)
+  taxAmount: Number(invoice.taxAmount ?? 0),
+  exchangeRate: invoice.exchangeRate == null ? undefined : Number(invoice.exchangeRate),
+  baseAmount: invoice.baseAmount == null ? undefined : Number(invoice.baseAmount),
+  baseTaxAmount: invoice.baseTaxAmount == null ? undefined : Number(invoice.baseTaxAmount)
 })
 
 // ==================== 账龄分析 ====================
@@ -1492,6 +1501,7 @@ export interface PartnerStatement {
   totalDecrease: number
   closingBalance: number
   lines: PartnerStatementLine[]
+  baseCurrencyCode?: string
 }
 
 export const getPartnerStatement = (params: {
@@ -1502,6 +1512,7 @@ export const getPartnerStatement = (params: {
 }) => {
   return request.get<PartnerStatement>('/finance/statements', { params }).then((s) => ({
     ...s,
+    baseCurrencyCode: s.baseCurrencyCode || 'CNY',
     partnerId: String(s.partnerId),
     openingBalance: Number(s.openingBalance ?? 0),
     totalIncrease: Number(s.totalIncrease ?? 0),

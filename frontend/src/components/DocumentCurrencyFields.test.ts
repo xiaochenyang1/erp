@@ -119,7 +119,7 @@ describe('document currency fields', () => {
     await field.value!.refreshRate()
     await flushPromises()
     expect(form.exchangeRate).toBeUndefined()
-    expect(wrapper.text()).toContain('当前订单日期没有有效汇率')
+    expect(wrapper.text()).toContain('当前业务日期没有有效汇率')
     await expect(orderForm.value!.validate()).rejects.toHaveProperty('exchangeRate')
   })
 

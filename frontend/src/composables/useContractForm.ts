@@ -19,6 +19,8 @@ const blankLine = (): ContractFormLine => ({ productId: '', quantity: 1, unitPri
 /** A fresh contract is dated today in the business timezone and starts with one line. */
 const blankForm = (): ContractFormState => ({
   contractType: 'SALES',
+  currencyCode: undefined,
+  exchangeRate: undefined,
   customerId: '',
   supplierId: undefined,
   contractName: '',
@@ -84,6 +86,8 @@ export const useContractForm = (
       editingId.value = detail.id
       Object.assign(form, {
         contractType: detail.contractType,
+        currencyCode: detail.currencyCode,
+        exchangeRate: detail.exchangeRate,
         customerId: detail.customerId || '',
         supplierId: detail.supplierId,
         contractName: detail.contractName,
@@ -108,6 +112,8 @@ export const useContractForm = (
   const isComplete = () => Boolean(form.contractName.trim())
     && Boolean(form.customerId || form.supplierId)
     && Boolean(form.signedDate)
+    && Boolean(form.currencyCode)
+    && Number.isFinite(form.exchangeRate) && Number(form.exchangeRate) > 0
     && Boolean(form.effectiveFrom)
     && form.lines.length > 0
     && form.lines.every((line) => Boolean(line.productId) && line.quantity > 0 && line.unitPrice >= 0)

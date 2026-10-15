@@ -48,7 +48,7 @@ export const useContractPresentation = (
 
   const formatDate = (value?: string) => formatLocalizedDate(value) || '-'
   const formatDateTime = (value?: string) => (value ? formatLocalizedDateTime(value) : '-')
-  const formatMoney = (value?: number) => formatLocalizedCurrency(Number(value || 0))
+  const formatMoney = (value?: number, currency?: string) => formatLocalizedCurrency(Number(value || 0), { currency: currency || 'CNY', currencyDisplay: 'code' })
   /** An open-ended contract keeps a dash where the end date would be. */
   const effectivePeriodText = (from?: string, to?: string) =>
     `${formatDate(from)} ~ ${to ? formatDate(to) : '-'}`
@@ -95,8 +95,8 @@ export const useContractPresentation = (
     line: Pick<ContractLine, 'productId' | 'productCode' | 'productName'>
   ) => codeNameLabel(line.productCode, line.productName) || String(line.productId)
 
-  const lineAmount = (line: { quantity?: number; unitPrice?: number }) =>
-    formatMoney(Number(line.quantity || 0) * Number(line.unitPrice || 0))
+  const lineAmount = (line: { quantity?: number; unitPrice?: number }, currency?: string) =>
+    formatMoney(Number(line.quantity || 0) * Number(line.unitPrice || 0), currency)
   const availableOrderQuantity = (line: QuantityLine) =>
     Math.max(0, Number(line.quantity || 0) - Number(line.committedQuantity || 0))
 

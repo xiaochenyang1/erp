@@ -773,6 +773,10 @@ export const financeReportPageMessages = {
         baseAllocatedAmount: '核销金额（本位币）',
         baseSettledAmount: '冲减金额（本位币）',
         fxGainLossAmount: '汇兑损益',
+        currencyFilterPlaceholder: '币种代码，例如 USD', roundingAmount: '尾差调整', totalGainLossAmount: '损益合计', amountBasis: '金额口径',
+        postedAmounts: '凭证金额', legacyAmounts: '历史折算金额', netGainLossTotal: '本页净损益（收益为正）',
+        roundingTotal: '本页净尾差调整：{amount}（收益为正）',
+        fxPostingHint: '本位币收付分摊 − 账面冲减 = 汇兑损益 + 尾差调整。行内收款正数为收益，付款正数为损失；本页净额统一以收益为正。历史折算金额可能与原凭证存在尾差。',
         status: {
           draft: '草稿',
           submitted: '已提交',
@@ -1197,6 +1201,10 @@ export const financeReportPageMessages = {
         baseRemainingAmount: 'Remaining (base)', settlementDate: 'Settlement date', subledgerNo: 'Subledger no.',
         allocatedOriginalAmount: 'Allocated (original)', bookingRate: 'Booking rate', settlementRate: 'Settlement rate',
         baseAllocatedAmount: 'Allocated (base)', baseSettledAmount: 'Relieved (base)', fxGainLossAmount: 'FX gain/loss',
+        currencyFilterPlaceholder: 'Currency code, e.g. USD', roundingAmount: 'Rounding adjustment', totalGainLossAmount: 'Total gain/loss', amountBasis: 'Amount basis',
+        postedAmounts: 'Posted amounts', legacyAmounts: 'Historical conversion', netGainLossTotal: 'Page net gain/loss (gain positive)',
+        roundingTotal: 'Page net rounding adjustment: {amount} (gain positive)',
+        fxPostingHint: 'Allocated base cash − carrying relief = FX gain/loss + rounding. Positive receipt rows are gains; positive payment rows are losses. Page net totals use gain-positive signs. Historical conversions may differ from original vouchers by rounding.',
         fileName: '{report}-{timestamp}.csv',
         status: {
           draft: 'Draft', submitted: 'Submitted', approved: 'Approved', rejected: 'Rejected', confirmed: 'Confirmed',

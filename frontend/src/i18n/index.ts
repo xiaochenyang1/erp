@@ -127,7 +127,8 @@ const coreMessages = {
       partnerType: '往来类型', customer: '客户', supplier: '供应商', selectPartner: '请选择往来单位', period: '期间', startDate: '开始日期', endDate: '结束日期', search: '查询', print: '打印',
       partnerTypeValue: '（{type}）', periodValue: '{from} 至 {to}', openingValue: '期初：{amount}', increaseValue: '增加：{amount}', decreaseValue: '减少：{amount}', closingValue: '期末：{amount}',
       date: '日期', docType: '单据类型', docNo: '单号', direction: '方向', amount: '金额', balance: '余额', remark: '备注',
-      document: { receivable: '应收单', receipt: '收款单', payable: '应付单', payment: '付款单' },
+      document: { receivable: '应收单', receipt: '收款单', payable: '应付单', payment: '付款单', fxAdjustment: '汇兑调整', roundingAdjustment: '尾差调整' },
+      currencyNotice: '金额按账套本位币 {currency} 列示。汇兑和尾差调整不代表额外收付款。',
       directionValue: { increase: '增加', decrease: '减少' },
       message: { selectPartnerAndRange: '请选择往来单位和日期区间', loadFailed: '查询对账单失败', optionsLoadFailed: '加载往来单位失败', printLoadFailed: '加载打印数据失败' }
     },
@@ -362,7 +363,8 @@ const coreMessages = {
       partnerType: 'Partner type', customer: 'Customer', supplier: 'Supplier', selectPartner: 'Select a partner', period: 'Period', startDate: 'Start date', endDate: 'End date', search: 'Search', print: 'Print',
       partnerTypeValue: '({type})', periodValue: '{from} to {to}', openingValue: 'Opening: {amount}', increaseValue: 'Increase: {amount}', decreaseValue: 'Decrease: {amount}', closingValue: 'Closing: {amount}',
       date: 'Date', docType: 'Document type', docNo: 'Document no.', direction: 'Direction', amount: 'Amount', balance: 'Balance', remark: 'Remark',
-      document: { receivable: 'Receivable', receipt: 'Receipt', payable: 'Payable', payment: 'Payment' },
+      document: { receivable: 'Receivable', receipt: 'Receipt', payable: 'Payable', payment: 'Payment', fxAdjustment: 'FX adjustment', roundingAdjustment: 'Rounding adjustment' },
+      currencyNotice: 'Amounts are in the account book base currency, {currency}. FX and rounding adjustments do not represent additional cash movements.',
       directionValue: { increase: 'Increase', decrease: 'Decrease' },
       message: { selectPartnerAndRange: 'Select a partner and date range', loadFailed: 'Failed to load the statement', optionsLoadFailed: 'Failed to load partners', printLoadFailed: 'Failed to load print data' }
     },

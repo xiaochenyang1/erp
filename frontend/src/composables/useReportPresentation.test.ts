@@ -24,6 +24,17 @@ const createState = (): ReportState => reactive({
 })
 
 describe('report presentation', () => {
+  it('nets receipt gains against payment losses including rounding and uses the account-book currency', () => {
+    const state = createState()
+    state.records = [
+      { direction: 'RECEIVABLE', fxGainLossAmount: 20, roundingAmount: 0.01 },
+      { direction: 'PAYABLE', fxGainLossAmount: 10, roundingAmount: -0.02 }
+    ] as ReportRecord[]
+    const presentation = useReportPresentation(t, ref('fxGainLoss'), computed(() => state), ref('EUR'))
+    expect(presentation.summaryAmount.value).toBeCloseTo(10.03)
+    expect(presentation.roundingTotal.value).toBeCloseTo(0.03)
+    expect(presentation.formatMoney(10)).toContain('€')
+  })
   it('builds tabs, validates keys and derives page summaries', () => {
     const activeKey = ref<'purchase' | 'sales'>('purchase')
     const state = createState()
