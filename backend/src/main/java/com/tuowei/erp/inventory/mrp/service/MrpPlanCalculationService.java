@@ -8,9 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.TreeSet;
 import java.util.List;
 import java.util.Map;
 
@@ -62,30 +63,22 @@ public class MrpPlanCalculationService {
             reasons.merge(pid, "销售未发货", (a, b) -> a.contains(b) ? a : a + ";" + b);
         }
 
-        try {
-            List<Map<String, Object>> safety = jdbcTemplate.queryForList("""
-                    select r.product_id as productId,
-                           coalesce(max(r.min_qty), 0) as minQty,
-                           coalesce((
-                             select sum(b.qty_on_hand) from inv_balance b
-                             where b.company_id = r.company_id and b.account_book_id = r.account_book_id
-                               and b.product_id = r.product_id
-                           ), 0) as onHand
-                    from inv_alert_rule r
-                    where r.company_id = ? and r.account_book_id = ?
-                      and r.deleted_flag = 0 and r.status = 'ACTIVE'
-                    group by r.product_id
-                    """, companyId, bookId);
-            for (Map<String, Object> row : safety) {
-                Long pid = toLong(row.get("productId"));
-                BigDecimal gap = toBd(row.get("minQty")).subtract(toBd(row.get("onHand")));
-                if (gap.compareTo(BigDecimal.ZERO) > 0) {
-                    add(demand, pid, gap);
-                    reasons.merge(pid, "安全库存", (a, b) -> a.contains(b) ? a : a + ";" + b);
-                }
+        List<Map<String, Object>> safety = jdbcTemplate.queryForList("""
+                select r.product_id as productId,
+                       coalesce(max(r.min_qty), 0) as minQty
+                from inv_alert_rule r
+                where r.company_id = ? and r.account_book_id = ?
+                  and r.deleted_flag = 0 and r.enabled = 1
+                group by r.product_id
+                """, companyId, bookId);
+        for (Map<String, Object> row : safety) {
+            Long pid = toLong(row.get("productId"));
+            // Safety stock is the desired closing balance, not an already-netted shortage.
+            BigDecimal target = toBd(row.get("minQty"));
+            if (target.compareTo(BigDecimal.ZERO) > 0) {
+                add(demand, pid, target);
+                reasons.merge(pid, "安全库存", (a, b) -> a.contains(b) ? a : a + ";" + b);
             }
-        } catch (Exception ignored) {
-            // 预警表在旧租户中可能尚未升级，MRP 仍可按销售需求继续计算。
         }
 
         Map<Long, BigDecimal> onHand = loadOnHand(companyId, bookId);
@@ -94,74 +87,57 @@ public class MrpPlanCalculationService {
         Map<Long, Long> productBom = loadActiveBom(companyId, bookId);
         Map<Long, List<BomComponent>> bomComponents = loadBomComponents(companyId, bookId, productBom);
 
-        Map<Long, BigDecimal> materialDemand = new HashMap<>();
+        Map<Long, BigDecimal> remainingOnHand = new HashMap<>(onHand);
+        Map<Long, BigDecimal> remainingSupply = new HashMap<>(openPo);
+        openMo.forEach((productId, qty) -> add(remainingSupply, productId, qty));
+        Map<Long, BigDecimal> purchaseDemand = new HashMap<>();
         List<ComputedLine> productionLines = new ArrayList<>();
         List<ComputedLine> purchaseLines = new ArrayList<>();
 
-        for (Long productId : new HashSet<>(demand.keySet())) {
-            BigDecimal d = demand.getOrDefault(productId, BigDecimal.ZERO);
-            BigDecimal oh = onHand.getOrDefault(productId, BigDecimal.ZERO);
-            BigDecimal supply = openPo.getOrDefault(productId, BigDecimal.ZERO)
-                    .add(openMo.getOrDefault(productId, BigDecimal.ZERO));
-            BigDecimal net = ScalePrecision.quantity(d.subtract(oh).subtract(supply));
-            if (net.compareTo(BigDecimal.ZERO) <= 0) {
+        // Only direct demand for products with a BOM is manufactured in MRP-lite.
+        // Aggregate purchased goods and all expanded component demand before netting them.
+        for (Long productId : new TreeSet<>(demand.keySet())) {
+            BigDecimal d = demand.get(productId);
+            Long bomId = productBom.get(productId);
+            if (bomId == null) {
+                add(purchaseDemand, productId, d);
+                reasons.merge(productId, "无BOM建议采购", (a, b) -> a + ";" + b);
                 continue;
             }
-            Long bomId = productBom.get(productId);
-            String reason = reasons.getOrDefault(productId, "需求");
-            if (bomId != null) {
-                productionLines.add(new ComputedLine(
-                        productId,
-                        TYPE_PRODUCTION,
-                        d,
-                        oh,
-                        supply,
-                        net,
-                        bomId,
-                        reason + ";有BOM建议生产"
-                ));
-                for (BomComponent component : bomComponents.getOrDefault(bomId, List.of())) {
-                    BigDecimal need = ScalePrecision.quantity(net.multiply(component.qtyPer()));
-                    add(materialDemand, component.materialProductId(), need);
-                    reasons.merge(
-                            component.materialProductId(),
-                            "BOM展开:" + productId,
-                            (a, b) -> a.contains(b) ? a : a + ";" + b
-                    );
-                }
-            } else {
-                purchaseLines.add(new ComputedLine(
-                        productId,
-                        TYPE_PURCHASE,
-                        d,
-                        oh,
-                        supply,
-                        net,
-                        null,
-                        reason + ";无BOM建议采购"
-                ));
+            BigDecimal oh = remainingOnHand.getOrDefault(productId, BigDecimal.ZERO);
+            BigDecimal supply = remainingSupply.getOrDefault(productId, BigDecimal.ZERO);
+            BigDecimal net = ScalePrecision.quantity(d.subtract(oh).subtract(supply));
+
+            // A manufactured product may also be another product's component. Reserve the
+            // supply consumed by direct demand even when no production suggestion is needed.
+            BigDecimal usedStock = d.min(oh);
+            remainingOnHand.put(productId, oh.subtract(usedStock));
+            BigDecimal usedSupply = d.subtract(usedStock).min(supply);
+            remainingSupply.put(productId, supply.subtract(usedSupply));
+            if (net.signum() <= 0) {
+                continue;
+            }
+            productionLines.add(new ComputedLine(productId, TYPE_PRODUCTION, d, oh, supply, net,
+                    bomId, reasons.getOrDefault(productId, "需求") + ";有BOM建议生产"));
+            for (BomComponent component : bomComponents.getOrDefault(bomId, List.of())) {
+                BigDecimal need = ScalePrecision.quantity(component.qtyPer().multiply(net)
+                        .divide(ScalePrecision.quantity(component.baseQty()), 8, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.ONE.add(component.lossRate())));
+                add(purchaseDemand, component.materialProductId(), need);
+                String reason = "BOM展开:" + productId;
+                reasons.merge(component.materialProductId(), reason, (a, b) -> a + ";" + b);
             }
         }
 
-        for (Long materialId : materialDemand.keySet()) {
-            BigDecimal d = materialDemand.get(materialId);
-            BigDecimal oh = onHand.getOrDefault(materialId, BigDecimal.ZERO);
-            BigDecimal supply = openPo.getOrDefault(materialId, BigDecimal.ZERO)
-                    .add(openMo.getOrDefault(materialId, BigDecimal.ZERO));
+        for (Long productId : new TreeSet<>(purchaseDemand.keySet())) {
+            BigDecimal d = purchaseDemand.get(productId);
+            BigDecimal oh = remainingOnHand.getOrDefault(productId, BigDecimal.ZERO);
+            BigDecimal supply = remainingSupply.getOrDefault(productId, BigDecimal.ZERO);
             BigDecimal net = ScalePrecision.quantity(d.subtract(oh).subtract(supply));
-            if (net.compareTo(BigDecimal.ZERO) <= 0) {
-                continue;
+            if (net.signum() > 0) {
+                purchaseLines.add(new ComputedLine(productId, TYPE_PURCHASE, d, oh, supply, net,
+                        null, reasons.getOrDefault(productId, "材料需求")));
             }
-            purchaseLines.add(new ComputedLine(
-                    materialId,
-                    TYPE_PURCHASE,
-                    d,
-                    oh,
-                    supply,
-                    net,
-                    null,
-                    reasons.getOrDefault(materialId, "材料需求")
-            ));
         }
 
         return new CalculationResult(productionLines, purchaseLines);
@@ -182,34 +158,18 @@ public class MrpPlanCalculationService {
 
     private Map<Long, BigDecimal> loadOpenPurchase(Long companyId, Long bookId) {
         Map<Long, BigDecimal> map = new HashMap<>();
-        try {
-            for (Map<String, Object> row : jdbcTemplate.queryForList("""
-                    select l.product_id as productId,
-                           coalesce(sum(greatest(l.qty - coalesce(l.received_qty, 0), 0)), 0) as qty
-                    from pur_order o
-                    join pur_order_line l
-                      on l.company_id = o.company_id and l.account_book_id = o.account_book_id and l.order_id = o.id
-                    where o.company_id = ? and o.account_book_id = ?
-                      and o.deleted_flag = 0
-                      and o.status in ('APPROVED', 'PARTIAL', 'SUBMITTED')
-                    group by l.product_id
-                    """, companyId, bookId)) {
-                map.put(toLong(row.get("productId")), toBd(row.get("qty")));
-            }
-        } catch (Exception ex) {
-            // received_qty 可能不存在：退化为未收完 = 全量 qty for open orders
-            for (Map<String, Object> row : jdbcTemplate.queryForList("""
-                    select l.product_id as productId, coalesce(sum(l.qty), 0) as qty
-                    from pur_order o
-                    join pur_order_line l
-                      on l.company_id = o.company_id and l.account_book_id = o.account_book_id and l.order_id = o.id
-                    where o.company_id = ? and o.account_book_id = ?
-                      and o.deleted_flag = 0
-                      and o.status in ('APPROVED', 'SUBMITTED')
-                    group by l.product_id
-                    """, companyId, bookId)) {
-                map.put(toLong(row.get("productId")), toBd(row.get("qty")));
-            }
+        for (Map<String, Object> row : jdbcTemplate.queryForList("""
+                select l.product_id as productId,
+                       coalesce(sum(greatest(l.qty - coalesce(l.received_qty, 0), 0)), 0) as qty
+                from pur_order o
+                join pur_order_line l
+                  on l.company_id = o.company_id and l.account_book_id = o.account_book_id and l.order_id = o.id
+                where o.company_id = ? and o.account_book_id = ?
+                  and o.deleted_flag = 0
+                  and o.status in ('APPROVED', 'PARTIAL', 'SUBMITTED')
+                group by l.product_id
+                """, companyId, bookId)) {
+            map.put(toLong(row.get("productId")), toBd(row.get("qty")));
         }
         return map;
     }
@@ -253,13 +213,17 @@ public class MrpPlanCalculationService {
             return map;
         }
         for (Map<String, Object> row : jdbcTemplate.queryForList("""
-                select bom_id as bomId, material_product_id as materialId, qty_per as qtyPer
-                from prd_bom_line
-                where company_id = ? and account_book_id = ?
+                select l.bom_id as bomId, l.material_product_id as materialId, l.qty_per as qtyPer,
+                       b.base_qty as baseQty, l.loss_rate as lossRate
+                from prd_bom_line l
+                join prd_bom b on b.id = l.bom_id
+                  and b.company_id = l.company_id and b.account_book_id = l.account_book_id
+                where l.company_id = ? and l.account_book_id = ?
                 """, companyId, bookId)) {
             Long bomId = toLong(row.get("bomId"));
             map.computeIfAbsent(bomId, key -> new ArrayList<>())
-                    .add(new BomComponent(toLong(row.get("materialId")), toBd(row.get("qtyPer"))));
+                    .add(new BomComponent(toLong(row.get("materialId")), toBd(row.get("qtyPer")),
+                            toBd(row.get("baseQty")), toBd(row.get("lossRate"))));
         }
         return map;
     }
@@ -306,6 +270,6 @@ public class MrpPlanCalculationService {
     ) {
     }
 
-    private record BomComponent(Long materialProductId, BigDecimal qtyPer) {
+    private record BomComponent(Long materialProductId, BigDecimal qtyPer, BigDecimal baseQty, BigDecimal lossRate) {
     }
 }
