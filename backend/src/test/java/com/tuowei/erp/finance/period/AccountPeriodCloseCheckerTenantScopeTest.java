@@ -2,11 +2,13 @@ package com.tuowei.erp.finance.period;
 
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.fx.service.FxRevaluationService;
 import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.service.AccountPeriodCloseChecker;
 import com.tuowei.erp.finance.period.service.InventoryFinanceReconciliationService;
 import com.tuowei.erp.finance.period.web.InventoryFinanceReconciliationResponse;
+import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckItemResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -32,6 +34,9 @@ class AccountPeriodCloseCheckerTenantScopeTest {
         InventoryFinanceReconciliationService reconciliationService = mock(InventoryFinanceReconciliationService.class);
         CapturingJdbcTemplate jdbcTemplate = new CapturingJdbcTemplate();
         AccountPeriodEntity period = period();
+        FxRevaluationService fxRevaluationService = mock(FxRevaluationService.class);
+        when(fxRevaluationService.checkForClose(period)).thenReturn(new AccountPeriodCloseCheckItemResponse(
+                "FX_REVALUATION", "期末调汇", "财务", true, "无外币余额", BigDecimal.ZERO));
         when(accountPeriodMapper.selectById(period.getId())).thenReturn(period);
         when(auditMetadataFactory.current()).thenReturn(audit(period.getCompanyId(), period.getAccountBookId()));
         when(reconciliationService.summary(period.getId())).thenReturn(new InventoryFinanceReconciliationResponse(
@@ -47,7 +52,8 @@ class AccountPeriodCloseCheckerTenantScopeTest {
                 accountPeriodMapper,
                 auditMetadataFactory,
                 reconciliationService,
-                jdbcTemplate
+                jdbcTemplate,
+                fxRevaluationService
         ).check(period.getId());
 
         assertThat(singleSqlContaining(jdbcTemplate.sqls(), "from fin_payment_allocation a"))
@@ -71,7 +77,8 @@ class AccountPeriodCloseCheckerTenantScopeTest {
                 accountPeriodMapper,
                 auditMetadataFactory,
                 reconciliationService,
-                jdbcTemplate
+                jdbcTemplate,
+                mock(FxRevaluationService.class)
         );
 
         assertThatThrownBy(() -> checker.check(period.getId()))

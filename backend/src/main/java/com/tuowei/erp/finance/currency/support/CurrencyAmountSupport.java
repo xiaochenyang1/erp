@@ -78,6 +78,18 @@ public final class CurrencyAmountSupport {
         return ScalePrecision.amount(baseOriginal.subtract(baseSettled));
     }
 
+    /** A non-null posted settlement total is authoritative, including a legitimate zero. */
+    public static BigDecimal baseRemaining(
+            BigDecimal originalAmount, BigDecimal settledAmount, BigDecimal baseOriginalAmount,
+            BigDecimal baseSettledAmount, BigDecimal exchangeRate, BigDecimal postedBaseSettledAmount
+    ) {
+        if (postedBaseSettledAmount == null) {
+            return baseRemaining(originalAmount, settledAmount, baseOriginalAmount, baseSettledAmount, exchangeRate);
+        }
+        return ScalePrecision.amount(baseAmountOrFallback(baseOriginalAmount, originalAmount, exchangeRate)
+                .subtract(postedBaseSettledAmount));
+    }
+
     /** Calculates a document's tax-inclusive total in base currency. */
     public static BigDecimal baseDocumentTotal(
             BigDecimal originalAmount,

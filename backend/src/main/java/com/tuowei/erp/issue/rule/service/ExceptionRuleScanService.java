@@ -520,7 +520,8 @@ public class ExceptionRuleScanService {
                 item.getSettledAmount(),
                 item.getBaseOriginalAmount(),
                 item.getBaseSettledAmount(),
-                item.getExchangeRate()
+                item.getExchangeRate(),
+                item.getPostedBaseSettledAmount()
         );
     }
 
@@ -530,7 +531,8 @@ public class ExceptionRuleScanService {
                 item.getSettledAmount(),
                 item.getBaseOriginalAmount(),
                 item.getBaseSettledAmount(),
-                item.getExchangeRate()
+                item.getExchangeRate(),
+                item.getPostedBaseSettledAmount()
         );
     }
 

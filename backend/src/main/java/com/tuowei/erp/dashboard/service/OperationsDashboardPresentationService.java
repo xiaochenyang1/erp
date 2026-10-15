@@ -195,7 +195,8 @@ public class OperationsDashboardPresentationService {
                 receivable.getSettledAmount(),
                 receivable.getBaseOriginalAmount(),
                 receivable.getBaseSettledAmount(),
-                receivable.getExchangeRate()
+                receivable.getExchangeRate(),
+                receivable.getPostedBaseSettledAmount()
         );
     }
 
@@ -205,7 +206,8 @@ public class OperationsDashboardPresentationService {
                 payable.getSettledAmount(),
                 payable.getBaseOriginalAmount(),
                 payable.getBaseSettledAmount(),
-                payable.getExchangeRate()
+                payable.getExchangeRate(),
+                payable.getPostedBaseSettledAmount()
         );
     }
 

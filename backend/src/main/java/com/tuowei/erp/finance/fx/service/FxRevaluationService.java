@@ -7,29 +7,21 @@ import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
-import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
-import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.fx.mapper.FxRevaluationMapper;
 import com.tuowei.erp.finance.fx.model.FxRevaluationEntity;
+import com.tuowei.erp.finance.fx.service.FxRevaluationBasisService.Valuation;
 import com.tuowei.erp.finance.fx.web.FxRevaluationResponse;
-import com.tuowei.erp.finance.payable.mapper.PayableMapper;
-import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckItemResponse;
 import com.tuowei.erp.finance.posting.FinanceVoucherPostingService;
-import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
-import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -59,10 +51,7 @@ public class FxRevaluationService {
 
     private final FxRevaluationMapper revaluationMapper;
     private final AccountPeriodMapper accountPeriodMapper;
-    private final ReceivableMapper receivableMapper;
-    private final PayableMapper payableMapper;
-    private final SettlementCurrencyService settlementCurrencyService;
-    private final BaseCurrencyService baseCurrencyService;
+    private final FxRevaluationBasisService basisService;
     private final AccountPeriodGuard accountPeriodGuard;
     private final FinanceVoucherPostingService voucherPostingService;
     private final AuditMetadataFactory auditMetadataFactory;
@@ -70,20 +59,14 @@ public class FxRevaluationService {
     public FxRevaluationService(
             FxRevaluationMapper revaluationMapper,
             AccountPeriodMapper accountPeriodMapper,
-            ReceivableMapper receivableMapper,
-            PayableMapper payableMapper,
-            SettlementCurrencyService settlementCurrencyService,
-            BaseCurrencyService baseCurrencyService,
+            FxRevaluationBasisService basisService,
             AccountPeriodGuard accountPeriodGuard,
             FinanceVoucherPostingService voucherPostingService,
             AuditMetadataFactory auditMetadataFactory
     ) {
         this.revaluationMapper = revaluationMapper;
         this.accountPeriodMapper = accountPeriodMapper;
-        this.receivableMapper = receivableMapper;
-        this.payableMapper = payableMapper;
-        this.settlementCurrencyService = settlementCurrencyService;
-        this.baseCurrencyService = baseCurrencyService;
+        this.basisService = basisService;
         this.accountPeriodGuard = accountPeriodGuard;
         this.voucherPostingService = voucherPostingService;
         this.auditMetadataFactory = auditMetadataFactory;
@@ -95,13 +78,13 @@ public class FxRevaluationService {
         AccountPeriodEntity period = requireOpenPeriod(periodId, audit, "执行期末调汇");
         accountPeriodGuard.requireOpen(period.getEndDate(), "期末调汇");
 
-        Valuation valuation = valuate(period, audit);
+        Valuation valuation = basisService.valuate(period, audit);
         FxRevaluationEntity existing = findPosted(period);
         if (existing != null) {
-            if (sameFingerprint(existing, valuation.fingerprint())) {
+            if (sameFingerprint(existing, valuation)) {
                 return toResponse(existing, period, true);
             }
-            throw new BusinessConflictException("外币未结清余额已变化，请先撤销本期调汇后再重新执行");
+            throw new BusinessConflictException(changedBasisMessage(existing));
         }
         if (valuation.hasAdjustment()) {
             accountPeriodGuard.requireOpen(reversalDate(period), "期末调汇红冲");
@@ -113,7 +96,7 @@ public class FxRevaluationService {
                 throw new IllegalStateException("保存期末调汇失败");
             }
         } catch (DataIntegrityViolationException ex) {
-            return existingOrConflict(period, valuation.fingerprint());
+            return existingOrConflict(period, valuation);
         }
         postAdjustment(run, false, audit);
         return toResponse(run, period, false);
@@ -140,22 +123,26 @@ public class FxRevaluationService {
         return toResponse(run, period, false);
     }
 
-    private Valuation valuate(AccountPeriodEntity period, AuditMetadata audit) {
-        String baseCurrency = CurrencyAmountSupport.currency(baseCurrencyService.current(audit));
-        Exposure exposure = new Exposure(period.getEndDate(), audit, baseCurrency);
-        for (ReceivableEntity receivable : openReceivables(audit)) {
-            exposure.add(true, receivable.getDirection(), receivable.getCurrencyCode(),
-                    receivable.getOriginalAmount(), receivable.getSettledAmount(),
-                    receivable.getBaseOriginalAmount(), receivable.getBaseSettledAmount(),
-                    receivable.getExchangeRate());
+    @Transactional(readOnly = true)
+    public AccountPeriodCloseCheckItemResponse checkForClose(AccountPeriodEntity period) {
+        Valuation valuation;
+        try {
+            valuation = basisService.valuate(period, auditMetadataFactory.current());
+        } catch (IllegalArgumentException | BusinessConflictException ex) {
+            return closeCheck(false, "无法校验期末调汇：" + ex.getMessage(), BigDecimal.ZERO);
         }
-        for (PayableEntity payable : openPayables(audit)) {
-            exposure.add(false, payable.getDirection(), payable.getCurrencyCode(),
-                    payable.getOriginalAmount(), payable.getSettledAmount(),
-                    payable.getBaseOriginalAmount(), payable.getBaseSettledAmount(),
-                    payable.getExchangeRate());
+        FxRevaluationEntity existing = findPosted(period);
+        if (existing != null) {
+            boolean matches = sameFingerprint(existing, valuation);
+            return closeCheck(matches, matches ? "期末调汇已覆盖目标期末余额及汇率" : changedBasisMessage(existing),
+                    valuation.openOriginalTotal());
         }
-        return exposure.toValuation();
+        return closeCheck(!valuation.hasExposure(), valuation.hasExposure() ? "尚未执行期末调汇" : "目标期末没有未结清的外币应收应付",
+                valuation.openOriginalTotal());
+    }
+
+    private static AccountPeriodCloseCheckItemResponse closeCheck(boolean passed, String message, BigDecimal amount) {
+        return new AccountPeriodCloseCheckItemResponse("FX_REVALUATION", "期末调汇", "财务", passed, message, amount);
     }
 
     private void postAdjustment(FxRevaluationEntity run, boolean cancel, AuditMetadata audit) {
@@ -208,7 +195,9 @@ public class FxRevaluationService {
         run.setAccountBookId(period.getAccountBookId());
         run.setPeriodId(period.getId());
         run.setStatus("POSTED");
-        run.setOpenOriginalTotal(valuation.fingerprint());
+        run.setOpenOriginalTotal(valuation.openOriginalTotal());
+        run.setBasisHash(valuation.basisHash());
+        run.setBasisJson(valuation.basisJson());
         run.setArAdjustment(valuation.arAdjustment());
         run.setApAdjustment(valuation.apAdjustment());
         run.setRevaluationDate(period.getEndDate());
@@ -223,12 +212,12 @@ public class FxRevaluationService {
         return run;
     }
 
-    private FxRevaluationResponse existingOrConflict(AccountPeriodEntity period, BigDecimal fingerprint) {
+    private FxRevaluationResponse existingOrConflict(AccountPeriodEntity period, Valuation valuation) {
         FxRevaluationEntity existing = findPosted(period);
-        if (existing != null && sameFingerprint(existing, fingerprint)) {
+        if (existing != null && sameFingerprint(existing, valuation)) {
             return toResponse(existing, period, true);
         }
-        throw new BusinessConflictException("外币未结清余额已变化，请先撤销本期调汇后再重新执行");
+        throw new BusinessConflictException(changedBasisMessage(existing));
     }
 
     private AccountPeriodEntity requireOpenPeriod(Long periodId, AuditMetadata audit, String action) {
@@ -257,24 +246,18 @@ public class FxRevaluationService {
                 .last("limit 1"));
     }
 
-    private List<ReceivableEntity> openReceivables(AuditMetadata audit) {
-        return receivableMapper.selectList(new LambdaQueryWrapper<ReceivableEntity>()
-                .eq(ReceivableEntity::getCompanyId, audit.companyId())
-                .eq(ReceivableEntity::getAccountBookId, audit.accountBookId())
-                .eq(ReceivableEntity::getDeletedFlag, 0)
-                .in(ReceivableEntity::getStatus, List.of("UNSETTLED", "PARTIALLY_SETTLED")));
+    private static boolean sameFingerprint(FxRevaluationEntity existing, Valuation valuation) {
+        return existing.getBasisHash() != null && existing.getBasisJson() != null
+                && existing.getBasisHash().equals(valuation.basisHash())
+                && existing.getBasisJson().equals(valuation.basisJson())
+                && ScalePrecision.amount(ScalePrecision.zeroDefault(existing.getArAdjustment())).compareTo(valuation.arAdjustment()) == 0
+                && ScalePrecision.amount(ScalePrecision.zeroDefault(existing.getApAdjustment())).compareTo(valuation.apAdjustment()) == 0;
     }
 
-    private List<PayableEntity> openPayables(AuditMetadata audit) {
-        return payableMapper.selectList(new LambdaQueryWrapper<PayableEntity>()
-                .eq(PayableEntity::getCompanyId, audit.companyId())
-                .eq(PayableEntity::getAccountBookId, audit.accountBookId())
-                .eq(PayableEntity::getDeletedFlag, 0)
-                .in(PayableEntity::getStatus, List.of("UNSETTLED", "PARTIALLY_SETTLED")));
-    }
-
-    private static boolean sameFingerprint(FxRevaluationEntity existing, BigDecimal fingerprint) {
-        return ScalePrecision.amount(ScalePrecision.zeroDefault(existing.getOpenOriginalTotal())).compareTo(fingerprint) == 0;
+    private static String changedBasisMessage(FxRevaluationEntity existing) {
+        return existing != null && (existing.getBasisHash() == null || existing.getBasisJson() == null)
+                ? "原调汇记录缺少期末余额及汇率依据，请先撤销本期调汇后再重新执行"
+                : "期末外币余额、币种构成或汇率已变化，请先撤销本期调汇后再重新执行";
     }
 
     private static boolean hasAdjustment(FxRevaluationEntity run) {
@@ -301,71 +284,4 @@ public class FxRevaluationService {
         );
     }
 
-    private record Valuation(BigDecimal fingerprint, BigDecimal arAdjustment, BigDecimal apAdjustment) {
-        private boolean hasAdjustment() {
-            return arAdjustment.signum() != 0 || apAdjustment.signum() != 0;
-        }
-    }
-
-    private final class Exposure {
-        private final LocalDate periodEnd;
-        private final AuditMetadata audit;
-        private final String baseCurrency;
-        private final Map<String, BigDecimal> rates = new HashMap<>();
-        private BigDecimal fingerprint = BigDecimal.ZERO;
-        private BigDecimal ar = BigDecimal.ZERO;
-        private BigDecimal ap = BigDecimal.ZERO;
-
-        private Exposure(LocalDate periodEnd, AuditMetadata audit, String baseCurrency) {
-            this.periodEnd = periodEnd;
-            this.audit = audit;
-            this.baseCurrency = baseCurrency;
-        }
-
-        private void add(
-                boolean receivable,
-                String direction,
-                String currencyCode,
-                BigDecimal original,
-                BigDecimal settled,
-                BigDecimal baseOriginal,
-                BigDecimal baseSettled,
-                BigDecimal bookingRate
-        ) {
-            String currency = CurrencyAmountSupport.currency(currencyCode);
-            if (currency.equals(baseCurrency)) {
-                return;
-            }
-            BigDecimal signedOriginal = signed(direction, ScalePrecision.amount(
-                    ScalePrecision.zeroDefault(original).subtract(ScalePrecision.zeroDefault(settled))));
-            if (signedOriginal.signum() == 0) {
-                return;
-            }
-            BigDecimal carrying = signed(direction, CurrencyAmountSupport.baseRemaining(
-                    original, settled, baseOriginal, baseSettled, bookingRate));
-            BigDecimal rate = rates.computeIfAbsent(currency, code -> settlementCurrencyService
-                    .resolve(code, null, periodEnd, audit)
-                    .exchangeRate());
-            BigDecimal revalued = ScalePrecision.amount(signedOriginal.multiply(rate));
-            BigDecimal difference = ScalePrecision.amount(revalued.subtract(carrying));
-            fingerprint = fingerprint.add(signedOriginal);
-            if (receivable) {
-                ar = ar.add(difference);
-            } else {
-                ap = ap.add(difference);
-            }
-        }
-
-        private Valuation toValuation() {
-            return new Valuation(
-                    ScalePrecision.amount(fingerprint),
-                    ScalePrecision.amount(ar),
-                    ScalePrecision.amount(ap)
-            );
-        }
-    }
-
-    private static BigDecimal signed(String direction, BigDecimal amount) {
-        return "DECREASE".equalsIgnoreCase(direction) ? amount.negate() : amount;
-    }
 }

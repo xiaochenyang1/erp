@@ -151,7 +151,8 @@ public class SalesCreditEvaluator {
                     receivable.getSettledAmount(),
                     receivable.getBaseOriginalAmount(),
                     receivable.getBaseSettledAmount(),
-                    receivable.getExchangeRate()
+                    receivable.getExchangeRate(),
+                    receivable.getPostedBaseSettledAmount()
             );
             if ("DECREASE".equals(receivable.getDirection())) {
                 total = total.subtract(remaining);

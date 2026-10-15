@@ -64,5 +64,11 @@ public interface MasterdataPermissionCodes {
             + " or " + SalesPermissionCodes.HAS_SALES_ORDER_UPDATE
             + " or " + PurchasePermissionCodes.HAS_PURCHASE_ORDER_CREATE
             + " or " + PurchasePermissionCodes.HAS_PURCHASE_ORDER_UPDATE;
+    String HAS_DOCUMENT_CURRENCY_REFERENCE_VIEW = HAS_ORDER_CURRENCY_REFERENCE_VIEW
+            + " or " + ContractPermissionCodes.HAS_CONTRACT_MANAGE
+            + " or " + FinancePermissionCodes.HAS_FINANCE_INVOICE_MANAGE;
+    String HAS_BASE_CURRENCY_REFERENCE_VIEW = HAS_DOCUMENT_CURRENCY_REFERENCE_VIEW
+            + " or " + ReportPermissionCodes.HAS_REPORT_VIEW
+            + " or " + FinancePermissionCodes.HAS_FINANCE_INVOICE_VIEW;
     String HAS_MASTERDATA_CURRENCY_MANAGE = "hasAuthority('" + MASTERDATA_CURRENCY_MANAGE + "')";
 }

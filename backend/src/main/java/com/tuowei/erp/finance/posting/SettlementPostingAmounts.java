@@ -19,7 +19,8 @@ import java.math.BigDecimal;
 public record SettlementPostingAmounts(
         BigDecimal reliefAmount,
         BigDecimal advanceAmount,
-        BigDecimal fxAmount
+        BigDecimal fxAmount,
+        BigDecimal roundingAmount
 ) {
 
     private static final BigDecimal ZERO_AMOUNT = ScalePrecision.amount(BigDecimal.ZERO);
@@ -29,6 +30,11 @@ public record SettlementPostingAmounts(
         reliefAmount = ScalePrecision.amount(ScalePrecision.zeroDefault(reliefAmount));
         advanceAmount = ScalePrecision.amount(ScalePrecision.zeroDefault(advanceAmount));
         fxAmount = ScalePrecision.amount(ScalePrecision.zeroDefault(fxAmount));
+        roundingAmount = ScalePrecision.amount(ScalePrecision.zeroDefault(roundingAmount));
+    }
+
+    public SettlementPostingAmounts(BigDecimal reliefAmount, BigDecimal advanceAmount, BigDecimal fxAmount) {
+        this(reliefAmount, advanceAmount, fxAmount, ZERO_AMOUNT);
     }
 
     /** 本位币单据（或多币种改造前的调用方）：没有汇率差，汇兑损益恒为 0。 */
@@ -58,8 +64,9 @@ public record SettlementPostingAmounts(
     }
 
     /**
-     * Folds a sub-cent allocation remainder into the FX leg so the cash leg equals the
-     * document base amount. Differences larger than five cents are left untouched.
+     * Reconstructs the pre-V168 posting rule, ONLY for cancelling legacy documents without
+     * posting snapshots. The old five-cent limit must remain to reverse the original voucher.
+     * New documents use SettlementAmountAllocator and never call this method.
      */
     public SettlementPostingAmounts alignCashTo(BigDecimal documentBaseAmount) {
         if (documentBaseAmount == null || documentBaseAmount.signum() == 0) {
@@ -86,5 +93,5 @@ public record SettlementPostingAmounts(
 
     /** 资金腿金额，等于三条业务腿之和。 */
     public BigDecimal cashAmount() {
-        return ScalePrecision.amount(reliefAmount.add(advanceAmount).add(fxAmount));
+        return ScalePrecision.amount(reliefAmount.add(advanceAmount).add(fxAmount).add(roundingAmount));
     }}

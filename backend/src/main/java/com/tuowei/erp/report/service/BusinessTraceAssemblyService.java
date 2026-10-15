@@ -428,7 +428,8 @@ public class BusinessTraceAssemblyService {
                 entity.getSettledAmount(),
                 entity.getBaseOriginalAmount(),
                 entity.getBaseSettledAmount(),
-                entity.getExchangeRate()
+                entity.getExchangeRate(),
+                entity.getPostedBaseSettledAmount()
         );
     }
 
@@ -438,7 +439,8 @@ public class BusinessTraceAssemblyService {
                 entity.getSettledAmount(),
                 entity.getBaseOriginalAmount(),
                 entity.getBaseSettledAmount(),
-                entity.getExchangeRate()
+                entity.getExchangeRate(),
+                entity.getPostedBaseSettledAmount()
         );
     }
 

@@ -41,15 +41,21 @@ public interface FxGainLossReportMapper {
                     allocation.amount AS allocated_amount,
                     subledger.exchange_rate AS booking_rate,
                     settlement.exchange_rate AS settlement_rate,
-                    allocation.base_amount AS base_allocated_amount,
-                    allocation.base_settled_amount AS base_settled_amount,
-                    allocation.fx_gain_loss_amount AS fx_gain_loss_amount,
+                    COALESCE(allocation.posted_base_amount, allocation.base_amount) AS base_allocated_amount,
+                    COALESCE(allocation.posted_base_settled_amount, allocation.base_settled_amount) AS base_settled_amount,
+                    CASE WHEN allocation.posted_base_amount IS NOT NULL
+                         THEN allocation.posted_base_amount - allocation.posted_base_settled_amount - allocation.rounding_amount
+                         ELSE allocation.fx_gain_loss_amount END AS fx_gain_loss_amount,
+                    COALESCE(allocation.rounding_amount, 0) AS rounding_amount,
+                    CASE WHEN allocation.posted_base_amount IS NOT NULL THEN TRUE ELSE FALSE END AS posting_snapshot,
                     0 AS source_order
                 FROM fin_payment_allocation allocation
                 JOIN fin_payment settlement ON settlement.id = allocation.payment_id
+                    AND settlement.company_id = allocation.company_id AND settlement.account_book_id = allocation.account_book_id
                 JOIN fin_payable subledger ON subledger.id = allocation.payable_id
-                WHERE allocation.fx_gain_loss_amount != 0
-                  AND settlement.status = 'POSTED'
+                    AND subledger.company_id = allocation.company_id AND subledger.account_book_id = allocation.account_book_id
+                    AND subledger.supplier_id = settlement.supplier_id
+                WHERE settlement.status = 'POSTED' AND settlement.deleted_flag = 0 AND subledger.deleted_flag = 0
                   AND allocation.payable_id IN (SELECT id FROM fin_payable ${payableWrapper.customSqlSegment})
                   <if test="direction != null"> AND 'PAYABLE' = #{direction}</if>
                   <if test="settlementDateFrom != null"> AND settlement.payment_date >= #{settlementDateFrom}</if>
@@ -66,20 +72,27 @@ public interface FxGainLossReportMapper {
                     allocation.amount AS allocated_amount,
                     subledger.exchange_rate AS booking_rate,
                     settlement.exchange_rate AS settlement_rate,
-                    allocation.base_amount AS base_allocated_amount,
-                    allocation.base_settled_amount AS base_settled_amount,
-                    allocation.fx_gain_loss_amount AS fx_gain_loss_amount,
+                    COALESCE(allocation.posted_base_amount, allocation.base_amount) AS base_allocated_amount,
+                    COALESCE(allocation.posted_base_settled_amount, allocation.base_settled_amount) AS base_settled_amount,
+                    CASE WHEN allocation.posted_base_amount IS NOT NULL
+                         THEN allocation.posted_base_amount - allocation.posted_base_settled_amount - allocation.rounding_amount
+                         ELSE allocation.fx_gain_loss_amount END AS fx_gain_loss_amount,
+                    COALESCE(allocation.rounding_amount, 0) AS rounding_amount,
+                    CASE WHEN allocation.posted_base_amount IS NOT NULL THEN TRUE ELSE FALSE END AS posting_snapshot,
                     1 AS source_order
                 FROM fin_receipt_allocation allocation
                 JOIN fin_receipt settlement ON settlement.id = allocation.receipt_id
+                    AND settlement.company_id = allocation.company_id AND settlement.account_book_id = allocation.account_book_id
                 JOIN fin_receivable subledger ON subledger.id = allocation.receivable_id
-                WHERE allocation.fx_gain_loss_amount != 0
-                  AND settlement.status = 'POSTED'
+                    AND subledger.company_id = allocation.company_id AND subledger.account_book_id = allocation.account_book_id
+                    AND subledger.customer_id = settlement.customer_id
+                WHERE settlement.status = 'POSTED' AND settlement.deleted_flag = 0 AND subledger.deleted_flag = 0
                   AND allocation.receivable_id IN (SELECT id FROM fin_receivable ${receivableWrapper.customSqlSegment})
                   <if test="direction != null"> AND 'RECEIVABLE' = #{direction}</if>
                   <if test="settlementDateFrom != null"> AND settlement.receipt_date >= #{settlementDateFrom}</if>
                   <if test="settlementDateTo != null"> AND settlement.receipt_date &lt;= #{settlementDateTo}</if>
             ) fx_rows
+            WHERE fx_gain_loss_amount != 0 OR rounding_amount != 0
             """;
 
     @ConstructorArgs({
@@ -95,7 +108,9 @@ public interface FxGainLossReportMapper {
             @Arg(column = "settlement_rate", javaType = BigDecimal.class),
             @Arg(column = "base_allocated_amount", javaType = BigDecimal.class),
             @Arg(column = "base_settled_amount", javaType = BigDecimal.class),
-            @Arg(column = "fx_gain_loss_amount", javaType = BigDecimal.class)
+            @Arg(column = "fx_gain_loss_amount", javaType = BigDecimal.class),
+            @Arg(column = "rounding_amount", javaType = BigDecimal.class),
+            @Arg(column = "posting_snapshot", javaType = Boolean.class)
     })
     @Select("""
             <script>
@@ -112,7 +127,9 @@ public interface FxGainLossReportMapper {
                 settlement_rate,
                 base_allocated_amount,
                 base_settled_amount,
-                fx_gain_loss_amount
+                fx_gain_loss_amount,
+                rounding_amount,
+                posting_snapshot
             """ + FROM_CLAUSE + """
             ORDER BY settlement_date DESC, allocation_id DESC, source_order ASC
             LIMIT #{limit} OFFSET #{offset}

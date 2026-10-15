@@ -15,6 +15,8 @@ import com.tuowei.erp.common.security.DataScopeSnapshot;
 import com.tuowei.erp.common.security.ScopedUserResolver;
 import com.tuowei.erp.common.web.PageQueryNormalizer;
 import com.tuowei.erp.common.web.PageResponse;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
@@ -60,12 +62,14 @@ public class ContractQueryService {
     private final SalesOrderLineMapper salesOrderLineMapper;
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
+    private final BaseCurrencyService baseCurrencyService;
 
     public ContractQueryService(ContractMapper contractMapper, ContractLineMapper contractLineMapper,
                                 CustomerMapper customerMapper, SupplierMapper supplierMapper, ProductMapper productMapper,
                                 UserMapper userMapper, CurrentUserContext currentUserContext, ScopedUserResolver scopedUserResolver,
                                 SalesOrderMapper salesOrderMapper, SalesOrderLineMapper salesOrderLineMapper,
-                                PurchaseOrderMapper purchaseOrderMapper, PurchaseOrderLineMapper purchaseOrderLineMapper) {
+                                PurchaseOrderMapper purchaseOrderMapper, PurchaseOrderLineMapper purchaseOrderLineMapper,
+                                BaseCurrencyService baseCurrencyService) {
         this.contractMapper = contractMapper;
         this.contractLineMapper = contractLineMapper;
         this.customerMapper = customerMapper;
@@ -78,6 +82,7 @@ public class ContractQueryService {
         this.salesOrderLineMapper = salesOrderLineMapper;
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
+        this.baseCurrencyService = baseCurrencyService;
     }
 
     @Transactional(readOnly = true)
@@ -169,9 +174,15 @@ public class ContractQueryService {
     private ContractResponse toResponse(ContractEntity entity, List<ContractLineEntity> lines, String customerName,
                                         String supplierName, Map<Long, ProductEntity> products) {
         Map<Long, BigDecimal> committed = committedQuantities(entity, lines);
+        String baseCurrency = baseCurrency(entity);
+        String currency = StringUtils.hasText(entity.getCurrencyCode()) ? entity.getCurrencyCode() : baseCurrency;
         return new ContractResponse(entity.getId(), entity.getContractNo(), entity.getContractType(), entity.getCustomerId(), customerName,
                 entity.getSupplierId(), supplierName, entity.getContractName(), entity.getSignedDate(), entity.getEffectiveFrom(),
-                entity.getEffectiveTo(), entity.getStatus(), entity.getTotalAmount(), entity.getRemark(), lines.stream().map(line -> {
+                entity.getEffectiveTo(), entity.getStatus(), entity.getTotalAmount(), currency,
+                CurrencyAmountSupport.rate(entity.getExchangeRate()),
+                entity.getBaseTotalAmount() == null
+                        ? CurrencyAmountSupport.base(entity.getTotalAmount(), entity.getExchangeRate()) : entity.getBaseTotalAmount(),
+                baseCurrency, entity.getRemark(), lines.stream().map(line -> {
                             ProductEntity product = products.get(line.getProductId());
                     return new ContractLineResponse(line.getId(), line.getLineNo(), line.getProductId(),
                             product == null ? null : product.getProductCode(), product == null ? null : product.getProductName(),
@@ -186,6 +197,10 @@ public class ContractQueryService {
         return "SALES".equals(contract.getContractType())
                 ? committedSalesQuantities(contract, lineIds)
                 : committedPurchaseQuantities(contract, lineIds);
+    }
+
+    String baseCurrency(ContractEntity contract) {
+        return baseCurrencyService.current(contract.getCompanyId(), contract.getAccountBookId());
     }
 
     private Map<Long, BigDecimal> committedSalesQuantities(ContractEntity contract, List<Long> lineIds) {

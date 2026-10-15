@@ -30,6 +30,7 @@ public class ReceivableEntity {
     private BigDecimal exchangeRate;
     private BigDecimal baseOriginalAmount;
     private BigDecimal baseSettledAmount;
+    private BigDecimal postedBaseSettledAmount;
     private String status;
     private Integer deletedFlag;
     private String remark;
@@ -74,6 +75,8 @@ public class ReceivableEntity {
     public void setBaseOriginalAmount(BigDecimal baseOriginalAmount) { this.baseOriginalAmount = baseOriginalAmount; }
     public BigDecimal getBaseSettledAmount() { return baseSettledAmount; }
     public void setBaseSettledAmount(BigDecimal baseSettledAmount) { this.baseSettledAmount = baseSettledAmount; }
+    public BigDecimal getPostedBaseSettledAmount() { return postedBaseSettledAmount; }
+    public void setPostedBaseSettledAmount(BigDecimal value) { this.postedBaseSettledAmount = value; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Integer getDeletedFlag() { return deletedFlag; }

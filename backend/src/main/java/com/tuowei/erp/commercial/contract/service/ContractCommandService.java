@@ -12,6 +12,7 @@ import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
@@ -25,6 +26,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -44,13 +47,15 @@ public class ContractCommandService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final ContractVersionService versionService;
     private final AttachmentService attachmentService;
+    private final SettlementCurrencyService settlementCurrencyService;
 
     @Autowired
     public ContractCommandService(ContractMapper contractMapper, ContractLineMapper contractLineMapper,
                                   ContractNumberService contractNumberService, ContractQueryService queryService,
                                   CustomerMapper customerMapper, SupplierMapper supplierMapper,
                                   ProductValidator productValidator, AuditMetadataFactory auditMetadataFactory,
-                                  ContractVersionService versionService, AttachmentService attachmentService) {
+                                  ContractVersionService versionService, AttachmentService attachmentService,
+                                  SettlementCurrencyService settlementCurrencyService) {
         this.contractMapper = contractMapper;
         this.contractLineMapper = contractLineMapper;
         this.contractNumberService = contractNumberService;
@@ -61,6 +66,17 @@ public class ContractCommandService {
         this.auditMetadataFactory = auditMetadataFactory;
         this.versionService = versionService;
         this.attachmentService = attachmentService;
+        this.settlementCurrencyService = settlementCurrencyService;
+    }
+
+    /** Backward-compatible constructor for isolated command tests and integrations. */
+    public ContractCommandService(ContractMapper contractMapper, ContractLineMapper contractLineMapper,
+                                  ContractNumberService contractNumberService, ContractQueryService queryService,
+                                  CustomerMapper customerMapper, SupplierMapper supplierMapper,
+                                  ProductValidator productValidator, AuditMetadataFactory auditMetadataFactory,
+                                  ContractVersionService versionService, AttachmentService attachmentService) {
+        this(contractMapper, contractLineMapper, contractNumberService, queryService, customerMapper, supplierMapper,
+                productValidator, auditMetadataFactory, versionService, attachmentService, null);
     }
 
     /** Backward-compatible constructor for isolated command tests and integrations. */
@@ -70,7 +86,7 @@ public class ContractCommandService {
                                   ProductValidator productValidator, AuditMetadataFactory auditMetadataFactory,
                                   ContractVersionService versionService) {
         this(contractMapper, contractLineMapper, contractNumberService, queryService, customerMapper, supplierMapper,
-                productValidator, auditMetadataFactory, versionService, null);
+                productValidator, auditMetadataFactory, versionService, null, null);
     }
 
     /** Backward-compatible constructor for isolated command tests and integrations. */
@@ -79,7 +95,7 @@ public class ContractCommandService {
                                   CustomerMapper customerMapper, SupplierMapper supplierMapper,
                                   ProductValidator productValidator, AuditMetadataFactory auditMetadataFactory) {
         this(contractMapper, contractLineMapper, contractNumberService, queryService, customerMapper, supplierMapper,
-                productValidator, auditMetadataFactory, null, null);
+                productValidator, auditMetadataFactory, null, null, null);
     }
 
     @Transactional
@@ -90,7 +106,7 @@ public class ContractCommandService {
         ContractEntity entity = new ContractEntity();
         entity.setCompanyId(audit.companyId()); entity.setAccountBookId(audit.accountBookId());
         entity.setContractNo(contractNumberService.nextContractNo(request.signedDate()));
-        applyRequest(entity, request); entity.setStatus("DRAFT"); entity.setDeletedFlag(0);
+        applyRequest(entity, request, audit); entity.setStatus("DRAFT"); entity.setDeletedFlag(0);
         entity.setCreatedBy(audit.userId()); entity.setCreatedTime(now); entity.setUpdatedBy(audit.userId()); entity.setUpdatedTime(now); entity.setVersion(0);
         contractMapper.insert(entity);
         insertLines(entity, request.lines(), audit, now);
@@ -103,7 +119,7 @@ public class ContractCommandService {
         AuditMetadata audit = auditMetadataFactory.current();
         ContractEntity entity = queryService.requireContract(id);
         if (!EDITABLE.contains(entity.getStatus())) throw new IllegalArgumentException("仅草稿或已驳回合同可编辑");
-        validate(request, audit); applyRequest(entity, request); touch(entity, audit);
+        validate(request, audit); applyRequest(entity, request, audit); touch(entity, audit);
         OptimisticLockGuard.requireUpdated(contractMapper.updateById(entity), "合同已被修改，请刷新后重试");
         deleteLines(entity); insertLines(entity, request.lines(), audit, audit.now());
         if (versionService != null) versionService.record(entity, null, "EDITED");
@@ -159,13 +175,34 @@ public class ContractCommandService {
         for (ContractLineRequest line : request.lines()) productValidator.requireProduct(line.productId(), audit.companyId(), audit.accountBookId());
     }
 
-    private void applyRequest(ContractEntity entity, ContractSaveRequest request) {
+    private void applyRequest(ContractEntity entity, ContractSaveRequest request, AuditMetadata audit) {
+        SettlementCurrencyService.Resolution currency = entity.getId() != null && settlementCurrencyService != null
+                ? settlementCurrencyService.resolveForUpdate(request.currencyCode(), request.exchangeRate(), request.signedDate(),
+                        entity.getCurrencyCode(), entity.getExchangeRate(), entity.getSignedDate(), audit)
+                : resolveCurrency(request.currencyCode(), request.exchangeRate(), request.signedDate(), audit);
         String type = normalizeType(request.contractType()); entity.setContractType(type);
         entity.setCustomerId("SALES".equals(type) ? request.customerId() : null); entity.setSupplierId("PURCHASE".equals(type) ? request.supplierId() : null);
         entity.setContractName(requiredText(request.contractName(), "合同名称不能为空")); entity.setSignedDate(request.signedDate());
         entity.setEffectiveFrom(request.effectiveFrom()); entity.setEffectiveTo(request.effectiveTo()); entity.setRemark(trim(request.remark()));
         BigDecimal total = request.lines().stream().map(line -> ScalePrecision.amount(line.quantity().multiply(line.unitPrice())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add); entity.setTotalAmount(ScalePrecision.amount(total));
+        // Snapshot the contract currency at the signed date so later rate changes never move agreed amounts.
+        entity.setCurrencyCode(currency.currencyCode());
+        entity.setExchangeRate(currency.exchangeRate());
+        entity.setBaseTotalAmount(entity.getTotalAmount().multiply(currency.exchangeRate()).setScale(6, RoundingMode.HALF_UP));
+    }
+
+    private SettlementCurrencyService.Resolution resolveCurrency(String requestedCurrency, BigDecimal requestedRate,
+                                                                 LocalDate businessDate, AuditMetadata audit) {
+        if (settlementCurrencyService != null) {
+            return settlementCurrencyService.resolve(requestedCurrency, requestedRate, businessDate, audit);
+        }
+        String code = requestedCurrency == null || requestedCurrency.isBlank()
+                ? "CNY" : requestedCurrency.trim().toUpperCase(Locale.ROOT);
+        if (!code.matches("[A-Z]{3}")) throw new IllegalArgumentException("币种编码必须为3位大写字母");
+        if (requestedRate == null) return new SettlementCurrencyService.Resolution(code, BigDecimal.ONE);
+        if (requestedRate.signum() <= 0) throw new IllegalArgumentException("汇率必须大于0");
+        return new SettlementCurrencyService.Resolution(code, requestedRate);
     }
 
     private void insertLines(ContractEntity contract, List<ContractLineRequest> lines, AuditMetadata audit, LocalDateTime now) {

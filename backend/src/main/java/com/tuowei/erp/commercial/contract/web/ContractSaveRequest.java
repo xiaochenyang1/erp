@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -17,6 +18,8 @@ public record ContractSaveRequest(
         @NotNull(message = "signedDate不能为空") LocalDate signedDate,
         @NotNull(message = "effectiveFrom不能为空") LocalDate effectiveFrom,
         LocalDate effectiveTo,
+        String currencyCode,
+        BigDecimal exchangeRate,
         String remark,
         @NotEmpty(message = "合同明细不能为空") @Valid List<ContractLineRequest> lines
 ) {

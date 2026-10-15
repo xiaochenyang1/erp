@@ -14,6 +14,7 @@ public record PartnerStatementResponse(
         BigDecimal totalIncrease,
         BigDecimal totalDecrease,
         BigDecimal closingBalance,
-        List<PartnerStatementLineResponse> lines
+        List<PartnerStatementLineResponse> lines,
+        String baseCurrencyCode
 ) {
 }

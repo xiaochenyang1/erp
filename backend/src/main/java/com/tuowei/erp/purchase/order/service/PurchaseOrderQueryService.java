@@ -29,6 +29,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -163,6 +164,10 @@ public class PurchaseOrderQueryService {
                 entity.getTotalQuantity(),
                 entity.getTotalAmount(),
                 entity.getTotalTaxAmount(),
+                entity.getCurrencyCode() == null ? "CNY" : entity.getCurrencyCode(),
+                entity.getExchangeRate() == null ? BigDecimal.ONE : entity.getExchangeRate(),
+                entity.getBaseTotalAmount(),
+                entity.getBaseTotalTaxAmount(),
                 entity.getRemark(),
                 lines.stream().map(this::toLineResponse).toList()
         );
@@ -258,6 +263,10 @@ public class PurchaseOrderQueryService {
                 entity.getTotalQuantity(),
                 entity.getTotalAmount(),
                 entity.getTotalTaxAmount(),
+                entity.getCurrencyCode() == null ? "CNY" : entity.getCurrencyCode(),
+                entity.getExchangeRate() == null ? BigDecimal.ONE : entity.getExchangeRate(),
+                entity.getBaseTotalAmount(),
+                entity.getBaseTotalTaxAmount(),
                 entity.getRemark(),
                 List.of()
         );

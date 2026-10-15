@@ -79,25 +79,25 @@ public class FinanceVoucherPostingService {
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordReceipt(ReceiptEntity receipt, SettlementPostingAmounts amounts, AuditMetadata audit) {
         VoucherEntity voucher = persistenceService.insertVoucherIfAbsent("RECEIPT", receipt.getId(), receipt.getReceiptNo(), receipt.getReceiptDate(), amounts.cashAmount(), "收款单凭证", audit);
-        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, true, "1122", amounts.reliefAmount(), "2203", amounts.advanceAmount(), FX_SUBJECT, amounts.fxAmount(), "收款核销应收", audit);
+        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, true, "1122", amounts.reliefAmount(), "2203", amounts.advanceAmount(), FX_SUBJECT, amounts.fxAmount(), amounts.roundingAmount(), "收款核销应收", audit);
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordReceiptCancellation(ReceiptEntity receipt, SettlementPostingAmounts amounts, AuditMetadata audit) {
         VoucherEntity voucher = persistenceService.insertVoucherIfAbsent("RECEIPT_REVERSAL", receipt.getId(), receipt.getReceiptNo(), receipt.getReceiptDate(), amounts.cashAmount(), "收款单作废冲回凭证", audit);
-        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, false, "1122", amounts.reliefAmount(), "2203", amounts.advanceAmount(), FX_SUBJECT, amounts.fxAmount(), "收款作废冲回应收", audit);
+        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, false, "1122", amounts.reliefAmount(), "2203", amounts.advanceAmount(), FX_SUBJECT, amounts.fxAmount(), amounts.roundingAmount(), "收款作废冲回应收", audit);
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordPayment(PaymentEntity payment, SettlementPostingAmounts amounts, AuditMetadata audit) {
         VoucherEntity voucher = persistenceService.insertVoucherIfAbsent("PAYMENT", payment.getId(), payment.getPaymentNo(), payment.getPaymentDate(), amounts.cashAmount(), "付款单凭证", audit);
-        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, false, "2202", amounts.reliefAmount(), "1123", amounts.advanceAmount(), FX_SUBJECT, amounts.fxAmount(), "付款核销应付", audit);
+        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, false, "2202", amounts.reliefAmount(), "1123", amounts.advanceAmount(), FX_SUBJECT, amounts.fxAmount(), amounts.roundingAmount(), "付款核销应付", audit);
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordPaymentCancellation(PaymentEntity payment, SettlementPostingAmounts amounts, AuditMetadata audit) {
         VoucherEntity voucher = persistenceService.insertVoucherIfAbsent("PAYMENT_REVERSAL", payment.getId(), payment.getPaymentNo(), payment.getPaymentDate(), amounts.cashAmount(), "付款单作废冲回凭证", audit);
-        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, true, "2202", amounts.reliefAmount(), "1123", amounts.advanceAmount(), FX_SUBJECT, amounts.fxAmount(), "付款作废冲回应付", audit);
+        persistenceService.insertCashSettlementEntriesIfAbsent(voucher, CASH_SUBJECT, true, "2202", amounts.reliefAmount(), "1123", amounts.advanceAmount(), FX_SUBJECT, amounts.fxAmount(), amounts.roundingAmount(), "付款作废冲回应付", audit);
     }
 
     @Transactional(propagation = Propagation.REQUIRED)

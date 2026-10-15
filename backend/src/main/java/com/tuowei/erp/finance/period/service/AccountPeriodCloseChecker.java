@@ -4,6 +4,7 @@ import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.persistence.NativeSqlTenantScoped;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.fx.service.FxRevaluationService;
 import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckItemResponse;
@@ -17,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 @Service
@@ -28,36 +28,30 @@ public class AccountPeriodCloseChecker {
     private final AuditMetadataFactory auditMetadataFactory;
     private final InventoryFinanceReconciliationService reconciliationService;
     private final JdbcTemplate jdbcTemplate;
+    private final FxRevaluationService fxRevaluationService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public AccountPeriodCloseChecker(
             AccountPeriodMapper accountPeriodMapper,
             AuditMetadataFactory auditMetadataFactory,
             InventoryFinanceReconciliationService reconciliationService,
-            JdbcTemplate jdbcTemplate
+            JdbcTemplate jdbcTemplate,
+            FxRevaluationService fxRevaluationService
     ) {
         this.accountPeriodMapper = accountPeriodMapper;
         this.auditMetadataFactory = auditMetadataFactory;
         this.reconciliationService = reconciliationService;
         this.jdbcTemplate = jdbcTemplate;
-    }
-
-    /** Keeps direct construction in legacy tests compatible; Spring uses the tenant-aware constructor above. */
-    public AccountPeriodCloseChecker(
-            AccountPeriodMapper accountPeriodMapper,
-            InventoryFinanceReconciliationService reconciliationService,
-            JdbcTemplate jdbcTemplate
-    ) {
-        this(accountPeriodMapper, null, reconciliationService, jdbcTemplate);
+        this.fxRevaluationService = fxRevaluationService;
     }
 
     @Transactional(readOnly = true)
     public AccountPeriodCloseCheckResponse check(Long periodId) {
-        AuditMetadata audit = auditMetadataFactory == null ? null : auditMetadataFactory.current();
+        AuditMetadata audit = auditMetadataFactory.current();
         AccountPeriodEntity period = accountPeriodMapper.selectById(periodId);
         if (period == null
-                || (audit != null && (!Objects.equals(period.getCompanyId(), audit.companyId())
-                || !Objects.equals(period.getAccountBookId(), audit.accountBookId())))) {
+                || !Objects.equals(period.getCompanyId(), audit.companyId())
+                || !Objects.equals(period.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("会计期间不存在");
         }
         List<AccountPeriodCloseIssueResponse> issues = new ArrayList<>();
@@ -372,81 +366,10 @@ public class AccountPeriodCloseChecker {
             List<AccountPeriodCloseIssueResponse> issues,
             List<AccountPeriodCloseCheckItemResponse> checks
     ) {
-        String configuredBase = jdbcTemplate.queryForObject("""
-                select coalesce(max(currency_code), 'CNY')
-                from md_account_book_currency
-                where company_id = ?
-                  and account_book_id = ?
-                  and status = 'ENABLED'
-                  and deleted_flag = 0
-                """, String.class, period.getCompanyId(), period.getAccountBookId());
-        String baseCurrency = configuredBase == null || configuredBase.isBlank()
-                ? "CNY"
-                : configuredBase.trim().toUpperCase(Locale.ROOT);
-        BigDecimal openOriginal = jdbcTemplate.queryForObject("""
-                select coalesce(sum(
-                    case when direction = 'DECREASE'
-                         then -(coalesce(original_amount, 0) - coalesce(settled_amount, 0))
-                         else (coalesce(original_amount, 0) - coalesce(settled_amount, 0))
-                    end
-                ), 0)
-                from (
-                    select direction, original_amount, settled_amount
-                    from fin_receivable
-                    where company_id = ?
-                      and account_book_id = ?
-                      and deleted_flag = 0
-                      and status in ('UNSETTLED', 'PARTIALLY_SETTLED')
-                      and upper(coalesce(nullif(trim(currency_code), ''), 'CNY')) <> ?
-                    union all
-                    select direction, original_amount, settled_amount
-                    from fin_payable
-                    where company_id = ?
-                      and account_book_id = ?
-                      and deleted_flag = 0
-                      and status in ('UNSETTLED', 'PARTIALLY_SETTLED')
-                      and upper(coalesce(nullif(trim(currency_code), ''), 'CNY')) <> ?
-                ) open_fx
-                """, BigDecimal.class,
-                period.getCompanyId(), period.getAccountBookId(), baseCurrency,
-                period.getCompanyId(), period.getAccountBookId(), baseCurrency);
-        BigDecimal open = ScalePrecision.amount(openOriginal == null ? BigDecimal.ZERO : openOriginal);
-        if (open.signum() == 0) {
-            checks.add(new AccountPeriodCloseCheckItemResponse(
-                    "FX_REVALUATION",
-                    "期末调汇",
-                    "财务",
-                    true,
-                    "没有未结清的外币应收应付",
-                    open
-            ));
-            return;
-        }
-        BigDecimal postedFingerprint = jdbcTemplate.queryForObject("""
-                select max(open_original_total)
-                from fin_fx_revaluation
-                where company_id = ?
-                  and account_book_id = ?
-                  and period_id = ?
-                  and status = 'POSTED'
-                  and deleted_flag = 0
-                """, BigDecimal.class, period.getCompanyId(), period.getAccountBookId(), period.getId());
-        boolean passed = postedFingerprint != null && ScalePrecision.amount(postedFingerprint).compareTo(open) == 0;
-        String message = postedFingerprint == null
-                ? "尚未执行期末调汇"
-                : passed
-                ? "期末调汇已覆盖当前外币未结清余额"
-                : "调汇之后外币未结清余额发生变化，请先撤销再重新调汇";
-        checks.add(new AccountPeriodCloseCheckItemResponse(
-                "FX_REVALUATION",
-                "期末调汇",
-                "财务",
-                passed,
-                message,
-                open
-        ));
-        if (!passed) {
-            issues.add(new AccountPeriodCloseIssueResponse("FX_REVALUATION", message, open));
+        AccountPeriodCloseCheckItemResponse check = fxRevaluationService.checkForClose(period);
+        checks.add(check);
+        if (!check.passed()) {
+            issues.add(new AccountPeriodCloseIssueResponse("FX_REVALUATION", check.message(), check.metric()));
         }
     }
 

@@ -133,7 +133,8 @@ public class PurchaseOrderCommandService {
         }
         if (hasContractBinding(request.contractId(), request.lines())) {
             contractOrderBindingService.validatePurchase(
-                    request.contractId(), supplier.getId(), request.orderDate(), request.lines(), id, audit
+                    request.contractId(), supplier.getId(), request.orderDate(), request.lines(), id, audit,
+                    currency.currencyCode()
             );
         }
         OrderTotals totals = calculateTotals(request.lines());
@@ -178,7 +179,8 @@ public class PurchaseOrderCommandService {
         }
         if (hasContractBinding(request.contractId(), request.lines())) {
             contractOrderBindingService.validatePurchase(
-                    request.contractId(), supplier.getId(), request.orderDate(), request.lines(), null, audit
+                    request.contractId(), supplier.getId(), request.orderDate(), request.lines(), null, audit,
+                    currency.currencyCode()
             );
         }
         OrderTotals totals = calculateTotals(request.lines());

@@ -7,6 +7,7 @@ import com.tuowei.erp.finance.currency.mapper.ExchangeRateMapper;
 import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
 import com.tuowei.erp.finance.currency.service.CurrencyAdminCommandService;
 import com.tuowei.erp.finance.currency.service.CurrencyAdminQueryService;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyDataGuard;
 import com.tuowei.erp.finance.currency.service.CurrencyAdminService;
 import com.tuowei.erp.finance.currency.web.BaseCurrencyRequest;
 import com.tuowei.erp.finance.currency.web.CurrencyCreateRequest;
@@ -40,7 +41,8 @@ class CurrencyAdminServiceDecompositionTest {
                 .doesNotContain(CurrencyAdminService.class, CurrencyAdminCommandService.class);
         assertThat(constructorDependencies(CurrencyAdminCommandService.class))
                 .containsExactlyInAnyOrder(CurrencyMapper.class, ExchangeRateMapper.class,
-                        AuditMetadataFactory.class, AccountBookCurrencyMapper.class, CurrencyAdminQueryService.class)
+                        AuditMetadataFactory.class, AccountBookCurrencyMapper.class, CurrencyAdminQueryService.class,
+                        BaseCurrencyDataGuard.class)
                 .doesNotContain(CurrencyAdminService.class);
     }
     @Test

@@ -60,7 +60,7 @@ public class SupplierPayableExposureService {
                         .eq(PayableEntity::getCompanyId, audit.companyId())
                         .eq(PayableEntity::getAccountBookId, audit.accountBookId())
                         .eq(PayableEntity::getSupplierId, supplierId)
-                        .in(PayableEntity::getStatus, List.of("UNSETTLED", "PARTIALLY_SETTLED"))
+                        .in(PayableEntity::getStatus, List.of("UNSETTLED", "PARTIALLY_SETTLED", "OFFSET"))
                         .eq(PayableEntity::getDeletedFlag, 0))
                 .stream()
                 .map(this::signedPayableRemaining)
@@ -97,7 +97,8 @@ public class SupplierPayableExposureService {
                 item.getSettledAmount(),
                 item.getBaseOriginalAmount(),
                 item.getBaseSettledAmount(),
-                item.getExchangeRate()
+                item.getExchangeRate(),
+                item.getPostedBaseSettledAmount()
         );
         return "DECREASE".equalsIgnoreCase(item.getDirection()) ? remaining.negate() : remaining;
     }

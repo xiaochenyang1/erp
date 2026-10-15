@@ -34,19 +34,22 @@ public class CurrencyAdminCommandService {
     private final AuditMetadataFactory audit;
     private final AccountBookCurrencyMapper accountBookCurrencies;
     private final CurrencyAdminQueryService queryService;
+    private final BaseCurrencyDataGuard baseCurrencyDataGuard;
 
     public CurrencyAdminCommandService(
             CurrencyMapper currencies,
             ExchangeRateMapper rates,
             AuditMetadataFactory audit,
             AccountBookCurrencyMapper accountBookCurrencies,
-            CurrencyAdminQueryService queryService
+            CurrencyAdminQueryService queryService,
+            BaseCurrencyDataGuard baseCurrencyDataGuard
     ) {
         this.currencies = currencies;
         this.rates = rates;
         this.audit = audit;
         this.accountBookCurrencies = accountBookCurrencies;
         this.queryService = queryService;
+        this.baseCurrencyDataGuard = baseCurrencyDataGuard;
     }
     @Transactional
     public CurrencyResponse createCurrency(CurrencyCreateRequest request) {
@@ -98,6 +101,9 @@ public class CurrencyAdminCommandService {
                 .eq(AccountBookCurrencyEntity::getCompanyId, metadata.companyId())
                 .eq(AccountBookCurrencyEntity::getAccountBookId, metadata.accountBookId())
                 .last("LIMIT 1"));
+        if (!code.equals(queryService.baseCurrency())) {
+            baseCurrencyDataGuard.requireNoCurrencySensitiveData(metadata.companyId(), metadata.accountBookId());
+        }
         if (entity == null) {
             entity = new AccountBookCurrencyEntity();
             entity.setCompanyId(metadata.companyId());

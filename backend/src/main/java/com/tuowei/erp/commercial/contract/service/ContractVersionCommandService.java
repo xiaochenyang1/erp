@@ -98,6 +98,9 @@ public class ContractVersionCommandService {
         restored.setEffectiveTo(snapshot.header().effectiveTo());
         restored.setStatus("DRAFT");
         restored.setTotalAmount(snapshot.header().totalAmount());
+        restored.setCurrencyCode(snapshot.header().currencyCode());
+        restored.setExchangeRate(snapshot.header().exchangeRate());
+        restored.setBaseTotalAmount(snapshot.header().baseTotalAmount());
         restored.setDeletedFlag(0);
         restored.setRemark(snapshot.header().remark());
         restored.setCreatedBy(audit.userId());
@@ -156,7 +159,8 @@ public class ContractVersionCommandService {
     private ContractVersionHeaderResponse toHeader(ContractEntity entity) {
         return new ContractVersionHeaderResponse(entity.getContractNo(), entity.getContractType(), entity.getCustomerId(),
                 entity.getSupplierId(), entity.getContractName(), entity.getSignedDate(), entity.getEffectiveFrom(),
-                entity.getEffectiveTo(), entity.getTotalAmount(), entity.getRemark());
+                entity.getEffectiveTo(), entity.getTotalAmount(), entity.getCurrencyCode(), entity.getExchangeRate(),
+                entity.getBaseTotalAmount(), entity.getRemark());
     }
 
     private ContractVersionLineResponse toLine(ContractLineEntity line) {

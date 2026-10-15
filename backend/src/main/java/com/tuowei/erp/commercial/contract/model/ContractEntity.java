@@ -25,6 +25,9 @@ public class ContractEntity {
     private LocalDate effectiveTo;
     private String status;
     private BigDecimal totalAmount;
+    private String currencyCode;
+    private BigDecimal exchangeRate;
+    private BigDecimal baseTotalAmount;
     private Integer deletedFlag;
     private String remark;
     private Long createdBy;
@@ -60,6 +63,12 @@ public class ContractEntity {
     public void setStatus(String status) { this.status = status; }
     public BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
+    public String getCurrencyCode() { return currencyCode; }
+    public void setCurrencyCode(String currencyCode) { this.currencyCode = currencyCode; }
+    public BigDecimal getExchangeRate() { return exchangeRate; }
+    public void setExchangeRate(BigDecimal exchangeRate) { this.exchangeRate = exchangeRate; }
+    public BigDecimal getBaseTotalAmount() { return baseTotalAmount; }
+    public void setBaseTotalAmount(BigDecimal baseTotalAmount) { this.baseTotalAmount = baseTotalAmount; }
     public Integer getDeletedFlag() { return deletedFlag; }
     public void setDeletedFlag(Integer deletedFlag) { this.deletedFlag = deletedFlag; }
     public String getRemark() { return remark; }

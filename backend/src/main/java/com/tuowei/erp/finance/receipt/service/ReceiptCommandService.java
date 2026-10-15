@@ -11,6 +11,8 @@ import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
 import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.finance.posting.SettlementPostingAmounts;
+import com.tuowei.erp.finance.posting.SettlementAmountAllocator;
+import com.tuowei.erp.finance.posting.SettlementAllocationTotals;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptAllocationMapper;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptMapper;
 import com.tuowei.erp.finance.receipt.model.ReceiptAllocationEntity;
@@ -99,18 +101,11 @@ public class ReceiptCommandService {
         receipt.setReceiptDate(request.receiptDate()); receipt.setAmount(amount); receipt.setAllocatedAmount(allocatedAmount); receipt.setCurrencyCode(currencyCode); receipt.setExchangeRate(exchangeRate); receipt.setBaseAmount(amount.multiply(exchangeRate).setScale(6, java.math.RoundingMode.HALF_UP));
         receipt.setStatus("POSTED"); receipt.setDeletedFlag(0); receipt.setRemark(request.remark()); setAudit(receipt, audit, now);
         if (receiptMapper.insert(receipt) != 1) throw new IllegalStateException("保存收款单失败");
-        BigDecimal allocatedBaseTotal = ZERO_AMOUNT;
-        BigDecimal reliefTotal = ZERO_AMOUNT;
+        SettlementAmountAllocator allocator = new SettlementAmountAllocator(amount, allocatedAmount, exchangeRate);
         for (ReceiptAllocationRequest allocation : request.allocations()) {
-            AllocationPosting posting = allocateReceivable(receipt, allocation, audit, now);
-            allocatedBaseTotal = allocatedBaseTotal.add(posting.baseAmount());
-            reliefTotal = reliefTotal.add(posting.reliefAmount());
+            allocateReceivable(receipt, allocation, allocator, audit, now);
         }
-        financePostingService.recordReceipt(receipt, SettlementPostingAmounts.fromAllocations(
-                allocatedBaseTotal,
-                reliefTotal,
-                SettlementPostingAmounts.advanceBaseAmount(amount, allocatedAmount, exchangeRate)
-        ).alignCashTo(receipt.getBaseAmount()), audit);
+        financePostingService.recordReceipt(receipt, allocator.totals(), audit);
         return queryService.detail(receipt.getId());
     }
 
@@ -122,25 +117,34 @@ public class ReceiptCommandService {
         if ("CANCELLED".equals(receipt.getStatus())) return queryService.toResponse(receipt);
         accountPeriodGuard.requireOpen(receipt.getReceiptDate(), "收款单作废");
         if (!"POSTED".equals(receipt.getStatus())) throw new BusinessConflictException("只有已过账收款单可以作废");
-        receipt.setStatus("CANCELLED"); receipt.setCancelReason(request.reason().trim()); receipt.setCancelledBy(audit.userId()); receipt.setCancelledTime(now);
-        receipt.setUpdatedBy(audit.userId()); receipt.setUpdatedTime(now);
-        OptimisticLockGuard.requireUpdated(receiptMapper.updateById(receipt), "收款单已被其他操作修改，请刷新后重试");
+        List<ReceiptAllocationEntity> allocations = queryService.allocations(receipt);
+        boolean hasSnapshots = allocations.stream().anyMatch(item -> item.getPostedBaseAmount() != null);
+        if (hasSnapshots && allocations.stream().anyMatch(item -> item.getPostedBaseAmount() == null
+                || item.getPostedBaseSettledAmount() == null || item.getRoundingAmount() == null)) {
+            throw new BusinessConflictException("收款核销过账快照不完整，不能作废收款单");
+        }
         BigDecimal allocatedBaseTotal = ZERO_AMOUNT;
         BigDecimal reliefTotal = ZERO_AMOUNT;
-        for (ReceiptAllocationEntity allocation : queryService.allocations(receipt)) {
+        BigDecimal roundingTotal = ZERO_AMOUNT;
+        for (ReceiptAllocationEntity allocation : allocations) {
             AllocationPosting posting = revertReceivableSettlement(receipt, allocation, audit, now);
             allocatedBaseTotal = allocatedBaseTotal.add(posting.baseAmount());
             reliefTotal = reliefTotal.add(posting.reliefAmount());
+            roundingTotal = roundingTotal.add(posting.roundingAmount());
         }
-        financePostingService.recordReceiptCancellation(receipt, SettlementPostingAmounts.fromAllocations(
-                allocatedBaseTotal,
-                reliefTotal,
-                SettlementPostingAmounts.advanceBaseAmount(receipt.getAmount(), receipt.getAllocatedAmount(), CurrencyAmountSupport.rate(receipt.getExchangeRate()))
-        ).alignCashTo(receipt.getBaseAmount()), audit);
+        receipt.setStatus("CANCELLED"); receipt.setCancelReason(request.reason().trim()); receipt.setCancelledBy(audit.userId()); receipt.setCancelledTime(now);
+        receipt.setUpdatedBy(audit.userId()); receipt.setUpdatedTime(now);
+        OptimisticLockGuard.requireUpdated(receiptMapper.updateById(receipt), "收款单已被其他操作修改，请刷新后重试");
+        BigDecimal advance = SettlementPostingAmounts.advanceBaseAmount(receipt.getAmount(), receipt.getAllocatedAmount(), receipt.getExchangeRate());
+        SettlementPostingAmounts amounts = hasSnapshots
+                ? new SettlementPostingAmounts(reliefTotal, advance, allocatedBaseTotal.subtract(reliefTotal).subtract(roundingTotal), roundingTotal)
+                : SettlementPostingAmounts.fromAllocations(allocatedBaseTotal, reliefTotal, advance).alignCashTo(receipt.getBaseAmount());
+        financePostingService.recordReceiptCancellation(receipt, amounts, audit);
         return queryService.detail(id);
     }
 
-    private AllocationPosting allocateReceivable(ReceiptEntity receipt, ReceiptAllocationRequest request, AuditMetadata audit, LocalDateTime now) {
+    private void allocateReceivable(ReceiptEntity receipt, ReceiptAllocationRequest request, SettlementAmountAllocator allocator,
+                                    AuditMetadata audit, LocalDateTime now) {
         ReceivableEntity receivable = receivableMapper.selectById(request.receivableId());
         if (receivable == null || receivable.getDeletedFlag() == null || receivable.getDeletedFlag() != 0
                 || !Objects.equals(receipt.getCompanyId(), receivable.getCompanyId()) || !Objects.equals(receipt.getAccountBookId(), receivable.getAccountBookId())) throw new IllegalArgumentException("应收记录不存在");
@@ -151,17 +155,19 @@ public class ReceiptCommandService {
         BigDecimal allocationAmount = ScalePrecision.amount(request.amount());
         BigDecimal remaining = remaining(receivable.getOriginalAmount(), receivable.getSettledAmount());
         if (allocationAmount.compareTo(remaining) > 0) throw new IllegalArgumentException("收款核销金额不能超过应收剩余金额");
-        // 按结算汇率折算的本位币收款额，与按应收入账汇率折算的本位币冲减额之差，就是本次已实现汇兑损益。
-        BigDecimal baseAmount = CurrencyAmountSupport.base(allocationAmount, CurrencyAmountSupport.rate(receipt.getExchangeRate()));
-        BigDecimal baseSettledAmount = CurrencyAmountSupport.base(allocationAmount, CurrencyAmountSupport.rate(receivable.getExchangeRate()));
+        BigDecimal postedSettled = postedSettled(receivable);
+        var posting = allocator.allocate(allocationAmount, receivable.getExchangeRate(), receivable.getOriginalAmount(),
+                receivable.getSettledAmount(), receivable.getBaseOriginalAmount(), postedSettled);
         ReceiptAllocationEntity allocation = new ReceiptAllocationEntity(); allocation.setCompanyId(receipt.getCompanyId()); allocation.setAccountBookId(receipt.getAccountBookId()); allocation.setReceiptId(receipt.getId()); allocation.setReceivableId(receivable.getId()); allocation.setAmount(allocationAmount);
-        allocation.setBaseAmount(baseAmount); allocation.setBaseSettledAmount(baseSettledAmount); allocation.setFxGainLossAmount(baseAmount.subtract(baseSettledAmount)); setAudit(allocation, audit, now);
+        allocation.setBaseAmount(posting.rawCash()); allocation.setBaseSettledAmount(posting.rawRelief()); allocation.setFxGainLossAmount(posting.rawFx());
+        allocation.setPostedBaseAmount(posting.postedCash()); allocation.setPostedBaseSettledAmount(posting.postedRelief());
+        allocation.setRoundingAmount(posting.rounding()); setAudit(allocation, audit, now);
         if (receiptAllocationMapper.insert(allocation) != 1) throw new IllegalStateException("保存收款核销明细失败");
         receivable.setSettledAmount(ScalePrecision.amount(ScalePrecision.zeroDefault(receivable.getSettledAmount()).add(allocationAmount)));
-        receivable.setBaseSettledAmount(CurrencyAmountSupport.zero(receivable.getBaseSettledAmount()).add(baseSettledAmount));
+        receivable.setBaseSettledAmount(CurrencyAmountSupport.zero(receivable.getBaseSettledAmount()).add(posting.rawRelief()));
+        receivable.setPostedBaseSettledAmount(postedSettled.add(posting.postedRelief()));
         receivable.setStatus(settlementStatus(receivable.getOriginalAmount(), receivable.getSettledAmount())); receivable.setUpdatedBy(audit.userId()); receivable.setUpdatedTime(now);
         OptimisticLockGuard.requireUpdated(receivableMapper.updateById(receivable), "应收记录已被其他操作修改，请刷新后重试");
-        return new AllocationPosting(ScalePrecision.amount(baseAmount), ScalePrecision.amount(baseSettledAmount));
     }
 
     private AllocationPosting revertReceivableSettlement(ReceiptEntity receipt, ReceiptAllocationEntity allocation, AuditMetadata audit, LocalDateTime now) {
@@ -174,11 +180,24 @@ public class ReceiptCommandService {
         BigDecimal storedRelief = CurrencyAmountSupport.zero(allocation.getBaseSettledAmount());
         BigDecimal baseAmount = storedBase.signum() > 0 ? storedBase : CurrencyAmountSupport.base(allocationAmount, CurrencyAmountSupport.rate(receipt.getExchangeRate()));
         BigDecimal reliefAmount = storedRelief.signum() > 0 ? storedRelief : CurrencyAmountSupport.base(allocationAmount, CurrencyAmountSupport.rate(receivable.getExchangeRate()));
+        BigDecimal postedBase = allocation.getPostedBaseAmount() != null ? allocation.getPostedBaseAmount() : ScalePrecision.amount(baseAmount);
+        BigDecimal postedRelief = allocation.getPostedBaseSettledAmount() != null ? allocation.getPostedBaseSettledAmount() : ScalePrecision.amount(reliefAmount);
+        BigDecimal postedAfter = postedSettled(receivable).subtract(postedRelief);
+        if (postedAfter.signum() < 0) throw new BusinessConflictException("本位币已核销金额小于原过账金额，不能作废收款单");
         receivable.setSettledAmount(ScalePrecision.amount(settledAmount.subtract(allocationAmount)));
         receivable.setBaseSettledAmount(subtractToZeroFloor(receivable.getBaseSettledAmount(), reliefAmount));
+        receivable.setPostedBaseSettledAmount(postedAfter);
         receivable.setStatus(settlementStatus(receivable.getOriginalAmount(), receivable.getSettledAmount())); receivable.setUpdatedBy(audit.userId()); receivable.setUpdatedTime(now);
         OptimisticLockGuard.requireUpdated(receivableMapper.updateById(receivable), "应收记录已被其他操作修改，请刷新后重试");
-        return new AllocationPosting(ScalePrecision.amount(baseAmount), ScalePrecision.amount(reliefAmount));
+        return new AllocationPosting(postedBase, postedRelief, CurrencyAmountSupport.zero(allocation.getRoundingAmount()));
+    }
+
+    private BigDecimal postedSettled(ReceivableEntity item) {
+        SettlementAllocationTotals active = item.getPostedBaseSettledAmount() == null
+                && CurrencyAmountSupport.zero(item.getSettledAmount()).signum() != 0
+                ? receiptAllocationMapper.selectPostedTotals(item.getCompanyId(), item.getAccountBookId(), item.getId()) : null;
+        return SettlementAllocationTotals.postedSettled(item.getPostedBaseSettledAmount(), item.getSettledAmount(),
+                item.getBaseSettledAmount(), item.getExchangeRate(), active);
     }
 
     /** 历史行的 base_settled_amount 可能是 V161 的 0 默认值，冲回时不能把子账推成负数。 */
@@ -188,7 +207,7 @@ public class ReceiptCommandService {
     }
 
     /** 单笔核销的本位币过账口径：按结算汇率折算的金额与按子账入账汇率折算的冲减额。 */
-    private record AllocationPosting(BigDecimal baseAmount, BigDecimal reliefAmount) {
+    private record AllocationPosting(BigDecimal baseAmount, BigDecimal reliefAmount, BigDecimal roundingAmount) {
     }
 
     private void validateCreateRequest(ReceiptCreateRequest request) { if (request == null) throw new IllegalArgumentException("收款单请求不能为空"); if (request.allocations() == null || request.allocations().stream().anyMatch(Objects::isNull)) throw new IllegalArgumentException("收款核销明细不能为空"); }

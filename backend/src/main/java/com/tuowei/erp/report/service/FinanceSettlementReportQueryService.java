@@ -239,7 +239,8 @@ public class FinanceSettlementReportQueryService {
                 remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
                 CurrencyAmountSupport.currency(entity.getCurrencyCode()),
                 CurrencyAmountSupport.rate(entity.getExchangeRate()),
-                baseRemaining(entity.getOriginalAmount(), entity.getSettledAmount(), entity.getExchangeRate()),
+                CurrencyAmountSupport.baseRemaining(entity.getOriginalAmount(), entity.getSettledAmount(),
+                        entity.getBaseOriginalAmount(), entity.getBaseSettledAmount(), entity.getExchangeRate(), entity.getPostedBaseSettledAmount()),
                 entity.getStatus()
         );
     }
@@ -258,18 +259,12 @@ public class FinanceSettlementReportQueryService {
                 remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
                 CurrencyAmountSupport.currency(entity.getCurrencyCode()),
                 CurrencyAmountSupport.rate(entity.getExchangeRate()),
-                baseRemaining(entity.getOriginalAmount(), entity.getSettledAmount(), entity.getExchangeRate()),
+                CurrencyAmountSupport.baseRemaining(entity.getOriginalAmount(), entity.getSettledAmount(),
+                        entity.getBaseOriginalAmount(), entity.getBaseSettledAmount(), entity.getExchangeRate(), entity.getPostedBaseSettledAmount()),
                 entity.getStatus()
         );
     }
 
-    /**
-     * 本位币未结额按子账入账汇率折算，而不是读 base_* 列：V161 之前的历史行那两列是 0 默认值，
-     * 相减会算成 0；按行自带汇率折算对历史行（汇率 1）和新行都成立。
-     */
-    private BigDecimal baseRemaining(BigDecimal originalAmount, BigDecimal settledAmount, BigDecimal exchangeRate) {
-        return CurrencyAmountSupport.posting(remaining(originalAmount, settledAmount), exchangeRate);
-    }
 
     private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) {
         return ScalePrecision.amount(

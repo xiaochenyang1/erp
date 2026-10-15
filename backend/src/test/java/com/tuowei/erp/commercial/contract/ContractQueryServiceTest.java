@@ -43,6 +43,7 @@ import static org.mockito.Mockito.*;
 class ContractQueryServiceTest {
 
     private static final CurrentUser USER = new CurrentUser(9L, 1L, 2L, 31L, 41L, "scope", "范围用户");
+    private final com.tuowei.erp.finance.currency.service.BaseCurrencyService baseCurrencyService = mock(com.tuowei.erp.finance.currency.service.BaseCurrencyService.class);
     private final ContractMapper contractMapper = mock(ContractMapper.class);
     private final ContractLineMapper contractLineMapper = mock(ContractLineMapper.class);
     private final CustomerMapper customerMapper = mock(CustomerMapper.class);
@@ -179,10 +180,28 @@ class ContractQueryServiceTest {
         assertThat(result.lines()).singleElement().satisfies(item -> assertThat(item.committedQuantity()).isEqualByComparingTo("3.0000"));
     }
 
+    @Test
+    void detailReturnsTheSavedCurrencyAndBaseAmounts() {
+        when(currentUserContext.requireCurrentUser()).thenReturn(USER);
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(DataScopeSnapshot.all()));
+        ContractEntity entity = contract("DRAFT");
+        entity.setCurrencyCode("USD"); entity.setExchangeRate(new BigDecimal("7.2"));
+        entity.setTotalAmount(new BigDecimal("100")); entity.setBaseTotalAmount(new BigDecimal("720"));
+        when(contractMapper.selectById(1001L)).thenReturn(entity);
+        when(contractLineMapper.selectList(any())).thenReturn(List.of());
+        var response = service().detail(1001L);
+        assertThat(response.currencyCode()).isEqualTo("USD");
+        assertThat(response.exchangeRate()).isEqualByComparingTo("7.2");
+        assertThat(response.baseTotalAmount()).isEqualByComparingTo("720");
+        assertThat(response.baseCurrencyCode()).isEqualTo("CNY");
+        verify(baseCurrencyService).current(1L, 2L);
+    }
+
     private ContractQueryService service() {
+        when(baseCurrencyService.current(1L, 2L)).thenReturn("CNY");
         return new ContractQueryService(contractMapper, contractLineMapper, customerMapper, supplierMapper,
                 productMapper, userMapper, currentUserContext, scopedUserResolver,
-                salesOrderMapper, salesOrderLineMapper, purchaseOrderMapper, purchaseOrderLineMapper);
+                salesOrderMapper, salesOrderLineMapper, purchaseOrderMapper, purchaseOrderLineMapper, baseCurrencyService);
     }
 
     private ErpPrincipal principal(DataScopeSnapshot snapshot) {

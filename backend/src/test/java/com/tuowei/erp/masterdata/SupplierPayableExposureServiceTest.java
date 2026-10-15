@@ -69,6 +69,7 @@ class SupplierPayableExposureServiceTest {
         assertThat(payableSql)
                 .contains("UNSETTLED")
                 .contains("PARTIALLY_SETTLED")
+                .contains("OFFSET")
                 .doesNotContain("INCREASE");
     }
 
@@ -92,6 +93,7 @@ class SupplierPayableExposureServiceTest {
         partial.setBaseSettledAmount(new BigDecimal("280"));
         PayableEntity returned = payable("50", "0");
         returned.setDirection("DECREASE");
+        returned.setStatus("OFFSET");
         returned.setCurrencyCode("USD");
         returned.setExchangeRate(new BigDecimal("7"));
         returned.setBaseOriginalAmount(new BigDecimal("350"));

@@ -18,7 +18,7 @@ import java.util.List;
 public class ContractExportService {
     private static final List<String> HEADERS = List.of(
             "contractNo", "contractType", "contractName", "partnerName", "signedDate",
-            "effectiveFrom", "effectiveTo", "status", "totalAmount", "remark"
+            "effectiveFrom", "effectiveTo", "status", "totalAmount", "currencyCode", "exchangeRate", "baseTotalAmount", "baseCurrencyCode", "remark"
     );
     private final ContractQueryService queryService;
     private final ReportProperties reportProperties;
@@ -54,7 +54,7 @@ public class ContractExportService {
     private List<?> row(ContractResponse record) {
         String partner = "SALES".equals(record.contractType()) ? record.customerName() : record.supplierName();
         return Arrays.asList(record.contractNo(), record.contractType(), record.contractName(), partner, record.signedDate(),
-                record.effectiveFrom(), record.effectiveTo(), record.status(), record.totalAmount(), record.remark());
+                record.effectiveFrom(), record.effectiveTo(), record.status(), record.totalAmount(), record.currencyCode(), record.exchangeRate(), record.baseTotalAmount(), record.baseCurrencyCode(), record.remark());
     }
 
     private ContractPageQuery copy(ContractPageQuery source) {

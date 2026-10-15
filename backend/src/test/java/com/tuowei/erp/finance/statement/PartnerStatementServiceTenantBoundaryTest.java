@@ -5,13 +5,17 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
+import com.tuowei.erp.finance.payment.mapper.PaymentAllocationMapper;
 import com.tuowei.erp.finance.payment.mapper.PaymentMapper;
 import com.tuowei.erp.finance.payment.model.PaymentEntity;
+import com.tuowei.erp.finance.receipt.mapper.ReceiptAllocationMapper;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptMapper;
 import com.tuowei.erp.finance.receipt.model.ReceiptEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.statement.service.PartnerStatementService;
+import com.tuowei.erp.finance.statement.service.PartnerStatementSettlementService;
 import com.tuowei.erp.masterdata.customer.mapper.CustomerMapper;
 import com.tuowei.erp.masterdata.customer.model.CustomerEntity;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
@@ -60,6 +64,8 @@ class PartnerStatementServiceTenantBoundaryTest {
     @BeforeEach
     void setUp() {
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        BaseCurrencyService baseCurrencyService = mock(BaseCurrencyService.class);
+        when(baseCurrencyService.current(AUDIT)).thenReturn("CNY");
         service = new PartnerStatementService(
                 receivableMapper,
                 payableMapper,
@@ -67,7 +73,9 @@ class PartnerStatementServiceTenantBoundaryTest {
                 paymentMapper,
                 customerMapper,
                 supplierMapper,
-                auditMetadataFactory
+                auditMetadataFactory,
+                new PartnerStatementSettlementService(mock(ReceiptAllocationMapper.class), mock(PaymentAllocationMapper.class)),
+                baseCurrencyService
         );
     }
 

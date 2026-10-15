@@ -18,6 +18,10 @@ public record ContractResponse(
         LocalDate effectiveTo,
         String status,
         BigDecimal totalAmount,
+        String currencyCode,
+        BigDecimal exchangeRate,
+        BigDecimal baseTotalAmount,
+        String baseCurrencyCode,
         String remark,
         List<ContractLineResponse> lines
 ) {

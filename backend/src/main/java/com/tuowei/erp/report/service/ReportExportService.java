@@ -49,7 +49,7 @@ public class ReportExportService {
     private static final List<String> FX_GAIN_LOSS_HEADERS = List.of(
             "direction", "settlementNo", "settlementDate", "partnerId", "subledgerNo", "currencyCode",
             "allocatedAmount", "bookingRate", "settlementRate", "baseAllocatedAmount", "baseSettledAmount",
-            "fxGainLossAmount"
+            "fxGainLossAmount", "roundingAmount", "totalGainLossAmount", "postingSnapshot"
     );
     private static final List<String> INVENTORY_VALUATION_HEADERS = List.of(
             "periodStart", "asOfDate", "warehouseCode", "warehouseName", "productCode", "productName",
@@ -195,7 +195,10 @@ public class ReportExportService {
                 record.settlementRate(),
                 record.baseAllocatedAmount(),
                 record.baseSettledAmount(),
-                record.fxGainLossAmount()
+                record.fxGainLossAmount(),
+                record.roundingAmount(),
+                record.totalGainLossAmount(),
+                record.postingSnapshot()
         );
     }
 

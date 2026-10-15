@@ -157,7 +157,7 @@ class ContractCommandServiceTest {
     private ContractSaveRequest request(String type, Long customerId, Long supplierId, List<ContractLineRequest> lines) {
         return new ContractSaveRequest(type, customerId, supplierId, "测试合同",
                 LocalDate.of(2026, 8, 26), LocalDate.of(2026, 8, 26),
-                LocalDate.of(2026, 12, 31), "备注", lines);
+                LocalDate.of(2026, 12, 31), null, null, "备注", lines);
     }
 
     private ContractLineRequest line(Long productId, String quantity, String price) {
@@ -195,7 +195,7 @@ class ContractCommandServiceTest {
     private ContractResponse response(String status, String total) {
         return new ContractResponse(1001L, "CT20260826-0001", "SALES", 101L, "客户", null, null,
                 "测试合同", LocalDate.of(2026, 8, 26), LocalDate.of(2026, 8, 26),
-                LocalDate.of(2026, 12, 31), status, new BigDecimal(total), "备注", List.of());
+                LocalDate.of(2026, 12, 31), status, new BigDecimal(total), "CNY", BigDecimal.ONE, new BigDecimal(total), "CNY", "备注", List.of());
     }
 
     private static void initTableInfo(Class<?> entityType) {

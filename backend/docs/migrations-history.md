@@ -19,4 +19,5 @@
 - V156 新增 `sys_scheduler_lease`，为异常规则自动化提供单行全局租约。该表不含租户列，租约获取与释放均按 `lease_key` 和 `owner_token` 条件更新，避免多实例重复扫描以及旧实例误释放新租约。
 - V164 补种 6061「财务费用-汇兑损益」科目，V165 给 `fin_receipt_allocation`/`fin_payment_allocation` 增加 `base_settled_amount` 与 `fx_gain_loss_amount`。两者连续追加、无跳号；V165 为纯 DDL，历史行保留 0 默认值，不回填虚构汇率。
 - V166 新增 `fin_fx_revaluation`，记录期末未实现汇兑损益调汇。已过账行占用 `generation = 0`，撤销时把 generation 改为行 id，以便同一期间再次调汇。纯 DDL，无跳号。
+- V167 为 `fin_fx_revaluation` 追加 `basis_hash` 与 `basis_json`，保存逐笔期末余额、币种和汇率依据。历史记录保留 NULL；其原币合计不足以证明计算依据相同，打开期间须撤销旧调汇后重算，月结也按此检查。该迁移不回填历史依据，不改原凭证或已关闭期间，纯 DDL、无跳号。
 - 发布复核看到版本缺口时，先查本文档，再核对 `flyway_schema_history`。

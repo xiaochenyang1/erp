@@ -247,6 +247,7 @@ public class FinanceVoucherPersistenceService {
             BigDecimal advanceAmount,
             String fxSubjectCode,
             BigDecimal fxAmount,
+            BigDecimal roundingAmount,
             String summary,
             AuditMetadata audit
     ) {
@@ -256,17 +257,22 @@ public class FinanceVoucherPersistenceService {
         BigDecimal settlement = ScalePrecision.amount(ScalePrecision.zeroDefault(settlementAmount));
         BigDecimal advance = ScalePrecision.amount(ScalePrecision.zeroDefault(advanceAmount));
         BigDecimal fx = ScalePrecision.amount(ScalePrecision.zeroDefault(fxAmount));
+        BigDecimal rounding = ScalePrecision.amount(ScalePrecision.zeroDefault(roundingAmount));
         if (settlement.compareTo(BigDecimal.ZERO) < 0 || advance.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("收付款凭证金额不能为负数");
         }
-        BigDecimal cash = ScalePrecision.amount(settlement.add(advance).add(fx));
-        if (cash.compareTo(BigDecimal.ZERO) <= 0) {
+        BigDecimal cash = ScalePrecision.amount(settlement.add(advance).add(fx).add(rounding));
+        if (cash.signum() < 0) {
+            throw new IllegalArgumentException("收付款凭证金额不能为负数");
+        }
+        if (cash.signum() == 0 && settlement.signum() == 0 && advance.signum() == 0
+                && fx.signum() == 0 && rounding.signum() == 0) {
             throw new IllegalArgumentException("收付款凭证金额必须大于0");
         }
-        AccountSubjectEntity cashSubject = requireSubjectByCode(cashSubjectCode, audit);
+        AccountSubjectEntity cashSubject = cash.signum() > 0 ? requireSubjectByCode(cashSubjectCode, audit) : null;
         LocalDateTime now = audit.now();
         int lineNo = 1;
-        if (cashOnDebit) {
+        if (cashOnDebit && cash.signum() > 0) {
             insertVoucherEntry(voucher, cashSubject, lineNo++, cash, ZERO_AMOUNT, summary, audit, now);
         }
         if (settlement.compareTo(BigDecimal.ZERO) > 0) {
@@ -295,10 +301,12 @@ public class FinanceVoucherPersistenceService {
                     now
             );
         }
-        if (fx.compareTo(BigDecimal.ZERO) != 0) {
+        for (int component = 0; component < 2; component++) {
+            BigDecimal difference = component == 0 ? fx : rounding;
+            if (difference.signum() == 0) continue;
             AccountSubjectEntity fxSubject = requireSubjectByCode(fxSubjectCode, audit);
-            boolean fxOnCashSide = fx.compareTo(BigDecimal.ZERO) < 0;
-            BigDecimal fxLegAmount = fx.abs();
+            boolean fxOnCashSide = difference.signum() < 0;
+            BigDecimal fxLegAmount = difference.abs();
             boolean fxOnDebit = fxOnCashSide == cashOnDebit;
             insertVoucherEntry(
                     voucher,
@@ -306,12 +314,12 @@ public class FinanceVoucherPersistenceService {
                     lineNo++,
                     fxOnDebit ? fxLegAmount : ZERO_AMOUNT,
                     fxOnDebit ? ZERO_AMOUNT : fxLegAmount,
-                    summary,
+                    component == 0 ? summary : summary + "（尾差调整）",
                     audit,
                     now
             );
         }
-        if (!cashOnDebit) {
+        if (!cashOnDebit && cash.signum() > 0) {
             insertVoucherEntry(voucher, cashSubject, lineNo, ZERO_AMOUNT, cash, summary, audit, now);
         }
     }

@@ -78,4 +78,25 @@ class CurrencyControllerTest {
         mockMvc.perform(get("/api/finance/currencies/rates").param("from", "CNY").param("to", "USD"))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    @WithErpUser(authorities = "contract:manage")
+    void contractEditorCanReadReferencesButCannotChangeBaseCurrency() throws Exception {
+        assertReferenceDataReadable();
+        mockMvc.perform(put("/api/finance/currencies/base").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"currencyCode\":\"USD\"}")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithErpUser(authorities = "finance:invoice:manage")
+    void invoiceEditorCanReadReferences() throws Exception { assertReferenceDataReadable(); }
+
+    @Test
+    @WithErpUser(authorities = "report:view")
+    void reportViewerCanReadBaseCurrencyButCannotReadOrManageRates() throws Exception {
+        mockMvc.perform(get("/api/finance/currencies/base")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/finance/currencies/rates")).andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/finance/currencies/base").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"currencyCode\":\"USD\"}")).andExpect(status().isForbidden());
+    }
 }

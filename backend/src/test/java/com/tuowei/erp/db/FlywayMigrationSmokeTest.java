@@ -1179,7 +1179,7 @@ class FlywayMigrationSmokeTest {
     void createsFxRevaluationTableAndReusesGenerationAfterCancel() {
         assertColumnsExist("fin_fx_revaluation",
                 "period_id", "status", "open_original_total", "ar_adjustment", "ap_adjustment",
-                "revaluation_date", "reversal_date", "generation");
+                "revaluation_date", "reversal_date", "generation", "basis_hash", "basis_json");
         assertIndexColumns("fin_fx_revaluation", "uk_fin_fx_revaluation_generation",
                 "company_id", "account_book_id", "period_id", "generation");
 

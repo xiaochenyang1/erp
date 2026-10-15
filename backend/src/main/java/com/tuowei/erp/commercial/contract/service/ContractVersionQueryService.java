@@ -102,6 +102,9 @@ public class ContractVersionQueryService {
         if (!Objects.equals(previous.header().effectiveFrom(), current.header().effectiveFrom())
                 || !Objects.equals(previous.header().effectiveTo(), current.header().effectiveTo())) fields.add("EFFECTIVE_PERIOD");
         if (!sameAmount(previous.header().totalAmount(), current.header().totalAmount())) fields.add("TOTAL_AMOUNT");
+        if (!Objects.equals(previous.header().currencyCode(), current.header().currencyCode())) fields.add("CURRENCY");
+        if (!sameAmount(previous.header().exchangeRate(), current.header().exchangeRate())) fields.add("EXCHANGE_RATE");
+        if (!sameAmount(previous.header().baseTotalAmount(), current.header().baseTotalAmount())) fields.add("BASE_TOTAL_AMOUNT");
         if (!Objects.equals(previous.header().remark(), current.header().remark())) fields.add("REMARK");
         if (!Objects.equals(previous.lines(), current.lines())) fields.add("LINES");
         return fields;

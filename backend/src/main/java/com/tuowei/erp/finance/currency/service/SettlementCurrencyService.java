@@ -14,6 +14,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 @Service
 public class SettlementCurrencyService {
@@ -87,6 +88,23 @@ public class SettlementCurrencyService {
 
     public BigDecimal toBaseAmount(BigDecimal amount, BigDecimal exchangeRate) {
         return amount.multiply(exchangeRate).setScale(6, RoundingMode.HALF_UP);
+    }
+
+    /** Retain the saved snapshot on an ordinary edit, including older clients that omit currency fields. */
+    @Transactional(readOnly = true)
+    public Resolution resolveForUpdate(String requestedCurrency, BigDecimal requestedRate, LocalDate businessDate,
+                                       String savedCurrency, BigDecimal savedRate, LocalDate savedDate,
+                                       AuditMetadata audit) {
+        if (businessDate == null) throw new IllegalArgumentException("业务日期不能为空");
+        String currency = requestedCurrency == null || requestedCurrency.isBlank() ? savedCurrency : requestedCurrency;
+        boolean hasSnapshot = savedCurrency != null && !savedCurrency.isBlank()
+                && savedRate != null && savedRate.signum() > 0;
+        if (hasSnapshot && Objects.equals(businessDate, savedDate)
+                && normalizeCode(savedCurrency).equals(normalizeCode(currency))
+                && (requestedRate == null || requestedRate.compareTo(savedRate) == 0)) {
+            return new Resolution(normalizeCode(savedCurrency), savedRate);
+        }
+        return resolve(currency, requestedRate, businessDate, audit);
     }
 
     private void requireEnabledCurrency(String currencyCode) {

@@ -5,33 +5,28 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.exception.BusinessConflictException;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
-import com.tuowei.erp.finance.currency.service.SettlementCurrencyService;
 import com.tuowei.erp.finance.fx.mapper.FxRevaluationMapper;
 import com.tuowei.erp.finance.fx.model.FxRevaluationEntity;
 import com.tuowei.erp.finance.fx.service.FxRevaluationService;
-import com.tuowei.erp.finance.payable.mapper.PayableMapper;
-import com.tuowei.erp.finance.payable.model.PayableEntity;
+import com.tuowei.erp.finance.fx.service.FxRevaluationBasisService;
+import com.tuowei.erp.finance.fx.service.FxRevaluationBasisService.Valuation;
 import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinanceVoucherPostingService;
-import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
-import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -45,8 +40,6 @@ class FxRevaluationServiceTest {
 
     @BeforeAll
     static void initTableInfo() {
-        init(ReceivableEntity.class);
-        init(PayableEntity.class);
         init(FxRevaluationEntity.class);
         init(AccountPeriodEntity.class);
     }
@@ -54,12 +47,8 @@ class FxRevaluationServiceTest {
     @Test
     void revaluesOpenForeignReceivableAndReversesItNextPeriod() {
         Harness harness = harness();
-        when(harness.receivables.selectList(any())).thenReturn(List.of(usdReceivable()));
-        when(harness.payables.selectList(any())).thenReturn(List.of());
         when(harness.revaluations.selectOne(any())).thenReturn(null);
         when(harness.revaluations.insert(any(FxRevaluationEntity.class))).thenReturn(1);
-        when(harness.rates.resolve(eq("USD"), isNull(), eq(PERIOD_END), any()))
-                .thenReturn(new SettlementCurrencyService.Resolution("USD", new BigDecimal("7.2")));
 
         var response = harness.service.revalue(11L);
 
@@ -82,14 +71,10 @@ class FxRevaluationServiceTest {
     }
 
     @Test
-    void secondCallWithTheSameOpenBalanceDoesNotPostAgain() {
+    void secondCallWithTheSameBasisDoesNotPostAgain() {
         Harness harness = harness();
-        when(harness.receivables.selectList(any())).thenReturn(List.of(usdReceivable()));
-        when(harness.payables.selectList(any())).thenReturn(List.of());
         FxRevaluationEntity posted = postedRun(new BigDecimal("100.00"), new BigDecimal("20.00"));
         when(harness.revaluations.selectOne(any())).thenReturn(posted);
-        when(harness.rates.resolve(eq("USD"), isNull(), eq(PERIOD_END), any()))
-                .thenReturn(new SettlementCurrencyService.Resolution("USD", new BigDecimal("7.2")));
 
         var response = harness.service.revalue(11L);
 
@@ -103,11 +88,9 @@ class FxRevaluationServiceTest {
     @Test
     void changedOpenBalanceIsRejectedUntilThePostedRunIsCancelled() {
         Harness harness = harness();
-        when(harness.receivables.selectList(any())).thenReturn(List.of(usdReceivable()));
-        when(harness.payables.selectList(any())).thenReturn(List.of());
-        when(harness.revaluations.selectOne(any())).thenReturn(postedRun(new BigDecimal("50.00"), new BigDecimal("10.00")));
-        when(harness.rates.resolve(eq("USD"), isNull(), eq(PERIOD_END), any()))
-                .thenReturn(new SettlementCurrencyService.Resolution("USD", new BigDecimal("7.2")));
+        FxRevaluationEntity previous = postedRun(new BigDecimal("50.00"), new BigDecimal("10.00"));
+        previous.setBasisHash("previous-basis");
+        when(harness.revaluations.selectOne(any())).thenReturn(previous);
 
         assertThatThrownBy(() -> harness.service.revalue(11L))
                 .isInstanceOf(BusinessConflictException.class)
@@ -116,22 +99,46 @@ class FxRevaluationServiceTest {
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void aConcurrentInsertWithTheSameBasisReturnsTheExistingRunWithoutPostingAgain() {
+        Harness harness = harness();
+        FxRevaluationEntity posted = postedRun(new BigDecimal("100.00"), new BigDecimal("20.00"));
+        when(harness.revaluations.selectOne(any())).thenReturn(null, posted);
+        when(harness.revaluations.insert(any(FxRevaluationEntity.class))).thenThrow(new DuplicateKeyException("generation"));
+
+        var response = harness.service.revalue(11L);
+
+        assertThat(response.id()).isEqualTo(posted.getId());
+        assertThat(response.alreadyPosted()).isTrue();
+        verify(harness.vouchers, never()).recordTwoSidedVoucher(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void aConcurrentInsertWithDifferentRatesCannotReuseTheSameOriginalTotal() {
+        Harness harness = harness();
+        FxRevaluationEntity posted = postedRun(new BigDecimal("100.00"), new BigDecimal("20.00"));
+        posted.setBasisHash("different-rates");
+        when(harness.revaluations.selectOne(any())).thenReturn(null, posted);
+        when(harness.revaluations.insert(any(FxRevaluationEntity.class))).thenThrow(new DuplicateKeyException("generation"));
+
+        assertThatThrownBy(() -> harness.service.revalue(11L)).isInstanceOf(BusinessConflictException.class).hasMessageContaining("撤销");
+        verify(harness.vouchers, never()).recordTwoSidedVoucher(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
     private static Harness harness() {
         FxRevaluationMapper revaluations = mock(FxRevaluationMapper.class);
         AccountPeriodMapper periods = mock(AccountPeriodMapper.class);
-        ReceivableMapper receivables = mock(ReceivableMapper.class);
-        PayableMapper payables = mock(PayableMapper.class);
-        SettlementCurrencyService rates = mock(SettlementCurrencyService.class);
-        BaseCurrencyService baseCurrency = mock(BaseCurrencyService.class);
+        FxRevaluationBasisService basis = mock(FxRevaluationBasisService.class);
+        when(basis.valuate(any(), any())).thenReturn(new Valuation(new BigDecimal("100.00"), new BigDecimal("20.00"),
+                new BigDecimal("0.00"), "current-basis", "{}", 1));
         AccountPeriodGuard guard = mock(AccountPeriodGuard.class);
         FinanceVoucherPostingService vouchers = mock(FinanceVoucherPostingService.class);
         AuditMetadataFactory auditFactory = mock(AuditMetadataFactory.class);
         when(auditFactory.current()).thenReturn(new AuditMetadata(7L, 9L, 2L, LocalDateTime.parse("2026-06-30T18:00:00")));
         when(periods.selectById(11L)).thenReturn(period());
-        when(baseCurrency.current(any())).thenReturn("CNY");
         FxRevaluationService service = new FxRevaluationService(
-                revaluations, periods, receivables, payables, rates, baseCurrency, guard, vouchers, auditFactory);
-        return new Harness(service, revaluations, receivables, payables, rates, guard, vouchers);
+                revaluations, periods, basis, guard, vouchers, auditFactory);
+        return new Harness(service, revaluations, basis, guard, vouchers);
     }
 
     private static AccountPeriodEntity period() {
@@ -145,24 +152,13 @@ class FxRevaluationServiceTest {
         return period;
     }
 
-    private static ReceivableEntity usdReceivable() {
-        ReceivableEntity receivable = new ReceivableEntity();
-        receivable.setCurrencyCode("USD");
-        receivable.setDirection("INCREASE");
-        receivable.setStatus("UNSETTLED");
-        receivable.setOriginalAmount(new BigDecimal("100.00"));
-        receivable.setSettledAmount(BigDecimal.ZERO);
-        receivable.setExchangeRate(new BigDecimal("7"));
-        receivable.setBaseOriginalAmount(new BigDecimal("700.00"));
-        receivable.setBaseSettledAmount(BigDecimal.ZERO);
-        return receivable;
-    }
-
     private static FxRevaluationEntity postedRun(BigDecimal fingerprint, BigDecimal arAdjustment) {
         FxRevaluationEntity run = new FxRevaluationEntity();
         run.setId(8801L);
         run.setStatus("POSTED");
         run.setOpenOriginalTotal(fingerprint);
+        run.setBasisHash("current-basis");
+        run.setBasisJson("{}");
         run.setArAdjustment(arAdjustment);
         run.setApAdjustment(BigDecimal.ZERO);
         run.setRevaluationDate(PERIOD_END);
@@ -180,9 +176,7 @@ class FxRevaluationServiceTest {
     private record Harness(
             FxRevaluationService service,
             FxRevaluationMapper revaluations,
-            ReceivableMapper receivables,
-            PayableMapper payables,
-            SettlementCurrencyService rates,
+            FxRevaluationBasisService basis,
             AccountPeriodGuard guard,
             FinanceVoucherPostingService vouchers
     ) {

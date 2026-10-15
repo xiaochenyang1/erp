@@ -13,5 +13,8 @@ public record ContractVersionHeaderResponse(
         LocalDate effectiveFrom,
         LocalDate effectiveTo,
         BigDecimal totalAmount,
+        String currencyCode,
+        BigDecimal exchangeRate,
+        BigDecimal baseTotalAmount,
         String remark
 ) {}

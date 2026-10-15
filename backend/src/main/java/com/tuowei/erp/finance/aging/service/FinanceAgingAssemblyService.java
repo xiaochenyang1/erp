@@ -41,7 +41,8 @@ public class FinanceAgingAssemblyService {
             }
             String currencyCode = CurrencyAmountSupport.currency(entity.getCurrencyCode());
             BigDecimal exchangeRate = CurrencyAmountSupport.rate(entity.getExchangeRate());
-            BigDecimal baseRemaining = baseRemaining(remaining, exchangeRate);
+            BigDecimal baseRemaining = CurrencyAmountSupport.baseRemaining(entity.getOriginalAmount(), entity.getSettledAmount(),
+                    entity.getBaseOriginalAmount(), entity.getBaseSettledAmount(), exchangeRate, entity.getPostedBaseSettledAmount());
             LocalDate dueDate = effectiveDueDate(entity.getDueDate(), entity.getBizDate());
             long days = agingDays(dueDate, data.asOfDate());
             String bucket = bucketCode(days);
@@ -61,7 +62,8 @@ public class FinanceAgingAssemblyService {
             }
             String currencyCode = CurrencyAmountSupport.currency(entity.getCurrencyCode());
             BigDecimal exchangeRate = CurrencyAmountSupport.rate(entity.getExchangeRate());
-            BigDecimal baseRemaining = baseRemaining(remaining, exchangeRate);
+            BigDecimal baseRemaining = CurrencyAmountSupport.baseRemaining(entity.getOriginalAmount(), entity.getSettledAmount(),
+                    entity.getBaseOriginalAmount(), entity.getBaseSettledAmount(), exchangeRate, entity.getPostedBaseSettledAmount());
             LocalDate dueDate = effectiveDueDate(entity.getDueDate(), entity.getBizDate());
             long days = agingDays(dueDate, data.asOfDate());
             String bucket = bucketCode(days);
@@ -101,16 +103,6 @@ public class FinanceAgingAssemblyService {
                 overdueAr,
                 overdueAp
         );
-    }
-
-    /**
-     * 本位币未结额按子账入账汇率折算，而不是读 {@code base_*} 列。
-     *
-     * <p>V161 之前的历史行 {@code base_original_amount}/{@code base_settled_amount} 是 0 默认值，
-     * 直接相减会把未结额算成 0；按行自带汇率折算对历史行（汇率 1）与新行都成立。
-     */
-    private BigDecimal baseRemaining(BigDecimal remaining, BigDecimal exchangeRate) {
-        return CurrencyAmountSupport.posting(remaining, exchangeRate);
     }
 
     private LocalDate effectiveDueDate(LocalDate dueDate, LocalDate bizDate) {

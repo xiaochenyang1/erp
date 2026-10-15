@@ -435,6 +435,52 @@ class PurchaseOrderQueryServiceTest {
         }
     }
 
+    @Test
+    void detailAndListKeepForeignCurrencySnapshotSoEditDoesNotFallBackToCny() {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.all();
+        stubScope(snapshot, Set.of(), Set.of());
+        PurchaseOrderEntity order = order();
+        order.setCurrencyCode("USD");
+        order.setExchangeRate(new BigDecimal("7.100000"));
+        order.setBaseTotalAmount(new BigDecimal("710.000000"));
+        order.setBaseTotalTaxAmount(new BigDecimal("92.300000"));
+        when(purchaseOrderMapper.selectById(order.getId())).thenReturn(order);
+        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier());
+        when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of(orderLine()));
+        when(purchaseOrderMapper.selectPage(any(), any())).thenAnswer(invocation -> {
+            Page<PurchaseOrderEntity> page = invocation.getArgument(0);
+            page.setRecords(List.of(order));
+            page.setTotal(1L);
+            return page;
+        });
+        when(supplierMapper.selectBatchIds(any())).thenReturn(List.of(supplier()));
+        PurchaseOrderQueryService service = service(new DataScopeService(null, new DataScopePolicyService()));
+
+        var detail = service.getById(order.getId());
+        var summary = service.list(new PurchaseOrderPageQuery()).records().get(0);
+
+        for (var response : List.of(detail, summary)) {
+            assertThat(response.currencyCode()).isEqualTo("USD");
+            assertThat(response.exchangeRate()).isEqualByComparingTo("7.1");
+            assertThat(response.baseTotalAmount()).isEqualByComparingTo("710");
+            assertThat(response.baseTotalTaxAmount()).isEqualByComparingTo("92.3");
+        }
+    }
+
+    @Test
+    void legacyOrderWithoutCurrencySnapshotMapsToCnyAtParity() {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.all();
+        stubScope(snapshot, Set.of(), Set.of());
+        PurchaseOrderEntity order = order();
+        when(purchaseOrderMapper.selectById(order.getId())).thenReturn(order);
+        when(purchaseOrderLineMapper.selectList(any())).thenReturn(List.of());
+
+        var detail = service(new DataScopeService(null, new DataScopePolicyService())).getById(order.getId());
+
+        assertThat(detail.currencyCode()).isEqualTo("CNY");
+        assertThat(detail.exchangeRate()).isEqualByComparingTo(BigDecimal.ONE);
+    }
+
     private static Stream<Arguments> scopedQueryCases() {
         return Stream.of(
                 Arguments.of(

@@ -19,6 +19,8 @@ public class FxRevaluationEntity {
     private Long periodId;
     private String status;
     private BigDecimal openOriginalTotal;
+    private String basisHash;
+    private String basisJson;
     private BigDecimal arAdjustment;
     private BigDecimal apAdjustment;
     private LocalDate revaluationDate;
@@ -45,6 +47,10 @@ public class FxRevaluationEntity {
     public void setStatus(String status) { this.status = status; }
     public BigDecimal getOpenOriginalTotal() { return openOriginalTotal; }
     public void setOpenOriginalTotal(BigDecimal openOriginalTotal) { this.openOriginalTotal = openOriginalTotal; }
+    public String getBasisHash() { return basisHash; }
+    public void setBasisHash(String basisHash) { this.basisHash = basisHash; }
+    public String getBasisJson() { return basisJson; }
+    public void setBasisJson(String basisJson) { this.basisJson = basisJson; }
     public BigDecimal getArAdjustment() { return arAdjustment; }
     public void setArAdjustment(BigDecimal arAdjustment) { this.arAdjustment = arAdjustment; }
     public BigDecimal getApAdjustment() { return apAdjustment; }

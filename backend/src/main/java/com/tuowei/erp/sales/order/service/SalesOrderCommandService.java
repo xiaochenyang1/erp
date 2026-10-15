@@ -107,7 +107,7 @@ public class SalesOrderCommandService {
         }
         if (hasContractBinding(request.contractId(), request.lines())) {
             contractOrderBindingService.validateSales(request.contractId(), customer.getId(), request.orderDate(),
-                    request.lines(), null, audit);
+                    request.lines(), null, audit, currency.currencyCode());
         }
         OrderTotals totals = calculateTotals(request.lines());
         LocalDateTime now = audit.now();
@@ -205,7 +205,7 @@ public class SalesOrderCommandService {
         }
         if (hasContractBinding(request.contractId(), request.lines())) {
             contractOrderBindingService.validateSales(request.contractId(), customer.getId(), request.orderDate(),
-                    request.lines(), id, audit);
+                    request.lines(), id, audit, currency.currencyCode());
         }
         OrderTotals totals = calculateTotals(request.lines());
         LocalDateTime now = audit.now();

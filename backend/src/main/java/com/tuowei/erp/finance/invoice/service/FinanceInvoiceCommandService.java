@@ -105,6 +105,10 @@ public class FinanceInvoiceCommandService {
         InvoiceRegisterEntity entity = requireInvoice(id);
         if (!DRAFT.equals(entity.getStatus())) throw new IllegalArgumentException("只有草稿状态的发票登记可以编辑");
         AuditMetadata audit = auditMetadataFactory.current();
+        SettlementCurrencyService.Resolution currency = settlementCurrencyService == null
+                ? resolveCurrency(request.currencyCode(), request.exchangeRate(), request.invoiceDate(), audit)
+                : settlementCurrencyService.resolveForUpdate(request.currencyCode(), request.exchangeRate(), request.invoiceDate(),
+                        entity.getCurrencyCode(), entity.getExchangeRate(), entity.getInvoiceDate(), audit);
         entity.setInvoiceType(normalizeInvoiceType(request.invoiceType()));
         entity.setPartnerName(normalizeRequired(request.partnerName(), "往来单位不能为空"));
         BigDecimal amount = ScalePrecision.amount(request.amount());
@@ -113,7 +117,6 @@ public class FinanceInvoiceCommandService {
         entity.setAmount(amount); entity.setTaxAmount(taxAmount); entity.setInvoiceDate(request.invoiceDate());
         validateRelatedBiz(request.relatedBizType(), request.relatedBizId(), audit);
         entity.setRelatedBizType(trimToNull(request.relatedBizType())); entity.setRelatedBizId(request.relatedBizId()); entity.setRemark(trimToNull(request.remark()));
-        SettlementCurrencyService.Resolution currency = resolveCurrency(request.currencyCode(), request.exchangeRate(), request.invoiceDate(), audit);
         entity.setCurrencyCode(currency.currencyCode());
         entity.setExchangeRate(currency.exchangeRate());
         entity.setBaseAmount(toBaseAmount(amount, currency.exchangeRate()));

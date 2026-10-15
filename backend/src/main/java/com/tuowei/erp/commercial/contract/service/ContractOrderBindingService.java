@@ -50,11 +50,18 @@ public class ContractOrderBindingService {
 
     public void validateSales(Long contractId, Long customerId, LocalDate orderDate,
                               List<SalesOrderLineRequest> requestedLines, Long currentOrderId, AuditMetadata audit) {
+        validateSales(contractId, customerId, orderDate, requestedLines, currentOrderId, audit, null);
+    }
+
+    public void validateSales(Long contractId, Long customerId, LocalDate orderDate,
+                              List<SalesOrderLineRequest> requestedLines, Long currentOrderId, AuditMetadata audit,
+                              String orderCurrencyCode) {
         if (contractId == null) {
             requireNoOrphanLineBindings(requestedLines.stream().map(SalesOrderLineRequest::contractLineId).toList());
             return;
         }
         ContractContext context = lockAndRequire(contractId, "SALES", customerId, orderDate, audit);
+        requireMatchingCurrency(context.contract(), orderCurrencyCode);
         validateLines(context, requestedLines.stream().map(line -> new RequestedLine(
                 line.contractLineId(), line.productId(), line.qty(), line.price())).toList(),
                 committedSalesQuantities(context.lineIds(), currentOrderId, audit), "销售");
@@ -62,14 +69,43 @@ public class ContractOrderBindingService {
 
     public void validatePurchase(Long contractId, Long supplierId, LocalDate orderDate,
                                  List<PurchaseOrderLineRequest> requestedLines, Long currentOrderId, AuditMetadata audit) {
+        validatePurchase(contractId, supplierId, orderDate, requestedLines, currentOrderId, audit, null);
+    }
+
+    public void validatePurchase(Long contractId, Long supplierId, LocalDate orderDate,
+                                 List<PurchaseOrderLineRequest> requestedLines, Long currentOrderId, AuditMetadata audit,
+                                 String orderCurrencyCode) {
         if (contractId == null) {
             requireNoOrphanLineBindings(requestedLines.stream().map(PurchaseOrderLineRequest::contractLineId).toList());
             return;
         }
         ContractContext context = lockAndRequire(contractId, "PURCHASE", supplierId, orderDate, audit);
+        requireMatchingCurrency(context.contract(), orderCurrencyCode);
         validateLines(context, requestedLines.stream().map(line -> new RequestedLine(
                 line.contractLineId(), line.productId(), line.qty(), line.price())).toList(),
                 committedPurchaseQuantities(context.lineIds(), currentOrderId, audit), "采购");
+    }
+
+    /**
+     * Contract line prices are agreed in the contract's own currency, so a numeric price comparison is only
+     * meaningful once both sides share that currency. Legacy documents without a snapshot use their
+     * account-book base currency, just as they do when displayed or edited.
+     */
+    private void requireMatchingCurrency(ContractEntity contract, String orderCurrencyCode) {
+        String contractCurrency = normalizeCurrency(contract.getCurrencyCode());
+        String orderCurrency = normalizeCurrency(orderCurrencyCode);
+        if (contractCurrency == null || orderCurrency == null) {
+            String base = contractQueryService.baseCurrency(contract);
+            if (contractCurrency == null) contractCurrency = base;
+            if (orderCurrency == null) orderCurrency = base;
+        }
+        if (!contractCurrency.equals(orderCurrency)) {
+            throw new IllegalArgumentException("订单币种必须与合同约定币种一致，当前合同为" + contractCurrency);
+        }
+    }
+
+    private String normalizeCurrency(String value) {
+        return value == null || value.isBlank() ? null : value.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     private ContractContext lockAndRequire(Long contractId, String type, Long partyId,
