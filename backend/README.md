@@ -4,6 +4,10 @@
 `python/erpServer` 是历史遗留目录名，不代表项目使用 Python 运行，也不代表入口在
 Python 脚本里。
 
+当前 MRP 修复、候选验证入口和预生产交接见 [2026-10-15 发布候选记录](docs/RELEASE-CANDIDATE-2026-10-15.md)。
+
+上一轮多币种开发与验证进展见 [2026-10-14 优化与回归记录](docs/OPTIMIZATION-2026-10-14.md)；模块范围及审计基线见 [项目现状报告](docs/PROJECT-STATUS-2026-10-14.md)。
+
 ## 技术栈
 
 - Java 17
@@ -82,6 +86,14 @@ Windows PowerShell：
 ```bash
 ./scripts/test-local.sh -Ptestcontainers -Derp.testcontainers.enabled=true clean package
 ```
+
+macOS/Linux 浏览器回归可在构建完成后运行：
+
+```bash
+./scripts/ui-smoke-local.sh
+```
+
+该入口使用一次性 MySQL，初始化管理员及审批提交账号，再运行页面与业务流程；结束后自动删除测试容器，不依赖本机业务库。需要 Docker、Java 17、Node.js、已安装的前端依赖及 Chrome/Edge（也可设置 `CHROME_PATH`）。默认后端端口 19381、前端 19373；可用 `ERP_UI_SMOKE_BACKEND_PORT`、`UI_SMOKE_FRONTEND_PORT` 覆盖。仅复跑多币种专项时使用 `UI_SMOKE_ROUTES=0 UI_SMOKE_WORKFLOW=currency ./scripts/ui-smoke-local.sh`。报告位于 `target/ui-smoke-report.json`，记录源码提交及工作区是否有未提交改动；正式发布仍需干净候选和独立归档。
 
 F/Q 技术预检默认兼容写入 `target/fq-signoff-api-check/`。作为 RC 或发布证据时，应通过 `ERP_FQ_EVIDENCE_DIRECTORY`（或 `ERP_EVIDENCE_DIRECTORY`）指定不会被 Maven `clean` 删除的独立目录，并把该目录纳入发布证据包。
 
