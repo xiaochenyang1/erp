@@ -23,6 +23,7 @@ export ERP_UI_SMOKE_DATASOURCE_USERNAME="root"
 export ERP_UI_SMOKE_DATASOURCE_PASSWORD="ui_smoke_disposable_password"
 
 [[ -f "${backend_root}/target/erp-server-1.0.0.jar" ]] || { echo 'Build the backend package before running UI smoke.' >&2; exit 1; }
+node --test "${script_dir}/ui-smoke-cdp.test.mjs"
 if [[ "${UI_SMOKE_FRONTEND_MODE}" == preview ]]; then
   npm --prefix "${backend_root}/../frontend" run build
 fi

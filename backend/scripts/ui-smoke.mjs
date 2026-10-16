@@ -1,4 +1,5 @@
 import { spawn, execFileSync } from 'node:child_process'
+import { connectCdpSocket } from './ui-smoke-cdp.mjs'
 import { runMrpUiSmoke } from './mrp-ui-smoke.mjs'
 import { runCurrencyDocumentsUiSmoke, runRoundingReportUiSmoke } from './currency-document-ui-smoke.mjs'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
@@ -818,23 +819,8 @@ async function connectCdp() {
   }
 
   const ws = new WebSocket(page.webSocketDebuggerUrl)
-  const pending = new Map()
   const events = { console: [], exceptions: [], apiErrors: [], networkFailures: [] }
-  let sequence = 0
-
-  ws.addEventListener('message', (message) => {
-    const payload = JSON.parse(message.data)
-    if (payload.id && pending.has(payload.id)) {
-      const { resolve, reject } = pending.get(payload.id)
-      pending.delete(payload.id)
-      if (payload.error) {
-        reject(new Error(`${payload.error.message}: ${payload.error.data || ''}`))
-      } else {
-        resolve(payload.result)
-      }
-      return
-    }
-
+  const connection = await connectCdpSocket(ws, { onEvent: (payload) => {
     if (payload.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(payload.params.type)) {
       events.console.push({
         type: payload.params.type,
@@ -853,20 +839,9 @@ async function connectCdp() {
         events.apiErrors.push(`${response.status} ${response.url}`)
       }
     }
-  })
+  } })
 
-  await new Promise((resolveOpen, rejectOpen) => {
-    ws.addEventListener('open', resolveOpen, { once: true })
-    ws.addEventListener('error', rejectOpen, { once: true })
-  })
-
-  const send = (method, params = {}) => {
-    const id = ++sequence
-    ws.send(JSON.stringify({ id, method, params }))
-    return new Promise((resolveSend, rejectSend) => pending.set(id, { resolve: resolveSend, reject: rejectSend }))
-  }
-
-  return { send, events, close: () => ws.close() }
+  return { ...connection, events }
 }
 
 function snapshotFailures(events) {
