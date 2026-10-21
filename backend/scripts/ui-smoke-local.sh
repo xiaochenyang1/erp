@@ -10,7 +10,8 @@ cleanup() {
     kill "${bootstrap_pid}" 2>/dev/null || true
     wait "${bootstrap_pid}" 2>/dev/null || true
   fi
-  docker rm -f "${container_name}" >/dev/null 2>&1 || true
+  docker logs "${container_name}" > "${backend_root}/target/ui-smoke-mysql.log" 2>&1 || true
+  docker rm -f -v "${container_name}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 export UI_SMOKE_FRONTEND_MODE="${UI_SMOKE_FRONTEND_MODE:-preview}"
@@ -37,7 +38,8 @@ node --input-type=module -e '
     });
   }
 '
-docker run --detach --rm --name "${container_name}" \
+# Retain startup errors until cleanup archives the log and removes the container/volume.
+docker run --detach --name "${container_name}" \
   --env "MYSQL_ROOT_PASSWORD=${ERP_UI_SMOKE_DATASOURCE_PASSWORD}" \
   --env MYSQL_DATABASE=erp_ui_smoke --publish 127.0.0.1::3306 \
   mysql:8.4 --default-time-zone=+08:00 >/dev/null
@@ -45,7 +47,11 @@ mysql_port="$(docker port "${container_name}" 3306/tcp | awk -F: 'NR == 1 { prin
 export ERP_UI_SMOKE_DATASOURCE_URL="jdbc:mysql://127.0.0.1:${mysql_port}/erp_ui_smoke?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8"
 for attempt in $(seq 1 60); do
   if docker exec "${container_name}" mysqladmin ping -h 127.0.0.1 -uroot "-p${ERP_UI_SMOKE_DATASOURCE_PASSWORD}" --silent >/dev/null 2>&1; then break; fi
-  [[ "${attempt}" -lt 60 ]] || { echo 'UI smoke MySQL did not start.' >&2; exit 1; }
+  if [[ "$(docker inspect --format '{{.State.Running}}' "${container_name}")" != true || "${attempt}" -eq 60 ]]; then
+    docker logs "${container_name}" >&2 || true
+    echo 'UI smoke MySQL did not start.' >&2
+    exit 1
+  fi
   sleep 1
 done
 cd "${backend_root}"

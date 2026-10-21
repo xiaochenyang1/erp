@@ -23,11 +23,11 @@ class LocalTestScriptConfigurationTest {
         String powerShell = Files.readString(powerShellScript, StandardCharsets.UTF_8);
 
         assertThat(shell)
-                .contains("docker run --detach --rm")
+                .contains("docker run --detach")
                 .contains("ERP_TEST_DATASOURCE_URL")
                 .contains("ERP_TEST_DATASOURCE_USERNAME")
                 .contains("ERP_TEST_DATASOURCE_PASSWORD")
-                .contains("docker rm -f")
+                .contains("docker rm -f -v")
                 .contains("DOCKER_HOST")
                 .contains("docker context inspect")
                 .contains("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE")
@@ -36,11 +36,11 @@ class LocalTestScriptConfigurationTest {
                 .contains("mvnw\" -B \"${maven_arguments[@]}\"");
 
         assertThat(powerShell)
-                .contains("docker run --detach --rm")
+                .contains("docker run --detach")
                 .contains("ERP_TEST_DATASOURCE_URL")
                 .contains("ERP_TEST_DATASOURCE_USERNAME")
                 .contains("ERP_TEST_DATASOURCE_PASSWORD")
-                .contains("docker rm -f")
+                .contains("docker rm -f -v")
                 .contains("DOCKER_HOST")
                 .contains("docker context inspect")
                 .contains("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE")

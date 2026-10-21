@@ -1,9 +1,10 @@
 /**
  * Automate remaining F10/F11/Q4/Q5 human signoff items with cleanup.
- * Safe: uses isolated year 2099 period, temp user/role, temp masterdata.
+ * Requires a dedicated acceptance account book; year 2099 is not tenant isolation.
  */
 const fs = require('fs')
 const path = require('path')
+const { runPeriodLockCheck } = require('./fq-period-lock-check.cjs')
 
 const { loadConfig, evidenceContext } = require('./fq-signoff-config.cjs')
 const CONFIG = loadConfig()
@@ -62,69 +63,12 @@ async function main() {
   const results = []
   const cleanup = []
 
-  // ---------- F10: lock isolated period, reject business post, reopen ----------
-  {
-    let detail = ''
-    let pass = false
-    try {
-      await req(admin, 'POST', '/api/finance/periods/generate', { year: 2099 })
-      const listRes = await req(admin, 'GET', '/api/finance/periods?year=2099')
-      const periods = data(listRes) || []
-      const jan = periods.find((p) => String(p.periodMonth) === '2099-01') || periods[0]
-      if (!jan) throw new Error('no 2099 period')
-      const periodId = jan.id
-
-      if (String(jan.status).toUpperCase() !== 'OPEN') {
-        await req(admin, 'POST', `/api/finance/periods/${periodId}/reopen`)
-      }
-      const lockRes = await req(admin, 'POST', `/api/finance/periods/${periodId}/lock`)
-      if (!isOk(lockRes)) throw new Error(`lock failed: ${lockRes.body?.message}`)
-      cleanup.push(async () => {
-        await req(admin, 'POST', `/api/finance/periods/${periodId}/reopen`)
-      })
-
-      // inventory adjustment post is guarded by requireOpen — no approval chain
-      const whRes = await req(admin, 'GET', '/api/masterdata/warehouses?pageNo=1&pageSize=5&status=ACTIVE')
-      const wh = data(whRes)?.records?.[0]
-      const prodRes = await req(admin, 'POST', '/api/masterdata/products', {
-        productCode: `F10P${stamp}`,
-        productName: `F10商品${stamp}`,
-        productType: 'GOODS',
-        categoryName: 'SIGN',
-        unitName: 'pcs',
-        purchasePrice: 1,
-        salePrice: 1,
-        taxRate: 0,
-      })
-      if (!isOk(prodRes)) throw new Error(prodRes.body?.message || 'F10 product')
-      const productId = data(prodRes).id
-
-      const adjRes = await req(admin, 'POST', '/api/inventory/adjustments', {
-        warehouseId: wh.id,
-        adjustmentDate: '2099-01-15',
-        remark: `F10 lock ${stamp}`,
-        lines: [{ productId, direction: 'IN', qty: 1, unitCost: 1, reason: 'F10' }],
-      })
-      if (!isOk(adjRes)) {
-        // create itself might not check period; post must
-        throw new Error(`create adj failed: ${adjRes.body?.message}`)
-      }
-      const adjId = data(adjRes).id
-      const postRes = await req(admin, 'POST', `/api/inventory/adjustments/${adjId}/post`)
-      const rejected = !isOk(postRes)
-      const rejectMsg = postRes.body?.message || ''
-      const rejectIsPeriod = /锁定|结账|期间|未生成会计期间/i.test(rejectMsg)
-
-      const reopenRes = await req(admin, 'POST', `/api/finance/periods/${periodId}/reopen`)
-      const reopened = isOk(reopenRes) && String(data(reopenRes)?.status || '').toUpperCase() === 'OPEN'
-      pass = rejected && rejectIsPeriod && reopened
-      detail = `period=2099-01 adjPost rejected=${rejected} periodRelated=${rejectIsPeriod} msg=${rejectMsg}; reopened=${reopened}`
-    } catch (e) {
-      detail = `error: ${e.message}`
-      pass = false
-    }
-    results.push(item('F10', '锁定期间不可过账（负例）', pass, detail))
-  }
+  // ---------- F10: complete month-end prerequisites, then verify the lock ----------
+  const periodCheck = await runPeriodLockCheck(
+    (method, urlPath, body) => req(admin, method, urlPath, body), { stamp },
+  )
+  results.push(item('F10', '锁定期间不可过账（负例）', periodCheck.pass, periodCheck.detail,
+    { evidence: periodCheck.evidence }))
 
   // ---------- F11: temp role without voucher post/approve ----------
   {

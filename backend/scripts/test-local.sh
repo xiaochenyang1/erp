@@ -16,7 +16,7 @@ mysql_port=""
 
 cleanup() {
   if [[ -n "${mysql_container}" ]] && docker container inspect "${mysql_container}" >/dev/null 2>&1; then
-    docker rm -f "${mysql_container}" >/dev/null 2>&1 || true
+    docker rm -f -v "${mysql_container}" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT INT TERM
@@ -66,7 +66,7 @@ if [[ "${DOCKER_HOST:-}" == unix://* && -z "${TESTCONTAINERS_DOCKER_SOCKET_OVERR
 fi
 
 echo "[test-local] Starting disposable MySQL container ${mysql_container} (${mysql_image})"
-docker run --detach --rm \
+docker run --detach \
   --name "${mysql_container}" \
   --env "MYSQL_ROOT_PASSWORD=${mysql_root_password}" \
   --env "MYSQL_DATABASE=${mysql_database}" \
@@ -86,7 +86,7 @@ for attempt in $(seq 1 60); do
   if docker exec "${mysql_container}" mysqladmin ping -h 127.0.0.1 -uroot "-p${mysql_root_password}" --silent >/dev/null 2>&1; then
     break
   fi
-  if [[ "${attempt}" -eq 60 ]]; then
+  if [[ "$(docker inspect --format '{{.State.Running}}' "${mysql_container}")" != true || "${attempt}" -eq 60 ]]; then
     docker logs "${mysql_container}" >&2 || true
     fail "MySQL did not become ready within 60 seconds."
   fi

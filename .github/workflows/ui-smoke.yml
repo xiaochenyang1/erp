@@ -122,7 +122,7 @@ jobs:
         run: npm ci --audit=false
 
       - name: Test browser connection handling and F/Q target configuration
-        run: node --test backend/scripts/ui-smoke-cdp.test.mjs backend/scripts/fq-signoff-config.test.cjs
+        run: node --test backend/scripts/ui-smoke-cdp.test.mjs backend/scripts/fq-signoff-config.test.cjs backend/scripts/fq-period-lock-check.test.cjs
 
       - name: Build frontend production assets
         working-directory: frontend

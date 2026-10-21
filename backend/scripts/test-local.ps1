@@ -19,7 +19,7 @@ $mysqlRootPassword = if ($env:ERP_LOCAL_TEST_MYSQL_ROOT_PASSWORD) { $env:ERP_LOC
 
 function Stop-TestMySql {
     if (Get-Command docker -ErrorAction SilentlyContinue) {
-        & docker rm -f $mysqlContainer *> $null
+        & docker rm -f -v $mysqlContainer *> $null
     }
 }
 
@@ -47,7 +47,7 @@ try {
         Write-Host "[test-local] Exported TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=$env:TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"
     }
 
-    $null = & docker run --detach --rm `
+    $null = & docker run --detach `
         --name $mysqlContainer `
         --env "MYSQL_ROOT_PASSWORD=$mysqlRootPassword" `
         --env "MYSQL_DATABASE=$mysqlDatabase" `

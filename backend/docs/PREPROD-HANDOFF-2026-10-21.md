@@ -1,5 +1,7 @@
 **2026-10-21 预生产交接：恢复演练结果与 F/Q 执行入口**
 
+后续 F10 复验：`d6703b6` 新增完整 F/Q 后发现未来期间仍需执行期末调汇；已补齐验收前置条件和清理，原失败样例库完整 F/Q 技术预检通过。原因、开发期证据及新候选复验入口见 [F10 修复记录](F10-ACCEPTANCE-FIX-2026-10-21.md)。新候选结果以实际归档为准。
+
 本机生产配置与数据库恢复演练已完成：`/Users/xiao/Desktop/python/erp-validation/2026-10-21-production-recovery-rerun/report.json` 为 `PASSED`，14/14 项通过，临时资源清理通过。
 
 - 被测应用候选：`d2d6975faccb2d71fb8218ab4c59accbc1c421df`。
@@ -27,7 +29,7 @@ node --env-file=/absolute/private/fq-preprod.env scripts/fq-signoff-all.cjs --co
 node --env-file=/absolute/private/fq-preprod.env scripts/fq-signoff-all.cjs
 ```
 
-该命令执行 F/Q 正向查询、F10/F11/Q4/Q5 负例并登记技术验收项，不提交 GO。负例会生成 2099 年会计期间及测试主数据、单据、角色和用户，必须使用隔离验收账套；清理是业务补偿，不是数据库回滚。每轮预生产使用新证据目录，拒绝覆盖旧材料。`all-summary.json` 的 `context` 同时记录被测候选和工具提交；汇总会校验两个子报告来自同一环境/版本。
+该命令执行 F/Q 正向查询、F10/F11/Q4/Q5 负例并登记技术验收项，不提交 GO。负例会生成 2099 年会计期间及测试主数据、单据、角色和用户，必须使用隔离验收账套；F10 仅在缺少期末调汇时按正常 API 补齐前置条件，结束时撤销本轮新建的调汇，其他月结问题继续报告失败。清理是业务补偿，不是数据库回滚。每轮预生产使用新证据目录，拒绝覆盖旧材料。`all-summary.json` 的 `context` 同时记录被测候选和工具提交；汇总会校验两个子报告来自同一环境/版本。
 
 本机可用一次性 MySQL 和完整 UI 样例验证入口：
 
