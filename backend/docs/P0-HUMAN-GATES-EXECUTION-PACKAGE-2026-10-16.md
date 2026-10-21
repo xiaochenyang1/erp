@@ -82,7 +82,7 @@ node scripts\fq-signoff-all.cjs
 | F4 | 手工凭证作废红冲后净额归零 | | 同上 | 财务 → 手工凭证 → 作废 | 作废生成红冲凭证，该科目本期发生额归零 | ☐ |
 | F5 | 销售发货过账生成应收，金额 = 含税 | | `preprod-full` 04-sales | 销售 → 发货 → 应收 | 应收金额 = 发货含税金额，来源单据可回溯 | ☐ |
 | F6 | 收款核销后应收 SETTLED、剩余 0 | | `preprod-full` 04-sales | 财务 → 收款 → 核销 | 应收状态 `SETTLED`，未结金额 = 0 | ☐ |
-| F7 | 销售退货生成 DECREASE/OFFSET 应收冲减 | | ui-smoke `sales-return-create-post-stock-receivable-offset` | 销售 → 退货 | 生成 `DECREASE` 或 `OFFSET` 类型应收冲减，库存同向扣减 | ☐ |
+| F7 | 销售退货生成 DECREASE/OFFSET 应收冲减 | | ui-smoke `sales-return-create-post-stock-receivable-offset` | 销售 → 退货 | 生成 `DECREASE` 或 `OFFSET` 类型应收冲减；退回商品增加库存，按原出库成本冲回 | ☐ |
 | F8 | 采购入库 → 应付、付款核销后应付 SETTLED | | `preprod-full` 03-purchase | 采购 → 入库；财务 → 付款 → 核销 | 应付状态 `SETTLED`，未结金额 = 0 | ☐ |
 | F9 | 采购退货应付冲减与库存扣减一致 | | ui-smoke `purchase-return-...-payable-offset` | 采购 → 退货 | 应付冲减金额与库存扣减数量/金额一致 | ☐ |
 | F10 | 开放期间外业务被拒绝；锁定期间不可过账 | | `fq-signoff-human-items.cjs`（负例） | 财务 → 会计期间；任意业务过账入口 | 期间外业务被拒；锁定期间过账失败。**须在测试数据上造一个 LOCKED 期间，验完恢复 OPEN** | ☐ |

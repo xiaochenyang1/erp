@@ -17,8 +17,10 @@ const redact = value => secrets.reduce((text, value) => text.replaceAll(value, '
 const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
   !/^(ERP_|MYSQL_|REDIS_|COMPOSE_|GF_|SPRING_|JAVA_)/.test(key)))
 
-async function run(command, args, { input, timeout = 300_000, allowFailure = false } = {}) {
+export async function run(command, args, { input, timeout = 300_000, allowFailure = false } = {}) {
   return new Promise((resolve, reject) => {
+    const startedAt = Date.now()
+    const startedMonotonic = performance.now()
     const child = spawn(command, args, { cwd: backend, env: environment, stdio: ['pipe', 'pipe', 'pipe'] })
     let stdout = '', stderr = '', timedOut = false
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL') }, timeout)
@@ -26,12 +28,20 @@ async function run(command, args, { input, timeout = 300_000, allowFailure = fal
     child.stderr.on('data', data => { stderr += data })
     child.stdin.on('error', () => {})
     child.on('error', error => { clearTimeout(timer); reject(error) })
-    child.on('close', code => {
+    child.on('close', (code, signal) => {
       clearTimeout(timer)
-      if ((code !== 0 || timedOut) && !allowFailure) {
+      const elapsedMs = Date.now() - startedAt
+      const activeElapsedMs = Math.round(performance.now() - startedMonotonic)
+      const timing = { startedAt: new Date(startedAt).toISOString(), elapsedMs, activeElapsedMs,
+        clockGapMs: elapsedMs - activeElapsedMs, timeoutMs: timeout, timedOut, code, signal }
+      // allowFailure is only for an observed nonzero exit (e.g. a rejected
+      // corrupted backup). A timeout or signal must never satisfy a negative check.
+      if (timedOut || signal || (code !== 0 && !allowFailure)) {
         // Do not include command arguments or stdin, which may contain tokens.
-        reject(new Error(redact(`${command} failed (${timedOut ? 'timeout' : code}): ${stderr || stdout}`)))
-      } else resolve({ code, stdout, stderr })
+        const error = new Error(redact(`${command} failed (${timedOut ? 'timeout' : signal || code}, elapsed ${elapsedMs}ms, limit ${timeout}ms): ${stderr || stdout}`))
+        error.commandTiming = timing
+        reject(error)
+      } else resolve({ code, stdout, stderr, timing })
     })
     child.stdin.end(input)
   })
@@ -62,6 +72,9 @@ async function main() {
   for (const file of packaged) assert.equal(sha(await readFile(path.join(backend, file))), source.files[`backend/${file}`], `Packaged input changed: ${file}`)
   const revision = (await run('git', ['rev-parse', 'HEAD'])).stdout.trim()
   assert.equal((await run('git', ['status', '--porcelain'])).stdout.trim(), '', 'Commit rehearsal changes before collecting evidence')
+  const runtime = { platform: process.platform, node: process.version,
+    docker: (await run('docker', ['version', '--format', '{{.Client.Version}} / {{.Server.Version}}'])).stdout.trim(),
+    compose: (await run('docker', ['compose', 'version', '--short'])).stdout.trim() }
   await mkdir(evidence, { mode: 0o700 }) // Deliberately refuse an existing directory.
   await mkdir(path.join(backend, 'target'), { recursive: true })
   const work = await mkdtemp(path.join(backend, 'target/production-rehearsal-'))
@@ -76,7 +89,7 @@ async function main() {
     limitations: ['No historical production data or previous-version image', 'No TLS/reverse-proxy or capacity acceptance',
       'Database restore only: attachments and external object storage are not backed up',
       'Local notification receiver only; no real recipient or human signoff'],
-    checks: [],
+    checks: [], runtime,
   }
   let configured = false, configuration, token, stopped = false
   const persist = () => writeFile(path.join(evidence, 'report.json'), JSON.stringify(report, null, 2) + '\n')
@@ -84,12 +97,17 @@ async function main() {
     if (stopped) throw new Error('Interrupted')
     console.log(`[rehearsal] ${name}`)
     const start = Date.now()
+    report.activeStep = { name, startedAt: new Date(start).toISOString() }
+    await persist()
     try {
       const details = await action()
-      report.checks.push({ name, passed: true, elapsedMs: Date.now() - start, ...details })
+      report.checks.push({ ...report.activeStep, finishedAt: new Date().toISOString(), passed: true, elapsedMs: Date.now() - start, ...details })
+      report.activeStep = null
       await persist()
     } catch (error) {
-      report.checks.push({ name, passed: false, failure: redact(error.message) })
+      report.checks.push({ ...report.activeStep, finishedAt: new Date().toISOString(), passed: false, elapsedMs: Date.now() - start,
+        failure: redact(error.message), ...(error.commandTiming ? { commandTiming: error.commandTiming } : {}) })
+      report.activeStep = null
       throw error
     }
   }
@@ -402,4 +420,6 @@ print(json.dumps({'status':response.status,'body':response.read().decode()}))`
   }
 }
 
-main().catch(error => { console.error(redact(error.message)); process.exitCode = 1 })
+if (process.argv[1] && await realpath(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch(error => { console.error(redact(error.message)); process.exitCode = 1 })
+}

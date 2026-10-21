@@ -8,6 +8,7 @@ on:
       - backend/docker-compose.monitoring.yml
       - backend/scripts/verify-monitoring.sh
       - backend/scripts/monitoring-*
+      - backend/scripts/production-rehearsal*
       - .github/workflows/monitoring-verify.yml
   push:
     branches: [main, master]
@@ -17,6 +18,7 @@ on:
       - backend/docker-compose.monitoring.yml
       - backend/scripts/verify-monitoring.sh
       - backend/scripts/monitoring-*
+      - backend/scripts/production-rehearsal*
       - .github/workflows/monitoring-verify.yml
   workflow_dispatch:
 
@@ -35,6 +37,9 @@ jobs:
       - name: Validate configuration, alert timing and receiver routes
         working-directory: backend
         run: ./scripts/verify-monitoring.sh
+      - name: Verify rehearsal command failure handling
+        working-directory: backend
+        run: node --test scripts/production-rehearsal.test.mjs
       - name: Verify isolated monitoring runtime
         working-directory: backend
         run: node scripts/monitoring-runtime-smoke.mjs

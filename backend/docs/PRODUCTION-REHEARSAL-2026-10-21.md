@@ -20,6 +20,12 @@ node scripts/production-rehearsal.mjs \
 
 证据目录必须在仓库外且尚不存在；备份脚本要求该目录所在文件系统至少有 5 GB 可用空间。Docker 还需要容纳两个临时 MySQL、两个 Redis、ERP 和监控组件；不要通过清理无关容器或卷来腾空间。ERP 容器内存上限为 1.5 GB，仅用于本地资源控制，不能据此判断生产容量。
 
+macOS 上应在机器正常唤醒期间运行；可将命令改为 `caffeinate -is node scripts/production-rehearsal.mjs ...`，只在演练进程存活时阻止空闲睡眠及接电时的系统睡眠，不修改系统设置。它不能保证阻止合盖或强制睡眠，正式长时间验收优先在持续运行的 CI/预生产机器执行。
+
+10 月 21 日 `production-rehearsal-verified` 的重启超时已与本机电源日志对齐：11:28:19 进入 Maintenance Sleep，11:43:20 唤醒，间隔 901 秒；同一 Compose 5.3.1 重启命令在独立小容器复现中正常结束。不能据此认定 Compose 重启逻辑或 ERP 启动失败，也不能把该次失败改成通过；仍须重新完整演练。原有超时、健康检查和生产告警等待时间保持不变。
+
+报告现在记录当前执行步骤、每步起止信息、失败命令的时间预算及实际耗时、时钟差和运行时版本，便于区分运行停顿与应用错误。时钟差也可能来自时间校正，仍须结合宿主机/容器日志判断。命令的超时或被信号终止始终按失败处理，不能被损坏备份等负例的 `allowFailure` 接受。
+
 ## 验证范围
 
 1. 从 `docker-compose.yml`、`.env.prod.example` 和监控 Compose 渲染配置，启用真正的 `prod` profile、Redis 和 Flyway。保留通用限流默认值，不加载会关闭限流的 `docker-compose.prebuilt.yml` 覆盖层。
