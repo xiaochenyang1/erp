@@ -4,6 +4,8 @@
 
 首次演练发现生产模板及两个 Dockerfile 默认 JDBC URL 使用了 Java 不支持的 `characterEncoding=utf8mb4`，导致服务在数据库连接初始化时退出。已改用 `UTF-8`；MySQL 的 `utf8mb4` 存储和排序规则保持不变，演练客户名称包含中文及四字节字符以验证往返和恢复。
 
+继续演练发现，生产环境关闭 OpenAPI 后，访问缺失资源被全局异常处理返回为 500。已为缺失资源/路由返回统一的 404 响应，避免计入服务器故障；同步修正开发配置中的相同 JDBC 字符集问题。这些改动进入 JAR，需要重新生成通过验收的候选再演练。
+
 ## 执行
 
 需要 Node.js 22、Docker Compose、一个已通过 `release-candidate-local.sh` 的候选证据目录，以及干净工作区。在 `backend` 执行：

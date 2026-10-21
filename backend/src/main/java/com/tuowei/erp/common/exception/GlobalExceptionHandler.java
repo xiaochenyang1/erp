@@ -18,6 +18,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Map;
 
@@ -202,6 +204,12 @@ public class GlobalExceptionHandler {
     public ApiResponse<String> handleRateLimitExceeded(RateLimitExceededException ex) {
         log.warn("Rate limit exceeded: {}", ex.getMessage());
         return new ApiResponse<>("429", messageOrDefault(ex.getMessage(), message("error.rate.limit", "请求过于频繁，请稍后再试")), null);
+    }
+
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<String> handleNotFound() {
+        return new ApiResponse<>("404", message("error.resource.not.found", "请求的资源不存在"), null);
     }
 
     @ExceptionHandler(Exception.class)

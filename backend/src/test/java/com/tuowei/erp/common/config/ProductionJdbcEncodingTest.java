@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 class ProductionJdbcEncodingTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {".env.prod.example", "Dockerfile", "Dockerfile.prebuilt"})
+    @ValueSource(strings = {".env.prod.example", "Dockerfile", "Dockerfile.prebuilt", "src/main/resources/application-dev.yml"})
     void connectorAcceptsProductionTemplateEncodingBeforeOpeningConnection(String file) throws Exception {
         var match = Pattern.compile("characterEncoding=([^&]+)&").matcher(Files.readString(Path.of(file)));
         assertThat(match.find()).as("JDBC encoding in %s", file).isTrue();
