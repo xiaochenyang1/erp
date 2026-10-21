@@ -4,7 +4,9 @@
 `python/erpServer` 是历史遗留目录名，不代表项目使用 Python 运行，也不代表入口在
 Python 脚本里。
 
-当前 MRP 修复、候选验证入口和预生产交接见 [2026-10-15 发布候选记录](docs/RELEASE-CANDIDATE-2026-10-15.md)。
+当前监控与发布验证收口见 [2026-10-21 候选说明](docs/RELEASE-CANDIDATE-2026-10-21.md)，完整本地验收入口为 `scripts/release-candidate-local.sh /absolute/new/evidence-directory`。
+
+此前 MRP 修复、候选验证入口和预生产交接见 [2026-10-15 发布候选记录](docs/RELEASE-CANDIDATE-2026-10-15.md)。
 
 上一轮多币种开发与验证进展见 [2026-10-14 优化与回归记录](docs/OPTIMIZATION-2026-10-14.md)；模块范围及审计基线见 [项目现状报告](docs/PROJECT-STATUS-2026-10-14.md)。
 
@@ -81,6 +83,8 @@ Windows PowerShell：
 .\scripts\test-local.ps1
 ```
 
+完整 PowerShell 7 安装必须包含 `Modules/`。可设置 `PWSH` 为可执行文件绝对路径；`test-local.sh --release-check` 会预检基础命令，发布脚本会将自身运行时传给 JVM 行为测试，避免因 PATH 缺失而跳过测试。
+
 两个入口都会启动一个临时 MySQL 8.4，自动注入 `ERP_TEST_DATASOURCE_*`，测试结束后删除容器；普通测试使用 `test` profile 的 Redis 替身，标记为 `testcontainers` 的测试仍由 Maven/Testcontainers 自己启动隔离容器。脚本会自动把当前 Docker CLI context 的 endpoint 传给 Testcontainers（含 Colima 的 Ryuk socket 映射）。可用 `ERP_LOCAL_TEST_MYSQL_*` 环境变量覆盖镜像、库名和账号。未传 Maven goal 时默认执行 `test`；需要完整发布构建时可直接传入 Maven参数和 goal，例如：
 
 ```bash
@@ -107,6 +111,10 @@ node scripts\data-scope-api-smoke.cjs
 ```
 
 约定详见 `docs/local-runtime-integration.md`。找联调缺口请扫 Controller 写端点 → 前端 `src/api` → 页面按钮，不要按 6 月旧 md 开补洞任务。
+
+## 监控部署
+
+运行 `./scripts/verify-monitoring.sh` 校验监控配置、告警触发/恢复时序及接收器路由；部署与 JWT 轮换见 [监控说明](docs/monitoring/README.md)。Compose 叠加文件为 `docker-compose.monitoring.yml`，Grafana 数据源和看板会自动加载。
 
 ## 关键文档
 

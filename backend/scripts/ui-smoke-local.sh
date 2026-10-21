@@ -62,6 +62,12 @@ for attempt in $(seq 1 120); do
   sleep 1
 done
 node scripts/prepare-ui-smoke-user.mjs
+if [[ "${ERP_UI_SMOKE_API_REGRESSION:-0}" == 1 ]]; then
+  BASE_URL="${ERP_UI_SMOKE_BACKEND_URL}" ADMIN_PASSWORD="${ERP_LOCAL_ADMIN_PASSWORD}" \
+    SUBMITTER_PASSWORD="${ERP_UI_SMOKE_RUNTIME_PASSWORD}" node scripts/extension-features-api-smoke.cjs
+  BASE_URL="${ERP_UI_SMOKE_BACKEND_URL}" ADMIN_PASSWORD="${ERP_LOCAL_ADMIN_PASSWORD}" \
+    node scripts/data-scope-api-smoke.cjs
+fi
 kill "${bootstrap_pid}"
 wait "${bootstrap_pid}" || true
 bootstrap_pid=""

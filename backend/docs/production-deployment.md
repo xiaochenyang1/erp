@@ -128,6 +128,8 @@ Docker 构建阶段使用仓库内 Maven Wrapper，并依赖 `.gitattributes` �
 
 ## 可观测性检查
 
+2026-10-21：可使用 `docker-compose.monitoring.yml` 叠加部署 Prometheus、Alertmanager 和 Grafana，先运行 `scripts/verify-monitoring.sh`。完整步骤、受控文件路径和 JWT 轮换见 [监控部署与验收](monitoring/README.md)。
+
 生产 profile 暴露 `/actuator/prometheus`，用于 Prometheus 以认证方式抓取 JVM、HTTP、Tomcat、Hikari 和 Redis 等基础指标。该端点不得匿名公开；生产环境应通过内网、网关认证或抓取侧凭证控制访问。应用关闭 HTTP Basic，只接受 JWT Bearer，因此 Prometheus 抓取必须使用 `bearer_token_file`，不能把 `basic_auth` 配置复制进生产环境。
 
 上线前还要用已登录账号访问 `/api/system/observability/business-health`，确认 readiness、导入失败、负库存和开放会计期间摘要能返回。该接口只返回聚合数量和状态，不替代具体业务验收。

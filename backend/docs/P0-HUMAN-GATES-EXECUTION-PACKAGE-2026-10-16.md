@@ -174,9 +174,9 @@ node scripts\fq-signoff-all.cjs
 
 ### 4.1 现状盘点（必读）
 
-`backend/docs/monitoring/` 目录下**只有一份** `prometheus-alert-rules.yml`（47 行，group `erp-business-health`，5 条告警规则）。**没有** Grafana dashboard 定义、**没有** Alertmanager 配置、**没有** Prometheus 抓取配置、**没有**部署清单。
+2026-10-21 更新：`backend/monitoring/` 已提供完整告警、JWT 抓取和 Alertmanager secret 文件配置，`docker-compose.monitoring.yml` 提供监控部署，Grafana 面板可自动加载。当前目录的配置副本与部署配置一致；完整规则与五项业务摘录只能选一份加载。
 
-也就是说，门禁 3 的可交付材料目前只有告警表达式模板，**抓取、面板、路由、演练步骤都需要在目标平台现做**。下面给出以现有规则为规格的落地清单。
+先执行 `scripts/verify-monitoring.sh`，再按 [监控部署与验收说明](monitoring/README.md) 接入目标环境。配置与本地测试通过不代替抓取、通知送达、恢复及运维签字。
 
 ### 4.2 五大告警规格（`prometheus-alert-rules.yml` 逐条）
 
@@ -192,8 +192,8 @@ node scripts\fq-signoff-all.cjs
 
 - [ ] **暴露端点确认**：`/actuator/prometheus` 与 `/api/system/observability/business-health` 均可访问，**且都不能匿名访问**（`business-readiness-checklist.md` 第 110 行起要求）。
 - [ ] **指标存在性**：确认 `erp_business_health_overall_status`、`erp_business_health_check_count`、`erp_business_health_check_status` 三个指标都已上报。
-- [ ] **Prometheus 抓取**：新增 scrape job 指向 `erp-server` 的 `/actuator/prometheus`，带鉴权或网络隔离；确认 ≥ 5 分钟抓取窗口内 target `up=1`。
-- [ ] **规则加载**：把 `backend/docs/monitoring/prometheus-alert-rules.yml` 挂进 Prometheus `rule_files`；在 Prometheus UI 的 Alerts 页确认 5 条规则均为 `inactive`（无告警时）且状态健康。
+- [ ] **Prometheus 抓取**：使用 JWT scrape job 指向 `erp-server` 的 `/actuator/prometheus`，并限制访问网络；确认 ≥ 5 分钟抓取窗口内 target `up=1`。
+- [ ] **规则加载**：把 `backend/monitoring/alert-rules.yml` 挂进 Prometheus `rule_files`；在 Prometheus UI 的 Alerts 页确认完整规则载入，五项业务规则均为 `inactive`（无告警时）且状态健康。
 - [ ] **Alertmanager 路由**：按 severity 分流（critical → 值班即时通道，warning → 日常通道）；确认 receiver 可达。
 - [ ] **Grafana 面板**：至少建三块面板——① 业务健康总览（`overall_status` 时序 + 各 check 状态表）② 各 check 计数（`check_count` by `check`）③ 告警状态列表。
 - [ ] **告警触发与恢复演练**（门禁明确要求）：
