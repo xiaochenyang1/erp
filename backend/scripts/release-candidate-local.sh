@@ -43,6 +43,7 @@ run_gate() {
   fi
 }
 
+run_gate frontend-audit "${repo_root}/frontend" npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
 run_gate backend-release "${backend_root}" ./scripts/test-local.sh --release-check \
   -MavenRepoLocal "${ERP_MAVEN_REPO_LOCAL:-${HOME}/.m2/repository}" \
   -ReportDirectory "${evidence_root}/release-check"
@@ -53,7 +54,6 @@ for task in type-check lint test check:contracts build; do
   run_gate "frontend-${task//:/-}" "${repo_root}/frontend" npm run "${task}"
 done
 cp -R "${repo_root}/frontend/dist" "${evidence_root}/frontend-dist"
-run_gate frontend-audit "${repo_root}/frontend" npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
 run_gate monitoring-config "${backend_root}" ./scripts/verify-monitoring.sh
 run_gate monitoring-runtime "${backend_root}" node scripts/monitoring-runtime-smoke.mjs
 run_gate ui-and-api "${backend_root}" env UI_SMOKE_ROUTES=1 UI_SMOKE_WORKFLOW= \
