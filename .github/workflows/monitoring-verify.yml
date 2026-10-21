@@ -1,0 +1,47 @@
+name: Monitoring Verify
+
+on:
+  pull_request:
+    paths:
+      - backend/monitoring/**
+      - backend/docs/monitoring/**
+      - backend/docker-compose.monitoring.yml
+      - backend/scripts/verify-monitoring.sh
+      - backend/scripts/monitoring-*
+      - .github/workflows/monitoring-verify.yml
+  push:
+    branches: [main, master]
+    paths:
+      - backend/monitoring/**
+      - backend/docs/monitoring/**
+      - backend/docker-compose.monitoring.yml
+      - backend/scripts/verify-monitoring.sh
+      - backend/scripts/monitoring-*
+      - .github/workflows/monitoring-verify.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  monitoring:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+      - name: Validate configuration, alert timing and receiver routes
+        working-directory: backend
+        run: ./scripts/verify-monitoring.sh
+      - name: Verify isolated monitoring runtime
+        working-directory: backend
+        run: node scripts/monitoring-runtime-smoke.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: monitoring-runtime-evidence
+          path: |
+            backend/target/monitoring-runtime-*/report.json
+            backend/target/monitoring-runtime-*/compose.log
