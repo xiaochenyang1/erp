@@ -16,6 +16,8 @@
 
 ## 配置凭据和账套范围
 
+候选验收完成后，再使用 [生产配置演练](../PRODUCTION-REHEARSAL-2026-10-21.md) 核对真实 ERP 指标、Grafana 查询及真实停机/恢复告警。该入口保留生产规则时间，通知仅投递到内部接收器。
+
 ERP 已关闭 HTTP Basic，指标端点要求 JWT Bearer。网络隔离是额外保护，不能代替应用认证。生产 profile 默认暴露 `/actuator/prometheus`；其他 profile 需显式开启该端点。
 
 在受控目录准备四个文件，内容分别是：有效的 ERP 服务账号 access token（不带 `Bearer ` 前缀）、warning webhook URL、critical webhook URL、Grafana 初始管理员密码。通过以下环境变量提供绝对路径，不把文件内容写入仓库或命令参数：

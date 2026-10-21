@@ -6,6 +6,8 @@ Python 脚本里。
 
 当前监控与发布验证收口见 [2026-10-21 候选说明](docs/RELEASE-CANDIDATE-2026-10-21.md)，完整本地验收入口为 `scripts/release-candidate-local.sh /absolute/new/evidence-directory`。
 
+候选通过后可继续执行 [生产配置与数据库恢复演练](docs/PRODUCTION-REHEARSAL-2026-10-21.md)，验证真实 `prod` 服务、监控及独立数据库恢复。
+
 此前 MRP 修复、候选验证入口和预生产交接见 [2026-10-15 发布候选记录](docs/RELEASE-CANDIDATE-2026-10-15.md)。
 
 上一轮多币种开发与验证进展见 [2026-10-14 优化与回归记录](docs/OPTIMIZATION-2026-10-14.md)；模块范围及审计基线见 [项目现状报告](docs/PROJECT-STATUS-2026-10-14.md)。

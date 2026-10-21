@@ -335,6 +335,8 @@ Compose 还为 MySQL、Redis、后端服务统一配置 Docker `json-file` 日�
 
 ## 回滚
 
+上线前可先运行 [隔离生产配置演练](PRODUCTION-REHEARSAL-2026-10-21.md)，用已验收候选验证全库备份、损坏备份拒绝、独立目标恢复和真实服务停机/恢复告警。它不连接现有环境，不能替代目标环境演练与上一版镜像回退。
+
 应用镜像回滚优先使用上一版镜像重新部署。数据库迁移由 Flyway 正向管理；涉及破坏性 DDL 的版本必须在上线前准备数据库备份和人工回滚脚本。
 
 数据库备份使用 `scripts/backup-database.sh`，脚本通过临时 `--defaults-extra-file` 传递 MySQL 凭据，不会把密码拼进 `mysqldump`/`mysql` 命令行；备份完成后会原子写入 `.sql.gz` 和 `.sha256`，并在清理过期文件前记录实际删除数量。恢复脚本默认拒绝没有校验文件的备份，只有经过负责人确认的遗留恢复演练才能显式设置 `ALLOW_MISSING_CHECKSUM=true`，该操作不能作为正式发布证据。
