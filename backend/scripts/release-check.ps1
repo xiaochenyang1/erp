@@ -6,6 +6,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Child JVM tests must use this verified runtime even when pwsh is not on PATH.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw "PowerShell 7 is required for the release gate."
+}
+$null = Get-Command Test-Path, Join-Path, Get-ChildItem, ConvertTo-Json, ConvertFrom-Json, Get-FileHash -ErrorAction Stop
+$env:PWSH = [System.IO.Path]::Combine($PSHOME, $(if ([System.IO.Path]::DirectorySeparatorChar -eq "\") { "pwsh.exe" } else { "pwsh" }))
 . (Join-Path $PSScriptRoot "sha256-helpers.ps1")
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path

@@ -5,6 +5,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw "PowerShell 7 is required." }
+$env:PWSH = [System.IO.Path]::Combine($PSHOME, $(if ([System.IO.Path]::DirectorySeparatorChar -eq "\") { "pwsh.exe" } else { "pwsh" }))
 
 $scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backendRoot = Split-Path -Parent $scriptDirectory

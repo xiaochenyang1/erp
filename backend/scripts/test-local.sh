@@ -30,7 +30,14 @@ release_check=false
 if [[ "${1:-}" == "--release-check" ]]; then
   release_check=true
   shift
-  command -v pwsh >/dev/null 2>&1 || fail "PowerShell 7 (pwsh) is required for the release gate."
+  powershell_command="${PWSH:-pwsh}"
+  command -v "${powershell_command}" >/dev/null 2>&1 || fail "PowerShell 7 is required. Install the complete runtime or set PWSH to its executable path."
+  "${powershell_command}" -NoLogo -NoProfile -Command '
+    $ErrorActionPreference = "Stop"
+    if ($PSVersionTable.PSVersion.Major -lt 7) { throw "PowerShell 7 is required" }
+    $null = Get-Command Test-Path,Join-Path,Get-ChildItem,ConvertTo-Json,ConvertFrom-Json,Get-FileHash -ErrorAction Stop
+  ' || fail "PowerShell core modules are unavailable. Reinstall the complete runtime, including Modules/."
+  export PWSH="${powershell_command}"
 fi
 
 command -v docker >/dev/null 2>&1 || fail "Docker is required. Start Docker Desktop and retry."
@@ -92,7 +99,7 @@ export ERP_TEST_DATASOURCE_PASSWORD="${mysql_password}"
 
 if [[ "${release_check}" == true ]]; then
   cd "${backend_root}"
-  pwsh -NoLogo -NoProfile -File scripts/release-check.ps1 -IncludeTestcontainers "$@"
+  "${PWSH}" -NoLogo -NoProfile -File scripts/release-check.ps1 -IncludeTestcontainers "$@"
   exit 0
 fi
 
