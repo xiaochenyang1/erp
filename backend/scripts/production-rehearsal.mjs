@@ -240,6 +240,7 @@ print(json.dumps({'status':response.status,'body':response.read().decode()}))`
       const migrations = await sql('mysql', 'SELECT COUNT(*), MAX(installed_rank) FROM flyway_schema_history;')
       assert.equal(await sql('mysql', "SELECT config_value FROM sys_config WHERE config_code='erp.bootstrap.admin-password-initialized';"), 'true')
       assert.notEqual((await run('docker', [...composeArgs, 'exec', '-T', 'erp-server', 'id', '-u'])).stdout.trim(), '0')
+      assert.equal((await run('docker', [...composeArgs, 'exec', '-T', 'erp-server', 'sha256sum', '/app/erp-server.jar'])).stdout.split(/\s+/)[0], jarHash)
       return { migrations, nonRoot: true, adminBootstrapInitialized: true }
     })
     const login = async () => {
@@ -285,7 +286,7 @@ print(json.dumps({'status':response.status,'body':response.read().decode()}))`
       return { checks: business.checks, overallStatus: business.overallStatus, syntheticMetrics: false, acceleratedTimers: false }
     })
     const createCustomer = code => app('/api/masterdata/customers', { method: 'POST', body: {
-      customerCode: code, customerName: `隔离恢复演练 ${code}`, customerType: 'ENTERPRISE', settlementMethod: 'CASH', creditLimit: 0, status: 'ACTIVE',
+      customerCode: code, customerName: `隔离恢复演练 🧪 ${code}`, customerType: 'ENTERPRISE', settlementMethod: 'CASH', creditLimit: 0, status: 'ACTIVE',
     } })
     let baseline, before, after
     await record('Persist business data and take a verified database backup', async () => {
@@ -305,7 +306,7 @@ print(json.dumps({'status':response.status,'body':response.read().decode()}))`
       await compose(['start', '--wait', '--wait-timeout', '180', 'erp-server'])
       after = await createCustomer('REHEARSAL_AFTER_BACKUP')
       assert(after.id)
-      assert.equal((await app(`/api/masterdata/customers/${before.id}`)).customerCode, before.customerCode)
+      assert.equal((await app(`/api/masterdata/customers/${before.id}`)).customerName, before.customerName)
       await compose(['stop', '-t', '45', 'erp-server'])
       assert.notEqual((await snapshot('mysql')).dataSha256, baseline.dataSha256)
       return { beforeCustomerId: before.id, afterCustomerId: after.id }
@@ -352,7 +353,7 @@ print(json.dumps({'status':response.status,'body':response.read().decode()}))`
       await compose(['up', '-d', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '240', 'erp-server'])
       await login()
       await writeFile(tokenFile, token) // Canonical bearer_token_file is reread on subsequent scrapes.
-      assert.equal((await app(`/api/masterdata/customers/${before.id}`)).customerCode, before.customerCode)
+      assert.equal((await app(`/api/masterdata/customers/${before.id}`)).customerName, before.customerName)
       const customers = await app('/api/masterdata/customers?pageNo=1&pageSize=200')
       assert(!customers.records.some(customer => customer.customerCode === after.customerCode))
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM md_customer WHERE customer_code='REHEARSAL_AFTER_BACKUP';"), '0')

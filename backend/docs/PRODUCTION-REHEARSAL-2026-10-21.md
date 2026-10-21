@@ -2,6 +2,8 @@
 
 第三步先补可重复执行的生产配置演练。当前未绑定真实预生产地址、凭据和业务负责人；本入口始终创建自己的临时环境，只使用合成业务数据。运行结果以独立证据目录的 `report.json` 为准。
 
+首次演练发现生产模板及两个 Dockerfile 默认 JDBC URL 使用了 Java 不支持的 `characterEncoding=utf8mb4`，导致服务在数据库连接初始化时退出。已改用 `UTF-8`；MySQL 的 `utf8mb4` 存储和排序规则保持不变，演练客户名称包含中文及四字节字符以验证往返和恢复。
+
 ## 执行
 
 需要 Node.js 22、Docker Compose、一个已通过 `release-candidate-local.sh` 的候选证据目录，以及干净工作区。在 `backend` 执行：
