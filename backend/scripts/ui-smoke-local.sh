@@ -49,18 +49,21 @@ for attempt in $(seq 1 60); do
   sleep 1
 done
 cd "${backend_root}"
-java -jar target/erp-server-1.0.0.jar --spring.profiles.active=local \
+start_backend() {
+  java -jar target/erp-server-1.0.0.jar --spring.profiles.active=local \
   "--spring.datasource.url=${ERP_UI_SMOKE_DATASOURCE_URL}" \
   "--spring.datasource.username=${ERP_UI_SMOKE_DATASOURCE_USERNAME}" \
   "--spring.datasource.password=${ERP_UI_SMOKE_DATASOURCE_PASSWORD}" \
-  "--server.port=${ERP_UI_SMOKE_BACKEND_PORT}" > target/ui-smoke-bootstrap.log 2>&1 &
-bootstrap_pid=$!
-for attempt in $(seq 1 120); do
-  kill -0 "${bootstrap_pid}" 2>/dev/null || { tail -30 target/ui-smoke-bootstrap.log; exit 1; }
-  if curl --fail --silent "${ERP_UI_SMOKE_BACKEND_URL}/actuator/health" >/dev/null; then break; fi
-  [[ "${attempt}" -lt 120 ]] || { echo 'UI smoke bootstrap did not become healthy.' >&2; exit 1; }
-  sleep 1
-done
+    "--server.port=${ERP_UI_SMOKE_BACKEND_PORT}" > "$1" 2>&1 &
+  bootstrap_pid=$!
+  for attempt in $(seq 1 120); do
+    kill -0 "${bootstrap_pid}" 2>/dev/null || { tail -30 "$1"; exit 1; }
+    if curl --fail --silent "${ERP_UI_SMOKE_BACKEND_URL}/actuator/health" >/dev/null; then break; fi
+    [[ "${attempt}" -lt 120 ]] || { echo 'UI smoke backend did not become healthy.' >&2; exit 1; }
+    sleep 1
+  done
+}
+start_backend target/ui-smoke-bootstrap.log
 node scripts/prepare-ui-smoke-user.mjs
 if [[ "${ERP_UI_SMOKE_API_REGRESSION:-0}" == 1 ]]; then
   BASE_URL="${ERP_UI_SMOKE_BACKEND_URL}" ADMIN_PASSWORD="${ERP_LOCAL_ADMIN_PASSWORD}" \
@@ -72,3 +75,12 @@ kill "${bootstrap_pid}"
 wait "${bootstrap_pid}" || true
 bootstrap_pid=""
 node scripts/ui-smoke.mjs
+if [[ "${ERP_UI_SMOKE_FQ_REGRESSION:-0}" == 1 ]]; then
+  # UI workflows leave the F/Q sample documents in this disposable database.
+  start_backend target/ui-smoke-fq-backend.log
+  BASE_URL="${ERP_UI_SMOKE_BACKEND_URL}" ERP_FQ_ENVIRONMENT=local-runtime \
+    ERP_FQ_ADMIN_USERNAME=admin ERP_FQ_ADMIN_PASSWORD="${ERP_LOCAL_ADMIN_PASSWORD}" \
+    ERP_FQ_SUBMITTER_USERNAME=runtime_smoke ERP_FQ_SUBMITTER_PASSWORD="${ERP_UI_SMOKE_RUNTIME_PASSWORD}" \
+    ERP_FQ_DATABASE_INSTANCE=erp_ui_smoke ERP_FQ_REDIS_INSTANCE=none-local ERP_FQ_DOCKER_PROFILE=isolated-mysql \
+    node scripts/fq-signoff-all.cjs
+fi

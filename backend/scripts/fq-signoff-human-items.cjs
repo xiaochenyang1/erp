@@ -5,10 +5,11 @@
 const fs = require('fs')
 const path = require('path')
 
-const BASE = process.env.BASE_URL || 'http://127.0.0.1:8080'
-const OUT_DIR = path.resolve(
-  process.env.ERP_FQ_EVIDENCE_DIRECTORY || process.env.ERP_EVIDENCE_DIRECTORY || path.join('target', 'fq-signoff-api-check'),
-)
+const { loadConfig, evidenceContext } = require('./fq-signoff-config.cjs')
+const CONFIG = loadConfig()
+const CONTEXT = evidenceContext(CONFIG, path.resolve(__dirname, '..'))
+const BASE = CONFIG.baseUrl
+const OUT_DIR = CONFIG.outDir
 const stamp = Date.now().toString().slice(-8)
 
 async function login(username, password) {
@@ -55,8 +56,8 @@ function item(id, title, pass, detail, extra = {}) {
 }
 
 async function main() {
-  const adminLogin = await login('admin', 'LocalAdmin123')
-  const smokeLogin = await login('runtime_smoke', 'RuntimeSmoke123')
+  const adminLogin = await login(CONFIG.admin.username, CONFIG.admin.password)
+  const smokeLogin = await login(CONFIG.submitter.username, CONFIG.submitter.password)
   const admin = adminLogin.accessToken
   const results = []
   const cleanup = []
@@ -385,6 +386,7 @@ async function main() {
   }
 
   const report = {
+    context: CONTEXT,
     generatedAt: new Date().toISOString(),
     baseUrl: BASE,
     summary: {

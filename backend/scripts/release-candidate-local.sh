@@ -45,6 +45,7 @@ run_gate() {
 
 run_gate frontend-audit "${repo_root}/frontend" npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
 run_gate rehearsal-command-tests "${backend_root}" node --test scripts/production-rehearsal.test.mjs
+run_gate fq-config-tests "${backend_root}" node --test scripts/fq-signoff-config.test.cjs
 run_gate backend-release "${backend_root}" ./scripts/test-local.sh --release-check \
   -MavenRepoLocal "${ERP_MAVEN_REPO_LOCAL:-${HOME}/.m2/repository}" \
   -ReportDirectory "${evidence_root}/release-check"
@@ -58,7 +59,8 @@ cp -R "${repo_root}/frontend/dist" "${evidence_root}/frontend-dist"
 run_gate monitoring-config "${backend_root}" ./scripts/verify-monitoring.sh
 run_gate monitoring-runtime "${backend_root}" node scripts/monitoring-runtime-smoke.mjs
 run_gate ui-and-api "${backend_root}" env UI_SMOKE_ROUTES=1 UI_SMOKE_WORKFLOW= \
-  UI_SMOKE_FRONTEND_MODE=preview ERP_UI_SMOKE_API_REGRESSION=1 ./scripts/ui-smoke-local.sh
+  UI_SMOKE_FRONTEND_MODE=preview ERP_UI_SMOKE_API_REGRESSION=1 ERP_UI_SMOKE_FQ_REGRESSION=1 \
+  ERP_FQ_EVIDENCE_DIRECTORY="${evidence_root}/fq-signoff" ERP_FQ_RELEASE_COMMIT="${candidate}" ./scripts/ui-smoke-local.sh
 
 last_gate=final-evidence-verification
 [[ "$(git -C "${repo_root}" rev-parse HEAD)" == "${candidate}" ]]
@@ -70,6 +72,11 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 const [root, evidence, head] = process.argv.slice(2)
 const ui = JSON.parse(readFileSync(`${root}/backend/target/ui-smoke-report.json`))
+const fq = JSON.parse(readFileSync(`${evidence}/fq-signoff/all-summary.json`))
+assert.equal(fq.technicalPass, true)
+assert.equal(fq.context.candidateRevision, head)
+assert.equal(fq.context.sourceRevision, head)
+assert.equal(fq.context.dirtyWorktree, false)
 assert.equal(ui.sourceRevision, head)
 assert.equal(ui.dirtyWorktree, false)
 assert(ui.results.length > 0 && ui.results.every(x => x.passed))

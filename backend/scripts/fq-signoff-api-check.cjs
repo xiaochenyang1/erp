@@ -1,9 +1,10 @@
 const fs = require('fs')
 const path = require('path')
-const BASE = process.env.BASE_URL || 'http://127.0.0.1:8080'
-const OUT_DIR = path.resolve(
-  process.env.ERP_FQ_EVIDENCE_DIRECTORY || process.env.ERP_EVIDENCE_DIRECTORY || path.join('target', 'fq-signoff-api-check'),
-)
+const { loadConfig, evidenceContext } = require('./fq-signoff-config.cjs')
+const CONFIG = loadConfig()
+const CONTEXT = evidenceContext(CONFIG, path.resolve(__dirname, '..'))
+const BASE = CONFIG.baseUrl
+const OUT_DIR = CONFIG.outDir
 
 async function login(username, password) {
   const r = await fetch(`${BASE}/api/auth/login`, {
@@ -74,8 +75,8 @@ function row(id, title, pass, detail, extra = {}) {
 }
 
 async function main() {
-  const admin = await login('admin', 'LocalAdmin123')
-  const smokeUser = await login('runtime_smoke', 'RuntimeSmoke123')
+  const admin = await login(CONFIG.admin.username, CONFIG.admin.password)
+  const smokeUser = await login(CONFIG.submitter.username, CONFIG.submitter.password)
   const token = admin.accessToken
   const adminPerms = new Set(admin.permissions || [])
   const smokePerms = new Set(smokeUser.permissions || [])
@@ -400,6 +401,7 @@ async function main() {
   const autoFail = results.filter((r) => !r.pass && !r.needsHuman)
 
   const report = {
+    context: CONTEXT,
     generatedAt: new Date().toISOString(),
     baseUrl: BASE,
     login: { admin: true, runtime_smoke: true },

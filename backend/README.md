@@ -1,5 +1,7 @@
 # ERP Server
 
+最新交接见 [2026-10-21 预生产交接](docs/PREPROD-HANDOFF-2026-10-21.md)：隔离生产恢复演练 14/14 通过，F/Q 预检支持显式预生产账号及部署版本记录；真实环境与业务签字待绑定。
+
 这是一个 Java 17 / Spring Boot / Maven 后端项目。当前仓库路径里出现的
 `python/erpServer` 是历史遗留目录名，不代表项目使用 Python 运行，也不代表入口在
 Python 脚本里。
