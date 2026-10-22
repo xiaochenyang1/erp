@@ -90,7 +90,7 @@ jobs:
       ERP_UI_SMOKE_DATASOURCE_PASSWORD: ui_smoke_ci_root_password
       UI_SMOKE_FRONTEND_MODE: preview
       ERP_UI_SMOKE_BACKEND_PORT: '8081'
-      ERP_UI_SMOKE_FRONTEND_PORT: '5196'
+      UI_SMOKE_FRONTEND_PORT: '5196'
       ERP_UI_SMOKE_BACKEND_URL: http://127.0.0.1:8081
       ERP_LOCAL_ADMIN_PASSWORD: LocalAdmin123
       ERP_UI_SMOKE_RUNTIME_PASSWORD: RuntimeSmoke123
@@ -138,6 +138,18 @@ jobs:
         with:
           chrome-version: stable
 
+      - name: Configure Chrome sandbox
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sandbox_path="$(dirname -- "$CHROME_PATH")/chrome-sandbox"
+          test -f "$sandbox_path"
+          sudo chown root:root "$sandbox_path"
+          sudo chmod 4755 "$sandbox_path"
+          test "$(stat -c '%u:%g:%a' "$sandbox_path")" = '0:0:4755'
+
       - name: Apply migrations and prepare smoke submitter
         working-directory: backend
         shell: bash
@@ -149,7 +161,7 @@ jobs:
             "--spring.datasource.username=$ERP_UI_SMOKE_DATASOURCE_USERNAME" \
             "--spring.datasource.password=$ERP_UI_SMOKE_DATASOURCE_PASSWORD" \
             "--server.port=$ERP_UI_SMOKE_BACKEND_PORT" \
-            "--erp.security.cors.allowed-origins=http://127.0.0.1:$ERP_UI_SMOKE_FRONTEND_PORT" \
+            "--erp.security.cors.allowed-origins=http://127.0.0.1:$UI_SMOKE_FRONTEND_PORT" \
             > target/ui-smoke-bootstrap-backend.log 2>&1 &
           backend_pid=$!
           cleanup() {
