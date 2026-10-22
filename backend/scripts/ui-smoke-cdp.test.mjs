@@ -1,6 +1,28 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { connectCdpSocket } from './ui-smoke-cdp.mjs'
+import { runInNewContext } from 'node:vm'
+import { connectCdpSocket, pageConditionExpression } from './ui-smoke-cdp.mjs'
+
+test('page condition waits through a missing body during navigation', () => {
+  const page = { document: { body: null } }
+  const condition = pageConditionExpression(`
+    document.body.innerText.includes('销售订单')
+      && document.body.innerText.includes('新增订单')
+  `)
+  assert.equal(runInNewContext(condition, page), false)
+  page.document.body = { innerText: '加载中' }
+  assert.equal(runInNewContext(condition, page), false)
+  page.document.body.innerText = '销售订单 新增订单'
+  assert.equal(runInNewContext(condition, page), true)
+})
+
+test('ready page conditions preserve async results and expose genuine errors', async () => {
+  const page = { document: { body: {} } }
+  assert.equal(await runInNewContext(pageConditionExpression('(async () => 42)()'), page), 42)
+  assert.throws(() => runInNewContext(pageConditionExpression(`
+    (() => { throw new Error('page condition failed') })()
+  `), page), /page condition failed/)
+})
 
 class FakeSocket extends EventTarget {
   readyState = 0

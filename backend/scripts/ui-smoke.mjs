@@ -1,5 +1,5 @@
 import { spawn, execFileSync } from 'node:child_process'
-import { connectCdpSocket } from './ui-smoke-cdp.mjs'
+import { connectCdpSocket, pageConditionExpression } from './ui-smoke-cdp.mjs'
 import { runMrpUiSmoke } from './mrp-ui-smoke.mjs'
 import { runCurrencyDocumentsUiSmoke, runRoundingReportUiSmoke } from './currency-document-ui-smoke.mjs'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
@@ -880,7 +880,7 @@ async function waitForPage(cdp, expression, label, timeoutMs = 12000) {
   const deadline = Date.now() + timeoutMs
   let lastValue
   while (Date.now() < deadline) {
-    lastValue = await evaluatePage(cdp, expression)
+    lastValue = await evaluatePage(cdp, pageConditionExpression(expression))
     if (lastValue) {
       return lastValue
     }

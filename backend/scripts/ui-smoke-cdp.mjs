@@ -1,3 +1,9 @@
+// A new navigation can expose document before its body has been parsed.
+// Defer the condition in that state; errors from a ready page still propagate.
+export function pageConditionExpression(expression) {
+  return `Boolean(document.body) && (${expression})`
+}
+
 // Bound CDP waits so a disconnected browser cannot leave the smoke runner hanging.
 export async function connectCdpSocket(ws, { timeoutMs = 30000, onEvent = () => {} } = {}) {
   const pending = new Map()
