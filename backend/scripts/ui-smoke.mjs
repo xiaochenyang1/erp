@@ -1,4 +1,5 @@
-import { spawn, execFileSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
+import { spawnSmokeProcess, cleanupSmokeProcesses } from './ui-smoke-processes.mjs'
 import { connectCdpSocket, pageConditionExpression } from './ui-smoke-cdp.mjs'
 import { runMrpUiSmoke } from './mrp-ui-smoke.mjs'
 import { runCurrencyDocumentsUiSmoke, runRoundingReportUiSmoke } from './currency-document-ui-smoke.mjs'
@@ -44,12 +45,9 @@ function resolveChromePath() {
 }
 
 function start(name, command, args, cwd) {
-  const child = spawn(command, args, {
-    cwd,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true
-  })
-  children.push({ name, child })
+  const handle = spawnSmokeProcess(command, args, { cwd })
+  const { child } = handle
+  children.push({ name, ...handle })
   child.stdout.on('data', (chunk) => appendLog(name, chunk))
   child.stderr.on('data', (chunk) => appendLog(name, chunk))
   child.on('exit', (code, signal) => appendLog(name, `\n[exit code=${code} signal=${signal}]\n`))
@@ -6019,33 +6017,6 @@ async function runProductionOrderWorkflow(cdp, auth) {
   }
 }
 
-async function killProcessTree(pid) {
-  if (!pid) {
-    return
-  }
-  if (process.platform === 'win32') {
-    await new Promise((resolveKill) => {
-      const killer = spawn('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
-        stdio: 'ignore',
-        windowsHide: true
-      })
-      killer.on('exit', resolveKill)
-      killer.on('error', resolveKill)
-    })
-    return
-  }
-  await new Promise((resolveKill) => {
-    const killer = spawn('pkill', ['-TERM', '-P', String(pid)], { stdio: 'ignore' })
-    killer.on('exit', resolveKill)
-    killer.on('error', resolveKill)
-  })
-  try {
-    process.kill(pid, 'SIGTERM')
-  } catch {
-    // The process already exited.
-  }
-}
-
 async function runManualVoucherWorkflow(cdp, auth) {
   resetEvents(cdp.events)
   const suffix = String(Date.now()).slice(-10)
@@ -7094,7 +7065,14 @@ async function main() {
 try {
   await main()
 } finally {
-  for (const item of children.reverse()) {
-    await killProcessTree(item.child.pid)
+  const cleanup = {
+    ...await cleanupSmokeProcesses(children),
+    checkedAt: new Date().toISOString(),
+    sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: backendDir, encoding: 'utf8' }).trim(),
+    dirtyWorktree: execFileSync('git', ['status', '--porcelain'], { cwd: backendDir, encoding: 'utf8' }).trim().length > 0
   }
+  mkdirSync(targetDir, { recursive: true })
+  writeFileSync(join(targetDir, 'ui-smoke-cleanup.json'), JSON.stringify(cleanup, null, 2) + '\n')
+  console.log(`[ui-smoke cleanup] ${JSON.stringify(cleanup)}`)
+  if (!cleanup.passed) throw new Error('UI smoke process cleanup failed; see ui-smoke-cleanup.json')
 }

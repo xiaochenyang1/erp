@@ -73,6 +73,12 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 const [root, evidence, head] = process.argv.slice(2)
 const ui = JSON.parse(readFileSync(`${root}/backend/target/ui-smoke-report.json`))
+const cleanup = JSON.parse(readFileSync(`${root}/backend/target/ui-smoke-cleanup.json`))
+assert.equal(cleanup.passed, true, 'UI smoke resources must be cleaned up')
+assert.equal(cleanup.sourceRevision, head)
+assert.equal(cleanup.dirtyWorktree, false)
+assert.equal(cleanup.processes.length, 3)
+assert(cleanup.processes.every(x => x.passed && x.childClosed))
 const fq = JSON.parse(readFileSync(`${evidence}/fq-signoff/all-summary.json`))
 assert.equal(fq.technicalPass, true)
 assert.equal(fq.context.candidateRevision, head)
