@@ -18,6 +18,9 @@ public record SalesDeliveryResponse(
         String carrierName,
         String trackingNo,
         String logisticsStatus,
+        String deliveredBy,
+        java.time.LocalDateTime deliveredTime,
+        Long deliveryProofAttachmentId,
         List<SalesDeliveryLineResponse> lines
 ) {
 }

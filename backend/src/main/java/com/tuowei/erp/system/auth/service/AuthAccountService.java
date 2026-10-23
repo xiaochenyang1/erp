@@ -1,0 +1,215 @@
+package com.tuowei.erp.system.auth.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.tuowei.erp.common.exception.OptimisticLockGuard;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.ErpPrincipal;
+import com.tuowei.erp.common.security.SecurityPrincipalCache;
+import com.tuowei.erp.common.validation.PasswordPolicy;
+import com.tuowei.erp.system.auth.web.ChangePasswordRequest;
+import com.tuowei.erp.system.auth.web.UpdatePreferencesRequest;
+import com.tuowei.erp.system.auth.web.UpdateProfileRequest;
+import com.tuowei.erp.system.auth.web.UserInfoResponse;
+import com.tuowei.erp.system.menu.service.MenuService;
+import com.tuowei.erp.system.menu.web.MenuResponse;
+import com.tuowei.erp.system.role.mapper.RoleMapper;
+import com.tuowei.erp.system.role.model.RoleEntity;
+import com.tuowei.erp.system.user.mapper.UserMapper;
+import com.tuowei.erp.system.user.mapper.UserRoleMapper;
+import com.tuowei.erp.system.user.model.UserEntity;
+import com.tuowei.erp.system.user.model.UserRoleEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
+
+/** 账户自助：当前登录用户的密码、资料、偏好维护及个人信息/运行时菜单读取。 */
+@Service
+public class AuthAccountService {
+
+    private static final Set<String> SUPPORTED_LOCALES = Set.of("zh-CN", "en-US");
+    private static final Set<String> SUPPORTED_TIME_ZONES = Set.of(
+            "Asia/Shanghai", "UTC", "America/New_York", "Europe/London"
+    );
+
+    private final CurrentUserContext currentUserContext;
+    private final UserMapper userMapper;
+    private final UserRoleMapper userRoleMapper;
+    private final RoleMapper roleMapper;
+    private final PasswordEncoder passwordEncoder;
+    private final Clock clock;
+    private final SecurityPrincipalCache principalCache;
+    private final RefreshTokenService refreshTokenService;
+    private final MenuService menuService;
+    public AuthAccountService(
+            CurrentUserContext currentUserContext,
+            UserMapper userMapper,
+            UserRoleMapper userRoleMapper,
+            RoleMapper roleMapper,
+            PasswordEncoder passwordEncoder,
+            Clock clock,
+            SecurityPrincipalCache principalCache,
+            RefreshTokenService refreshTokenService,
+            MenuService menuService
+    ) {
+        this.currentUserContext = currentUserContext;
+        this.userMapper = userMapper;
+        this.userRoleMapper = userRoleMapper;
+        this.roleMapper = roleMapper;
+        this.passwordEncoder = passwordEncoder;
+        this.clock = clock;
+        this.principalCache = principalCache;
+        this.refreshTokenService = refreshTokenService;
+        this.menuService = menuService;
+    }
+
+    @Transactional
+    public void changePassword(ChangePasswordRequest request) {
+        PasswordPolicy.assertValid(request.newPassword(), "newPassword");
+        ErpPrincipal principal = currentUserContext.requirePrincipal();
+        UserEntity user = userMapper.selectById(principal.userId());
+        if (user == null
+                || user.getDeletedFlag() == null
+                || user.getDeletedFlag() != 0
+                || !"ACTIVE".equals(user.getStatus())) {
+            throw new BadCredentialsException("用户不存在或已停用");
+        }
+        if (!passwordEncoder.matches(request.oldPassword(), user.getPassword())) {
+            throw new BadCredentialsException("旧密码错误");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        user.setUpdatedBy(principal.userId());
+        user.setUpdatedTime(LocalDateTime.now(clock));
+        OptimisticLockGuard.requireUpdated(userMapper.updateById(user), "用户已被其他操作修改，请刷新后重试");
+        refreshTokenService.revokeAllForUser(principal.userId());
+        principalCache.evictUser(principal.userId());
+    }
+    @Transactional
+    public UserInfoResponse updateProfile(UpdateProfileRequest request) {
+        ErpPrincipal principal = currentUserContext.requirePrincipal();
+        UserEntity user = requireActiveUser(principal.userId());
+        String mobile = normalizeNullableText(request.mobile());
+        String email = normalizeNullableText(request.email());
+        String avatar = normalizeNullableText(request.avatar());
+        String locale = normalizePreference(request.locale(), SUPPORTED_LOCALES, "locale");
+        String timeZone = normalizePreference(request.timeZone(), SUPPORTED_TIME_ZONES, "timeZone");
+        String realName = request.realName() == null ? "" : request.realName().trim();
+        if (!StringUtils.hasText(realName)) {
+            throw new IllegalArgumentException("realName不能为空");
+        }
+        validateMobileUnique(mobile, principal.userId());
+
+        user.setRealName(realName);
+        user.setEmail(email);
+        user.setMobile(mobile);
+        user.setAvatar(avatar);
+        if (locale != null) {
+            user.setLocale(locale);
+        }
+        if (timeZone != null) {
+            user.setTimeZone(timeZone);
+        }
+        user.setUpdatedBy(principal.userId());
+        user.setUpdatedTime(LocalDateTime.now(clock));
+        OptimisticLockGuard.requireUpdated(userMapper.updateById(user), "用户已被其他操作修改，请刷新后重试");
+        principalCache.evictUser(principal.userId());
+        return toUserInfoResponse(user, principal);
+    }
+
+    public UserInfoResponse getUserInfo() {
+        ErpPrincipal principal = currentUserContext.requirePrincipal();
+        UserEntity user = requireActiveUser(principal.userId());
+        return toUserInfoResponse(user, principal);
+    }
+
+    @Transactional
+    public UserInfoResponse updatePreferences(UpdatePreferencesRequest request) {
+        ErpPrincipal principal = currentUserContext.requirePrincipal();
+        UserEntity user = requireActiveUser(principal.userId());
+        user.setLocale(normalizePreference(request.locale(), SUPPORTED_LOCALES, "locale"));
+        user.setTimeZone(normalizePreference(request.timeZone(), SUPPORTED_TIME_ZONES, "timeZone"));
+        user.setUpdatedBy(principal.userId());
+        user.setUpdatedTime(LocalDateTime.now(clock));
+        OptimisticLockGuard.requireUpdated(userMapper.updateById(user), "用户已被其他操作修改，请刷新后重试");
+        principalCache.evictUser(principal.userId());
+        return toUserInfoResponse(user, principal);
+    }
+    private UserEntity requireActiveUser(Long userId) {
+        UserEntity user = userMapper.selectById(userId);
+        if (user == null
+                || user.getDeletedFlag() == null
+                || user.getDeletedFlag() != 0
+                || !"ACTIVE".equals(user.getStatus())) {
+            throw new BadCredentialsException("用户不存在或已停用");
+        }
+        return user;
+    }
+
+    private UserInfoResponse toUserInfoResponse(UserEntity user, ErpPrincipal principal) {
+        List<UserRoleEntity> userRoles = userRoleMapper.selectList(
+                new LambdaQueryWrapper<UserRoleEntity>()
+                        .eq(UserRoleEntity::getUserId, principal.userId())
+        );
+
+        List<String> roleNames = userRoles.stream()
+                .map(UserRoleEntity::getRoleId)
+                .map(roleMapper::selectById)
+                .filter(role -> role != null && "ACTIVE".equals(role.getStatus()))
+                .map(RoleEntity::getRoleName)
+                .sorted()
+                .toList();
+
+        List<String> permissions = principal.permissions().stream().sorted().toList();
+
+        return new UserInfoResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getRealName(),
+                user.getEmail(),
+                user.getMobile(),
+                user.getAvatar(),
+                user.getLocale(),
+                user.getTimeZone(),
+                roleNames,
+                permissions
+        );
+    }
+    private String normalizePreference(String value, Set<String> supported, String field) {
+        String normalized = normalizeNullableText(value);
+        if (normalized != null && !supported.contains(normalized)) {
+            throw new IllegalArgumentException(field + "不支持");
+        }
+        return normalized;
+    }
+
+    private void validateMobileUnique(String mobile, Long excludeId) {
+        if (!StringUtils.hasText(mobile)) {
+            return;
+        }
+        Long count = userMapper.selectCount(new LambdaQueryWrapper<UserEntity>()
+                .eq(UserEntity::getDeletedFlag, 0)
+                .eq(UserEntity::getMobile, mobile)
+                .ne(excludeId != null, UserEntity::getId, excludeId));
+        if (count != null && count > 0) {
+            throw new IllegalArgumentException("手机号已存在");
+        }
+    }
+
+    private String normalizeNullableText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    public List<MenuResponse> getRuntimeMenuTree() {
+        return menuService.runtimeTreeForCurrentUser();
+    }
+}

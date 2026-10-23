@@ -5,31 +5,41 @@ import type { Warehouse } from '@/api/masterdata'
 import {
   formatLocalizedCurrency,
   formatLocalizedDateTime,
-  formatLocalizedNumber
+  formatLocalizedNumber,
+  type DisplayPreferences
 } from '@/utils/locale'
 
 export type WarehousePageTexts = {
   [key: string]: string
 }
+type DisplayPreferencesLike = { locale: string; timeZone?: string }
 
 export const useWarehousePresentation = (
-  displayPreferences: ComputedRef<{ locale: string; timeZone?: string }> | Ref<{ locale: string; timeZone?: string }>
+  displayPreferences: ComputedRef<DisplayPreferencesLike> | Ref<DisplayPreferencesLike>
 ) => {
   const interpolate = (template: string, params: Record<string, string | number>) =>
     template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
 
+  const joinNames = (items: string[], locale: string) => (
+    locale === 'en-US' ? items.join(', ') : items.join('、')
+  )
+
+  const labelWithCount = (label: string, count: number) => (
+    count > 0 ? `${label} (${count})` : label
+  )
+
   const formatCurrency = (value?: number | string | null) => {
     const amount = Number(value)
     if (!Number.isFinite(amount)) return '-'
-    return formatLocalizedCurrency(amount, {}, displayPreferences.value)
+    return formatLocalizedCurrency(amount, {}, displayPreferences.value as DisplayPreferences)
   }
 
   const formatDateTime = (value?: string | null) => (
-    value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
+    value ? formatLocalizedDateTime(value, {}, displayPreferences.value as DisplayPreferences) || '-' : '-'
   )
 
   const formatNumber = (value?: number | string | null) => (
-    formatLocalizedNumber(Number(value || 0), { maximumFractionDigits: 2 }, displayPreferences.value)
+    formatLocalizedNumber(Number(value || 0), { maximumFractionDigits: 2 }, displayPreferences.value as DisplayPreferences)
   )
 
   const flattenDepts = (items: Dept[]): Dept[] =>
@@ -63,6 +73,8 @@ export const useWarehousePresentation = (
     formatDateTime,
     formatNumber,
     interpolate,
+    joinNames,
+    labelWithCount,
     managerLabel,
     userLabel,
     warehouseLabel

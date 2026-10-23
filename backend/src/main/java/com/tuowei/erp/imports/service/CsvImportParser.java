@@ -27,6 +27,10 @@ public class CsvImportParser {
     }
 
     public ParsedCsv parse(MultipartFile file, List<String> expectedHeaders) {
+        return parseAccepted(file, expectedHeaders == null ? List.of() : List.of(expectedHeaders));
+    }
+
+    public ParsedCsv parseAccepted(MultipartFile file, List<List<String>> acceptedHeaders) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("导入文件不能为空");
         }
@@ -41,7 +45,17 @@ public class CsvImportParser {
         if (!headers.isEmpty() && headers.get(0).startsWith("\uFEFF")) {
             headers.set(0, headers.get(0).substring(1));
         }
-        if (!headers.equals(expectedHeaders)) {
+        if (acceptedHeaders == null || acceptedHeaders.isEmpty()) {
+            throw new IllegalArgumentException("CSV表头不匹配，请使用系统提供的模板");
+        }
+        boolean accepted = false;
+        for (List<String> expectedHeaders : acceptedHeaders) {
+            if (headers.equals(expectedHeaders)) {
+                accepted = true;
+                break;
+            }
+        }
+        if (!accepted) {
             throw new IllegalArgumentException("CSV表头不匹配，请使用系统提供的模板");
         }
         List<ParsedCsvRow> rows = new ArrayList<>();

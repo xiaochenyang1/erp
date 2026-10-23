@@ -2,6 +2,9 @@ package com.tuowei.erp.finance.posting;
 
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
+import com.tuowei.erp.finance.payment.model.PaymentEntity;
+import com.tuowei.erp.finance.receipt.model.ReceiptEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentEntity;
 import com.tuowei.erp.inventory.adjust.model.InventoryAdjustmentLineEntity;
 import com.tuowei.erp.purchase.order.model.PurchaseOrderEntity;
@@ -35,8 +38,10 @@ public class FinancePostingService {
 
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordPurchaseReceipt(PurchaseReceiptEntity receipt, PurchaseOrderEntity order, AuditMetadata audit) {
-        BigDecimal inventoryAmount = inventoryAmount(receipt.getTotalAmount());
-        BigDecimal taxAmount = taxAmount(receipt.getTotalTaxAmount());
+        String currencyCode = CurrencyAmountSupport.currency(receipt.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(receipt.getExchangeRate());
+        BigDecimal inventoryAmount = basePosting(receipt.getTotalAmount(), exchangeRate);
+        BigDecimal taxAmount = basePosting(receipt.getTotalTaxAmount(), exchangeRate);
         BigDecimal amount = documentAmount(receipt.getTotalAmount(), receipt.getTotalTaxAmount());
         subledgerPostingService.recordPayableIfAbsent(
                 "PURCHASE_RECEIPT",
@@ -46,16 +51,20 @@ public class FinancePostingService {
                 order.getSupplierId(),
                 receipt.getReceiptDate(),
                 amount,
+                currencyCode,
+                exchangeRate,
                 "采购入库形成应付",
                 audit
         );
-        voucherPostingService.recordPurchaseReceipt(receipt, inventoryAmount, taxAmount, amount, audit);
+        voucherPostingService.recordPurchaseReceipt(receipt, inventoryAmount, taxAmount, basePosting(amount, exchangeRate), audit);
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordPurchaseReturn(PurchaseReturnEntity purchaseReturn, PurchaseOrderEntity order, AuditMetadata audit) {
-        BigDecimal inventoryAmount = inventoryAmount(purchaseReturn.getTotalAmount());
-        BigDecimal taxAmount = taxAmount(purchaseReturn.getTotalTaxAmount());
+        String currencyCode = CurrencyAmountSupport.currency(purchaseReturn.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(purchaseReturn.getExchangeRate());
+        BigDecimal inventoryAmount = basePosting(purchaseReturn.getTotalAmount(), exchangeRate);
+        BigDecimal taxAmount = basePosting(purchaseReturn.getTotalTaxAmount(), exchangeRate);
         BigDecimal amount = documentAmount(purchaseReturn.getTotalAmount(), purchaseReturn.getTotalTaxAmount());
         subledgerPostingService.recordPayableIfAbsent(
                 "PURCHASE_RETURN",
@@ -65,10 +74,41 @@ public class FinancePostingService {
                 order.getSupplierId(),
                 purchaseReturn.getReturnDate(),
                 amount,
+                currencyCode,
+                exchangeRate,
                 "采购退货冲减应付",
                 audit
         );
-        voucherPostingService.recordPurchaseReturn(purchaseReturn, inventoryAmount, taxAmount, amount, audit);
+        voucherPostingService.recordPurchaseReturn(purchaseReturn, inventoryAmount, taxAmount, basePosting(amount, exchangeRate), audit);
+    }
+
+    /** 收款单过账：资金流入并核销应收，未核销部分计入预收账款，结算汇率与入账汇率的差额计入汇兑损益。 */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordReceipt(ReceiptEntity receipt, SettlementPostingAmounts amounts, AuditMetadata audit) {
+        voucherPostingService.recordReceipt(receipt, amounts, audit);
+    }
+
+    /** 收款单作废：按原过账金额生成反向凭证，冲回资金、应收与汇兑损益。 */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordReceiptCancellation(ReceiptEntity receipt, SettlementPostingAmounts amounts, AuditMetadata audit) {
+        voucherPostingService.recordReceiptCancellation(receipt, amounts, audit);
+    }
+
+    /** 付款单过账：资金流出并核销应付，未核销部分计入预付账款，结算汇率与入账汇率的差额计入汇兑损益。 */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordPayment(PaymentEntity payment, SettlementPostingAmounts amounts, AuditMetadata audit) {
+        voucherPostingService.recordPayment(payment, amounts, audit);
+    }
+
+    /** 付款单作废：按原过账金额生成反向凭证，冲回资金、应付与汇兑损益。 */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordPaymentCancellation(PaymentEntity payment, SettlementPostingAmounts amounts, AuditMetadata audit) {
+        voucherPostingService.recordPaymentCancellation(payment, amounts, audit);
+    }
+
+    /** 业务单据一律按本位币过账：原币金额 × 单据汇率快照，本位币单据汇率为 1 时口径不变。 */
+    private BigDecimal basePosting(BigDecimal amount, BigDecimal exchangeRate) {
+        return CurrencyAmountSupport.posting(ScalePrecision.zeroDefault(amount), exchangeRate);
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -87,6 +127,8 @@ public class FinancePostingService {
             BigDecimal costAmount,
             AuditMetadata audit
     ) {
+        String currencyCode = CurrencyAmountSupport.currency(delivery.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(delivery.getExchangeRate());
         BigDecimal amount = documentAmount(delivery.getTotalAmount(), delivery.getTotalTaxAmount());
         subledgerPostingService.recordReceivableIfAbsent(
                 "SALES_DELIVERY",
@@ -96,10 +138,12 @@ public class FinancePostingService {
                 order.getCustomerId(),
                 delivery.getDeliveryDate(),
                 amount,
+                currencyCode,
+                exchangeRate,
                 "销售出库形成应收",
                 audit
         );
-        voucherPostingService.recordSalesDelivery(delivery, amount, costAmount, audit);
+        voucherPostingService.recordSalesDelivery(delivery, basePosting(amount, exchangeRate), costAmount, audit);
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -109,6 +153,8 @@ public class FinancePostingService {
             BigDecimal costAmount,
             AuditMetadata audit
     ) {
+        String currencyCode = CurrencyAmountSupport.currency(salesReturn.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(salesReturn.getExchangeRate());
         BigDecimal amount = documentAmount(salesReturn.getTotalAmount(), salesReturn.getTotalTaxAmount());
         subledgerPostingService.recordReceivableIfAbsent(
                 "SALES_RETURN",
@@ -118,10 +164,12 @@ public class FinancePostingService {
                 order.getCustomerId(),
                 salesReturn.getReturnDate(),
                 amount,
+                currencyCode,
+                exchangeRate,
                 "销售退货冲减应收",
                 audit
         );
-        voucherPostingService.recordSalesReturn(salesReturn, amount, costAmount, audit);
+        voucherPostingService.recordSalesReturn(salesReturn, basePosting(amount, exchangeRate), costAmount, audit);
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -244,14 +292,6 @@ public class FinancePostingService {
                 summary,
                 audit
         );
-    }
-
-    private BigDecimal inventoryAmount(BigDecimal totalAmount) {
-        return ScalePrecision.amount(ScalePrecision.zeroDefault(totalAmount));
-    }
-
-    private BigDecimal taxAmount(BigDecimal totalTaxAmount) {
-        return ScalePrecision.amount(ScalePrecision.zeroDefault(totalTaxAmount));
     }
 
     private BigDecimal documentAmount(BigDecimal totalAmount, BigDecimal totalTaxAmount) {

@@ -86,7 +86,9 @@
 - 指标出口 `/actuator/prometheus` 已通过认证访问，响应包含 Prometheus 文本指标。
 - 指标出口 `/actuator/prometheus` 响应包含 `erp_business_health_overall_status` 和 `erp_business_health_check_count`。
 - 业务健康摘要 `/api/system/observability/business-health` 已通过认证访问，返回 readiness、导入、库存和期间检查项。
-- 告警规则模板 `docs/monitoring/prometheus-alert-rules.yml` 已加载到生产监控平台，或已在发布记录中写明由监控平台转换后的等价规则。
+- 完整告警规则 `monitoring/alert-rules.yml` 已加载到生产监控平台；`docs/monitoring/prometheus-alert-rules.yml` 仅作业务规则摘录/转换参考，或已在发布记录中写明转换后的等价规则，不能两份同时加载。
+- Prometheus 抓取协议、目标端口与实际部署一致（默认 `http://erp-server:8080`），使用 JWT `bearer_token_file`；不得使用应用未启用的 HTTP Basic。
+- Alertmanager 默认和 critical receiver 均已配置真实 `url_file` secret，并完成至少一次告警触发与恢复演练；空 receiver 或未验证的模板直接 No-Go。
 - 一键预生产验收的前置校验已通过，`WarehouseId`、`MaterialWarehouseId`、`FinishedWarehouseId` 均为 `ACTIVE`，`BusinessDate` 所属会计期间为 `OPEN`，关键权限校验没有失败项。
 - 登录、受保护接口、采购到付款、销售到收款、财务账簿、期间锁账、库存财务对账、生产制造和期初导入至少各完成一组有效样例验收。
 - 批次/效期商品必须覆盖采购入库、销售出库自动 FEFO/FIFO、库存调拨、生产领料/完工、期初导入和批次库存查询验收。
@@ -100,6 +102,7 @@
 - 核心业务链路出现库存、应收应付、凭证、期间锁账或租户隔离数据错误。
 - 预生产验收只有口头结论，没有 commit、环境、接口、单号或日志证据。
 - 数据库未备份、回滚方案未确认，或者真实生产密钥仍然使用占位符。
+- Prometheus/Alertmanager 配置校验失败、指标抓取返回 `401/403`、目标协议/端口不匹配，或者告警没有实际 receiver。
 
 ## 核心 API 冒烟
 

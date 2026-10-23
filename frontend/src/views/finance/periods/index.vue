@@ -74,7 +74,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="380" align="center" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="520" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleCheck(row)">
               {{ $t('financeReportPages.periods.check') }}
@@ -101,6 +101,26 @@
               @click="handleLock(row)"
             >
               {{ $t('financeReportPages.periods.lock') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'OPEN'"
+              v-permission="'finance:period:close'"
+              type="primary"
+              link
+              :icon="Coin"
+              @click="handleRevalue(row)"
+            >
+              {{ $t('financeReportPages.periods.revalue') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'OPEN'"
+              v-permission="'finance:period:close'"
+              type="danger"
+              link
+              :icon="CircleClose"
+              @click="handleCancelRevalue(row)"
+            >
+              {{ $t('financeReportPages.periods.cancelRevalue') }}
             </el-button>
             <el-button
               v-if="row.status === 'LOCKED'"
@@ -310,6 +330,38 @@
             >
               {{ $t('financeReportPages.periods.unlock') }}
             </el-button>
+          </div>
+          <div class="snapshot-section">
+            <h4>{{ $t('financeReportPages.periods.closeEvidence') }}</h4>
+            <el-table v-if="wizardSnapshots.length" :data="wizardSnapshots" border stripe class="dialog-table">
+              <el-table-column type="expand">
+                <template #default="{ row }">
+                  <el-table :data="row.items" size="small" class="snapshot-items">
+                    <el-table-column prop="category" :label="$t('financeReportPages.periods.category')" width="90" />
+                    <el-table-column prop="title" :label="$t('financeReportPages.periods.checkItem')" width="150" />
+                    <el-table-column :label="$t('financeReportPages.periods.result')" width="90">
+                      <template #default="{ row: item }">
+                        <el-tag :type="item.passed ? 'success' : 'danger'" size="small">
+                          {{ item.passed ? $t('financeReportPages.periods.passed') : $t('financeReportPages.periods.blocked') }}
+                        </el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="message" :label="$t('financeReportPages.periods.explanation')" min-width="220" />
+                  </el-table>
+                </template>
+              </el-table-column>
+              <el-table-column :label="$t('financeReportPages.periods.evidenceAction')" width="90">
+                <template #default="{ row }">
+                  {{ row.actionType === 'CLOSE' ? $t('financeReportPages.periods.closePeriod') : $t('financeReportPages.periods.lock') }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="checkedTime" :label="$t('financeReportPages.periods.evidenceTime')" min-width="170">
+                <template #default="{ row }">{{ formatDateTime(row.checkedTime) }}</template>
+              </el-table-column>
+              <el-table-column prop="checkedBy" :label="$t('financeReportPages.periods.evidenceOperator')" width="110" />
+              <el-table-column prop="issueCount" :label="$t('financeReportPages.periods.blockingItems')" width="100" align="right" />
+            </el-table>
+            <el-empty v-else :description="$t('financeReportPages.periods.noCloseEvidence')" :image-size="72" />
           </div>
         </section>
       </div>
@@ -538,6 +590,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Calendar,
   CircleCheck,
+  CircleClose,
+  Coin,
   DataAnalysis,
   Guide,
   Lock,
@@ -551,10 +605,13 @@ import {
   closeAccountPeriod,
   generateAccountPeriods,
   getAccountPeriods,
+  getAccountPeriodCloseSnapshots,
   getInventoryFinanceDifferenceDetail,
   getInventoryFinanceDifferences,
   getInventoryFinanceReconciliation,
   lockAccountPeriod,
+  revalueAccountPeriod,
+  cancelAccountPeriodRevaluation,
   reopenAccountPeriod as unlockAccountPeriod
 } from '@/api/finance'
 import { useFinancePeriodPresentation } from '@/composables/useFinancePeriodPresentation'
@@ -594,11 +651,12 @@ const {
   handleClose,
   handleGenerate,
   handleLock,
+  handleRevalue,
+  handleCancelRevalue,
   handleReset,
   handleUnlock,
   loadData,
   loadDifferences,
-  loadReconciliation,
   loading,
   nextWizardStep,
   openDifferenceDetail,
@@ -614,6 +672,7 @@ const {
   wizardActionSubtitle,
   wizardActionTitle,
   wizardCheck,
+  wizardSnapshots,
   wizardClose,
   wizardLoading,
   wizardLock,
@@ -625,13 +684,16 @@ const {
   getPeriods: getAccountPeriods,
   generatePeriods: generateAccountPeriods,
   checkClose: checkAccountPeriodClose,
+  getCloseSnapshots: getAccountPeriodCloseSnapshots,
   lockPeriod: lockAccountPeriod,
   closePeriod: closeAccountPeriod,
   unlockPeriod: unlockAccountPeriod,
+  revaluePeriod: revalueAccountPeriod,
+  cancelRevaluePeriod: cancelAccountPeriodRevaluation,
   getReconciliation: getInventoryFinanceReconciliation,
   getDifferences: getInventoryFinanceDifferences,
   getDifferenceDetail: getInventoryFinanceDifferenceDetail,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message)
@@ -647,6 +709,21 @@ onMounted(() => {
 <style scoped>
 .period-page {
   padding: 20px;
+}
+
+.snapshot-section {
+  margin-top: 24px;
+}
+
+.snapshot-section h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.snapshot-items {
+  width: calc(100% - 24px);
+  margin: 0 12px;
 }
 
 .toolbar-card,

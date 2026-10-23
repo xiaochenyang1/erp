@@ -9,6 +9,8 @@ import com.tuowei.erp.inventory.alert.mapper.InventoryAlertDispositionMapper;
 import com.tuowei.erp.inventory.alert.mapper.InventoryAlertRuleMapper;
 import com.tuowei.erp.inventory.alert.model.InventoryAlertDispositionEntity;
 import com.tuowei.erp.inventory.alert.model.InventoryAlertRuleEntity;
+import com.tuowei.erp.inventory.alert.service.InventoryAlertCommandService;
+import com.tuowei.erp.inventory.alert.service.InventoryAlertQueryService;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleCreateRequest;
 import com.tuowei.erp.inventory.alert.web.InventoryAlertRuleUpdateRequest;
@@ -213,15 +215,24 @@ class InventoryAlertServiceTenantBoundaryTest {
     }
 
     private InventoryAlertService service() {
-        return new InventoryAlertService(
+        InventoryAlertQueryService queryService = new InventoryAlertQueryService(
+                alertRuleMapper,
+                dispositionMapper,
+                auditMetadataFactory,
+                warehouseMapper,
+                productMapper,
+                inventoryBalanceMapper
+        );
+        InventoryAlertCommandService commandService = new InventoryAlertCommandService(
                 alertRuleMapper,
                 dispositionMapper,
                 inventoryPostingService,
                 auditMetadataFactory,
                 warehouseMapper,
                 productMapper,
-                inventoryBalanceMapper
+                queryService
         );
+        return new InventoryAlertService(queryService, commandService);
     }
 
     private InventoryAlertRuleCreateRequest createRequest() {

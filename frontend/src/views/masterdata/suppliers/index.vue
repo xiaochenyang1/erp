@@ -67,7 +67,38 @@
       @export="handleExport"
       @refresh="loadData"
       @page-change="handlePageChange"
+      @selection-change="handleSelectionChange"
     >
+      <template #toolbar-left>
+        <el-button v-permission="'masterdata:supplier:create'" type="primary" :icon="Plus" @click="handleCreate">
+          {{ texts.createSupplier }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:supplier:enable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="CircleCheck"
+          @click="handleBatchEnable"
+        >
+          {{ labelWithCount(texts.batchEnable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:supplier:disable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="Delete"
+          @click="handleBatchDisable"
+        >
+          {{ labelWithCount(texts.batchDisable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          :disabled="selectedRows.length === 0"
+          :icon="Download"
+          @click="handleExportSelected"
+        >
+          {{ labelWithCount(texts.exportSelected, selectedRows.length) }}
+        </el-button>
+      </template>
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="code" :label="texts.supplierCode" width="140" fixed>
         <template #default="{ row }">
@@ -99,12 +130,16 @@
           <status-tag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column :label="texts.actions" width="180" fixed="right" align="center">
+      <el-table-column :label="texts.actions" width="250" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" @click="handleView(row)">
               <el-icon><View /></el-icon>
               {{ texts.view }}
+            </el-button>
+            <el-button link type="primary" @click="openRelations(row)">
+              <el-icon><Connection /></el-icon>
+              {{ $t('productRelation.entry') }}
             </el-button>
             <el-button v-permission="'masterdata:supplier:update'" link type="primary" @click="handleEdit(row)">
               <el-icon><Edit /></el-icon>
@@ -318,11 +353,19 @@
         </div>
       </detail-card>
     </el-dialog>
+
+    <product-relation-dialog
+      v-model="relationVisible"
+      mode="SUPPLIER"
+      :owner-id="relationOwnerId"
+      :owner-label="relationOwnerLabel"
+      :can-write="canUpdate"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ShoppingBag,
@@ -331,10 +374,13 @@ import {
   Edit,
   Delete,
   CircleCheck,
+  Connection,
   Phone,
   Calendar,
   Clock,
-  DocumentCopy
+  DocumentCopy,
+  Plus,
+  Download
 } from '@element-plus/icons-vue'
 import {
   getSuppliers,
@@ -347,6 +393,7 @@ import {
   exportSuppliers
 } from '@/api/masterdata'
 import { PageTable, PageForm, SearchBar, StatusTag, DetailCard } from '@/components/common'
+import ProductRelationDialog from '@/components/masterdata/ProductRelationDialog.vue'
 import { useAppStore } from '@/store/modules/app'
 import { useUserStore } from '@/store/modules/user'
 import { useSupplierPresentation } from '@/composables/useSupplierPresentation'
@@ -356,6 +403,16 @@ import { useSupplierForm } from '@/composables/useSupplierForm'
 const appStore = useAppStore()
 const userStore = useUserStore()
 const canCreate = computed(() => userStore.hasPermission('masterdata:supplier:create'))
+const canUpdate = computed(() => userStore.hasPermission('masterdata:supplier:update'))
+const relationVisible = ref(false)
+const relationOwnerId = ref('')
+const relationOwnerLabel = ref('')
+
+const openRelations = (row: { id: string; code?: string; name?: string }) => {
+  relationOwnerId.value = String(row.id)
+  relationOwnerLabel.value = `${row.code || ''} ${row.name || ''}`.trim()
+  relationVisible.value = true
+}
 const SUPPLIER_TEXTS = {
   'zh-CN': {
     pageTitle: '供应商管理',
@@ -378,6 +435,7 @@ const SUPPLIER_TEXTS = {
     enable: '启用',
     delete: '删除',
     cancel: '取消',
+    confirm: '确定',
     enterSupplierCode: '请输入供应商编码',
     enterSupplierName: '请输入供应商名称',
     selectStatus: '请选择状态',
@@ -426,6 +484,18 @@ const SUPPLIER_TEXTS = {
     exportSuccess: '导出成功',
     exportFailed: '导出失败',
     exportFilename: '供应商列表',
+    batchEnable: '批量启用',
+    batchDisable: '批量删除',
+    exportSelected: '导出选中',
+    selectedExportFilename: '供应商-{count}',
+    batchEnableTitle: '批量启用供应商',
+    batchDisableTitle: '批量删除供应商',
+    batchEnableConfirm: '确认批量启用 {count} 个供应商吗？',
+    batchDisableConfirm: '确认批量删除 {count} 个供应商吗？',
+    batchEnableSuccess: '成功启用 {count} 个供应商',
+    batchDisableSuccess: '成功删除 {count} 个供应商',
+    batchEnablePartial: '成功启用 {success} 个，失败 {failedCount} 个：{failed}',
+    batchDisablePartial: '成功删除 {success} 个，失败 {failedCount} 个：{failed}',
     validationEnterCode: '请输入供应商编码',
     validationCodeLength: '长度在 2 到 50 个字符',
     validationEnterName: '请输入供应商名称',
@@ -455,6 +525,7 @@ const SUPPLIER_TEXTS = {
     enable: 'Enable',
     delete: 'Delete',
     cancel: 'Cancel',
+    confirm: 'Confirm',
     enterSupplierCode: 'Enter supplier code',
     enterSupplierName: 'Enter supplier name',
     selectStatus: 'Select status',
@@ -503,6 +574,18 @@ const SUPPLIER_TEXTS = {
     exportSuccess: 'Export completed',
     exportFailed: 'Failed to export suppliers',
     exportFilename: 'supplier-list',
+    batchEnable: 'Batch enable',
+    batchDisable: 'Batch delete',
+    exportSelected: 'Export selected',
+    selectedExportFilename: 'suppliers-{count}',
+    batchEnableTitle: 'Batch enable suppliers',
+    batchDisableTitle: 'Batch delete suppliers',
+    batchEnableConfirm: 'Enable {count} suppliers?',
+    batchDisableConfirm: 'Delete {count} suppliers?',
+    batchEnableSuccess: 'Enabled {count} suppliers',
+    batchDisableSuccess: 'Deleted {count} suppliers',
+    batchEnablePartial: 'Enabled {success}, failed {failedCount}: {failed}',
+    batchDisablePartial: 'Deleted {success}, failed {failedCount}: {failed}',
     validationEnterCode: 'Enter supplier code',
     validationCodeLength: 'Length must be between 2 and 50 characters',
     validationEnterName: 'Enter supplier name',
@@ -525,24 +608,32 @@ const {
   formatDateTime,
   hasCreditPeriod,
   interpolate,
+  joinNames,
+  labelWithCount,
   settlementMethodLabel,
   settlementMethodOptions
 } = useSupplierPresentation(texts, displayPreferences)
 
 const {
+  batchRunning,
   currentRow,
   detailVisible,
+  handleBatchDisable,
+  handleBatchEnable,
   handleDelete,
   handleEnable,
   handleExport,
+  handleExportSelected,
   handlePageChange,
   handleReset,
   handleSearch,
+  handleSelectionChange,
   handleView,
   loadData,
   loading,
   payableExposure,
   searchForm,
+  selectedRows,
   tableData,
   total
 } = useSupplierList(texts, {
@@ -552,10 +643,13 @@ const {
   enableSupplier,
   deleteSupplier,
   exportSuppliers,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   interpolate,
+  joinNames: (items, locale) => joinNames(items, locale),
+  locale: computed(() => appStore.locale),
   onError: (message) => ElMessage.error(message),
-  onSuccess: (message) => ElMessage.success(message)
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
 const activeCount = computed(() => countActive(tableData.value))

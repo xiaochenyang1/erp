@@ -15,8 +15,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-frontend-changes:
+    name: Detect Frontend Changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Detect frontend changes
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          TARGET_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          base_sha="$BEFORE_SHA"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+          fi
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]] || ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+            changed_files="$(git ls-files)"
+          else
+            changed_files="$(git diff --name-only "$base_sha" "$TARGET_SHA")"
+          fi
+
+          frontend_changed=false
+          while IFS= read -r changed_file; do
+            case "$changed_file" in
+              frontend/*|.github/workflows/frontend-verify.yml)
+                frontend_changed=true
+                break
+                ;;
+            esac
+          done <<< "$changed_files"
+          echo "frontend=$frontend_changed" >> "$GITHUB_OUTPUT"
+          echo "Frontend changes detected: $frontend_changed"
+
   frontend-verify:
     name: Type Check, Lint, Test, Build, Audit
+    needs: detect-frontend-changes
+    if: needs.detect-frontend-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -24,17 +70,19 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/.nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --audit=false
 
       - name: Type check
         run: npm run type-check

@@ -36,6 +36,7 @@ class PurchaseReceiptControllerTest {
     private static final long ACCOUNT_BOOK_ID = 1L;
     private static final long USER_ID = 1L;
     private static final long WAREHOUSE_ID = 895901L;
+    private static final long LOCATION_ID = WAREHOUSE_ID + 500000000000000000L;
     private static final long PRODUCT_ID = 895201L;
     private static final long ORDER_ID = 895101L;
     private static final long ORDER_LINE_ID = 895111L;
@@ -98,6 +99,7 @@ class PurchaseReceiptControllerTest {
         jdbcTemplate.update("delete from pur_order_line where order_id between 895000 and 895999 or product_id between 895200 and 895299");
         jdbcTemplate.update("delete from pur_order where id between 895000 and 895999");
         jdbcTemplate.update("delete from md_product where id between 895200 and 895299 or product_code like 'LOT-PR-%'");
+        jdbcTemplate.update("delete from md_location where id = ? or warehouse_id = ?", LOCATION_ID, WAREHOUSE_ID);
         jdbcTemplate.update("delete from md_warehouse where id = ? or warehouse_code = 'LOT-PR-WH'", WAREHOUSE_ID);
         jdbcTemplate.update("delete from fin_account_period where id = ? or period_year = 2035", PERIOD_ID);
     }
@@ -176,6 +178,14 @@ class PurchaseReceiptControllerTest {
                 values (?, ?, ?, 'LOT-PR-WH', 'Purchase lot warehouse', 3501, 4001,
                         'lot receipt test', 'ACTIVE', 0, 'lot receipt test', ?, ?, ?, ?, 0)
                 """, WAREHOUSE_ID, COMPANY_ID, ACCOUNT_BOOK_ID, USER_ID, NOW, USER_ID, NOW);
+        jdbcTemplate.update("""
+                insert into md_location
+                (id, company_id, account_book_id, warehouse_id, location_code, location_name,
+                 is_default, status, deleted_flag, remark, created_by, created_time, updated_by, updated_time, version)
+                values (?, ?, ?, ?, 'MAIN', 'Default Location', 1, 'ACTIVE', 0,
+                        'purchase receipt test default location', ?, ?, ?, ?, 0)
+                """, LOCATION_ID, COMPANY_ID, ACCOUNT_BOOK_ID, WAREHOUSE_ID,
+                USER_ID, NOW, USER_ID, NOW);
     }
 
     private void seedProduct() {

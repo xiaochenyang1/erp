@@ -1,0 +1,213 @@
+name: UI Smoke
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-ui-smoke-changes:
+    name: Detect UI Smoke Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.changes.outputs.run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Detect backend and frontend changes
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          TARGET_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base_sha="$BEFORE_SHA"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+          fi
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]] || ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+            changed_files="$(git ls-files)"
+          else
+            changed_files="$(git diff --name-only "$base_sha" "$TARGET_SHA")"
+          fi
+
+          should_run=false
+          while IFS= read -r changed_file; do
+            case "$changed_file" in
+              backend/*|frontend/*|.github/workflows/*)
+                should_run=true
+                break
+                ;;
+            esac
+          done <<< "$changed_files"
+          echo "run=$should_run" >> "$GITHUB_OUTPUT"
+          echo "UI smoke required: $should_run"
+
+  ui-smoke:
+    name: Browser Routes and Workflows
+    needs: detect-ui-smoke-changes
+    if: needs.detect-ui-smoke-changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ui_smoke_ci_root_password
+          MYSQL_DATABASE: erp_codex_runtime
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pui_smoke_ci_root_password --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      ERP_UI_SMOKE_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/erp_codex_runtime?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+      ERP_UI_SMOKE_DATASOURCE_USERNAME: root
+      ERP_UI_SMOKE_DATASOURCE_PASSWORD: ui_smoke_ci_root_password
+      UI_SMOKE_FRONTEND_MODE: preview
+      ERP_UI_SMOKE_BACKEND_PORT: '8081'
+      UI_SMOKE_FRONTEND_PORT: '5196'
+      ERP_UI_SMOKE_BACKEND_URL: http://127.0.0.1:8081
+      ERP_LOCAL_ADMIN_PASSWORD: LocalAdmin123
+      ERP_UI_SMOKE_RUNTIME_PASSWORD: RuntimeSmoke123
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: |
+            backend/pom.xml
+            backend/.mvn/wrapper/maven-wrapper.properties
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --audit=false
+
+      - name: Test browser connection handling and F/Q target configuration
+        run: node --test backend/scripts/ui-smoke-cdp.test.mjs backend/scripts/ui-smoke-processes.test.mjs backend/scripts/fq-signoff-config.test.cjs backend/scripts/fq-period-lock-check.test.cjs
+
+      - name: Build frontend production assets
+        working-directory: frontend
+        run: npm run build
+
+      - name: Build backend executable
+        working-directory: backend
+        run: ./mvnw -B -DskipTests package
+
+      - name: Set up Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Configure Chrome sandbox
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sandbox_path="$(dirname -- "$CHROME_PATH")/chrome-sandbox"
+          test -f "$sandbox_path"
+          sudo chown root:root "$sandbox_path"
+          sudo chmod 4755 "$sandbox_path"
+          test "$(stat -c '%u:%g:%a' "$sandbox_path")" = '0:0:4755'
+
+      - name: Apply migrations and prepare smoke submitter
+        working-directory: backend
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          java -jar target/erp-server-1.0.0.jar \
+            --spring.profiles.active=local \
+            "--spring.datasource.url=$ERP_UI_SMOKE_DATASOURCE_URL" \
+            "--spring.datasource.username=$ERP_UI_SMOKE_DATASOURCE_USERNAME" \
+            "--spring.datasource.password=$ERP_UI_SMOKE_DATASOURCE_PASSWORD" \
+            "--server.port=$ERP_UI_SMOKE_BACKEND_PORT" \
+            "--erp.security.cors.allowed-origins=http://127.0.0.1:$UI_SMOKE_FRONTEND_PORT" \
+            > target/ui-smoke-bootstrap-backend.log 2>&1 &
+          backend_pid=$!
+          cleanup() {
+            if kill -0 "$backend_pid" 2>/dev/null; then
+              kill -TERM "$backend_pid" 2>/dev/null || true
+              wait "$backend_pid" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          backend_ready=false
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail "http://127.0.0.1:$ERP_UI_SMOKE_BACKEND_PORT/actuator/health" >/dev/null; then
+              backend_ready=true
+              break
+            fi
+            if ! kill -0 "$backend_pid" 2>/dev/null; then
+              tail -n 100 target/ui-smoke-bootstrap-backend.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if [[ "$backend_ready" != true ]]; then
+            tail -n 100 target/ui-smoke-bootstrap-backend.log
+            exit 1
+          fi
+
+          node scripts/prepare-ui-smoke-user.mjs
+          kill -TERM "$backend_pid"
+          wait "$backend_pid" || true
+
+      - name: Run all route and workflow smoke checks
+        working-directory: backend
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: node scripts/ui-smoke.mjs
+
+      - name: Upload UI smoke report and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erp-ui-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            backend/target/ui-smoke-report.json
+            backend/target/ui-smoke-cleanup.json
+            backend/target/ui-smoke-*.log
+            backend/target/ui-smoke-*.png

@@ -52,6 +52,10 @@ class ReportExportServiceStreamingTest {
                     "NOT_RECEIVED",
                     new BigDecimal("1.0000"),
                     new BigDecimal("10.00"),
+                    new BigDecimal("1.30"),
+                    "CNY",
+                    BigDecimal.ONE,
+                    new BigDecimal("10.00"),
                     new BigDecimal("1.30")
             ));
             return null;
@@ -69,8 +73,8 @@ class ReportExportServiceStreamingTest {
         body.writeTo(outputStream);
 
         assertThat(outputStream.toString(StandardCharsets.UTF_8))
-                .contains("bizNo,partnerId,bizDate,status,approvalStatus,fulfillmentStatus,totalQuantity,totalAmount,totalTaxAmount")
-                .contains("PO-STREAM-001,101,2026-06-01,APPROVED,APPROVED,NOT_RECEIVED,1.0000,10.00,1.30");
+                .contains("bizNo,partnerId,bizDate,status,approvalStatus,fulfillmentStatus,totalQuantity,totalAmount,totalTaxAmount,currencyCode,exchangeRate,baseTotalAmount,baseTotalTaxAmount")
+                .contains("PO-STREAM-001,101,2026-06-01,APPROVED,APPROVED,NOT_RECEIVED,1.0000,10.00,1.30,CNY,1,10.00,1.30");
     }
 
     private Authentication authentication() {

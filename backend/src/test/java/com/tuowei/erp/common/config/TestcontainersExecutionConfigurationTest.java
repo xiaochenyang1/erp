@@ -21,6 +21,8 @@ class TestcontainersExecutionConfigurationTest {
 
     private static final List<Path> TESTCONTAINERS_TESTS = List.of(
             Path.of("src", "test", "java", "com", "tuowei", "erp", "db", "MysqlFlywayMigrationSmokeTest.java"),
+            Path.of("src", "test", "java", "com", "tuowei", "erp", "finance", "currency", "service",
+                    "BaseCurrencyDataGuardMysqlIntegrationTest.java"),
             Path.of("src", "test", "java", "com", "tuowei", "erp", "inventory", "stock",
                     "InventoryPostingMysqlIntegrationTest.java"),
             Path.of("src", "test", "java", "com", "tuowei", "erp", "system", "auth",

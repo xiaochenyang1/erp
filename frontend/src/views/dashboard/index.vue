@@ -167,7 +167,7 @@
               <span class="generated-time">{{ t('dashboard.last30Days') }}</span>
             </div>
           </template>
-          <el-table :data="dashboard.topSkus" size="small" border>
+          <el-table :data="topSkus" size="small" border>
             <el-table-column type="index" :label="t('dashboard.rank')" width="70" align="center" />
             <el-table-column prop="productCode" :label="t('dashboard.productCode')" min-width="130" />
             <el-table-column prop="productName" :label="t('dashboard.productName')" min-width="180" />
@@ -325,7 +325,6 @@ import {
   ShoppingCart,
   Sell,
   Box,
-  List,
   Plus,
   Search,
   Money,

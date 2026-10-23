@@ -10,6 +10,8 @@ import com.tuowei.erp.system.datascope.mapper.RoleDataScopeMapper;
 import com.tuowei.erp.system.datascope.model.RoleDataScopeEntity;
 import com.tuowei.erp.system.role.mapper.RoleMapper;
 import com.tuowei.erp.system.role.model.RoleEntity;
+import com.tuowei.erp.system.role.service.RoleDataScopeCommandService;
+import com.tuowei.erp.system.role.service.RoleDataScopeQueryService;
 import com.tuowei.erp.system.role.service.RoleDataScopeService;
 import com.tuowei.erp.system.role.web.RoleDataScopeAssignRequest;
 import com.tuowei.erp.system.role.web.RoleDataScopeResponse;
@@ -43,13 +45,19 @@ class RoleDataScopeServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RoleDataScopeService(
+        RoleDataScopeQueryService queryService = new RoleDataScopeQueryService(
                 roleMapper,
+                roleDataScopeMapper,
+                auditMetadataFactory
+        );
+        RoleDataScopeCommandService commandService = new RoleDataScopeCommandService(
                 roleDataScopeMapper,
                 warehouseMapper,
                 auditMetadataFactory,
-                principalCache
+                principalCache,
+                queryService
         );
+        service = new RoleDataScopeService(queryService, commandService);
     }
 
     @Test

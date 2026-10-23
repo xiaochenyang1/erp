@@ -19,14 +19,29 @@ const price = (overrides: Partial<PurchasePrice> = {}): PurchasePrice => ({
 
 const createList = (overrides: Partial<Parameters<typeof usePurchasePriceList>[1]> = {}) =>
   usePurchasePriceList(t, {
-    getPurchasePrices: vi.fn(async () => ({ records: [price()], total: 1 })),
+    getPurchasePrices: vi.fn(async () => ({
+      records: [price()],
+      total: 1,
+      pageNo: 1,
+      pageSize: 20
+    })),
     getPurchasePrice: vi.fn(async () => price({ listPrice: 90 })),
     createPurchasePrice: vi.fn(async () => ({})),
     updatePurchasePrice: vi.fn(async () => ({})),
     enablePurchasePrice: vi.fn(async () => ({})),
     disablePurchasePrice: vi.fn(async () => ({})),
-    getSuppliers: vi.fn(async () => ({ records: [{ id: 's1', supplierName: 'Vendor' } as any], total: 1 })),
-    getProducts: vi.fn(async () => ({ records: [{ id: 'p1', productCode: 'SKU', productName: 'Item' } as any], total: 1 })),
+    getSuppliers: vi.fn(async () => ({
+      records: [{ id: 's1', supplierName: 'Vendor' } as any],
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
+    })),
+    getProducts: vi.fn(async () => ({
+      records: [{ id: 'p1', productCode: 'SKU', productName: 'Item' } as any],
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
+    })),
     printPurchasePrice: vi.fn(),
     confirm: vi.fn(async () => true),
     onError: vi.fn(),

@@ -31,11 +31,17 @@ const createList = (overrides: Partial<Parameters<typeof useReportList>[1]> = {}
     getInventoryBalanceReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     getInventoryTransactionReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     getFinanceSettlementReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
+    getFxGainLossReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
+    getInventoryValuationReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
+    getProductionCostReport: vi.fn(async () => ({ records: [], total: 0, pageNo: 1, pageSize: 10 })),
     exportPurchaseOrderReport: vi.fn(async () => new Blob(['purchase'])),
     exportSalesOrderReport: vi.fn(async () => new Blob(['sales'])),
     exportInventoryBalanceReport: vi.fn(async () => new Blob(['balance'])),
     exportInventoryTransactionReport: vi.fn(async () => new Blob(['transaction'])),
     exportFinanceSettlementReport: vi.fn(async () => new Blob(['settlement'])),
+    exportFxGainLossReport: vi.fn(async () => new Blob(['fx-gain-loss'])),
+    exportInventoryValuationReport: vi.fn(async () => new Blob(['valuation'])),
+    exportProductionCostReport: vi.fn(async () => new Blob(['production-cost'])),
     downloadBlob: vi.fn(),
     now: () => 123,
     onError: vi.fn(),
@@ -68,9 +74,38 @@ describe('report list', () => {
       bizDateFrom: '2026-07-01',
       bizDateTo: '2026-07-31'
     })
+    // 汇兑损益按结算日期筛选，关键字当作币种过滤
+    expect(buildReportParams('fxGainLoss', state, '  usd ', range)).toEqual({
+      pageNo: 2,
+      pageSize: 50,
+      currencyCode: 'usd',
+      settlementDateFrom: '2026-07-01',
+      settlementDateTo: '2026-07-31'
+    })
+    expect(buildReportParams('fxGainLoss', state, '', null)).toEqual({
+      pageNo: 2,
+      pageSize: 50,
+      currencyCode: undefined,
+      settlementDateFrom: undefined,
+      settlementDateTo: undefined
+    })
     expect(buildReportParams('inventoryBalance', state, 'ignored', range)).toEqual({
       pageNo: 2,
       pageSize: 50
+    })
+    expect(buildReportParams('inventoryValuation', state, ' P001 ', range)).toEqual({
+      pageNo: 2,
+      pageSize: 50,
+      keyword: 'P001',
+      periodStart: '2026-07-01',
+      asOfDate: '2026-07-31'
+    })
+    expect(buildReportParams('productionCost', state, ' WO ', range)).toEqual({
+      pageNo: 2,
+      pageSize: 50,
+      keyword: 'WO',
+      plannedStartDateFrom: '2026-07-01',
+      plannedStartDateTo: '2026-07-31'
     })
   })
 
@@ -109,6 +144,37 @@ describe('report list', () => {
     expect(await list.loadActiveReport()).toBe(false)
     expect(list.activeState.value.loading).toBe(false)
     expect(onError).toHaveBeenCalledWith('financeReportPages.reports.message.loadFailed')
+  })
+
+  it('ignores stale responses and keeps the latest request authoritative', async () => {
+    let resolveFirst!: (value: ReturnType<typeof page>) => void
+    let resolveSecond!: (value: ReturnType<typeof page>) => void
+    let callCount = 0
+    const getPurchaseOrderReport = vi.fn(() => {
+      callCount += 1
+      return new Promise<ReturnType<typeof page>>((resolve) => {
+        if (callCount === 1) resolveFirst = resolve
+        else resolveSecond = resolve
+      })
+    })
+    const onError = vi.fn()
+    const list = createList({ getPurchaseOrderReport, onError })
+
+    list.queryForm.keyword = 'old'
+    const staleRequest = list.loadActiveReport()
+    list.queryForm.keyword = 'new'
+    const currentRequest = list.loadActiveReport()
+
+    resolveSecond(page([orderRow('new')]))
+    expect(await currentRequest).toBe(true)
+    expect(list.reportStates.purchase.records[0]).toMatchObject({ id: 'new' })
+    expect(list.reportStates.purchase.loading).toBe(false)
+
+    resolveFirst(page([orderRow('old')]))
+    expect(await staleRequest).toBe(false)
+    expect(list.reportStates.purchase.records[0]).toMatchObject({ id: 'new' })
+    expect(list.reportStates.purchase.loading).toBe(false)
+    expect(onError).not.toHaveBeenCalled()
   })
 
   it('dispatches exports with localized file names and failure feedback', async () => {

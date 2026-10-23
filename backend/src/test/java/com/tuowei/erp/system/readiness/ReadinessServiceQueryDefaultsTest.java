@@ -11,7 +11,7 @@ import com.tuowei.erp.system.readiness.mapper.ReadinessEvidenceMapper;
 import com.tuowei.erp.system.readiness.mapper.ReadinessItemMapper;
 import com.tuowei.erp.system.readiness.mapper.ReadinessRunMapper;
 import com.tuowei.erp.system.readiness.model.ReadinessRunEntity;
-import com.tuowei.erp.system.readiness.service.ReadinessService;
+import com.tuowei.erp.system.readiness.service.ReadinessQueryService;
 import com.tuowei.erp.system.readiness.web.ReadinessRunResponse;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -51,7 +51,7 @@ class ReadinessServiceQueryDefaultsTest {
             page.setRecords(List.of(run()));
             return page;
         });
-        ReadinessService service = new ReadinessService(
+        ReadinessQueryService service = new ReadinessQueryService(
                 runMapper,
                 mock(ReadinessItemMapper.class),
                 mock(ReadinessEvidenceMapper.class),

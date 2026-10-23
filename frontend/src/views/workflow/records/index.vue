@@ -4,6 +4,7 @@
       <el-form :model="queryParams" inline>
         <el-form-item :label="$t('workflowRecord.businessType')">
           <el-select v-model="queryParams.businessType" :placeholder="$t('workflowRecord.selectBusinessType')" clearable style="width: 170px">
+            <el-option :label="$t('workflowRecord.businessTypes.purchaseRequisition')" value="PURCHASE_REQUISITION" />
             <el-option :label="$t('workflowRecord.businessTypes.purchaseOrder')" value="PURCHASE_ORDER" />
             <el-option :label="$t('workflowRecord.businessTypes.salesOrder')" value="SALES_ORDER" />
             <el-option :label="$t('workflowRecord.businessTypes.expense')" value="EXPENSE" />

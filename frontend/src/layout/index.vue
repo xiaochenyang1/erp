@@ -114,17 +114,17 @@
       @close="resetProfileForm"
     >
       <el-descriptions :column="1" border class="profile-readonly">
-        <el-descriptions-item label="用户ID">
+        <el-descriptions-item :label="$t('user.profileFields.userId')">
           {{ userStore.userInfo?.id || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="用户名">
+        <el-descriptions-item :label="$t('user.profileFields.username')">
           {{ userStore.userInfo?.username || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="角色">
-          {{ userStore.userInfo?.roles?.join('、') || '-' }}
+        <el-descriptions-item :label="$t('user.profileFields.roles')">
+          {{ userStore.userInfo?.roles?.join($t('user.profileFields.listSeparator')) || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="仓库范围">
-          {{ userStore.userInfo?.dataScope?.warehouseIds?.join('、') || '-' }}
+        <el-descriptions-item :label="$t('user.profileFields.warehouseScope')">
+          {{ userStore.userInfo?.dataScope?.warehouseIds?.join($t('user.profileFields.listSeparator')) || '-' }}
         </el-descriptions-item>
       </el-descriptions>
 
@@ -135,19 +135,19 @@
         :rules="profileRules"
         label-width="100px"
       >
-        <el-form-item label="姓名" prop="realName">
-          <el-input v-model="profileForm.realName" maxlength="64" show-word-limit placeholder="请输入姓名" />
+        <el-form-item :label="$t('user.profileFields.realName')" prop="realName">
+          <el-input v-model="profileForm.realName" maxlength="64" show-word-limit :placeholder="$t('user.profileFields.realNamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="profileForm.email" maxlength="128" placeholder="请输入邮箱" />
+        <el-form-item :label="$t('user.profileFields.email')" prop="email">
+          <el-input v-model="profileForm.email" maxlength="128" :placeholder="$t('user.profileFields.emailPlaceholder')" />
         </el-form-item>
-        <el-form-item label="手机号" prop="mobile">
-          <el-input v-model="profileForm.mobile" maxlength="32" placeholder="请输入手机号" />
+        <el-form-item :label="$t('user.profileFields.mobile')" prop="mobile">
+          <el-input v-model="profileForm.mobile" maxlength="32" :placeholder="$t('user.profileFields.mobilePlaceholder')" />
         </el-form-item>
-        <el-form-item label="头像URL" prop="avatar">
-          <el-input v-model="profileForm.avatar" maxlength="512" placeholder="可选，头像图片地址" />
+        <el-form-item :label="$t('user.profileFields.avatarUrl')" prop="avatar">
+          <el-input v-model="profileForm.avatar" maxlength="512" :placeholder="$t('user.profileFields.avatarPlaceholder')" />
         </el-form-item>
-        <el-form-item v-if="profileForm.avatar" label="头像预览">
+        <el-form-item v-if="profileForm.avatar" :label="$t('user.profileFields.avatarPreview')">
           <el-avatar :size="48" :src="profileForm.avatar">
             {{ profileForm.realName?.charAt(0) || userStore.userInfo?.username?.charAt(0)?.toUpperCase() }}
           </el-avatar>
@@ -169,31 +169,31 @@
       @close="resetPasswordForm"
     >
       <el-form ref="passwordFormRef" :model="passwordForm" :rules="passwordRules" label-width="100px">
-        <el-form-item label="原密码" prop="oldPassword">
+        <el-form-item :label="$t('user.passwordFields.oldPassword')" prop="oldPassword">
           <el-input
             v-model="passwordForm.oldPassword"
             type="password"
             show-password
             autocomplete="current-password"
-            placeholder="请输入原密码"
+            :placeholder="$t('user.passwordFields.oldPasswordPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="新密码" prop="newPassword">
+        <el-form-item :label="$t('user.passwordFields.newPassword')" prop="newPassword">
           <el-input
             v-model="passwordForm.newPassword"
             type="password"
             show-password
             autocomplete="new-password"
-            placeholder="12到72位，包含字母和数字"
+            :placeholder="$t('user.passwordFields.newPasswordPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="确认密码" prop="confirmPassword">
+        <el-form-item :label="$t('user.passwordFields.confirmPassword')" prop="confirmPassword">
           <el-input
             v-model="passwordForm.confirmPassword"
             type="password"
             show-password
             autocomplete="new-password"
-            placeholder="请再次输入新密码"
+            :placeholder="$t('user.passwordFields.confirmPasswordPlaceholder')"
           />
         </el-form-item>
       </el-form>
@@ -284,8 +284,8 @@ const profileForm = reactive<UpdateProfileRequest>({
   avatar: ''
 })
 const profileRules: FormRules = {
-  realName: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }]
+  realName: [{ required: true, message: t('user.validation.realNameRequired'), trigger: 'blur' }],
+  email: [{ type: 'email', message: t('user.validation.emailInvalid'), trigger: 'blur' }]
 }
 const passwordDialogVisible = ref(false)
 const passwordSubmitting = ref(false)
@@ -298,15 +298,15 @@ const passwordForm = reactive<ChangePasswordRequest & { confirmPassword: string 
 
 const validateStrongPassword = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (!value) {
-    callback(new Error('请输入新密码'))
+    callback(new Error(t('user.validation.newPasswordRequired')))
     return
   }
   if (value.length < 12 || value.length > 72) {
-    callback(new Error('密码长度必须在12到72位之间'))
+    callback(new Error(t('user.validation.passwordLength')))
     return
   }
   if (/\s/.test(value) || !/[A-Za-z]/.test(value) || !/\d/.test(value)) {
-    callback(new Error('密码必须包含字母和数字，且不能包含空白字符'))
+    callback(new Error(t('user.validation.passwordComplexity')))
     return
   }
   callback()
@@ -314,18 +314,18 @@ const validateStrongPassword = (_rule: unknown, value: string, callback: (error?
 
 const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (!value) {
-    callback(new Error('请再次输入新密码'))
+    callback(new Error(t('user.validation.confirmPasswordRequired')))
     return
   }
   if (value !== passwordForm.newPassword) {
-    callback(new Error('两次输入的新密码不一致'))
+    callback(new Error(t('user.validation.confirmPasswordMismatch')))
     return
   }
   callback()
 }
 
 const passwordRules: FormRules = {
-  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  oldPassword: [{ required: true, message: t('user.validation.oldPasswordRequired'), trigger: 'blur' }],
   newPassword: [{ validator: validateStrongPassword, trigger: 'blur' }],
   confirmPassword: [{ validator: validateConfirmPassword, trigger: 'blur' }]
 }
@@ -377,10 +377,10 @@ const filterMenuByBackendMenu = (list: any[], basePath = ''): any[] => {
   return result
 }
 
-// 路由列表：优先由后端运行时菜单驱动可见性；接口未就绪/失败时回退到按权限过滤静态路由
+// 路由列表：后端成功响应（包括空树）驱动可见性；接口失败时回退到按权限过滤静态路由
 const routes = computed(() => {
   const all = router.options.routes.find((r) => r.path === '/')?.children || []
-  if (menuStore.loaded && menuStore.visiblePaths.size > 0) {
+  if (menuStore.loaded) {
     return filterMenuByBackendMenu(all)
   }
   return filterMenuByPermission(all)
@@ -454,7 +454,7 @@ const submitProfileChange = async () => {
       ElMessage.success(t('user.saved'))
       profileDialogVisible.value = false
     } catch (error) {
-      console.error('保存个人资料失败:', error)
+      console.error('Failed to save profile:', error)
       ElMessage.error(t('user.saveFailed'))
     } finally {
       profileSubmitting.value = false

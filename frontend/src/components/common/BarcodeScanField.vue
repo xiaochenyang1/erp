@@ -3,7 +3,7 @@
     <el-input
       ref="inputRef"
       v-model="inputValue"
-      :placeholder="placeholder"
+      :placeholder="inputPlaceholder"
       :disabled="disabled"
       clearable
       autocomplete="off"
@@ -13,11 +13,11 @@
         <el-icon><Aim /></el-icon>
       </template>
       <template #append>
-        <el-tooltip content="摄像头扫码" placement="top">
+        <el-tooltip :content="$t('barcodeScan.camera')" placement="top">
           <el-button
             class="barcode-scan-field__camera"
             :disabled="disabled"
-            aria-label="打开摄像头扫码"
+            :aria-label="$t('barcodeScan.openCamera')"
             @click="openCamera"
           >
             <el-icon><Camera /></el-icon>
@@ -28,7 +28,7 @@
 
     <el-dialog
       v-model="cameraVisible"
-      title="摄像头扫码"
+      :title="$t('barcodeScan.camera')"
       width="min(520px, calc(100vw - 32px))"
       :teleported="false"
       destroy-on-close
@@ -46,12 +46,12 @@
 
         <div v-if="cameraState === 'requesting'" class="barcode-camera__status">
           <el-icon class="is-loading"><Loading /></el-icon>
-          <span>正在连接摄像头</span>
+          <span>{{ $t('barcodeScan.connecting') }}</span>
         </div>
 
         <div v-else-if="cameraState === 'unsupported'" class="barcode-camera__status barcode-camera__status--warning">
           <el-icon><WarningFilled /></el-icon>
-          <span>当前浏览器不支持摄像头识码，请使用扫码枪或手工输入</span>
+          <span>{{ $t('barcodeScan.unsupported') }}</span>
         </div>
 
         <div v-else-if="cameraState === 'error'" class="barcode-camera__status barcode-camera__status--warning">
@@ -64,7 +64,8 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { InputInstance } from 'element-plus'
 import { Aim, Camera, Loading, WarningFilled } from '@element-plus/icons-vue'
 
@@ -80,13 +81,13 @@ interface BarcodeDetectorConstructor {
   new(): BarcodeDetectorInstance
 }
 
-withDefaults(defineProps<{
+const props = defineProps<{
   placeholder?: string
   disabled?: boolean
-}>(), {
-  placeholder: '扫描或输入商品条码',
-  disabled: false
-})
+}>()
+
+const { t } = useI18n()
+const inputPlaceholder = computed(() => props.placeholder ?? t('barcodeScan.placeholder'))
 
 type CameraState = 'idle' | 'requesting' | 'active' | 'unsupported' | 'error'
 
@@ -149,7 +150,7 @@ const openCamera = async () => {
 
     const video = videoRef.value
     if (!video) {
-      throw new Error('摄像头预览不可用')
+      throw new Error(t('barcodeScan.previewUnavailable'))
     }
     video.srcObject = stream
     void video.play().catch(() => undefined)
@@ -157,7 +158,7 @@ const openCamera = async () => {
     setCameraState('active')
     void detectFrame()
   } catch {
-    setCameraError('无法启用摄像头，请检查浏览器权限后重试')
+    setCameraError(t('barcodeScan.permissionError'))
   }
 }
 

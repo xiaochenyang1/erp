@@ -245,7 +245,7 @@ const {
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message),
-  onSubmitted: () => loadData()
+  onSubmitted: async () => { await loadData() }
 })
 
 onMounted(async () => {

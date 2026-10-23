@@ -1,0 +1,251 @@
+package com.tuowei.erp.inventory.stock.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.tuowei.erp.common.exception.BusinessConflictException;
+import com.tuowei.erp.common.math.ScalePrecision;
+import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
+import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
+import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
+import com.tuowei.erp.masterdata.product.model.ProductEntity;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * Owns aggregate inventory balance mutations and delegates lot-controlled mutations
+ * to {@link InventoryLotPostingService}.  The facade remains responsible only for
+ * compatibility and reservation orchestration.
+ */
+@Service
+public class InventoryBalancePostingService {
+
+    private static final int MAX_ATTEMPTS = 8;
+
+    private final InventoryBalanceMapper inventoryBalanceMapper;
+    private final InventoryTransactionWriter inventoryTransactionWriter;
+    private final ProductMapper productMapper;
+    private final InventoryLotPostingService inventoryLotPostingService;
+    private final InventoryLocationResolver inventoryLocationResolver;
+
+    public InventoryBalancePostingService(
+            InventoryBalanceMapper inventoryBalanceMapper,
+            InventoryTransactionWriter inventoryTransactionWriter,
+            ProductMapper productMapper,
+            InventoryLotPostingService inventoryLotPostingService,
+            InventoryLocationResolver inventoryLocationResolver
+    ) {
+        this.inventoryBalanceMapper = inventoryBalanceMapper;
+        this.inventoryTransactionWriter = inventoryTransactionWriter;
+        this.productMapper = productMapper;
+        this.inventoryLotPostingService = inventoryLotPostingService;
+        this.inventoryLocationResolver = inventoryLocationResolver;
+    }
+
+    @Transactional
+    public void postInbound(InventoryPostingCommand command, AuditMetadata audit) {
+        BigDecimal scaledQty = requirePositiveQuantity(command);
+        BigDecimal scaledAmount = ScalePrecision.amount(command.amount());
+        ProductEntity product = requireProduct(audit.companyId(), audit.accountBookId(), command.productId());
+        inventoryLotPostingService.validateInboundCommand(product, command);
+        command = command.withLocationId(resolveLocationId(command, audit));
+        Long locationId = command.locationId();
+        String normalizedLotNo = inventoryLotPostingService.normalizeLotNo(command.lotNo());
+        String lotKey = inventoryLotPostingService.lotKey(
+                inventoryLotPostingService.isLotControlled(product) ? normalizedLotNo : null
+        );
+        if (inventoryTransactionWriter.findPostedTransaction(command, audit.companyId(), audit.accountBookId(), "IN", lotKey) != null) {
+            return;
+        }
+        LocalDateTime now = audit.now();
+
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            boolean lotBalanceMutated = false;
+            if (inventoryLotPostingService.isLotControlled(product)) {
+                lotBalanceMutated = inventoryLotPostingService.upsertInboundBalance(
+                        command, audit, now, normalizedLotNo, scaledQty, scaledAmount
+                );
+                if (!lotBalanceMutated) {
+                    continue;
+                }
+            }
+            InventoryBalanceEntity balance = selectBalance(
+                    audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId(), locationId
+            );
+            if (balance == null) {
+                InventoryBalanceEntity newBalance = new InventoryBalanceEntity();
+                newBalance.setCompanyId(audit.companyId());
+                newBalance.setAccountBookId(audit.accountBookId());
+                newBalance.setWarehouseId(command.warehouseId());
+                newBalance.setProductId(command.productId());
+                newBalance.setLocationId(locationId);
+                newBalance.setQtyOnHand(scaledQty);
+                newBalance.setQtyReserved(ScalePrecision.quantity(BigDecimal.ZERO));
+                newBalance.setAmountOnHand(scaledAmount);
+                newBalance.setCreatedBy(audit.userId());
+                newBalance.setCreatedTime(now);
+                newBalance.setUpdatedBy(audit.userId());
+                newBalance.setUpdatedTime(now);
+                newBalance.setVersion(0);
+                try {
+                    inventoryBalanceMapper.insert(newBalance);
+                } catch (DuplicateKeyException ex) {
+                    if (lotBalanceMutated) {
+                        throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
+                    }
+                    continue;
+                }
+                inventoryTransactionWriter.insert(command, "IN", audit, now, command.qty(), scaledAmount,
+                        normalizedLotNo, command.productionDate(), command.expiryDate(), lotKey);
+                return;
+            }
+
+            balance.setQtyOnHand(ScalePrecision.quantity(
+                    ScalePrecision.zeroDefault(balance.getQtyOnHand()).add(scaledQty)
+            ));
+            balance.setAmountOnHand(ScalePrecision.amount(
+                    ScalePrecision.zeroDefault(balance.getAmountOnHand()).add(scaledAmount)
+            ));
+            balance.setUpdatedBy(audit.userId());
+            balance.setUpdatedTime(now);
+            if (inventoryBalanceMapper.updateById(balance) == 1) {
+                inventoryTransactionWriter.insert(command, "IN", audit, now, command.qty(), scaledAmount,
+                        normalizedLotNo, command.productionDate(), command.expiryDate(), lotKey);
+                return;
+            }
+            if (inventoryLotPostingService.isLotControlled(product)) {
+                throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
+            }
+        }
+
+        throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
+    }
+
+    @Transactional
+    public BigDecimal postOutbound(InventoryPostingCommand command, AuditMetadata audit, String shortageMessage) {
+        return ScalePrecision.amount(postOutboundWithAllocations(command, audit, shortageMessage).stream()
+                .map(LotAllocation::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
+
+    @Transactional
+    public List<LotAllocation> postOutboundWithAllocations(
+            InventoryPostingCommand command, AuditMetadata audit, String shortageMessage
+    ) {
+        BigDecimal scaledQty = requirePositiveQuantity(command);
+        ProductEntity product = requireProduct(audit.companyId(), audit.accountBookId(), command.productId());
+        inventoryLotPostingService.validateOutboundCommand(product, command);
+        String normalizedLotNo = inventoryLotPostingService.normalizeLotNo(command.lotNo());
+        List<LotAllocation> postedAllocations = inventoryTransactionWriter.postedAllocations(
+                command, audit.companyId(), audit.accountBookId(), "OUT"
+        );
+        if (!postedAllocations.isEmpty()) {
+            return postedAllocations;
+        }
+        command = command.withLocationId(resolveLocationId(command, audit));
+        Long locationId = command.locationId();
+        if (inventoryLotPostingService.isLotControlled(product)) {
+            return inventoryLotPostingService.postOutbound(
+                    command, audit, shortageMessage, product, normalizedLotNo, scaledQty
+            );
+        }
+
+        LocalDateTime now = audit.now();
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            InventoryBalanceEntity balance = selectBalance(
+                    audit.companyId(), audit.accountBookId(), command.warehouseId(), command.productId(), locationId
+            );
+            if (balance == null) {
+                throw new IllegalArgumentException(shortageMessage);
+            }
+            if (qtyAvailable(balance).compareTo(scaledQty) < 0) {
+                throw new IllegalArgumentException(shortageMessage);
+            }
+
+            balance.setQtyOnHand(ScalePrecision.quantity(
+                    ScalePrecision.zeroDefault(balance.getQtyOnHand()).subtract(scaledQty)
+            ));
+            BigDecimal outboundCostAmount = outboundCostAmount(balance, scaledQty);
+            balance.setAmountOnHand(ScalePrecision.amount(
+                    ScalePrecision.zeroDefault(balance.getAmountOnHand()).subtract(outboundCostAmount)
+            ));
+            balance.setUpdatedBy(audit.userId());
+            balance.setUpdatedTime(now);
+            if (inventoryBalanceMapper.updateById(balance) == 1) {
+                inventoryTransactionWriter.insert(command, "OUT", audit, now, command.qty(), outboundCostAmount,
+                        null, null, null, inventoryLotPostingService.lotKey(null));
+                return List.of(new LotAllocation(null, scaledQty, outboundCostAmount));
+            }
+        }
+        throw new BusinessConflictException("库存余额已被其他操作修改，请重试");
+    }
+
+    private BigDecimal requirePositiveQuantity(InventoryPostingCommand command) {
+        return requirePositiveQuantity(command.qty());
+    }
+
+    private BigDecimal requirePositiveQuantity(BigDecimal qty) {
+        BigDecimal scaledQty = ScalePrecision.quantity(ScalePrecision.zeroDefault(qty));
+        if (scaledQty.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("库存过账数量必须大于0");
+        }
+        return scaledQty;
+    }
+
+    private BigDecimal qtyAvailable(InventoryBalanceEntity balance) {
+        return ScalePrecision.quantity(
+                ScalePrecision.zeroDefault(balance.getQtyOnHand())
+                        .subtract(ScalePrecision.zeroDefault(balance.getQtyReserved()))
+        );
+    }
+
+    InventoryBalanceEntity selectBalance(
+            Long companyId, Long accountBookId, Long warehouseId, Long productId, Long locationId
+    ) {
+        LambdaQueryWrapper<InventoryBalanceEntity> wrapper = new LambdaQueryWrapper<InventoryBalanceEntity>()
+                .eq(InventoryBalanceEntity::getCompanyId, companyId)
+                .eq(InventoryBalanceEntity::getAccountBookId, accountBookId)
+                .eq(InventoryBalanceEntity::getWarehouseId, warehouseId)
+                .eq(InventoryBalanceEntity::getProductId, productId);
+        if (locationId != null) {
+            wrapper.eq(InventoryBalanceEntity::getLocationId, locationId);
+        }
+        return inventoryBalanceMapper.selectOne(wrapper.last("limit 1"));
+    }
+
+    private Long resolveLocationId(InventoryPostingCommand command, AuditMetadata audit) {
+        if (inventoryLocationResolver == null) {
+            return command.locationId();
+        }
+        return inventoryLocationResolver.resolveLocationId(command, audit);
+    }
+
+    private ProductEntity requireProduct(Long companyId, Long accountBookId, Long productId) {
+        ProductEntity product = productMapper.selectOne(new LambdaQueryWrapper<ProductEntity>()
+                .eq(ProductEntity::getCompanyId, companyId)
+                .eq(ProductEntity::getAccountBookId, accountBookId)
+                .eq(ProductEntity::getId, productId)
+                .eq(ProductEntity::getDeletedFlag, 0)
+                .last("limit 1"));
+        if (product == null) {
+            throw new IllegalArgumentException("商品不存在");
+        }
+        return product;
+    }
+
+    private BigDecimal outboundCostAmount(InventoryBalanceEntity balance, BigDecimal outboundQty) {
+        BigDecimal qtyOnHand = ScalePrecision.quantity(
+                ScalePrecision.zeroDefault(balance.getQtyOnHand()).add(outboundQty)
+        );
+        BigDecimal amountOnHand = ScalePrecision.amount(ScalePrecision.zeroDefault(balance.getAmountOnHand()));
+        if (qtyOnHand.compareTo(outboundQty) == 0) {
+            return amountOnHand;
+        }
+        BigDecimal unitCost = ScalePrecision.unitCost(amountOnHand, qtyOnHand);
+        return ScalePrecision.amount(unitCost.multiply(outboundQty));
+    }
+}

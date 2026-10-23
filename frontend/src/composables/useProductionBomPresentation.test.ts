@@ -60,7 +60,7 @@ describe('production BOM presentation', () => {
     expect(presentation.getStatusLabel('DISABLED')).toBe('productionBom.status.disabled')
     expect(presentation.getStatusType('DISABLED')).toBe('danger')
     expect(presentation.getStatusLabel('OTHER')).toBe('OTHER')
-    expect(presentation.getStatusType('OTHER')).toBe('')
+    expect(presentation.getStatusType('OTHER')).toBe('info')
     expect(presentation.getStatusLabel(undefined)).toBe('')
   })
 })

@@ -59,6 +59,25 @@ afterEach(() => {
 })
 
 describe('request authentication recovery', () => {
+  it('does not refresh or clear the session for invalid login credentials', async () => {
+    const userStore = useUserStore()
+    userStore.token = 'existing-access'
+    userStore.userInfo = { id: '1', username: 'existing-user' }
+    localStorage.setItem('token', 'existing-access')
+    localStorage.setItem('refreshToken', 'existing-refresh')
+
+    await expect(rejectResponse({
+      config: { url: '/auth/login', headers: {} },
+      response: { status: 401, data: { message: '用户名或密码错误' } }
+    })).rejects.toBeDefined()
+
+    expect(axiosMock.refreshPost).not.toHaveBeenCalled()
+    expect(localStorage.getItem('token')).toBe('existing-access')
+    expect(localStorage.getItem('refreshToken')).toBe('existing-refresh')
+    expect(resetRuntimeState).not.toHaveBeenCalled()
+    expect(redirectToLogin).not.toHaveBeenCalled()
+  })
+
   it('clears persisted and runtime state when silent refresh fails', async () => {
     const refreshFailure = new Error('refresh rejected')
     axiosMock.refreshPost.mockRejectedValue(refreshFailure)

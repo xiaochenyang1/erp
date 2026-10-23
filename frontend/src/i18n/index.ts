@@ -4,6 +4,10 @@ import { financeReportPageMessages } from './finance-report-pages'
 import { operationsPageMessages } from './operations-pages'
 import { platformPageMessages } from './platform-pages'
 import { salesCommercialPageMessages } from './sales-commercial-pages'
+import { contractPageMessages } from './contract-pages'
+import { documentAttachmentMessages } from './document-attachment-pages'
+import { masterdataRelationMessages } from './masterdata-relation-pages'
+import { currencyPageMessages } from './currency-pages'
 
 export const SUPPORTED_LOCALES = ['zh-CN', 'en-US'] as const
 export type SupportedLocale = typeof SUPPORTED_LOCALES[number]
@@ -19,7 +23,10 @@ export const readStoredLocale = (): SupportedLocale => {
 
 const coreMessages = {
   'zh-CN': {
-    common: { cancel: '取消', save: '保存', confirm: '确定' },
+    common: {
+      cancel: '取消', save: '保存', confirm: '确定',
+      noPagePermission: '您没有访问该页面的权限', menuNotAssigned: '当前账号未分配该菜单'
+    },
     app: { name: 'ERP管理系统', shortName: 'ERP系统' },
     settings: {
       title: '语言与时区', language: '界面语言', timezone: '显示时区',
@@ -28,16 +35,36 @@ const coreMessages = {
     },
     user: {
       profile: '个人中心', password: '修改密码', logout: '退出登录', logoutConfirm: '确定要退出登录吗？',
-      saved: '个人资料已保存', saveFailed: '保存个人资料失败', preferencesSaveFailed: '保存语言与时区偏好失败', passwordChanged: '密码修改成功，请重新登录'
+      saved: '个人资料已保存', saveFailed: '保存个人资料失败', preferencesSaveFailed: '保存语言与时区偏好失败', passwordChanged: '密码修改成功，请重新登录',
+      profileFields: {
+        userId: '用户 ID', username: '用户名', roles: '角色', listSeparator: '、', warehouseScope: '仓库范围',
+        realName: '姓名', realNamePlaceholder: '请输入姓名', email: '邮箱', emailPlaceholder: '请输入邮箱',
+        mobile: '手机号', mobilePlaceholder: '请输入手机号', avatarUrl: '头像 URL', avatarPlaceholder: '可选，头像图片地址',
+        avatarPreview: '头像预览'
+      },
+      passwordFields: {
+        oldPassword: '原密码', oldPasswordPlaceholder: '请输入原密码', newPassword: '新密码',
+        newPasswordPlaceholder: '12 到 72 位，包含字母和数字', confirmPassword: '确认密码', confirmPasswordPlaceholder: '请再次输入新密码'
+      },
+      validation: {
+        realNameRequired: '请输入姓名', emailInvalid: '请输入正确的邮箱地址', oldPasswordRequired: '请输入原密码',
+        newPasswordRequired: '请输入新密码', passwordLength: '密码长度必须在 12 到 72 位之间',
+        passwordComplexity: '密码必须包含字母和数字，且不能包含空白字符', confirmPasswordRequired: '请再次输入新密码',
+        confirmPasswordMismatch: '两次输入的新密码不一致'
+      }
+    },
+    barcodeScan: {
+      placeholder: '扫描或输入商品条码', camera: '摄像头扫码', openCamera: '打开摄像头扫码',
+      connecting: '正在连接摄像头', unsupported: '当前浏览器不支持摄像头扫码，请使用扫码枪或手工输入',
+      previewUnavailable: '摄像头预览不可用', permissionError: '无法启用摄像头，请检查浏览器权限后重试'
     },
     login: {
       welcome: '欢迎登录', subtitle: '请输入您的账号密码', username: '请输入用户名', password: '请输入密码',
-      forgot: '忘记密码？', passwordResetHint: '请联系系统管理员重置密码', submit: '登录', submitting: '登录中...', testAccount: '本地测试账号',
-      prefilledTestAccount: 'admin / LocalAdmin123（已填充）',
+      forgot: '忘记密码？', passwordResetHint: '请联系系统管理员重置密码', submit: '登录', submitting: '登录中...',
       feature1Title: '集成管理', feature1Desc: '采购、销售、库存、财务一体化管理',
       feature2Title: '数据分析', feature2Desc: '实时报表，智能决策支持',
       feature3Title: '流程审批', feature3Desc: '多级审批，权限精细控制',
-      usernameRequired: '请输入用户名', passwordRequired: '请输入密码', passwordMin: '密码至少6位'
+      usernameRequired: '请输入用户名', passwordRequired: '请输入密码', invalidCredentials: '用户名或密码错误'
     },
     dashboard: {
       welcome: '欢迎回来，{name}', user: '用户', source: '工作台数据来自当前账套',
@@ -62,7 +89,7 @@ const coreMessages = {
     },
     workflow: {
       businessType: '业务类型', businessNo: '业务单号', status: '状态', selectBusinessType: '请选择业务类型', inputBusinessNo: '请输入业务单号', selectStatus: '请选择状态',
-      purchaseOrder: '采购订单', salesOrder: '销售订单', expense: '费用单', pending: '待审批', approved: '已通过', rejected: '已驳回', cancelled: '已取消',
+      purchaseOrder: '采购订单', purchaseRequisition: '采购请购单', salesOrder: '销售订单', expense: '费用单', pending: '待审批', approved: '已通过', rejected: '已驳回', cancelled: '已取消',
       search: '查询', reset: '重置', tasks: '审批待办', refresh: '刷新', title: '任务标题', createdTime: '创建时间', updatedTime: '更新时间', dueTime: '审批时限', overdue: '已超时', overdueOnly: '仅看超时', actions: '操作',
       view: '查看', approve: '通过', reject: '驳回', transfer: '转签', escalate: '升级', detail: '审批任务详情', businessId: '业务ID', deadline: '审批截止', escalationCount: '升级次数', close: '关闭', approveAction: '审批通过',
       escalationTitle: '超时审批升级', escalateTo: '升级给', selectAssignee: '选择新处理人', escalationComment: '升级说明', confirmEscalation: '确认升级',
@@ -85,7 +112,9 @@ const coreMessages = {
     financeAging: {
       asOfDate: '基准日', todayPlaceholder: '默认今天', search: '查询', reset: '重置', receivableTotal: '应收未结总额', payableTotal: '应付未结总额', asOfDateValue: '基准日 {date}', outstandingOnly: '仅统计剩余金额大于 0 的未结单据',
       receivableBuckets: '应收账龄分段', payableBuckets: '应付账龄分段', bucket: '账龄段', count: '笔数', amount: '金额', overdueReceivables: '应收逾期 TOP20', overduePayables: '应付逾期 TOP20', receivablesLedger: '去应收台账', payablesLedger: '去应付台账',
-      receivableNo: '应收单号', payableNo: '应付单号', customer: '客户', supplier: '供应商', bizDate: '业务日期', dueDate: '到期日', agingDays: '账龄天数', outstandingAmount: '未结金额',
+      receivableNo: '应收单号', payableNo: '应付单号', customer: '客户', supplier: '供应商', bizDate: '业务日期', dueDate: '到期日', agingDays: '账龄天数', outstandingAmount: '未结金额（原币）',
+      baseCurrency: '本位币', baseCurrencyCaliber: '总额与账龄分段均为本位币口径', currency: '币种', baseOutstandingAmount: '未结金额（本位币）',
+      receivableExposure: '应收币种敞口', payableExposure: '应付币种敞口', originalExposure: '原币未结', baseExposure: '本位币未结',
       bucketLabel: { d0_30: '0-30 天', d31_60: '31-60 天', d61_90: '61-90 天', d90Plus: '90 天以上' },
       message: { loadFailed: '加载账龄分析失败' }
     },
@@ -98,7 +127,8 @@ const coreMessages = {
       partnerType: '往来类型', customer: '客户', supplier: '供应商', selectPartner: '请选择往来单位', period: '期间', startDate: '开始日期', endDate: '结束日期', search: '查询', print: '打印',
       partnerTypeValue: '（{type}）', periodValue: '{from} 至 {to}', openingValue: '期初：{amount}', increaseValue: '增加：{amount}', decreaseValue: '减少：{amount}', closingValue: '期末：{amount}',
       date: '日期', docType: '单据类型', docNo: '单号', direction: '方向', amount: '金额', balance: '余额', remark: '备注',
-      document: { receivable: '应收单', receipt: '收款单', payable: '应付单', payment: '付款单' },
+      document: { receivable: '应收单', receipt: '收款单', payable: '应付单', payment: '付款单', fxAdjustment: '汇兑调整', roundingAdjustment: '尾差调整' },
+      currencyNotice: '金额按账套本位币 {currency} 列示。汇兑和尾差调整不代表额外收付款。',
       directionValue: { increase: '增加', decrease: '减少' },
       message: { selectPartnerAndRange: '请选择往来单位和日期区间', loadFailed: '查询对账单失败', optionsLoadFailed: '加载往来单位失败', printLoadFailed: '加载打印数据失败' }
     },
@@ -106,7 +136,7 @@ const coreMessages = {
       title: '销售订单', keyword: '关键词', orderNo: '订单号', customer: '客户', orderStatus: '订单状态', approvalStatus: '审批状态', deliveryStatus: '发货状态',
       selectCustomer: '请选择客户', selectStatus: '请选择状态', selectApprovalStatus: '请选择审批状态', search: '查询', reset: '重置', create: '新增订单',
       orderDate: '订单日期', deliveryDate: '交付日期', quantity: '数量', auxQty: '辅单位数量', amount: '金额', remark: '备注', actions: '操作', view: '查看', print: '打印', copy: '复制', edit: '编辑', submit: '提交', approve: '通过', reject: '驳回', unapprove: '反审核', cancel: '取消',
-      warehouse: '发货仓库', selectWarehouse: '请选择仓库', remarkPlaceholder: '请输入备注', details: '订单明细', addLine: '添加明细', product: '产品', selectProduct: '请选择产品', unitPrice: '单价', taxRate: '税率', delete: '删除', close: '关闭', save: '保存',
+      warehouse: '发货仓库', selectWarehouse: '请选择仓库', contract: '销售合同', selectContract: '请选择生效合同', contractOrderNotice: '合同来源订单的商品、数量、价格和明细不可修改；如需调整请作废后重新下单。', contractExecution: '合同执行', contractExecutionValue: '承诺 {committed} / 履约 {fulfilled} / 合同 {total}', remarkPlaceholder: '请输入备注', details: '订单明细', addLine: '添加明细', product: '产品', selectProduct: '请选择产品', unitPrice: '单价', taxRate: '税率', delete: '删除', close: '关闭', save: '保存',
       creditPreview: '客户授信预览', creditFormula: '未结应收 + 已审批未发货订单 + 本单含税金额', unlimitedCustomer: '不限额客户', exceededAfterSubmit: '提交后超限', sufficientCredit: '额度充足', creditLimit: '信用额度', unlimited: '不限额', outstandingReceivable: '未结应收', openOrderExposure: '在途订单敞口', currentExposure: '当前敞口', orderTaxAmount: '本单含税金额', availableAfterSubmit: '提交后可用额度',
       expectedExceeded: '预计超限 {amount}', exceededDescription: '当前敞口 {current} + 本单 {order} = {projected}，已超过信用额度 {limit}', noCreditLimit: '该客户未设置授信额度', unlimitedDescription: '当前敞口 {current}，本单可继续提交审批', projectedExposure: '提交后敞口 {amount}', availableDescription: '提交后仍有可用额度 {amount}',
       minimumPrice: '最低 {amount}', customerPrice: '客户价', generalPrice: '通用价',
@@ -117,15 +147,15 @@ const coreMessages = {
     },
     salesDelivery: { carrierName: '承运商', trackingNo: '运单号', logisticsStatus: '物流状态', advanceLogistics: '推进物流', logistics: { pendingShip: '待发货', pickedUp: '已揽收', inTransit: '运输中', delivered: '已签收' }, carrierPlaceholder: '请输入承运商', trackingPlaceholder: '请输入运单号',
       title: '销售发货', deliveryNo: '发货单号', deliveryNoPlaceholder: '请输入发货单号', salesOrder: '销售订单', salesOrderNo: '销售订单号', orderIdPlaceholder: '请输入订单ID', customer: '客户', selectCustomer: '请选择客户', statusLabel: '状态', selectStatus: '请选择状态', selectLogisticsStatus: '请选择物流状态', dateRange: '日期范围', rangeSeparator: '至', startDate: '开始日期', endDate: '结束日期', search: '查询', reset: '重置', create: '新增发货',
-      warehouse: '发货仓库', deliveryDate: '发货日期', remark: '备注', createdBy: '创建人', createdAt: '创建时间', actions: '操作', view: '查看', print: '打印', edit: '编辑', post: '过账', cancel: '取消', selectOrder: '请选择销售订单', selectWarehouse: '请选择发货仓库', selectDeliveryDate: '请选择发货日期', remarkPlaceholder: '请输入备注', details: '发货明细', clearQuantity: '清零数量', currentQuantity: '本次数量', productCode: '产品编码', productName: '产品名称', orderedQuantity: '订单数量', deliveredQuantity: '已发货数量', currentDeliveryQuantity: '本次发货数量', location: '库位', selectLocation: '请选择库位', serialNos: '序列号', serialNosPlaceholder: '多个序列号用逗号/分号/换行分隔', serialProgress: '已录 {count}/{expected}', auxQty: '辅单位数量', lotNo: '批次号', productionDate: '生产日期', expiryDate: '失效日期', lotNoPlaceholder: '启用批次时必填', productionDatePlaceholder: '生产日期', expiryDatePlaceholder: '效期管理时必填', confirm: '确定',
+      warehouse: '发货仓库', deliveryDate: '发货日期', remark: '备注', createdBy: '创建人', createdAt: '创建时间', actions: '操作', view: '查看', print: '打印', edit: '编辑', post: '过账', cancel: '取消', selectOrder: '请选择销售订单', selectWarehouse: '请选择发货仓库', selectDeliveryDate: '请选择发货日期', remarkPlaceholder: '请输入备注', details: '发货明细', clearQuantity: '清零数量', currentQuantity: '本次数量', productCode: '产品编码', productName: '产品名称', orderedQuantity: '订单数量', deliveredQuantity: '已发货数量', currentDeliveryQuantity: '本次发货数量', location: '库位', selectLocation: '请选择库位', serialNos: '序列号', serialNosPlaceholder: '多个序列号用逗号/分号/换行分隔', serialProgress: '已录 {count}/{expected}', auxQty: '辅单位数量', lotNo: '批次号', productionDate: '生产日期', expiryDate: '失效日期', lotNoPlaceholder: '启用批次时必填', productionDatePlaceholder: '生产日期', expiryDatePlaceholder: '效期管理时必填', deliveredBy: '签收人', deliveredTime: '签收时间', deliveryProof: '签收凭证', downloadProof: '下载凭证', confirm: '确定',
       status: { draft: '草稿', posted: '已过账', cancelled: '已取消' },
       dialog: { create: '新增销售发货', view: '查看销售发货', edit: '编辑销售发货' },
       validation: { order: '请选择销售订单', warehouse: '请选择发货仓库', date: '请选择发货日期', lineRequired: '请至少添加一条发货明细', quantityRequired: '请输入发货数量', lotRequired: '第 {line} 行（{product}）启用批次管理，请填写批次号', expiryRequired: '第 {line} 行（{product}）启用效期管理，请填写失效日期', serialRequired: '第 {line} 行（{product}）启用序列号管理，请录入序列号', serialCountMismatch: '第 {line} 行（{product}）序列号数量应为 {expected}，当前 {actual}' },
       scan: { resetConfirm: '确认清零当前发货数量吗？', title: '扫码计数', reset: '清零', resetDone: '数量已清零', resetFailed: '清零数量失败', selectOrderFirst: '请先选择销售订单', notInOrder: '商品 {code} 不在当前销售订单中', atMaximum: '商品 {code} 已达到可发货数量', lookupFailed: '条码查询失败' },
-      message: { loadFailed: '加载数据失败', customersLoadFailed: '加载客户列表失败', warehousesLoadFailed: '加载仓库列表失败', ordersLoadFailed: '加载订单列表失败', printLoadFailed: '加载打印数据失败', detailLoadFailed: '加载详情失败', deliveryLoadFailed: '加载发货单失败', orderDetailLoadFailed: '加载订单详情失败', cancelConfirm: '确认取消此发货单吗？', cancelled: '取消成功', cancelFailed: '取消失败', postConfirm: '确定过账该销售发货单吗？', posted: '过账成功', postFailed: '过账失败', created: '创建成功', updated: '更新成功', createFailed: '创建失败', updateFailed: '更新失败', logisticsUpdated: '物流状态已更新', logisticsDone: '物流已签收', prompt: '提示' }
+      message: { loadFailed: '加载数据失败', customersLoadFailed: '加载客户列表失败', warehousesLoadFailed: '加载仓库列表失败', ordersLoadFailed: '加载订单列表失败', printLoadFailed: '加载打印数据失败', detailLoadFailed: '加载详情失败', deliveryLoadFailed: '加载发货单失败', orderDetailLoadFailed: '加载订单详情失败', cancelConfirm: '确认取消此发货单吗？', cancelled: '取消成功', cancelFailed: '取消失败', postConfirm: '确定过账该销售发货单吗？', posted: '过账成功', postFailed: '过账失败', created: '创建成功', updated: '更新成功', createFailed: '创建失败', updateFailed: '更新失败', logisticsUpdated: '物流状态已更新', logisticsDone: '物流已签收', recipientPrompt: '请输入签收人', recipientPlaceholder: '请输入签收人姓名', recipientRequired: '请填写签收人', deliveryProofRequired: '请上传签收凭证', deliveryProofDownloadFailed: '签收凭证下载失败', prompt: '提示' }
     },
     purchaseOrder: {
-      title: '采购订单管理', subtitle: '管理采购订单全生命周期，优化供应链效率', totalOrders: '订单总数', pendingApproval: '待审核', approved: '已审核', orderNo: '订单编号', orderNoPlaceholder: '请输入订单编号', supplier: '供应商', selectSupplier: '请选择供应商', maximumPrice: '最高价 {amount}', supplierPrice: '供应商专价', generalPrice: '商品通用价', allSuppliers: '全部供应商', orderStatus: '订单状态', selectStatus: '请选择状态', orderDate: '订单日期', dateRangeSeparator: '至', startDate: '开始日期', endDate: '结束日期', create: '新增订单', expectedArrival: '预计到货', expectedArrivalDate: '预计到货日期', orderAmount: '订单金额', createdBy: '创建人', createdAt: '创建时间', actions: '操作', view: '查看', print: '打印', copy: '复制', edit: '编辑', submit: '提交', approve: '审核', reject: '驳回', unapprove: '反审核', close: '关闭', cancel: '取消', trace: '追踪',
+      title: '采购订单管理', subtitle: '管理采购订单全生命周期，优化供应链效率', totalOrders: '订单总数', pendingApproval: '待审核', approved: '已审核', orderNo: '订单编号', orderNoPlaceholder: '请输入订单编号', supplier: '供应商', selectSupplier: '请选择供应商', contract: '采购合同', selectContract: '请选择生效合同', contractOrderNotice: '合同来源订单的商品、数量、价格和明细不可修改；如需调整请作废后重新下单。', contractExecution: '合同执行', contractExecutionValue: '承诺 {committed} / 履约 {fulfilled} / 合同 {total}', maximumPrice: '最高价 {amount}', supplierPrice: '供应商专价', generalPrice: '商品通用价', allSuppliers: '全部供应商', orderStatus: '订单状态', selectStatus: '请选择状态', orderDate: '订单日期', dateRangeSeparator: '至', startDate: '开始日期', endDate: '结束日期', create: '新增订单', expectedArrival: '预计到货', expectedArrivalDate: '预计到货日期', orderAmount: '订单金额', createdBy: '创建人', createdAt: '创建时间', actions: '操作', view: '查看', print: '打印', copy: '复制', edit: '编辑', submit: '提交', approve: '审核', reject: '驳回', unapprove: '反审核', close: '关闭', cancel: '取消', trace: '追踪',
       basicInfo: '基本信息', selectDate: '选择日期', details: '订单明细', addProduct: '添加商品', sequence: '序号', productName: '商品名称', selectProduct: '请选择商品', quantity: '数量', auxQty: '辅单位数量', unitPriceCny: '单价（元）', amountCny: '金额（元）', unitPrice: '单价', amount: '金额', remark: '备注', optional: '选填', totalAmount: '订单总金额：', remarkPlaceholder: '请输入备注信息（选填）', confirm: '确定', detailTitle: '采购订单详情', orderInfo: '订单信息', otherInfo: '其他信息', traceTitle: '采购订单追踪', orderedQuantity: '订购数量', receivedQuantity: '已收数量', remainingQuantity: '待收数量', receiptStatus: '收货状态', documentNo: '单据编号', type: '类型', date: '日期', statusLabel: '状态',
       status: { draft: '草稿', submitted: '审批中', approved: '已审核', rejected: '已驳回', closed: '已关闭', cancelled: '已取消' },
       dialog: { create: '新增采购订单', edit: '编辑采购订单', copiedFrom: '复制自 {orderNo}' },
@@ -134,7 +164,7 @@ const coreMessages = {
       message: { loadFailed: '加载数据失败', copyFailed: '复制失败', printLoadFailed: '加载打印数据失败', cancelConfirm: '确认取消订单“{orderNo}”吗？', cancelled: '取消成功', cancelFailed: '取消失败', closeConfirm: '确认关闭订单“{orderNo}”吗？关闭后不能继续收货。', closed: '关闭成功', closeFailed: '关闭失败', traceLoadFailed: '加载采购订单追踪失败', submitConfirm: '确认提交订单“{orderNo}”审批吗？', submitted: '提交成功', submitFailed: '提交失败', approveConfirm: '确认审核通过订单“{orderNo}”吗？', approved: '审核成功', approveFailed: '审核失败', unapproveConfirm: '确认反审核订单“{orderNo}”吗？', unapproved: '反审核成功', unapproveFailed: '反审核失败', rejectTitle: '驳回订单', rejected: '已驳回', actionFailed: '操作失败', exported: '导出成功', exportFailed: '导出失败', exportFile: '采购订单_{timestamp}.csv', updated: '更新成功', created: '创建成功', updateFailed: '更新失败', createFailed: '创建失败', suppliersLoadFailed: '加载供应商失败', productsLoadFailed: '加载商品失败', prompt: '提示' }
     },
     purchaseReceipt: {
-      title: '采购收货管理', subtitle: '管理采购收货入库，确保物料按时到位', totalReceipts: '收货总数', pending: '待完成', completed: '已完成', receiptNo: '收货单号', receiptNoPlaceholder: '请输入收货单号', purchaseOrder: '采购订单', purchaseOrderNo: '采购订单号', orderIdPlaceholder: '请输入订单ID', supplier: '供应商', selectSupplier: '请选择供应商', allSuppliers: '全部供应商', statusLabel: '状态', selectStatus: '请选择状态', receiptDate: '收货日期', rangeSeparator: '至', startDate: '开始日期', endDate: '结束日期', create: '新增收货', warehouse: '入库仓库', createdBy: '创建人', createdAt: '创建时间', actions: '操作', view: '查看', print: '打印', edit: '编辑', post: '过账', cancel: '取消', basicInfo: '基本信息', selectOrder: '请选择采购订单', selectDate: '选择日期', selectWarehouse: '请选择仓库', details: '收货明细', clearQuantity: '清零数量', currentQuantity: '本次数量', sequence: '序号', productName: '商品名称', orderedQuantity: '订单数量', actualReceipt: '实际收货', receivedQuantity: '实收数量', location: '库位', selectLocation: '请选择库位', serialNos: '序列号', serialNosPlaceholder: '多个序列号用逗号/分号/换行分隔', serialProgress: '已录 {count}/{expected}', auxQty: '辅单位数量', remark: '备注', optional: '选填', remarkPlaceholder: '请输入备注信息（选填）', confirm: '确定', detailTitle: '收货单详情', receiptInfo: '收货信息', otherInfo: '其他信息', loadingOrder: '加载采购订单详情...',
+      title: '采购收货管理', subtitle: '管理采购收货入库，确保物料按时到位', totalReceipts: '收货总数', pending: '待完成', completed: '已完成', receiptNo: '收货单号', receiptNoPlaceholder: '请输入收货单号', purchaseOrder: '采购订单', purchaseOrderNo: '采购订单号', orderIdPlaceholder: '请输入订单ID', supplier: '供应商', selectSupplier: '请选择供应商', allSuppliers: '全部供应商', statusLabel: '状态', selectStatus: '请选择状态', receiptDate: '收货日期', rangeSeparator: '至', startDate: '开始日期', endDate: '结束日期', create: '新增收货', warehouse: '入库仓库', createdBy: '创建人', createdAt: '创建时间', actions: '操作', view: '查看', print: '打印', edit: '编辑', post: '过账', cancel: '取消', basicInfo: '基本信息', selectOrder: '请选择采购订单', selectDate: '选择日期', selectWarehouse: '请选择仓库', details: '收货明细', clearQuantity: '清零数量', currentQuantity: '本次数量', sequence: '序号', productName: '商品名称', orderedQuantity: '订单数量', actualReceipt: '实际收货', receivedQuantity: '实收数量', location: '库位', selectLocation: '请选择库位', serialNos: '序列号', serialNosPlaceholder: '多个序列号用逗号/分号/换行分隔', serialProgress: '已录 {count}/{expected}', auxQty: '辅单位数量', lotNo: '批次号', productionDate: '生产日期', expiryDate: '失效日期', lotNoPlaceholder: '启用批次管理时必填', productionDatePlaceholder: '生产日期', expiryDatePlaceholder: '启用效期管理时必填', remark: '备注', optional: '选填', remarkPlaceholder: '请输入备注信息（选填）', confirm: '确定', detailTitle: '收货单详情', receiptInfo: '收货信息', otherInfo: '其他信息', loadingOrder: '加载采购订单详情...',
       status: { draft: '草稿', posted: '已过账', cancelled: '已取消' },
       dialog: { create: '新增采购收货', edit: '编辑采购收货' },
       validation: { order: '请选择采购订单', warehouse: '请选择入库仓库', date: '请选择收货日期', lotRequired: '第 {line} 行（{product}）启用批次管理，请填写批次号', expiryRequired: '第 {line} 行（{product}）启用效期管理，请填写失效日期', serialRequired: '第 {line} 行（{product}）启用序列号管理，请录入序列号', serialCountMismatch: '第 {line} 行（{product}）序列号数量应为 {expected}，当前 {actual}' },
@@ -228,7 +258,11 @@ const coreMessages = {
     }
   },
   'en-US': {
-    common: { cancel: 'Cancel', save: 'Save', confirm: 'Confirm' },
+    common: {
+      cancel: 'Cancel', save: 'Save', confirm: 'Confirm',
+      noPagePermission: 'You do not have permission to access this page',
+      menuNotAssigned: 'This menu is not assigned to your account'
+    },
     app: { name: 'ERP Management System', shortName: 'ERP System' },
     settings: {
       title: 'Language & Time Zone', language: 'Language', timezone: 'Display time zone',
@@ -237,16 +271,36 @@ const coreMessages = {
     },
     user: {
       profile: 'Profile', password: 'Change password', logout: 'Sign out', logoutConfirm: 'Are you sure you want to sign out?',
-      saved: 'Profile saved', saveFailed: 'Failed to save profile', preferencesSaveFailed: 'Failed to save language and time-zone preferences', passwordChanged: 'Password changed. Please sign in again.'
+      saved: 'Profile saved', saveFailed: 'Failed to save profile', preferencesSaveFailed: 'Failed to save language and time-zone preferences', passwordChanged: 'Password changed. Please sign in again.',
+      profileFields: {
+        userId: 'User ID', username: 'Username', roles: 'Roles', listSeparator: ', ', warehouseScope: 'Warehouse scope',
+        realName: 'Name', realNamePlaceholder: 'Enter your name', email: 'Email', emailPlaceholder: 'Enter your email',
+        mobile: 'Mobile', mobilePlaceholder: 'Enter your mobile number', avatarUrl: 'Avatar URL', avatarPlaceholder: 'Optional avatar image URL',
+        avatarPreview: 'Avatar preview'
+      },
+      passwordFields: {
+        oldPassword: 'Current password', oldPasswordPlaceholder: 'Enter your current password', newPassword: 'New password',
+        newPasswordPlaceholder: '12 to 72 characters with letters and numbers', confirmPassword: 'Confirm password', confirmPasswordPlaceholder: 'Re-enter your new password'
+      },
+      validation: {
+        realNameRequired: 'Name is required', emailInvalid: 'Enter a valid email address', oldPasswordRequired: 'Current password is required',
+        newPasswordRequired: 'New password is required', passwordLength: 'Password must be 12 to 72 characters long',
+        passwordComplexity: 'Password must contain letters and numbers and no whitespace', confirmPasswordRequired: 'Re-enter your new password',
+        confirmPasswordMismatch: 'The passwords do not match'
+      }
+    },
+    barcodeScan: {
+      placeholder: 'Scan or enter a product barcode', camera: 'Scan with camera', openCamera: 'Open camera scanner',
+      connecting: 'Connecting to camera', unsupported: 'Camera barcode scanning is unavailable in this browser. Use a barcode scanner or enter the code manually.',
+      previewUnavailable: 'Camera preview is unavailable', permissionError: 'Unable to start the camera. Check browser permissions and try again.'
     },
     login: {
       welcome: 'Welcome back', subtitle: 'Enter your username and password', username: 'Username', password: 'Password',
-      forgot: 'Forgot password?', passwordResetHint: 'Contact your system administrator to reset your password', submit: 'Sign in', submitting: 'Signing in...', testAccount: 'Local test account',
-      prefilledTestAccount: 'admin / LocalAdmin123 (prefilled)',
+      forgot: 'Forgot password?', passwordResetHint: 'Contact your system administrator to reset your password', submit: 'Sign in', submitting: 'Signing in...',
       feature1Title: 'Integrated operations', feature1Desc: 'Purchasing, sales, inventory, and finance in one place',
       feature2Title: 'Data analytics', feature2Desc: 'Real-time reports for better decisions',
       feature3Title: 'Approval workflows', feature3Desc: 'Multi-level approvals with fine-grained access control',
-      usernameRequired: 'Username is required', passwordRequired: 'Password is required', passwordMin: 'Password must contain at least 6 characters'
+      usernameRequired: 'Username is required', passwordRequired: 'Password is required', invalidCredentials: 'Invalid username or password'
     },
     dashboard: {
       welcome: 'Welcome back, {name}', user: 'User', source: 'Dashboard data is from the current account set',
@@ -271,7 +325,7 @@ const coreMessages = {
     },
     workflow: {
       businessType: 'Business type', businessNo: 'Document no.', status: 'Status', selectBusinessType: 'Select business type', inputBusinessNo: 'Enter document no.', selectStatus: 'Select status',
-      purchaseOrder: 'Purchase order', salesOrder: 'Sales order', expense: 'Expense', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled',
+      purchaseOrder: 'Purchase order', purchaseRequisition: 'Purchase requisition', salesOrder: 'Sales order', expense: 'Expense', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled',
       search: 'Search', reset: 'Reset', tasks: 'Approval tasks', refresh: 'Refresh', title: 'Task title', createdTime: 'Created', updatedTime: 'Updated', dueTime: 'Due', overdue: 'Overdue', overdueOnly: 'Overdue only', actions: 'Actions',
       view: 'View', approve: 'Approve', reject: 'Reject', transfer: 'Transfer', escalate: 'Escalate', detail: 'Approval task details', businessId: 'Business ID', deadline: 'Deadline', escalationCount: 'Escalations', close: 'Close', approveAction: 'Approve',
       escalationTitle: 'Escalate overdue task', escalateTo: 'Escalate to', selectAssignee: 'Select a new assignee', escalationComment: 'Reason', confirmEscalation: 'Confirm escalation',
@@ -294,7 +348,9 @@ const coreMessages = {
     financeAging: {
       asOfDate: 'As-of date', todayPlaceholder: 'Defaults to today', search: 'Search', reset: 'Reset', receivableTotal: 'Open receivables', payableTotal: 'Open payables', asOfDateValue: 'As of {date}', outstandingOnly: 'Includes only open documents with a remaining amount greater than 0',
       receivableBuckets: 'Receivable aging buckets', payableBuckets: 'Payable aging buckets', bucket: 'Aging bucket', count: 'Count', amount: 'Amount', overdueReceivables: 'Top 20 overdue receivables', overduePayables: 'Top 20 overdue payables', receivablesLedger: 'Open receivables', payablesLedger: 'Open payables',
-      receivableNo: 'Receivable no.', payableNo: 'Payable no.', customer: 'Customer', supplier: 'Supplier', bizDate: 'Business date', dueDate: 'Due date', agingDays: 'Aging days', outstandingAmount: 'Outstanding amount',
+      receivableNo: 'Receivable no.', payableNo: 'Payable no.', customer: 'Customer', supplier: 'Supplier', bizDate: 'Business date', dueDate: 'Due date', agingDays: 'Aging days', outstandingAmount: 'Outstanding (original)',
+      baseCurrency: 'Base currency', baseCurrencyCaliber: 'Totals and aging buckets are stated in the base currency', currency: 'Currency', baseOutstandingAmount: 'Outstanding (base)',
+      receivableExposure: 'Receivable currency exposure', payableExposure: 'Payable currency exposure', originalExposure: 'Original outstanding', baseExposure: 'Base outstanding',
       bucketLabel: { d0_30: '0-30 days', d31_60: '31-60 days', d61_90: '61-90 days', d90Plus: 'Over 90 days' },
       message: { loadFailed: 'Failed to load aging analysis' }
     },
@@ -307,7 +363,8 @@ const coreMessages = {
       partnerType: 'Partner type', customer: 'Customer', supplier: 'Supplier', selectPartner: 'Select a partner', period: 'Period', startDate: 'Start date', endDate: 'End date', search: 'Search', print: 'Print',
       partnerTypeValue: '({type})', periodValue: '{from} to {to}', openingValue: 'Opening: {amount}', increaseValue: 'Increase: {amount}', decreaseValue: 'Decrease: {amount}', closingValue: 'Closing: {amount}',
       date: 'Date', docType: 'Document type', docNo: 'Document no.', direction: 'Direction', amount: 'Amount', balance: 'Balance', remark: 'Remark',
-      document: { receivable: 'Receivable', receipt: 'Receipt', payable: 'Payable', payment: 'Payment' },
+      document: { receivable: 'Receivable', receipt: 'Receipt', payable: 'Payable', payment: 'Payment', fxAdjustment: 'FX adjustment', roundingAdjustment: 'Rounding adjustment' },
+      currencyNotice: 'Amounts are in the account book base currency, {currency}. FX and rounding adjustments do not represent additional cash movements.',
       directionValue: { increase: 'Increase', decrease: 'Decrease' },
       message: { selectPartnerAndRange: 'Select a partner and date range', loadFailed: 'Failed to load the statement', optionsLoadFailed: 'Failed to load partners', printLoadFailed: 'Failed to load print data' }
     },
@@ -315,7 +372,7 @@ const coreMessages = {
       title: 'Sales orders', keyword: 'Keyword', orderNo: 'Order no.', customer: 'Customer', orderStatus: 'Order status', approvalStatus: 'Approval status', deliveryStatus: 'Delivery status',
       selectCustomer: 'Select a customer', selectStatus: 'Select a status', selectApprovalStatus: 'Select an approval status', search: 'Search', reset: 'Reset', create: 'New order',
       orderDate: 'Order date', deliveryDate: 'Delivery date', quantity: 'Quantity', auxQty: 'Aux quantity', amount: 'Amount', remark: 'Remark', actions: 'Actions', view: 'View', print: 'Print', copy: 'Copy', edit: 'Edit', submit: 'Submit', approve: 'Approve', reject: 'Reject', unapprove: 'Unapprove', cancel: 'Cancel',
-      warehouse: 'Delivery warehouse', selectWarehouse: 'Select a warehouse', remarkPlaceholder: 'Enter a remark', details: 'Order lines', addLine: 'Add line', product: 'Product', selectProduct: 'Select a product', unitPrice: 'Unit price', taxRate: 'Tax rate', delete: 'Delete', close: 'Close', save: 'Save',
+      warehouse: 'Delivery warehouse', selectWarehouse: 'Select a warehouse', contract: 'Sales contract', selectContract: 'Select an active contract', contractOrderNotice: 'Product, quantity, price, and lines from a contract order cannot be edited. Cancel it and create a new order to adjust.', contractExecution: 'Contract execution', contractExecutionValue: 'Committed {committed} / fulfilled {fulfilled} / contract {total}', remarkPlaceholder: 'Enter a remark', details: 'Order lines', addLine: 'Add line', product: 'Product', selectProduct: 'Select a product', unitPrice: 'Unit price', taxRate: 'Tax rate', delete: 'Delete', close: 'Close', save: 'Save',
       creditPreview: 'Customer credit preview', creditFormula: 'Open receivables + approved undelivered orders + this order including tax', unlimitedCustomer: 'Unlimited customer', exceededAfterSubmit: 'Over limit after submission', sufficientCredit: 'Credit available', creditLimit: 'Credit limit', unlimited: 'Unlimited', outstandingReceivable: 'Open receivables', openOrderExposure: 'Open order exposure', currentExposure: 'Current exposure', orderTaxAmount: 'This order incl. tax', availableAfterSubmit: 'Available after submission',
       expectedExceeded: 'Expected overage {amount}', exceededDescription: 'Current exposure {current} + this order {order} = {projected}, exceeding the credit limit {limit}', noCreditLimit: 'No credit limit is set for this customer', unlimitedDescription: 'Current exposure is {current}; this order can be submitted', projectedExposure: 'Exposure after submission: {amount}', availableDescription: 'Available credit after submission: {amount}',
       minimumPrice: 'Minimum {amount}', customerPrice: 'Customer price', generalPrice: 'General price',
@@ -329,15 +386,15 @@ const coreMessages = {
       logistics: { pendingShip: 'Pending ship', pickedUp: 'Picked up', inTransit: 'In transit', delivered: 'Delivered' },
       carrierPlaceholder: 'Enter carrier', trackingPlaceholder: 'Enter tracking no.',
       title: 'Sales deliveries', deliveryNo: 'Delivery no.', deliveryNoPlaceholder: 'Enter a delivery no.', salesOrder: 'Sales order', salesOrderNo: 'Sales order no.', orderIdPlaceholder: 'Enter an order ID', customer: 'Customer', selectCustomer: 'Select a customer', statusLabel: 'Status', selectStatus: 'Select a status', selectLogisticsStatus: 'Select logistics status', dateRange: 'Date range', rangeSeparator: 'to', startDate: 'Start date', endDate: 'End date', search: 'Search', reset: 'Reset', create: 'New delivery',
-      warehouse: 'Delivery warehouse', deliveryDate: 'Delivery date', remark: 'Remark', createdBy: 'Created by', createdAt: 'Created', actions: 'Actions', view: 'View', print: 'Print', edit: 'Edit', post: 'Post', cancel: 'Cancel', selectOrder: 'Select a sales order', selectWarehouse: 'Select a delivery warehouse', selectDeliveryDate: 'Select a delivery date', remarkPlaceholder: 'Enter a remark', details: 'Delivery lines', clearQuantity: 'Clear quantities', currentQuantity: 'Current quantity', productCode: 'Product code', productName: 'Product name', orderedQuantity: 'Ordered quantity', deliveredQuantity: 'Delivered quantity', currentDeliveryQuantity: 'Delivery quantity', location: 'Location', selectLocation: 'Select a location', serialNos: 'Serial nos.', serialNosPlaceholder: 'Separate serials with comma, semicolon, or newline', serialProgress: '{count}/{expected} captured', auxQty: 'Aux quantity', lotNo: 'Lot no.', productionDate: 'Production date', expiryDate: 'Expiry date', lotNoPlaceholder: 'Recommended for lot-controlled items', productionDatePlaceholder: 'Production date', expiryDatePlaceholder: 'Expiry date', confirm: 'Confirm',
+      warehouse: 'Delivery warehouse', deliveryDate: 'Delivery date', remark: 'Remark', createdBy: 'Created by', createdAt: 'Created', actions: 'Actions', view: 'View', print: 'Print', edit: 'Edit', post: 'Post', cancel: 'Cancel', selectOrder: 'Select a sales order', selectWarehouse: 'Select a delivery warehouse', selectDeliveryDate: 'Select a delivery date', remarkPlaceholder: 'Enter a remark', details: 'Delivery lines', clearQuantity: 'Clear quantities', currentQuantity: 'Current quantity', productCode: 'Product code', productName: 'Product name', orderedQuantity: 'Ordered quantity', deliveredQuantity: 'Delivered quantity', currentDeliveryQuantity: 'Delivery quantity', location: 'Location', selectLocation: 'Select a location', serialNos: 'Serial nos.', serialNosPlaceholder: 'Separate serials with comma, semicolon, or newline', serialProgress: '{count}/{expected} captured', auxQty: 'Aux quantity', lotNo: 'Lot no.', productionDate: 'Production date', expiryDate: 'Expiry date', lotNoPlaceholder: 'Recommended for lot-controlled items', productionDatePlaceholder: 'Production date', expiryDatePlaceholder: 'Expiry date', deliveredBy: 'Delivered by', deliveredTime: 'Delivered time', deliveryProof: 'Delivery proof', downloadProof: 'Download proof', confirm: 'Confirm',
       status: { draft: 'Draft', posted: 'Posted', cancelled: 'Cancelled' },
       dialog: { create: 'New sales delivery', view: 'View sales delivery', edit: 'Edit sales delivery' },
       validation: { order: 'Select a sales order', warehouse: 'Select a delivery warehouse', date: 'Select a delivery date', lineRequired: 'Add at least one delivery line', quantityRequired: 'Enter a delivery quantity', lotRequired: 'Line {line} ({product}) is lot-controlled; enter a lot no.', expiryRequired: 'Line {line} ({product}) is shelf-life controlled; enter an expiry date', serialRequired: 'Line {line} ({product}) is serial-controlled; enter serial nos.', serialCountMismatch: 'Line {line} ({product}) expects {expected} serials, got {actual}' },
       scan: { resetConfirm: 'Clear all current delivery quantities?', title: 'Scan count', reset: 'Clear', resetDone: 'Quantities cleared', resetFailed: 'Failed to clear quantities', selectOrderFirst: 'Select a sales order first', notInOrder: 'Product {code} is not in this sales order', atMaximum: 'Product {code} has reached its deliverable quantity', lookupFailed: 'Barcode lookup failed' },
-      message: { loadFailed: 'Failed to load deliveries', customersLoadFailed: 'Failed to load customers', warehousesLoadFailed: 'Failed to load warehouses', ordersLoadFailed: 'Failed to load sales orders', printLoadFailed: 'Failed to load print data', detailLoadFailed: 'Failed to load delivery details', deliveryLoadFailed: 'Failed to load the delivery', orderDetailLoadFailed: 'Failed to load order details', cancelConfirm: 'Cancel this delivery?', cancelled: 'Delivery cancelled', cancelFailed: 'Failed to cancel the delivery', postConfirm: 'Post this sales delivery?', posted: 'Delivery posted', postFailed: 'Failed to post the delivery', created: 'Delivery created', updated: 'Delivery updated', createFailed: 'Failed to create the delivery', updateFailed: 'Failed to update the delivery', logisticsUpdated: 'Logistics status updated', logisticsDone: 'Already delivered', prompt: 'Confirmation' }
+      message: { loadFailed: 'Failed to load deliveries', customersLoadFailed: 'Failed to load customers', warehousesLoadFailed: 'Failed to load warehouses', ordersLoadFailed: 'Failed to load sales orders', printLoadFailed: 'Failed to load print data', detailLoadFailed: 'Failed to load delivery details', deliveryLoadFailed: 'Failed to load the delivery', orderDetailLoadFailed: 'Failed to load order details', cancelConfirm: 'Cancel this delivery?', cancelled: 'Delivery cancelled', cancelFailed: 'Failed to cancel the delivery', postConfirm: 'Post this sales delivery?', posted: 'Delivery posted', postFailed: 'Failed to post the delivery', created: 'Delivery created', updated: 'Delivery updated', createFailed: 'Failed to create the delivery', updateFailed: 'Failed to update the delivery', logisticsUpdated: 'Logistics status updated', logisticsDone: 'Already delivered', recipientPrompt: 'Enter recipient name', recipientPlaceholder: 'Recipient name', recipientRequired: 'Enter the recipient name', deliveryProofRequired: 'Upload a delivery proof', deliveryProofDownloadFailed: 'Failed to download the delivery proof', prompt: 'Confirmation' }
     },
     purchaseOrder: {
-      title: 'Purchase order management', subtitle: 'Manage the full purchase order lifecycle and improve supply-chain efficiency', totalOrders: 'Total orders', pendingApproval: 'Pending approval', approved: 'Approved', orderNo: 'Order no.', orderNoPlaceholder: 'Enter an order no.', supplier: 'Supplier', selectSupplier: 'Select a supplier', maximumPrice: 'Max price {amount}', supplierPrice: 'Supplier price', generalPrice: 'General price', allSuppliers: 'All suppliers', orderStatus: 'Order status', selectStatus: 'Select a status', orderDate: 'Order date', dateRangeSeparator: 'to', startDate: 'Start date', endDate: 'End date', create: 'New order', expectedArrival: 'Expected arrival', expectedArrivalDate: 'Expected arrival date', orderAmount: 'Order amount', createdBy: 'Created by', createdAt: 'Created', actions: 'Actions', view: 'View', print: 'Print', copy: 'Copy', edit: 'Edit', submit: 'Submit', approve: 'Approve', reject: 'Reject', unapprove: 'Unapprove', close: 'Close', cancel: 'Cancel', trace: 'Trace',
+      title: 'Purchase order management', subtitle: 'Manage the full purchase order lifecycle and improve supply-chain efficiency', totalOrders: 'Total orders', pendingApproval: 'Pending approval', approved: 'Approved', orderNo: 'Order no.', orderNoPlaceholder: 'Enter an order no.', supplier: 'Supplier', selectSupplier: 'Select a supplier', contract: 'Purchase contract', selectContract: 'Select an active contract', contractOrderNotice: 'Product, quantity, price, and lines from a contract order cannot be edited. Cancel it and create a new order to adjust.', contractExecution: 'Contract execution', contractExecutionValue: 'Committed {committed} / fulfilled {fulfilled} / contract {total}', maximumPrice: 'Max price {amount}', supplierPrice: 'Supplier price', generalPrice: 'General price', allSuppliers: 'All suppliers', orderStatus: 'Order status', selectStatus: 'Select a status', orderDate: 'Order date', dateRangeSeparator: 'to', startDate: 'Start date', endDate: 'End date', create: 'New order', expectedArrival: 'Expected arrival', expectedArrivalDate: 'Expected arrival date', orderAmount: 'Order amount', createdBy: 'Created by', createdAt: 'Created', actions: 'Actions', view: 'View', print: 'Print', copy: 'Copy', edit: 'Edit', submit: 'Submit', approve: 'Approve', reject: 'Reject', unapprove: 'Unapprove', close: 'Close', cancel: 'Cancel', trace: 'Trace',
       basicInfo: 'Basic information', selectDate: 'Select a date', details: 'Order lines', addProduct: 'Add product', sequence: 'No.', productName: 'Product name', selectProduct: 'Select a product', quantity: 'Quantity', auxQty: 'Aux quantity', unitPriceCny: 'Unit price (CNY)', amountCny: 'Amount (CNY)', unitPrice: 'Unit price', amount: 'Amount', remark: 'Remark', optional: 'Optional', totalAmount: 'Order total:', remarkPlaceholder: 'Enter an optional remark', confirm: 'Confirm', detailTitle: 'Purchase order details', orderInfo: 'Order information', otherInfo: 'Other information', traceTitle: 'Purchase order trace', orderedQuantity: 'Ordered quantity', receivedQuantity: 'Received quantity', remainingQuantity: 'Remaining quantity', receiptStatus: 'Receipt status', documentNo: 'Document no.', type: 'Type', date: 'Date', statusLabel: 'Status',
       status: { draft: 'Draft', submitted: 'In approval', approved: 'Approved', rejected: 'Rejected', closed: 'Closed', cancelled: 'Cancelled' },
       dialog: { create: 'New purchase order', edit: 'Edit purchase order', copiedFrom: 'Copied from {orderNo}' },
@@ -448,7 +505,11 @@ const messages = {
     ...financeReportPageMessages['zh-CN'],
     ...adminWorkflowPageMessages['zh-CN'],
     ...platformPageMessages['zh-CN'],
-    ...salesCommercialPageMessages['zh-CN']
+    ...salesCommercialPageMessages['zh-CN'],
+    ...contractPageMessages['zh-CN'],
+    ...masterdataRelationMessages['zh-CN'],
+    ...documentAttachmentMessages['zh-CN']
+    ,...currencyPageMessages['zh-CN']
   },
   'en-US': {
     ...coreMessages['en-US'],
@@ -456,7 +517,11 @@ const messages = {
     ...financeReportPageMessages['en-US'],
     ...adminWorkflowPageMessages['en-US'],
     ...platformPageMessages['en-US'],
-    ...salesCommercialPageMessages['en-US']
+    ...salesCommercialPageMessages['en-US'],
+    ...contractPageMessages['en-US'],
+    ...masterdataRelationMessages['en-US'],
+    ...documentAttachmentMessages['en-US']
+    ,...currencyPageMessages['en-US']
   }
 } as const
 

@@ -8,6 +8,8 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.finance.subject.mapper.AccountSubjectMapper;
 import com.tuowei.erp.finance.subject.model.AccountSubjectEntity;
+import com.tuowei.erp.finance.subject.service.AccountSubjectCommandService;
+import com.tuowei.erp.finance.subject.service.AccountSubjectQueryService;
 import com.tuowei.erp.finance.subject.service.AccountSubjectService;
 import com.tuowei.erp.finance.subject.web.AccountSubjectCreateRequest;
 import com.tuowei.erp.finance.subject.web.AccountSubjectPageQuery;
@@ -98,7 +100,11 @@ class AccountSubjectServiceTenantBoundaryTest {
     }
 
     private AccountSubjectService service() {
-        return new AccountSubjectService(accountSubjectMapper, auditMetadataFactory);
+        AccountSubjectQueryService queryService =
+                new AccountSubjectQueryService(accountSubjectMapper, auditMetadataFactory);
+        AccountSubjectCommandService commandService =
+                new AccountSubjectCommandService(accountSubjectMapper, auditMetadataFactory, queryService);
+        return new AccountSubjectService(queryService, commandService);
     }
 
     private AccountSubjectCreateRequest createRequest() {

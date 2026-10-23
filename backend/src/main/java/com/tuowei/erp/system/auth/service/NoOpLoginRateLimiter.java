@@ -2,18 +2,17 @@ package com.tuowei.erp.system.auth.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 @Service
-@ConditionalOnMissingBean(StringRedisTemplate.class)
+@Profile({"local", "test"})
 public class NoOpLoginRateLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(NoOpLoginRateLimiter.class);
 
     public NoOpLoginRateLimiter() {
-        log.warn("登录限流功能已禁用（Redis不可用）");
+        log.info("当前 profile 未启用 Redis 登录限流");
     }
 
     public void assertAllowed(String username, String clientIp) {

@@ -21,11 +21,13 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,7 +77,7 @@ class ImportJobServiceCommitBatchingTest {
         when(importJobRowMapper.selectList(any())).thenThrow(new AssertionError("commit must not load all import rows"));
         stubPagedRows();
 
-        ImportJobResponse response = service().commit(88L);
+        ImportJobResponse response = commandService().commit(88L);
 
         assertThat(response.status()).isEqualTo(ImportConstants.COMMITTED);
         assertThat(response.committedRows()).isEqualTo(DEFAULT_COMMIT_BATCH_SIZE + 1);
@@ -103,7 +105,7 @@ class ImportJobServiceCommitBatchingTest {
         when(importJobMapper.selectById(88L)).thenReturn(job);
         when(importJobRowMapper.selectList(any())).thenReturn(List.of());
 
-        service().detail(88L);
+        queryService().detail(88L);
 
         ArgumentCaptor<LambdaQueryWrapper<ImportJobRowEntity>> wrapperCaptor =
                 ArgumentCaptor.forClass(LambdaQueryWrapper.class);
@@ -122,7 +124,7 @@ class ImportJobServiceCommitBatchingTest {
         when(handler.validate(anyInt(), any(), any()))
                 .thenReturn(new ImportTypeHandler.ImportRowPlan(Map.of("productCode", "P001"), List.of()));
 
-        assertThatThrownBy(() -> serviceWithRealParser().preview(ImportConstants.PRODUCT, productCsvFile()))
+        assertThatThrownBy(() -> commandServiceWithRealParser().preview(ImportConstants.PRODUCT, productCsvFile()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("保存导入任务失败");
 
@@ -144,7 +146,7 @@ class ImportJobServiceCommitBatchingTest {
         when(handler.validate(anyInt(), any(), any()))
                 .thenReturn(new ImportTypeHandler.ImportRowPlan(Map.of("productCode", "P001"), List.of()));
 
-        assertThatThrownBy(() -> serviceWithRealParser().preview(ImportConstants.PRODUCT, productCsvFile()))
+        assertThatThrownBy(() -> commandServiceWithRealParser().preview(ImportConstants.PRODUCT, productCsvFile()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("保存导入明细失败");
     }
@@ -164,7 +166,7 @@ class ImportJobServiceCommitBatchingTest {
         when(importJobRowMapper.selectList(any())).thenThrow(new AssertionError("commit must not load all import rows"));
         stubPagedRows();
 
-        ImportJobResponse response = service().commit(88L);
+        ImportJobResponse response = commandService().commit(88L);
 
         assertThat(response.status()).isEqualTo(ImportConstants.COMMITTED);
         assertThat(response.committedRows()).isEqualTo(DEFAULT_COMMIT_BATCH_SIZE + 1);
@@ -188,7 +190,7 @@ class ImportJobServiceCommitBatchingTest {
         when(handler.commit(any(), any(), any())).thenThrow(new IllegalStateException("jdbc password=secret leaked"));
         stubPagedRows();
 
-        assertThatThrownBy(() -> service().commit(88L))
+        assertThatThrownBy(() -> commandService().commit(88L))
                 .isInstanceOf(BusinessConflictException.class)
                 .hasMessage("导入提交失败");
 
@@ -199,6 +201,27 @@ class ImportJobServiceCommitBatchingTest {
                 .singleElement()
                 .extracting(ImportJobEntity::getErrorMessage)
                 .isEqualTo("导入提交失败");
+    }
+
+    @Test
+    void failedCommitRecordsFailureInRequiresNewTransaction() {
+        AuditMetadata audit = new AuditMetadata(9L, 1L, 1L, LocalDateTime.of(2026, 6, 2, 10, 0));
+        ImportJobEntity job = job();
+        NoopTransactionManager transactionManager = new NoopTransactionManager();
+        when(auditMetadataFactory.current()).thenReturn(audit);
+        when(importJobMapper.selectById(88L)).thenReturn(job);
+        when(importJobMapper.updateById(any(ImportJobEntity.class))).thenReturn(1);
+        when(handler.importType()).thenReturn(ImportConstants.PRODUCT);
+        when(handler.commit(any(), any(), any())).thenThrow(new IllegalStateException("database failure"));
+        stubPagedRows();
+
+        assertThatThrownBy(() -> commandService(transactionManager).commit(88L))
+                .isInstanceOf(BusinessConflictException.class)
+                .hasMessage("导入提交失败");
+
+        assertThat(transactionManager.propagations)
+                .contains(TransactionDefinition.PROPAGATION_REQUIRED)
+                .contains(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Test
@@ -215,7 +238,7 @@ class ImportJobServiceCommitBatchingTest {
         when(handler.commit(any(), any(), any())).thenAnswer(invocation -> invocation.<List<?>>getArgument(1).size());
         stubPagedRows();
 
-        ImportJobResponse response = service().commit(88L);
+        ImportJobResponse response = commandService().commit(88L);
 
         assertThat(response.status()).isEqualTo(ImportConstants.COMMITTED);
         assertThat(response.committedRows()).isEqualTo(DEFAULT_COMMIT_BATCH_SIZE + 1);
@@ -241,37 +264,69 @@ class ImportJobServiceCommitBatchingTest {
         });
     }
 
-    private ImportJobService service() {
+    private ImportJobCommandService commandService() {
+        return commandService(new NoopTransactionManager());
+    }
+
+    private ImportJobCommandService commandService(PlatformTransactionManager transactionManager) {
         ObjectMapper objectMapper = new ObjectMapper();
-        return new ImportJobService(
+        ImportValidationSupport support = new ImportValidationSupport(objectMapper);
+        ImportJobQueryService queryService = new ImportJobQueryService(
+                importJobMapper,
+                importJobRowMapper,
+                mock(ImportTemplateRegistry.class),
+                auditMetadataFactory,
+                support
+        );
+        return new ImportJobCommandService(
                 importJobMapper,
                 importJobRowMapper,
                 mock(ImportTemplateRegistry.class),
                 mock(CsvImportParser.class),
-                objectMapper,
                 auditMetadataFactory,
-                new NoopTransactionManager(),
+                transactionManager,
                 List.of(handler),
-                new ImportValidationSupport(objectMapper),
+                support,
                 mock(AccountPeriodGuard.class),
-                ImportProperties.defaults()
+                ImportProperties.defaults(),
+                queryService
         );
     }
 
-    private ImportJobService serviceWithRealParser() {
+    private ImportJobCommandService commandServiceWithRealParser() {
         ObjectMapper objectMapper = new ObjectMapper();
-        return new ImportJobService(
+        ImportValidationSupport support = new ImportValidationSupport(objectMapper);
+        ImportTemplateRegistry registry = new ImportTemplateRegistry();
+        ImportJobQueryService queryService = new ImportJobQueryService(
                 importJobMapper,
                 importJobRowMapper,
-                new ImportTemplateRegistry(),
+                registry,
+                auditMetadataFactory,
+                support
+        );
+        return new ImportJobCommandService(
+                importJobMapper,
+                importJobRowMapper,
+                registry,
                 new CsvImportParser(ImportProperties.defaults()),
-                objectMapper,
                 auditMetadataFactory,
                 new NoopTransactionManager(),
                 List.of(handler),
-                new ImportValidationSupport(objectMapper),
+                support,
                 mock(AccountPeriodGuard.class),
-                ImportProperties.defaults()
+                ImportProperties.defaults(),
+                queryService
+        );
+    }
+
+    private ImportJobQueryService queryService() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        return new ImportJobQueryService(
+                importJobMapper,
+                importJobRowMapper,
+                mock(ImportTemplateRegistry.class),
+                auditMetadataFactory,
+                new ImportValidationSupport(objectMapper)
         );
     }
 
@@ -325,6 +380,8 @@ class ImportJobServiceCommitBatchingTest {
 
     private static final class NoopTransactionManager extends AbstractPlatformTransactionManager {
 
+        private final List<Integer> propagations = new ArrayList<>();
+
         @Override
         protected Object doGetTransaction() {
             return new Object();
@@ -332,6 +389,7 @@ class ImportJobServiceCommitBatchingTest {
 
         @Override
         protected void doBegin(Object transaction, TransactionDefinition definition) {
+            propagations.add(definition.getPropagationBehavior());
         }
 
         @Override

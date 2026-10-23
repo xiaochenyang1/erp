@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Build the current backend first, then run UI smoke against a disposable MySQL database.
+set -Eeuo pipefail
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+backend_root="$(cd -- "${script_dir}/.." && pwd)"
+container_name="erp-ui-smoke-mysql-${$}"
+bootstrap_pid=""
+cleanup() {
+  if [[ -n "${bootstrap_pid}" ]] && kill -0 "${bootstrap_pid}" 2>/dev/null; then
+    kill "${bootstrap_pid}" 2>/dev/null || true
+    wait "${bootstrap_pid}" 2>/dev/null || true
+  fi
+  docker logs "${container_name}" > "${backend_root}/target/ui-smoke-mysql.log" 2>&1 || true
+  docker rm -f -v "${container_name}" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT INT TERM
+export UI_SMOKE_FRONTEND_MODE="${UI_SMOKE_FRONTEND_MODE:-preview}"
+export ERP_UI_SMOKE_BACKEND_PORT="${ERP_UI_SMOKE_BACKEND_PORT:-19381}"
+export UI_SMOKE_FRONTEND_PORT="${UI_SMOKE_FRONTEND_PORT:-19373}"
+export ERP_UI_SMOKE_BACKEND_URL="http://127.0.0.1:${ERP_UI_SMOKE_BACKEND_PORT}"
+export ERP_LOCAL_ADMIN_PASSWORD="LocalAdmin123"
+export ERP_UI_SMOKE_RUNTIME_PASSWORD="RuntimeSmoke123"
+export ERP_UI_SMOKE_DATASOURCE_USERNAME="root"
+export ERP_UI_SMOKE_DATASOURCE_PASSWORD="ui_smoke_disposable_password"
+
+[[ -f "${backend_root}/target/erp-server-1.0.0.jar" ]] || { echo 'Build the backend package before running UI smoke.' >&2; exit 1; }
+node --test "${script_dir}/ui-smoke-cdp.test.mjs" "${script_dir}/ui-smoke-processes.test.mjs"
+if [[ "${UI_SMOKE_FRONTEND_MODE}" == preview ]]; then
+  npm --prefix "${backend_root}/../frontend" run build
+fi
+node --input-type=module -e '
+
+  import { createServer } from "node:net";
+  for (const port of [process.env.ERP_UI_SMOKE_BACKEND_PORT, process.env.UI_SMOKE_FRONTEND_PORT, 9223]) {
+    await new Promise((resolve, reject) => {
+      const server = createServer(); server.once("error", reject);
+      server.listen(Number(port), "127.0.0.1", () => server.close(resolve));
+    });
+  }
+'
+# Retain startup errors until cleanup archives the log and removes the container/volume.
+docker run --detach --name "${container_name}" \
+  --env "MYSQL_ROOT_PASSWORD=${ERP_UI_SMOKE_DATASOURCE_PASSWORD}" \
+  --env MYSQL_DATABASE=erp_ui_smoke --publish 127.0.0.1::3306 \
+  mysql:8.4 --default-time-zone=+08:00 >/dev/null
+mysql_port="$(docker port "${container_name}" 3306/tcp | awk -F: 'NR == 1 { print $NF }')"
+export ERP_UI_SMOKE_DATASOURCE_URL="jdbc:mysql://127.0.0.1:${mysql_port}/erp_ui_smoke?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8"
+for attempt in $(seq 1 60); do
+  if docker exec "${container_name}" mysqladmin ping -h 127.0.0.1 -uroot "-p${ERP_UI_SMOKE_DATASOURCE_PASSWORD}" --silent >/dev/null 2>&1; then break; fi
+  if [[ "$(docker inspect --format '{{.State.Running}}' "${container_name}")" != true || "${attempt}" -eq 60 ]]; then
+    docker logs "${container_name}" >&2 || true
+    echo 'UI smoke MySQL did not start.' >&2
+    exit 1
+  fi
+  sleep 1
+done
+cd "${backend_root}"
+start_backend() {
+  java -jar target/erp-server-1.0.0.jar --spring.profiles.active=local \
+  "--spring.datasource.url=${ERP_UI_SMOKE_DATASOURCE_URL}" \
+  "--spring.datasource.username=${ERP_UI_SMOKE_DATASOURCE_USERNAME}" \
+  "--spring.datasource.password=${ERP_UI_SMOKE_DATASOURCE_PASSWORD}" \
+    "--server.port=${ERP_UI_SMOKE_BACKEND_PORT}" > "$1" 2>&1 &
+  bootstrap_pid=$!
+  for attempt in $(seq 1 120); do
+    kill -0 "${bootstrap_pid}" 2>/dev/null || { tail -30 "$1"; exit 1; }
+    if curl --fail --silent "${ERP_UI_SMOKE_BACKEND_URL}/actuator/health" >/dev/null; then break; fi
+    [[ "${attempt}" -lt 120 ]] || { echo 'UI smoke backend did not become healthy.' >&2; exit 1; }
+    sleep 1
+  done
+}
+start_backend target/ui-smoke-bootstrap.log
+node scripts/prepare-ui-smoke-user.mjs
+if [[ "${ERP_UI_SMOKE_API_REGRESSION:-0}" == 1 ]]; then
+  BASE_URL="${ERP_UI_SMOKE_BACKEND_URL}" ADMIN_PASSWORD="${ERP_LOCAL_ADMIN_PASSWORD}" \
+    SUBMITTER_PASSWORD="${ERP_UI_SMOKE_RUNTIME_PASSWORD}" node scripts/extension-features-api-smoke.cjs
+  BASE_URL="${ERP_UI_SMOKE_BACKEND_URL}" ADMIN_PASSWORD="${ERP_LOCAL_ADMIN_PASSWORD}" \
+    node scripts/data-scope-api-smoke.cjs
+fi
+kill "${bootstrap_pid}"
+wait "${bootstrap_pid}" || true
+bootstrap_pid=""
+node scripts/ui-smoke.mjs
+if [[ "${ERP_UI_SMOKE_FQ_REGRESSION:-0}" == 1 ]]; then
+  # UI workflows leave the F/Q sample documents in this disposable database.
+  start_backend target/ui-smoke-fq-backend.log
+  BASE_URL="${ERP_UI_SMOKE_BACKEND_URL}" ERP_FQ_ENVIRONMENT=local-runtime \
+    ERP_FQ_ADMIN_USERNAME=admin ERP_FQ_ADMIN_PASSWORD="${ERP_LOCAL_ADMIN_PASSWORD}" \
+    ERP_FQ_SUBMITTER_USERNAME=runtime_smoke ERP_FQ_SUBMITTER_PASSWORD="${ERP_UI_SMOKE_RUNTIME_PASSWORD}" \
+    ERP_FQ_DATABASE_INSTANCE=erp_ui_smoke ERP_FQ_REDIS_INSTANCE=none-local ERP_FQ_DOCKER_PROFILE=isolated-mysql \
+    node scripts/fq-signoff-all.cjs
+fi

@@ -419,13 +419,7 @@ import { useInventoryAlertList } from '@/composables/useInventoryAlertList'
 const router = useRouter()
 const { t } = useI18n()
 
-const {
-  formatNumber,
-  alertTypeText,
-  alertTypeTag,
-  statusText,
-  statusTag
-} = useInventoryAlertPresentation(t)
+const { formatNumber } = useInventoryAlertPresentation(t)
 
 const {
   currentAlert,
@@ -440,6 +434,7 @@ const {
   handleToggleRule,
   loadData,
   loadProducts,
+  loadRules,
   loadSuppliers,
   loadWarehouses,
   loading,

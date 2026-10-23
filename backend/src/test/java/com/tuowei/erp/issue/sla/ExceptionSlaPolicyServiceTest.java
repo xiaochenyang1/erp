@@ -9,6 +9,8 @@ import com.tuowei.erp.issue.model.ExceptionTicketEntity;
 import com.tuowei.erp.issue.sla.mapper.ExceptionSlaPolicyMapper;
 import com.tuowei.erp.issue.sla.model.ExceptionSlaPolicyEntity;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaEscalationPolicy;
+import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyCommandService;
+import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyQueryService;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyService;
 import com.tuowei.erp.issue.sla.web.ExceptionSlaPolicyPageQuery;
 import com.tuowei.erp.issue.sla.web.ExceptionSlaPolicyUpdateRequest;
@@ -201,7 +203,10 @@ class ExceptionSlaPolicyServiceTest {
     }
 
     private ExceptionSlaPolicyService service() {
-        return new ExceptionSlaPolicyService(auditMetadataFactory, policyMapper);
+        ExceptionSlaPolicyQueryService queryService = new ExceptionSlaPolicyQueryService(policyMapper);
+        ExceptionSlaPolicyCommandService commandService =
+                new ExceptionSlaPolicyCommandService(auditMetadataFactory, policyMapper, queryService);
+        return new ExceptionSlaPolicyService(queryService, commandService);
     }
 
     private static ExceptionSlaPolicyEntity policy(

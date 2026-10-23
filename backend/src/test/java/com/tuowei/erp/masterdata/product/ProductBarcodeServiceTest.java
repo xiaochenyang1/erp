@@ -9,6 +9,8 @@ import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryLotBalanceMapper;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
+import com.tuowei.erp.masterdata.product.service.ProductCommandService;
+import com.tuowei.erp.masterdata.product.service.ProductQueryService;
 import com.tuowei.erp.masterdata.product.service.ProductService;
 import com.tuowei.erp.masterdata.product.web.ProductCreateRequest;
 import com.tuowei.erp.masterdata.product.web.ProductResponse;
@@ -74,13 +76,16 @@ class ProductBarcodeServiceTest {
 
     @BeforeEach
     void setUp() {
-        productService = new ProductService(
+        ProductQueryService queryService = new ProductQueryService(productMapper, auditMetadataFactory);
+        ProductCommandService commandService = new ProductCommandService(
                 productMapper,
                 inventoryBalanceMapper,
                 inventoryLotBalanceMapper,
                 auditMetadataFactory,
-                systemDictService
+                systemDictService,
+                queryService
         );
+        productService = new ProductService(queryService, commandService);
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
     }
 

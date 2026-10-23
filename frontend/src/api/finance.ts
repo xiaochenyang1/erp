@@ -1,6 +1,14 @@
 import { request } from '@/utils/request'
 import type { PageQuery, PageResponse } from '@/types/common'
 
+export interface Currency { id: string; currencyCode: string; currencyName: string; currencySymbol?: string; decimalPlaces: number; status: string }
+export interface ExchangeRate { id: string; fromCurrencyCode: string; toCurrencyCode: string; rate: number; effectiveFrom: string; effectiveTo?: string; status: string }
+export interface ExchangeRateRequest { fromCurrencyCode: string; toCurrencyCode: string; rate: number; effectiveFrom: string; effectiveTo?: string }
+export const getCurrencies = () => request.get<Currency[]>('/finance/currencies')
+export const getBaseCurrency = () => request.get<string>('/finance/currencies/base')
+export const getExchangeRates = (params?: { from?: string; to?: string }) => request.get<ExchangeRate[]>('/finance/currencies/rates', { params })
+export const createExchangeRate = (data: ExchangeRateRequest) => request.post<ExchangeRate>('/finance/currencies/rates', data)
+
 // ==================== 应收账款 ====================
 
 export type FinanceAccountStatus = 'UNSETTLED' | 'PARTIALLY_SETTLED' | 'SETTLED' | 'OFFSET'
@@ -19,6 +27,10 @@ export interface Receivable {
   remainingAmount: number
   originalAmount?: number
   settledAmount?: number
+  currencyCode?: string
+  exchangeRate?: number
+  /** 本位币未结额，跨币种汇总只能用它 */
+  baseRemainingAmount?: number
   bizDate?: string
   dueDate?: string
   status: FinanceAccountStatus
@@ -70,6 +82,10 @@ export interface Payable {
   remainingAmount: number
   originalAmount?: number
   settledAmount?: number
+  currencyCode?: string
+  exchangeRate?: number
+  /** 本位币未结额，跨币种汇总只能用它 */
+  baseRemainingAmount?: number
   bizDate?: string
   dueDate?: string
   status: FinanceAccountStatus
@@ -148,6 +164,8 @@ export interface ReceiptCreateRequest {
   receiptMethod: string
   bankAccount?: string
   allocations: ReceiptAllocation[]
+  currencyCode?: string
+  exchangeRate?: number
   remark?: string
 }
 
@@ -214,6 +232,8 @@ export interface PaymentCreateRequest {
   paymentMethod: string
   bankAccount?: string
   allocations: PaymentAllocation[]
+  currencyCode?: string
+  exchangeRate?: number
   remark?: string
 }
 
@@ -254,6 +274,9 @@ const normalizeReceivable = (item: Receivable): Receivable => ({
   receivableAmount: item.receivableAmount ?? item.originalAmount ?? 0,
   receivedAmount: item.receivedAmount ?? item.settledAmount ?? 0,
   remainingAmount: item.remainingAmount ?? 0,
+  currencyCode: item.currencyCode || 'CNY',
+  exchangeRate: Number(item.exchangeRate ?? 1),
+  baseRemainingAmount: Number(item.baseRemainingAmount ?? item.remainingAmount ?? 0),
   createdTime: item.createdTime || '',
   updatedTime: item.updatedTime || ''
 })
@@ -266,6 +289,9 @@ const normalizePayable = (item: Payable): Payable => ({
   payableAmount: item.payableAmount ?? item.originalAmount ?? 0,
   paidAmount: item.paidAmount ?? item.settledAmount ?? 0,
   remainingAmount: item.remainingAmount ?? 0,
+  currencyCode: item.currencyCode || 'CNY',
+  exchangeRate: Number(item.exchangeRate ?? 1),
+  baseRemainingAmount: Number(item.baseRemainingAmount ?? item.remainingAmount ?? 0),
   createdTime: item.createdTime || '',
   updatedTime: item.updatedTime || ''
 })
@@ -306,6 +332,8 @@ const toReceiptPayload = (data: ReceiptCreateRequest) => ({
   customerId: data.customerId,
   receiptDate: data.receiptDate,
   amount: data.receiptAmount,
+  currencyCode: data.currencyCode,
+  exchangeRate: data.exchangeRate,
   remark: data.remark,
   allocations: data.allocations.map((allocation) => ({
     receivableId: allocation.receivableId,
@@ -317,6 +345,8 @@ const toPaymentPayload = (data: PaymentCreateRequest) => ({
   supplierId: data.supplierId,
   paymentDate: data.paymentDate,
   amount: data.paymentAmount,
+  currencyCode: data.currencyCode,
+  exchangeRate: data.exchangeRate,
   remark: data.remark,
   allocations: data.allocations.map((allocation) => ({
     payableId: allocation.payableId,
@@ -654,6 +684,26 @@ export interface AccountPeriodCloseCheck {
   checks?: AccountPeriodCloseCheckItem[]
 }
 
+export interface AccountPeriodCloseSnapshotItem {
+  code: string
+  title: string
+  category: string
+  passed: boolean
+  message: string
+  metric: number
+}
+
+export interface AccountPeriodCloseSnapshot {
+  id: string
+  periodId: string
+  actionType: 'LOCK' | 'CLOSE' | string
+  passed: boolean
+  issueCount: number
+  checkedBy?: string
+  checkedTime?: string
+  items: AccountPeriodCloseSnapshotItem[]
+}
+
 export interface InventoryFinanceReconciliation {
   periodId: string
   periodMonth: string
@@ -723,6 +773,14 @@ export const lockAccountPeriod = (id: string | number) => {
   return request.post<AccountPeriod>(`/finance/periods/${id}/lock`).then(normalizeAccountPeriod)
 }
 
+export const revalueAccountPeriod = (id: string | number) => {
+  return request.post<unknown>(`/finance/periods/${id}/fx-revaluation`)
+}
+
+export const cancelAccountPeriodRevaluation = (id: string | number) => {
+  return request.post<unknown>(`/finance/periods/${id}/fx-revaluation/cancel`)
+}
+
 export const checkAccountPeriodClose = (id: string | number) => {
   return request.get<AccountPeriodCloseCheck>(`/finance/periods/${id}/close-check`)
     .then(normalizeAccountPeriodCloseCheck)
@@ -734,6 +792,11 @@ export const closeAccountPeriod = (id: string | number) => {
 
 export const reopenAccountPeriod = (id: string | number) => {
   return request.post<AccountPeriod>(`/finance/periods/${id}/reopen`).then(normalizeAccountPeriod)
+}
+
+export const getAccountPeriodCloseSnapshots = (id: string | number) => {
+  return request.get<AccountPeriodCloseSnapshot[]>(`/finance/periods/${id}/close-snapshots`)
+    .then((snapshots) => snapshots.map(normalizeAccountPeriodCloseSnapshot))
 }
 
 export const getInventoryFinanceReconciliation = (id: string | number) => {
@@ -779,6 +842,18 @@ const normalizeAccountPeriodCloseCheck = (result: AccountPeriodCloseCheck): Acco
   }))
 })
 
+const normalizeAccountPeriodCloseSnapshot = (snapshot: AccountPeriodCloseSnapshot): AccountPeriodCloseSnapshot => ({
+  ...snapshot,
+  id: String(snapshot.id),
+  periodId: String(snapshot.periodId),
+  issueCount: Number(snapshot.issueCount ?? 0),
+  checkedBy: snapshot.checkedBy != null ? String(snapshot.checkedBy) : undefined,
+  items: (snapshot.items || []).map((item) => ({
+    ...item,
+    metric: Number(item.metric ?? 0)
+  }))
+})
+
 const normalizeInventoryFinanceReconciliation = (
   result: InventoryFinanceReconciliation
 ): InventoryFinanceReconciliation => ({
@@ -814,7 +889,11 @@ export interface Expense {
   expenseDate: string
   subjectId: string | number
   paymentSubjectId: string | number
+  deptId?: string | number
   amount: number
+  budgetLineId?: string
+  budgetState?: string
+  budgetOverrunFlag?: number
   status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'POSTED' | 'CANCELLED' | string
   voucherId?: string
   voucherNo?: string
@@ -844,6 +923,7 @@ export interface ExpenseCreateRequest {
   expenseDate: string
   subjectId: string | number
   paymentSubjectId: string | number
+  deptId?: string | number
   amount: number
   remark?: string
 }
@@ -916,10 +996,157 @@ export const cancelExpense = (id: string | number) => {
   return request.post<Expense>(`/finance/expenses/${id}/cancel`).then(normalizeExpense)
 }
 
+// ==================== 预算管理 ====================
+
+export interface BudgetLine {
+  id?: string
+  periodMonth: number
+  deptId?: string | number
+  subjectId: string | number
+  budgetAmount: number
+  committedAmount: number
+  actualAmount: number
+  availableAmount: number
+  remark?: string
+}
+
+export interface Budget {
+  id: string
+  budgetYear: number
+  budgetName: string
+  controlPolicy: 'REJECT' | 'APPROVAL' | string
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'CLOSED' | 'CANCELLED' | string
+  totalBudgetAmount: number
+  totalCommittedAmount: number
+  totalActualAmount: number
+  totalAvailableAmount: number
+  remark?: string
+  lines: BudgetLine[]
+}
+
+export interface BudgetQuery extends PageQuery {
+  budgetYear?: number
+  status?: string
+  keyword?: string
+}
+
+export interface BudgetLineSaveRequest {
+  periodMonth: number
+  deptId?: string | number
+  subjectId: string | number
+  budgetAmount: number
+  remark?: string
+}
+
+export interface BudgetSaveRequest {
+  budgetYear?: number
+  budgetName: string
+  controlPolicy: string
+  remark?: string
+  lines: BudgetLineSaveRequest[]
+}
+
+export interface BudgetExecutionQuery {
+  budgetYear: number
+  periodMonth: number
+  deptId?: string | number
+  subjectId: string | number
+  amount?: number
+}
+
+export interface BudgetExecution {
+  budgetYear: number
+  periodMonth: number
+  deptId?: string | number
+  subjectId: string | number
+  budgetAmount: number
+  committedAmount: number
+  actualAmount: number
+  availableAmount: number
+  budgetId?: string
+  budgetLineId?: string
+  controlPolicy?: string
+  periodSource: 'MONTHLY' | 'ANNUAL' | 'NONE' | string
+  requestedAmount: number
+  projectedAvailableAmount: number
+  overrun: boolean
+}
+
+const normalizeBudgetLine = (line: BudgetLine): BudgetLine => ({
+  ...line,
+  id: line.id != null ? String(line.id) : undefined,
+  deptId: line.deptId != null ? String(line.deptId) : undefined,
+  subjectId: String(line.subjectId),
+  periodMonth: Number(line.periodMonth ?? 0),
+  budgetAmount: Number(line.budgetAmount ?? 0),
+  committedAmount: Number(line.committedAmount ?? 0),
+  actualAmount: Number(line.actualAmount ?? 0),
+  availableAmount: Number(line.availableAmount ?? 0)
+})
+
+const normalizeBudget = (budget: Budget): Budget => ({
+  ...budget,
+  id: String(budget.id),
+  budgetYear: Number(budget.budgetYear),
+  totalBudgetAmount: Number(budget.totalBudgetAmount ?? 0),
+  totalCommittedAmount: Number(budget.totalCommittedAmount ?? 0),
+  totalActualAmount: Number(budget.totalActualAmount ?? 0),
+  totalAvailableAmount: Number(budget.totalAvailableAmount ?? 0),
+  lines: (budget.lines || []).map(normalizeBudgetLine)
+})
+
+const normalizeBudgetExecution = (result: BudgetExecution): BudgetExecution => ({
+  ...result,
+  budgetYear: Number(result.budgetYear),
+  periodMonth: Number(result.periodMonth),
+  deptId: result.deptId != null ? String(result.deptId) : undefined,
+  subjectId: String(result.subjectId),
+  budgetId: result.budgetId != null ? String(result.budgetId) : undefined,
+  budgetLineId: result.budgetLineId != null ? String(result.budgetLineId) : undefined,
+  budgetAmount: Number(result.budgetAmount ?? 0),
+  committedAmount: Number(result.committedAmount ?? 0),
+  actualAmount: Number(result.actualAmount ?? 0),
+  availableAmount: Number(result.availableAmount ?? 0),
+  requestedAmount: Number(result.requestedAmount ?? 0),
+  projectedAvailableAmount: Number(result.projectedAvailableAmount ?? 0),
+  overrun: Boolean(result.overrun)
+})
+
+export const getBudgets = (params: BudgetQuery) =>
+  request.get<PageResponse<Budget>>('/finance/budgets', { params }).then((page) => ({
+    ...page,
+    records: page.records.map(normalizeBudget)
+  }))
+
+export const getBudget = (id: string | number) =>
+  request.get<Budget>(`/finance/budgets/${id}`).then(normalizeBudget)
+
+export const createBudget = (data: BudgetSaveRequest) =>
+  request.post<Budget>('/finance/budgets', data).then(normalizeBudget)
+
+export const updateBudget = (id: string | number, data: BudgetSaveRequest) =>
+  request.put<Budget>(`/finance/budgets/${id}`, data).then(normalizeBudget)
+
+export const submitBudget = (id: string | number) =>
+  request.post<Budget>(`/finance/budgets/${id}/submit`).then(normalizeBudget)
+
+export const approveBudget = (id: string | number) =>
+  request.post<Budget>(`/finance/budgets/${id}/approve`).then(normalizeBudget)
+
+export const closeBudget = (id: string | number) =>
+  request.post<Budget>(`/finance/budgets/${id}/close`).then(normalizeBudget)
+
+export const cancelBudget = (id: string | number) =>
+  request.post<Budget>(`/finance/budgets/${id}/cancel`).then(normalizeBudget)
+
+export const getBudgetExecution = (params: BudgetExecutionQuery) =>
+  request.get<BudgetExecution>('/finance/budgets/execution', { params }).then(normalizeBudgetExecution)
+
 const toExpensePayload = (data: ExpenseCreateRequest) => ({
   expenseDate: data.expenseDate,
   subjectId: data.subjectId,
   paymentSubjectId: data.paymentSubjectId,
+  deptId: data.deptId,
   amount: data.amount,
   remark: data.remark
 })
@@ -929,6 +1156,9 @@ const normalizeExpense = (expense: Expense): Expense => ({
   id: String(expense.id),
   subjectId: String(expense.subjectId),
   paymentSubjectId: String(expense.paymentSubjectId),
+  deptId: expense.deptId != null ? String(expense.deptId) : undefined,
+  budgetLineId: expense.budgetLineId != null ? String(expense.budgetLineId) : undefined,
+  budgetOverrunFlag: Number(expense.budgetOverrunFlag ?? 0),
   voucherId: expense.voucherId != null ? String(expense.voucherId) : undefined,
   reversalVoucherId: expense.reversalVoucherId != null ? String(expense.reversalVoucherId) : undefined,
   amount: Number(expense.amount ?? 0),
@@ -1079,6 +1309,10 @@ export const deleteManualVoucher = (id: string | number) => {
 // ==================== 发票登记 ====================
 
 export interface FinanceInvoice {
+  currencyCode?: string
+  exchangeRate?: number
+  baseAmount?: number
+  baseTaxAmount?: number
   id: string
   invoiceNo: string
   invoiceType: 'INPUT' | 'OUTPUT' | string
@@ -1101,6 +1335,8 @@ export interface FinanceInvoiceQuery extends PageQuery {
 }
 
 export interface FinanceInvoiceSaveRequest {
+  currencyCode?: string
+  exchangeRate?: number
   invoiceType: string
   partnerName: string
   amount: number
@@ -1143,7 +1379,10 @@ const normalizeFinanceInvoice = (invoice: FinanceInvoice): FinanceInvoice => ({
   id: String(invoice.id),
   relatedBizId: invoice.relatedBizId != null ? String(invoice.relatedBizId) : undefined,
   amount: Number(invoice.amount ?? 0),
-  taxAmount: Number(invoice.taxAmount ?? 0)
+  taxAmount: Number(invoice.taxAmount ?? 0),
+  exchangeRate: invoice.exchangeRate == null ? undefined : Number(invoice.exchangeRate),
+  baseAmount: invoice.baseAmount == null ? undefined : Number(invoice.baseAmount),
+  baseTaxAmount: invoice.baseTaxAmount == null ? undefined : Number(invoice.baseTaxAmount)
 })
 
 // ==================== 账龄分析 ====================
@@ -1167,16 +1406,32 @@ export interface FinanceAgingOpenItem {
   dueDate?: string
   agingDays: number
   bucketCode: string
+  /** 原币未结额 */
   remainingAmount: number
+  currencyCode: string
+  exchangeRate: number
+  /** 本位币未结额，跨币种汇总只能用它 */
+  baseRemainingAmount: number
   status?: string
+}
+
+export interface FinanceAgingCurrencyExposure {
+  currencyCode: string
+  count: number
+  originalAmount: number
+  baseAmount: number
 }
 
 export interface FinanceAgingSummary {
   asOfDate: string
+  /** 账套本位币，总额与账龄桶都是这个口径 */
+  baseCurrencyCode: string
   receivableTotal: number
   payableTotal: number
   receivableBuckets: FinanceAgingBucket[]
   payableBuckets: FinanceAgingBucket[]
+  receivableCurrencyExposures: FinanceAgingCurrencyExposure[]
+  payableCurrencyExposures: FinanceAgingCurrencyExposure[]
   overdueReceivables: FinanceAgingOpenItem[]
   overduePayables: FinanceAgingOpenItem[]
 }
@@ -1186,34 +1441,42 @@ export const getFinanceAgingSummary = (asOfDate?: string) => {
     .get<FinanceAgingSummary>('/finance/aging', { params: asOfDate ? { asOfDate } : undefined })
     .then((summary) => ({
       ...summary,
+      baseCurrencyCode: summary.baseCurrencyCode || 'CNY',
       receivableTotal: Number(summary.receivableTotal ?? 0),
       payableTotal: Number(summary.payableTotal ?? 0),
-      receivableBuckets: (summary.receivableBuckets || []).map((b) => ({
-        ...b,
-        count: Number(b.count ?? 0),
-        amount: Number(b.amount ?? 0)
-      })),
-      payableBuckets: (summary.payableBuckets || []).map((b) => ({
-        ...b,
-        count: Number(b.count ?? 0),
-        amount: Number(b.amount ?? 0)
-      })),
-      overdueReceivables: (summary.overdueReceivables || []).map((item) => ({
-        ...item,
-        id: String(item.id),
-        partnerId: item.partnerId != null ? String(item.partnerId) : item.partnerId,
-        agingDays: Number(item.agingDays ?? 0),
-        remainingAmount: Number(item.remainingAmount ?? 0)
-      })),
-      overduePayables: (summary.overduePayables || []).map((item) => ({
-        ...item,
-        id: String(item.id),
-        partnerId: item.partnerId != null ? String(item.partnerId) : item.partnerId,
-        agingDays: Number(item.agingDays ?? 0),
-        remainingAmount: Number(item.remainingAmount ?? 0)
-      }))
+      receivableBuckets: (summary.receivableBuckets || []).map(normalizeAgingBucket),
+      payableBuckets: (summary.payableBuckets || []).map(normalizeAgingBucket),
+      receivableCurrencyExposures: (summary.receivableCurrencyExposures || []).map(normalizeAgingExposure),
+      payableCurrencyExposures: (summary.payableCurrencyExposures || []).map(normalizeAgingExposure),
+      overdueReceivables: (summary.overdueReceivables || []).map(normalizeAgingOpenItem),
+      overduePayables: (summary.overduePayables || []).map(normalizeAgingOpenItem)
     }))
 }
+
+const normalizeAgingBucket = (bucket: FinanceAgingBucket): FinanceAgingBucket => ({
+  ...bucket,
+  count: Number(bucket.count ?? 0),
+  amount: Number(bucket.amount ?? 0)
+})
+
+const normalizeAgingExposure = (exposure: FinanceAgingCurrencyExposure): FinanceAgingCurrencyExposure => ({
+  ...exposure,
+  currencyCode: exposure.currencyCode || 'CNY',
+  count: Number(exposure.count ?? 0),
+  originalAmount: Number(exposure.originalAmount ?? 0),
+  baseAmount: Number(exposure.baseAmount ?? 0)
+})
+
+const normalizeAgingOpenItem = (item: FinanceAgingOpenItem): FinanceAgingOpenItem => ({
+  ...item,
+  id: String(item.id),
+  partnerId: item.partnerId != null ? String(item.partnerId) : item.partnerId,
+  agingDays: Number(item.agingDays ?? 0),
+  remainingAmount: Number(item.remainingAmount ?? 0),
+  currencyCode: item.currencyCode || 'CNY',
+  exchangeRate: Number(item.exchangeRate ?? 1),
+  baseRemainingAmount: Number(item.baseRemainingAmount ?? item.remainingAmount ?? 0)
+})
 
 // ==================== 往来对账 / 毛利 ====================
 
@@ -1238,6 +1501,7 @@ export interface PartnerStatement {
   totalDecrease: number
   closingBalance: number
   lines: PartnerStatementLine[]
+  baseCurrencyCode?: string
 }
 
 export const getPartnerStatement = (params: {
@@ -1248,6 +1512,7 @@ export const getPartnerStatement = (params: {
 }) => {
   return request.get<PartnerStatement>('/finance/statements', { params }).then((s) => ({
     ...s,
+    baseCurrencyCode: s.baseCurrencyCode || 'CNY',
     partnerId: String(s.partnerId),
     openingBalance: Number(s.openingBalance ?? 0),
     totalIncrease: Number(s.totalIncrease ?? 0),

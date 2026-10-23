@@ -48,7 +48,16 @@ class ReleaseDocumentationConfigurationTest {
                 .contains("ERP_REPORT_MAX_EXPORT_ROWS=")
                 .contains("ERP_REPORT_EXPORT_BATCH_SIZE=")
                 .contains("ERP_PRINCIPAL_CACHE_INVALIDATION_MODE=")
-                .contains("ERP_JWT_REFRESH_TOKEN_TTL_SECONDS=");
+                .contains("ERP_JWT_REFRESH_TOKEN_TTL_SECONDS=")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_ENABLED=")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_LEASE_ENABLED=")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_LEASE_TTL_SECONDS=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_ENABLED=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_FIXED_DELAY_MS=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_INITIAL_DELAY_MS=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_EXPIRATION_WARNING_DAYS=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_LOW_EXECUTION_RATE=")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_SYSTEM_USER_ID=");
 
         assertThat(deployment)
                 .contains("ERP_REDIS_TIMEOUT")
@@ -64,7 +73,41 @@ class ReleaseDocumentationConfigurationTest {
                 .contains("ERP_REPORT_MAX_EXPORT_ROWS")
                 .contains("ERP_REPORT_EXPORT_BATCH_SIZE")
                 .contains("ERP_PRINCIPAL_CACHE_INVALIDATION_MODE")
-                .contains("ERP_JWT_REFRESH_TOKEN_TTL_SECONDS");
+                .contains("ERP_JWT_REFRESH_TOKEN_TTL_SECONDS")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_ENABLED")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_LEASE_ENABLED")
+                .contains("ERP_EXCEPTION_RULE_SCHEDULER_LEASE_TTL_SECONDS")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_ENABLED")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_FIXED_DELAY_MS")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_INITIAL_DELAY_MS")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_EXPIRATION_WARNING_DAYS")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_LOW_EXECUTION_RATE")
+                .contains("ERP_CONTRACT_ALERT_SCHEDULER_SYSTEM_USER_ID");
+    }
+
+    @Test
+    void productionEnvironmentGeneratorKeepsDatasourcePasswordInSyncWithMysqlUser() throws IOException {
+        String envTemplate = Files.readString(Path.of(".env.prod.example"), StandardCharsets.UTF_8);
+        String generator = Files.readString(Path.of("scripts", "new-prod-env.ps1"), StandardCharsets.UTF_8);
+        String deployment = readDoc("production-deployment.md");
+
+        var placeholderKeys = envTemplate.lines()
+                .filter(line -> line.contains("=CHANGE_ME"))
+                .map(line -> line.substring(0, line.indexOf('=')))
+                .toList();
+
+        assertThat(placeholderKeys).isNotEmpty();
+        placeholderKeys.forEach(key -> assertThat(generator).contains("\"" + key + "\" ="));
+
+        assertThat(generator)
+                .contains("$applicationDatabasePassword = New-Secret 40")
+                .contains("\"MYSQL_PASSWORD\" = $applicationDatabasePassword")
+                .contains("\"ERP_DATASOURCE_PASSWORD\" = $applicationDatabasePassword");
+
+        assertThat(deployment)
+                .contains("`MYSQL_PASSWORD`、`ERP_DATASOURCE_PASSWORD`")
+                .contains("必须保持一致")
+                .contains("同一个随机应用数据库密码");
     }
 
     @Test

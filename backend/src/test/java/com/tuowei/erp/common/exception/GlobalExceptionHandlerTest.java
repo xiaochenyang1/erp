@@ -14,6 +14,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.lang.reflect.Method;
 import java.util.Locale;
@@ -26,6 +30,48 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+    @ParameterizedTest
+    @CsvSource({"/missing-static", "/missing-handler"})
+    void missingResourcesReturn404WithoutLeakingInternalPaths(String route) throws Exception {
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new MissingResourceController())
+                .setControllerAdvice(handler)
+                .build();
+
+        mvc.perform(get(route))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("404"))
+                .andExpect(jsonPath("$.message").value("请求的资源不存在"))
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void missingResourceMessageUsesRequestLocale() {
+        ResourceBundleMessageSource messages = new ResourceBundleMessageSource();
+        messages.setBasename("messages");
+        messages.setDefaultEncoding("UTF-8");
+        ReflectionTestUtils.setField(handler, "messageSource", messages);
+        Locale previous = LocaleContextHolder.getLocale();
+        try {
+            LocaleContextHolder.setLocale(Locale.ENGLISH);
+            assertThat(handler.handleNotFound().message()).isEqualTo("Requested resource was not found");
+        } finally {
+            LocaleContextHolder.setLocale(previous);
+        }
+    }
+
+    @RestController
+    static class MissingResourceController {
+        @GetMapping("/missing-static")
+        void missingStatic() throws NoResourceFoundException {
+            throw new NoResourceFoundException(HttpMethod.GET, "private/internal/resource");
+        }
+
+        @GetMapping("/missing-handler")
+        void missingHandler() throws NoHandlerFoundException {
+            throw new NoHandlerFoundException("GET", "/private/internal/route", new HttpHeaders());
+        }
+    }
 
     @ParameterizedTest
     @CsvSource({

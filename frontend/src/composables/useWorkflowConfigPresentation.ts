@@ -9,9 +9,15 @@ export type WorkflowBusinessTypeOption = {
   value: string
 }
 
-/** Labels and option lists for workflow approval configuration. */
+/**
+ * Every business type that submits an approval task through WorkflowCommandService.submit.
+ * Keep it in sync with the backend WorkflowTaskActionService switch, otherwise a submitted
+ * document ends up with no configurable approval nodes and falls back to "anyone holding
+ * workflow:view can approve".
+ */
 export const useWorkflowConfigPresentation = (t: Translate) => {
   const businessTypes = computed<WorkflowBusinessTypeOption[]>(() => [
+    { label: t('workflowConfig.businessTypes.purchaseRequisition'), value: 'PURCHASE_REQUISITION' },
     { label: t('workflowConfig.businessTypes.purchaseOrder'), value: 'PURCHASE_ORDER' },
     { label: t('workflowConfig.businessTypes.salesOrder'), value: 'SALES_ORDER' },
     { label: t('workflowConfig.businessTypes.expense'), value: 'EXPENSE' }

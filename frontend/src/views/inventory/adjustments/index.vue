@@ -114,10 +114,13 @@
         <el-table-column prop="remark" :label="$t('inventoryAdjustments.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="$t('inventoryAdjustments.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="$t('inventoryAdjustments.createdTime')" width="160" />
-        <el-table-column :label="$t('inventoryAdjustments.actions')" width="250" fixed="right">
+        <el-table-column :label="$t('inventoryAdjustments.actions')" width="310" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
               {{ $t('inventoryAdjustments.action.view') }}
+            </el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.adjustmentNo)">
+              {{ $t('documentAttachment.entry') }}
             </el-button>
             <el-button link type="primary" @click="handlePrint(row)">
               {{ $t('inventoryAdjustments.action.print') }}
@@ -385,6 +388,15 @@
         </div>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="INVENTORY_ADJUSTMENT"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -403,13 +415,27 @@ import {
 import { getLocations, getProducts, getWarehouses } from '@/api/masterdata'
 import { serialCaptureProgress } from '@/utils/productLines'
 import { printInventoryAdjustment } from '@/utils/bizPrint'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useInventoryAdjustmentList } from '@/composables/useInventoryAdjustmentList'
 import { useInventoryAdjustmentFormPresentation } from '@/composables/useInventoryAdjustmentPresentation'
 import { useInventoryAdjustmentForm } from '@/composables/useInventoryAdjustmentForm'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
 
 const formRef = ref<FormInstance>()
+
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const {
   dateRange,

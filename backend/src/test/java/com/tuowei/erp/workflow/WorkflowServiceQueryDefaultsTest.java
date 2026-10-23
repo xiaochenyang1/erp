@@ -1,29 +1,19 @@
 package com.tuowei.erp.workflow;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.common.security.CurrentUserContext;
-import com.tuowei.erp.common.security.CurrentUser;
-import com.tuowei.erp.common.web.PageResponse;
-import com.tuowei.erp.system.log.service.SystemLogService;
 import com.tuowei.erp.system.notification.service.NotificationService;
 import com.tuowei.erp.workflow.mapper.WorkflowInstanceMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowRecordMapper;
 import com.tuowei.erp.workflow.mapper.WorkflowTaskMapper;
-import com.tuowei.erp.workflow.model.WorkflowRecordEntity;
-import com.tuowei.erp.workflow.model.WorkflowTaskEntity;
 import com.tuowei.erp.workflow.model.WorkflowInstanceEntity;
 import com.tuowei.erp.workflow.service.WorkflowApprovalConfigService;
+import com.tuowei.erp.workflow.service.WorkflowCommandService;
+import com.tuowei.erp.workflow.service.WorkflowQueryService;
+import com.tuowei.erp.workflow.service.WorkflowRecordCommandService;
 import com.tuowei.erp.workflow.service.WorkflowService;
-import com.tuowei.erp.workflow.web.WorkflowRecordResponse;
-import com.tuowei.erp.workflow.web.WorkflowTaskResponse;
-import com.tuowei.erp.workflow.web.WorkflowTaskPageQuery;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.junit.jupiter.api.BeforeAll;
+import com.tuowei.erp.workflow.service.WorkflowTaskTransitionService;
+import com.tuowei.erp.workflow.model.WorkflowTaskEntity;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -34,9 +24,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Write-side unit tests for {@link WorkflowService}. The read-side behaviour (default pagination,
+ * scoped instance filtering, overdue-only filtering) is now covered by {@link WorkflowQueryServiceTest}
+ * after the E-1 query/posting split; this class keeps the submit-timeout assertion that belongs to the
+ * posting/orchestration side.
+ */
 @SuppressWarnings({"unchecked", "rawtypes"})
 class WorkflowServiceQueryDefaultsTest {
 
@@ -47,111 +44,95 @@ class WorkflowServiceQueryDefaultsTest {
             LocalDateTime.parse("2026-01-02T03:04:05")
     );
 
-    @BeforeAll
-    static void initTableInfo() {
-        initTableInfo(WorkflowTaskEntity.class);
-        initTableInfo(WorkflowRecordEntity.class);
-    }
-
-    @Test
-    void listTasksTreatsNullQueryAsDefaultPagination() {
-        WorkflowTaskMapper taskMapper = mock(WorkflowTaskMapper.class);
-        when(taskMapper.selectPage(any(), any())).thenAnswer(invocation -> {
-            Page<WorkflowTaskEntity> page = invocation.getArgument(0);
-            page.setTotal(1);
-            page.setRecords(List.of(task()));
-            return page;
-        });
-        WorkflowService service = service(taskMapper, mock(WorkflowRecordMapper.class));
-
-        PageResponse<WorkflowTaskResponse> response = service.listTasks(null);
-
-        assertThat(response.pageNo()).isEqualTo(1);
-        assertThat(response.pageSize()).isEqualTo(20);
-        assertThat(response.total()).isEqualTo(1);
-        assertThat(response.records()).extracting(WorkflowTaskResponse::businessNo).containsExactly("SO-001");
-
-        ArgumentCaptor<Page<WorkflowTaskEntity>> pageCaptor = ArgumentCaptor.forClass(Page.class);
-        ArgumentCaptor<LambdaQueryWrapper<WorkflowTaskEntity>> wrapperCaptor = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(taskMapper).selectPage(pageCaptor.capture(), wrapperCaptor.capture());
-        assertDefaultPage(pageCaptor.getValue());
-        assertScopedInstanceSql(wrapperCaptor.getValue());
-    }
-
-    @Test
-    void listRecordsTreatsNullQueryAsDefaultPagination() {
-        WorkflowRecordMapper recordMapper = mock(WorkflowRecordMapper.class);
-        when(recordMapper.selectPage(any(), any())).thenAnswer(invocation -> {
-            Page<WorkflowRecordEntity> page = invocation.getArgument(0);
-            page.setTotal(1);
-            page.setRecords(List.of(record()));
-            return page;
-        });
-        WorkflowService service = service(mock(WorkflowTaskMapper.class), recordMapper);
-
-        PageResponse<WorkflowRecordResponse> response = service.listRecords(null);
-
-        assertThat(response.pageNo()).isEqualTo(1);
-        assertThat(response.pageSize()).isEqualTo(20);
-        assertThat(response.total()).isEqualTo(1);
-        assertThat(response.records()).extracting(WorkflowRecordResponse::businessNo).containsExactly("SO-001");
-
-        ArgumentCaptor<Page<WorkflowRecordEntity>> pageCaptor = ArgumentCaptor.forClass(Page.class);
-        ArgumentCaptor<LambdaQueryWrapper<WorkflowRecordEntity>> wrapperCaptor = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(recordMapper).selectPage(pageCaptor.capture(), wrapperCaptor.capture());
-        assertDefaultPage(pageCaptor.getValue());
-        assertScopedInstanceSql(wrapperCaptor.getValue());
-    }
-
-    @Test
-    void listTasksCanFilterOnlyOverduePendingTasks() {
-        WorkflowTaskMapper taskMapper = mock(WorkflowTaskMapper.class);
-        when(taskMapper.selectPage(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
-        WorkflowTaskPageQuery query = new WorkflowTaskPageQuery();
-        query.setOverdueOnly(true);
-
-        service(taskMapper, mock(WorkflowRecordMapper.class)).listTasks(query);
-
-        ArgumentCaptor<LambdaQueryWrapper<WorkflowTaskEntity>> wrapperCaptor = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(taskMapper).selectPage(any(), wrapperCaptor.capture());
-        String sql = wrapperCaptor.getValue().getSqlSegment().toLowerCase();
-        assertThat(sql).contains("status", "due_time", "<");
-        assertThat(wrapperCaptor.getValue().getParamNameValuePairs().values())
-                .contains("PENDING", AUDIT.now());
-    }
-
     @Test
     void submitUsesBusinessWorkflowTimeoutForNewTaskDeadline() {
         WorkflowInstanceMapper instanceMapper = mock(WorkflowInstanceMapper.class);
         WorkflowTaskMapper taskMapper = mock(WorkflowTaskMapper.class);
         WorkflowApprovalConfigService configService = mock(WorkflowApprovalConfigService.class);
-        CurrentUserContext currentUserContext = mock(CurrentUserContext.class);
-        when(currentUserContext.requireCurrentUser()).thenReturn(new CurrentUser(9L, 101L, 202L, null, null, "tester", "Tester"));
         when(configService.resolveTaskTimeoutHours(any(), any(), anyLong())).thenReturn(6L);
-        WorkflowService service = new WorkflowService(
+        when(configService.resolvePendingApproverUserIds(any(), any(), any())).thenReturn(List.of(77L));
+        // Wire a real WorkflowQueryService with the mocked mappers so the facade's write path
+        // (closeActiveInstanceIfPresent -> findActiveInstance) gets a real scoped query wrapper;
+        // the mocked instanceMapper then returns null and the no-op early-return is taken.
+        WorkflowQueryService queryService = new WorkflowQueryService(
+                instanceMapper, taskMapper, mock(WorkflowRecordMapper.class), auditFactory());
+        WorkflowCommandService commandService = new WorkflowCommandService(
                 instanceMapper, taskMapper, mock(WorkflowRecordMapper.class), auditFactory(),
-                mock(SystemLogService.class), currentUserContext, mock(NotificationService.class),
-                configService, mock(com.tuowei.erp.system.user.mapper.UserMapper.class));
+                mock(NotificationService.class), configService, queryService,
+                mock(WorkflowRecordCommandService.class));
+        WorkflowService service = new WorkflowService(
+                queryService, commandService, mock(WorkflowTaskTransitionService.class));
 
         service.submit("SALES_ORDER", 7001L, "SO-7001", "销售订单 SO-7001", null);
 
         ArgumentCaptor<WorkflowTaskEntity> taskCaptor = ArgumentCaptor.forClass(WorkflowTaskEntity.class);
         verify(taskMapper).insert(taskCaptor.capture());
         assertThat(taskCaptor.getValue().getDueTime()).isEqualTo(AUDIT.now().plusHours(6));
+        assertThat(taskCaptor.getValue().getApproverUserId()).isEqualTo(77L);
         verify(configService).resolveTaskTimeoutHours(any(WorkflowInstanceEntity.class), any(AuditMetadata.class), anyLong());
     }
 
-    private static WorkflowService service(WorkflowTaskMapper taskMapper, WorkflowRecordMapper recordMapper) {
-        return new WorkflowService(
-                mock(WorkflowInstanceMapper.class),
+    @Test
+    void approveHonorsExplicitTaskAssigneeAfterTransfer() {
+        WorkflowInstanceMapper instanceMapper = mock(WorkflowInstanceMapper.class);
+        WorkflowTaskMapper taskMapper = mock(WorkflowTaskMapper.class);
+        WorkflowRecordMapper recordMapper = mock(WorkflowRecordMapper.class);
+        WorkflowApprovalConfigService configService = mock(WorkflowApprovalConfigService.class);
+        NotificationService notificationService = mock(NotificationService.class);
+        WorkflowRecordCommandService recordCommandService = mock(WorkflowRecordCommandService.class);
+        AuditMetadataFactory auditMetadataFactory = auditFactory();
+        WorkflowQueryService queryService = new WorkflowQueryService(
+                instanceMapper,
                 taskMapper,
                 recordMapper,
-                auditFactory(),
-                mock(SystemLogService.class),
-                mock(CurrentUserContext.class),
-                mock(NotificationService.class),
-                mock(WorkflowApprovalConfigService.class),
-                mock(com.tuowei.erp.system.user.mapper.UserMapper.class)
+                auditMetadataFactory
+        );
+        WorkflowCommandService commandService = new WorkflowCommandService(
+                instanceMapper,
+                taskMapper,
+                recordMapper,
+                auditMetadataFactory,
+                notificationService,
+                configService,
+                queryService,
+                recordCommandService
+        );
+        WorkflowService service = new WorkflowService(
+                queryService,
+                commandService,
+                mock(WorkflowTaskTransitionService.class)
+        );
+        WorkflowInstanceEntity instance = new WorkflowInstanceEntity();
+        instance.setId(8001L);
+        instance.setBusinessType("SALES_ORDER");
+        instance.setBusinessId(7001L);
+        instance.setBusinessNo("SO-7001");
+        instance.setSubmitUserId(8L);
+        instance.setStatus("IN_APPROVAL");
+        WorkflowTaskEntity task = new WorkflowTaskEntity();
+        task.setId(9001L);
+        task.setInstanceId(instance.getId());
+        task.setApprovalNodeId(6001L);
+        task.setApproverUserId(AUDIT.userId());
+        task.setStatus("PENDING");
+        when(instanceMapper.selectOne(any())).thenReturn(instance);
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        when(taskMapper.updateById(task)).thenReturn(1);
+        when(instanceMapper.updateById(instance)).thenReturn(1);
+
+        assertThat(service.approve("SALES_ORDER", 7001L, "approved by transferee")).isTrue();
+
+        assertThat(task.getStatus()).isEqualTo("APPROVED");
+        assertThat(instance.getStatus()).isEqualTo("APPROVED");
+        verify(configService, never()).assertCurrentUserCanApprove(any(), any(), any());
+        verify(configService, never()).isAllApprovalMode(any(), any(), any());
+        verify(recordCommandService).record(
+                instance,
+                "APPROVE",
+                6001L,
+                "approved by transferee",
+                AUDIT,
+                AUDIT.now()
         );
     }
 
@@ -159,59 +140,5 @@ class WorkflowServiceQueryDefaultsTest {
         AuditMetadataFactory factory = mock(AuditMetadataFactory.class);
         when(factory.current()).thenReturn(AUDIT);
         return factory;
-    }
-
-    private static void assertDefaultPage(Page<?> page) {
-        assertThat(page.getCurrent()).isEqualTo(1);
-        assertThat(page.getSize()).isEqualTo(20);
-    }
-
-    private static void assertScopedInstanceSql(LambdaQueryWrapper<?> wrapper) {
-        assertThat(wrapper.getSqlSegment().toLowerCase())
-                .contains("wf_approval_instance")
-                .contains("deleted_flag")
-                .contains("company_id = " + AUDIT.companyId())
-                .contains("account_book_id = " + AUDIT.accountBookId())
-                .contains("order by");
-    }
-
-    private static WorkflowTaskEntity task() {
-        WorkflowTaskEntity entity = new WorkflowTaskEntity();
-        entity.setId(1L);
-        entity.setCompanyId(AUDIT.companyId());
-        entity.setAccountBookId(AUDIT.accountBookId());
-        entity.setInstanceId(11L);
-        entity.setBusinessType("SALES_ORDER");
-        entity.setBusinessId(21L);
-        entity.setBusinessNo("SO-001");
-        entity.setTitle("销售订单审批");
-        entity.setStatus("PENDING");
-        entity.setCreatedTime(AUDIT.now());
-        entity.setUpdatedTime(AUDIT.now());
-        return entity;
-    }
-
-    private static WorkflowRecordEntity record() {
-        WorkflowRecordEntity entity = new WorkflowRecordEntity();
-        entity.setId(2L);
-        entity.setCompanyId(AUDIT.companyId());
-        entity.setAccountBookId(AUDIT.accountBookId());
-        entity.setInstanceId(11L);
-        entity.setBusinessType("SALES_ORDER");
-        entity.setBusinessId(21L);
-        entity.setBusinessNo("SO-001");
-        entity.setAction("SUBMIT");
-        entity.setOperatorUserId(AUDIT.userId());
-        entity.setActionTime(AUDIT.now());
-        return entity;
-    }
-
-    private static void initTableInfo(Class<?> entityClass) {
-        if (TableInfoHelper.getTableInfo(entityClass) != null) {
-            return;
-        }
-        MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), entityClass.getName());
-        assistant.setCurrentNamespace(entityClass.getName());
-        TableInfoHelper.initTableInfo(assistant, entityClass);
     }
 }

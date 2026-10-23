@@ -1,10 +1,13 @@
 param(
     [string]$EvidenceIndexPath,
     [string]$EvidenceDirectory,
+    [string]$ExpectedReleaseCandidateCommit,
+    [string]$ReleaseCheckReportPath,
     [switch]$RequireUploadedFallback
 )
 
 $ErrorActionPreference = "Stop"
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 $checks = [System.Collections.Generic.List[object]]::new()
 $failureCount = 0
@@ -53,6 +56,8 @@ function Save-EvidenceIndexVerificationReport {
         evidenceIndexPath = $ResolvedEvidenceIndexPath
         status = $Status
         requireUploadedFallback = $RequireUploadedFallback.IsPresent
+        expectedReleaseCandidateCommit = $ExpectedReleaseCandidateCommit
+        releaseCheckReportPath = $ReleaseCheckReportPath
         failureCount = $failureCount
         failureReason = $FailureReason
         checks = @($checks)
@@ -161,6 +166,113 @@ function Resolve-EvidencePath {
         return (Join-Path $Repository $PathValue)
     }
     return (Join-Path $IndexDirectory $PathValue)
+}
+
+function Get-CurrentRepositoryCommit {
+    Push-Location $RepoRoot
+    try {
+        $commitOutput = & git rev-parse --short HEAD 2>$null
+        if ($LASTEXITCODE -ne 0 -or $null -eq $commitOutput) {
+            return $null
+        }
+
+        $commit = ([string]$commitOutput).Trim()
+        if ([string]::IsNullOrWhiteSpace($commit)) {
+            return $null
+        }
+        return $commit
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function Resolve-ReleaseCheckReportPath {
+    param(
+        [object]$ReleaseCheck,
+        [string]$IndexDirectory,
+        [string]$Repository
+    )
+
+    $pathValue = $ReleaseCheckReportPath
+    if ([string]::IsNullOrWhiteSpace($pathValue)) {
+        $pathValue = [string](Get-ObjectPropertyValue -Object $ReleaseCheck -FieldName "reportPath")
+    }
+    if ([string]::IsNullOrWhiteSpace($pathValue)) {
+        return $null
+    }
+
+    return Resolve-EvidencePath -PathValue $pathValue -IndexDirectory $IndexDirectory -Repository $Repository
+}
+
+function Assert-EvidenceIndexReleaseCandidateCommit {
+    param(
+        [object]$Index,
+        [string]$IndexDirectory,
+        [string]$Repository
+    )
+
+    $releaseCheck = Get-ObjectPropertyValue -Object $Index -FieldName "releaseCheck"
+    if ($null -eq $releaseCheck) {
+        # Keep indexes produced before candidate binding readable; newly generated
+        # indexes always contain this object and take the strict checks below.
+        Add-EvidenceIndexCheck "releaseCheck" "PASSED" "Legacy evidence index has no releaseCheck binding; candidate check was skipped."
+        return
+    }
+
+    $indexCandidate = Assert-EvidenceIndexRequiredField -Object $releaseCheck -FieldName "releaseCandidateCommit" -Context "releaseCheck"
+    if ([string]::IsNullOrWhiteSpace([string]$indexCandidate)) {
+        return
+    }
+    $indexCandidate = ([string]$indexCandidate).Trim()
+
+    $expectedCandidate = $ExpectedReleaseCandidateCommit
+    $expectedSource = "explicit expected candidate"
+    if ([string]::IsNullOrWhiteSpace($expectedCandidate)) {
+        $expectedCandidate = Get-CurrentRepositoryCommit
+        $expectedSource = "current HEAD"
+    }
+    if ([string]::IsNullOrWhiteSpace($expectedCandidate)) {
+        Add-EvidenceIndexCheck "releaseCheck.releaseCandidateCommit binding" "FAILED" "Unable to resolve $expectedSource commit."
+    }
+    elseif ($indexCandidate.Equals(([string]$expectedCandidate).Trim(), [System.StringComparison]::OrdinalIgnoreCase)) {
+        Add-EvidenceIndexCheck "releaseCheck.releaseCandidateCommit binding" "PASSED" "Candidate $indexCandidate matches $expectedSource $(([string]$expectedCandidate).Trim())."
+    }
+    else {
+        Add-EvidenceIndexCheck "releaseCheck.releaseCandidateCommit binding" "FAILED" "Candidate $indexCandidate does not match $expectedSource $(([string]$expectedCandidate).Trim())."
+    }
+
+    $reportPath = Resolve-ReleaseCheckReportPath -ReleaseCheck $releaseCheck -IndexDirectory $IndexDirectory -Repository $Repository
+    if ([string]::IsNullOrWhiteSpace($reportPath)) {
+        Add-EvidenceIndexCheck "releaseCheck report binding" "PASSED" "No release-check report path was declared; candidate was checked against $expectedSource."
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+        Add-EvidenceIndexCheck "releaseCheck report binding" "FAILED" "Declared release-check report does not exist: $reportPath"
+        return
+    }
+
+    try {
+        $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+        Add-EvidenceIndexCheck "releaseCheck report JSON" "PASSED" "Parsed release-check report: $reportPath"
+    }
+    catch {
+        Add-EvidenceIndexCheck "releaseCheck report JSON" "FAILED" "Cannot parse release-check report ${reportPath}: $(($_ | Out-String).Trim())"
+        return
+    }
+
+    $reportCandidate = Assert-EvidenceIndexRequiredField -Object $report -FieldName "releaseCandidateCommit" -Context "releaseCheckReport"
+    if ([string]::IsNullOrWhiteSpace([string]$reportCandidate)) {
+        return
+    }
+    $reportCandidate = ([string]$reportCandidate).Trim()
+    if ($reportCandidate.Equals($indexCandidate, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Add-EvidenceIndexCheck "releaseCheck.releaseCandidateCommit report consistency" "PASSED" "Index candidate matches release-check report candidate $reportCandidate."
+    }
+    else {
+        Add-EvidenceIndexCheck "releaseCheck.releaseCandidateCommit report consistency" "FAILED" "Index candidate $indexCandidate does not match release-check report candidate $reportCandidate."
+    }
 }
 
 function Assert-EvidenceFileExists {
@@ -305,6 +417,7 @@ try {
     }
 
     $repository = [string](Get-ObjectPropertyValue -Object $index -FieldName "repository")
+    Assert-EvidenceIndexReleaseCandidateCommit -Index $index -IndexDirectory $indexDirectory -Repository $repository
 
     $schemaVersion = Assert-EvidenceIndexRequiredField -Object $index -FieldName "schemaVersion" -Context "index"
     if ($null -ne $schemaVersion) {

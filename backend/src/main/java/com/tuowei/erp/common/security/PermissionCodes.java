@@ -19,7 +19,8 @@ public final class PermissionCodes implements
         ExceptionTicketPermissionCodes,
         ExceptionRulePermissionCodes,
         ExceptionSlaPolicyPermissionCodes,
-        QcPermissionCodes {
+        QcPermissionCodes,
+        ContractPermissionCodes {
 
     private static final Set<String> ALL_PERMISSIONS = collectAllPermissions();
 

@@ -26,11 +26,15 @@ const createForm = (overrides: Partial<Parameters<typeof useSalesQuoteForm>[1]> 
     updateSalesQuote: vi.fn(async () => ({})),
     getCustomers: vi.fn(async () => ({
       records: [{ id: 'c1', customerName: 'Acme' } as any],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
     })),
     getProducts: vi.fn(async () => ({
       records: [{ id: 'p1', productCode: 'SKU', productName: 'Item' } as any],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
     })),
     onError: vi.fn(),
     onSuccess: vi.fn(),

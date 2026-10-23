@@ -9,12 +9,17 @@ import com.tuowei.erp.issue.mapper.ExceptionTicketMapper;
 import com.tuowei.erp.issue.rule.mapper.ExceptionRuleHitMapper;
 import com.tuowei.erp.issue.rule.mapper.ExceptionRuleMapper;
 import com.tuowei.erp.issue.rule.model.ExceptionRuleEntity;
+import com.tuowei.erp.issue.rule.web.ExceptionRuleHitPageQuery;
+import com.tuowei.erp.issue.rule.web.ExceptionRulePageQuery;
 import com.tuowei.erp.issue.rule.service.ExceptionRuleScanService;
 import com.tuowei.erp.issue.rule.service.ExceptionRuleService;
+import com.tuowei.erp.issue.rule.service.ExceptionRuleQueryService;
+import com.tuowei.erp.issue.rule.service.ExceptionRuleCommandService;
 import com.tuowei.erp.issue.sla.service.ExceptionSlaPolicyService;
 import com.tuowei.erp.issue.service.ExceptionTicketService;
 import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,12 +36,10 @@ class ExceptionRuleServiceDecompositionTest {
 
     @Test
     void facadeKeepsScanDependenciesBehindDedicatedService() {
-        assertThat(constructorDependencies(ExceptionRuleService.class))
+        assertThat(autowiredConstructorDependencies(ExceptionRuleService.class))
                 .containsExactlyInAnyOrder(
-                        AuditMetadataFactory.class,
-                        ExceptionRuleMapper.class,
-                        ExceptionRuleHitMapper.class,
-                        ExceptionRuleScanService.class
+                        ExceptionRuleQueryService.class,
+                        ExceptionRuleCommandService.class
                 )
                 .doesNotContain(
                         ExceptionTicketMapper.class,
@@ -48,6 +51,22 @@ class ExceptionRuleServiceDecompositionTest {
                         OperationLogMapper.class,
                         Clock.class
                 );
+        assertThat(constructorDependencies(ExceptionRuleQueryService.class))
+                .containsExactlyInAnyOrder(
+                        AuditMetadataFactory.class,
+                        ExceptionRuleMapper.class,
+                        ExceptionRuleHitMapper.class
+                )
+                .doesNotContain(ExceptionRuleService.class, ExceptionRuleCommandService.class,
+                        ExceptionRuleScanService.class);
+        assertThat(constructorDependencies(ExceptionRuleCommandService.class))
+                .containsExactlyInAnyOrder(
+                        AuditMetadataFactory.class,
+                        ExceptionRuleMapper.class,
+                        ExceptionRuleScanService.class,
+                        ExceptionRuleQueryService.class
+                )
+                .doesNotContain(ExceptionRuleService.class, ExceptionRuleHitMapper.class);
         assertThat(constructorDependencies(ExceptionRuleScanService.class))
                 .containsExactlyInAnyOrder(
                         ExceptionRuleMapper.class,
@@ -80,10 +99,21 @@ class ExceptionRuleServiceDecompositionTest {
                 AuditMetadata.class
         ));
         assertRequiredWriteTransaction(ExceptionRuleScanService.class.getDeclaredMethod("scanDueRules"));
+        assertRequiredWriteTransaction(ExceptionRuleService.class.getDeclaredMethod("list", ExceptionRulePageQuery.class));
+        assertReadOnly(ExceptionRuleService.class.getDeclaredMethod("listHits", ExceptionRuleHitPageQuery.class));
+        assertReadOnly(ExceptionRuleQueryService.class.getDeclaredMethod("list", ExceptionRulePageQuery.class));
+        assertReadOnly(ExceptionRuleQueryService.class.getDeclaredMethod("listHits", ExceptionRuleHitPageQuery.class));
     }
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {
         return Arrays.stream(type.getDeclaredConstructors())
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
+                .collect(Collectors.toSet());
+    }
+
+    private Set<Class<?>> autowiredConstructorDependencies(Class<?> type) {
+        return Arrays.stream(type.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
                 .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
                 .collect(Collectors.toSet());
     }
@@ -93,5 +123,11 @@ class ExceptionRuleServiceDecompositionTest {
         assertThat(transactional).isNotNull();
         assertThat(transactional.readOnly()).isFalse();
         assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRED);
+    }
+
+    private void assertReadOnly(Method method) {
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.readOnly()).isTrue();
     }
 }

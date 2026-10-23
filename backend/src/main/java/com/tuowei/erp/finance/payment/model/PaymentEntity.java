@@ -20,6 +20,8 @@ public class PaymentEntity {
     private Long supplierId;
     private LocalDate paymentDate;
     private BigDecimal amount;
+    private String currencyCode; private BigDecimal exchangeRate; private BigDecimal baseAmount;
+    public String getCurrencyCode(){return currencyCode;} public void setCurrencyCode(String v){currencyCode=v;} public BigDecimal getExchangeRate(){return exchangeRate;} public void setExchangeRate(BigDecimal v){exchangeRate=v;} public BigDecimal getBaseAmount(){return baseAmount;} public void setBaseAmount(BigDecimal v){baseAmount=v;}
     private BigDecimal allocatedAmount;
     private String status;
     private Integer deletedFlag;

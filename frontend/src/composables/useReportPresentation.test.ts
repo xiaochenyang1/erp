@@ -24,6 +24,17 @@ const createState = (): ReportState => reactive({
 })
 
 describe('report presentation', () => {
+  it('nets receipt gains against payment losses including rounding and uses the account-book currency', () => {
+    const state = createState()
+    state.records = [
+      { direction: 'RECEIVABLE', fxGainLossAmount: 20, roundingAmount: 0.01 },
+      { direction: 'PAYABLE', fxGainLossAmount: 10, roundingAmount: -0.02 }
+    ] as ReportRecord[]
+    const presentation = useReportPresentation(t, ref('fxGainLoss'), computed(() => state), ref('EUR'))
+    expect(presentation.summaryAmount.value).toBeCloseTo(10.03)
+    expect(presentation.roundingTotal.value).toBeCloseTo(0.03)
+    expect(presentation.formatMoney(10)).toContain('€')
+  })
   it('builds tabs, validates keys and derives page summaries', () => {
     const activeKey = ref<'purchase' | 'sales'>('purchase')
     const state = createState()
@@ -33,12 +44,14 @@ describe('report presentation', () => {
       computed(() => state)
     )
 
-    expect(presentation.reportTabs.value).toHaveLength(5)
+    expect(presentation.reportTabs.value).toHaveLength(8)
     expect(presentation.activeReport.value.key).toBe('purchase')
     expect(presentation.pageCount.value).toBe(3)
     expect(presentation.summaryAmount.value).toBe(100)
     expect(sumReportAmount([])).toBe(0)
     expect(isReportKey('inventoryTransaction')).toBe(true)
+    expect(isReportKey('inventoryValuation')).toBe(true)
+    expect(isReportKey('productionCost')).toBe(true)
     expect(isReportKey('unknown')).toBe(false)
   })
 
@@ -60,6 +73,32 @@ describe('report presentation', () => {
     expect(presentation.reportBusinessTypeLabel('PRODUCTION_COMPLETION'))
       .toBe('financeReportPages.reports.businessTypeValue.productionCompletion')
     expect(presentation.reportBusinessTypeLabel()).toBe('-')
+  })
+
+  it('labels and tags every production cost status the backend derives', () => {
+    const state = createState()
+    const presentation = useReportPresentation(
+      t,
+      ref('productionCost'),
+      computed(() => state)
+    )
+
+    expect(presentation.costStatusLabel('BALANCED'))
+      .toBe('financeReportPages.reports.costStatusValue.balanced')
+    expect(presentation.costStatusLabel('COST_VARIANCE'))
+      .toBe('financeReportPages.reports.costStatusValue.costVariance')
+    expect(presentation.costStatusLabel('WIP'))
+      .toBe('financeReportPages.reports.costStatusValue.wip')
+    expect(presentation.costStatusLabel('NOT_POSTED'))
+      .toBe('financeReportPages.reports.costStatusValue.notPosted')
+    expect(presentation.costStatusLabel('FUTURE')).toBe('FUTURE')
+    expect(presentation.costStatusLabel()).toBe('-')
+
+    expect(presentation.costStatusType('BALANCED')).toBe('success')
+    expect(presentation.costStatusType('COST_VARIANCE')).toBe('warning')
+    expect(presentation.costStatusType('WIP')).toBe('primary')
+    expect(presentation.costStatusType('NOT_POSTED')).toBe('info')
+    expect(presentation.costStatusType()).toBe('info')
   })
 
   it('formats report amounts and quantities with locale helpers', () => {

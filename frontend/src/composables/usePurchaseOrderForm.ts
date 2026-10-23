@@ -1,4 +1,4 @@
-import { computed, reactive, ref, type Ref } from 'vue'
+import { computed, reactive, ref, watch, type Ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 import type {
@@ -12,6 +12,7 @@ type Translate = (key: string, params?: Record<string, unknown>) => string
 type Notify = (message: string) => void
 type PriceLine = PurchaseOrderItem & {
   maxPrice?: number | null
+  baseMaxPrice?: number | null
   priceLevel?: string | null
   auxQty?: number
   auxUnitName?: string
@@ -48,9 +49,12 @@ export const usePurchaseOrderForm = (
   const formRef = ref<FormInstance>()
   const submitLoading = ref(false)
   const form = reactive<PurchaseOrderSaveRequest>({
+    contractId: undefined,
     supplierId: '',
     orderDate: '',
     expectedDate: '',
+    currencyCode: undefined,
+    exchangeRate: undefined,
     items: [],
     remark: ''
   })
@@ -73,12 +77,15 @@ export const usePurchaseOrderForm = (
   }
 
   const resetForm = () => {
+    formRef.value?.resetFields()
     form.supplierId = ''
+    form.contractId = undefined
     form.orderDate = ''
     form.expectedDate = ''
+    form.currencyCode = undefined
+    form.exchangeRate = undefined
     form.items = []
     form.remark = ''
-    formRef.value?.resetFields()
   }
 
   const handleAdd = () => {
@@ -91,8 +98,11 @@ export const usePurchaseOrderForm = (
     editId.value = row.id
     Object.assign(form, {
       supplierId: row.supplierId,
+      contractId: row.contractId,
       orderDate: row.orderDate,
       expectedDate: row.expectedDate,
+      currencyCode: row.currencyCode,
+      exchangeRate: row.exchangeRate,
       items: (row.items || []).map((item) => ({ ...item })),
       remark: row.remark
     })
@@ -105,8 +115,11 @@ export const usePurchaseOrderForm = (
       editId.value = undefined
       Object.assign(form, {
         supplierId: detail.supplierId,
+        contractId: undefined,
         orderDate: options.formatBusinessDate(),
         expectedDate: detail.expectedDate || detail.deliveryDate || '',
+        currencyCode: detail.currencyCode,
+        exchangeRate: detail.exchangeRate,
         remark: t('purchaseOrder.dialog.copiedFrom', { orderNo: detail.orderNo })
           + (detail.remark ? `; ${detail.remark}` : ''),
         items: (detail.items || detail.lines || []).map((item: any) => ({
@@ -153,9 +166,14 @@ export const usePurchaseOrderForm = (
     calculateAmount(item)
   }
 
+  const originalPrice = (basePrice: number) => Number((basePrice / (
+    Number(form.exchangeRate) > 0 ? Number(form.exchangeRate) : 1
+  )).toFixed(2))
+
   const applyResolvedPrice = async (item: PriceLine) => {
     if (!item.productId) {
       item.maxPrice = null
+      item.baseMaxPrice = null
       item.priceLevel = null
       return
     }
@@ -167,9 +185,10 @@ export const usePurchaseOrderForm = (
       })
       if (resolved.matched) {
         if (resolved.listPrice != null) {
-          item.price = Number(resolved.listPrice)
+          item.price = originalPrice(Number(resolved.listPrice))
         }
-        item.maxPrice = resolved.maxPrice != null ? Number(resolved.maxPrice) : null
+        item.baseMaxPrice = resolved.maxPrice != null ? Number(resolved.maxPrice) : null
+        item.maxPrice = item.baseMaxPrice != null ? originalPrice(item.baseMaxPrice) : null
         item.priceLevel = resolved.matchLevel || null
         calculateAmount(item)
         return
@@ -178,6 +197,7 @@ export const usePurchaseOrderForm = (
       // Keep the product master price when resolve fails.
     }
     item.maxPrice = null
+    item.baseMaxPrice = null
     item.priceLevel = null
   }
 
@@ -188,7 +208,7 @@ export const usePurchaseOrderForm = (
     )
     item.productCode = product?.productCode
     item.productName = product?.productName
-    item.price = Number(product?.purchasePrice ?? 0)
+    item.price = originalPrice(Number(product?.purchasePrice ?? 0))
     item.taxRate = Number(product?.taxRate ?? 0) > 1
       ? Number(product?.taxRate ?? 0) / 100
       : Number(product?.taxRate ?? 0)
@@ -229,6 +249,12 @@ export const usePurchaseOrderForm = (
       }
     })
   }
+
+  watch(() => form.exchangeRate, () => {
+    for (const item of form.items as PriceLine[]) {
+      if (item.baseMaxPrice != null) item.maxPrice = originalPrice(item.baseMaxPrice)
+    }
+  })
 
   return {
     applyResolvedPrice,

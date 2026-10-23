@@ -34,6 +34,8 @@ export const useFinanceInvoiceForm = (
   const formData = reactive({
     id: '' as string | number,
     invoiceType: 'INPUT',
+    currencyCode: undefined as string | undefined,
+    exchangeRate: undefined as number | undefined,
     partnerName: '',
     invoiceDate: '',
     amount: 0,
@@ -53,6 +55,8 @@ export const useFinanceInvoiceForm = (
     Object.assign(formData, {
       id: '',
       invoiceType: 'INPUT',
+      currencyCode: undefined,
+      exchangeRate: undefined,
       partnerName: '',
       invoiceDate: '',
       amount: 0,
@@ -76,6 +80,8 @@ export const useFinanceInvoiceForm = (
       Object.assign(formData, {
         id: invoice.id,
         invoiceType: invoice.invoiceType,
+        currencyCode: invoice.currencyCode,
+        exchangeRate: invoice.exchangeRate,
         partnerName: invoice.partnerName,
         invoiceDate: invoice.invoiceDate,
         amount: Number(invoice.amount || 0),
@@ -95,6 +101,8 @@ export const useFinanceInvoiceForm = (
 
   const buildPayload = (): FinanceInvoiceSaveRequest => ({
     invoiceType: formData.invoiceType,
+    currencyCode: formData.currencyCode,
+    exchangeRate: formData.exchangeRate,
     partnerName: formData.partnerName,
     invoiceDate: formData.invoiceDate,
     amount: formData.amount,

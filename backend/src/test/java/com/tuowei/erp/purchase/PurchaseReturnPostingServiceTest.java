@@ -28,6 +28,7 @@ import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnLineEntity;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnPostingService;
 import com.tuowei.erp.purchase.returnorder.service.PurchaseReturnQueryService;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnResponse;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -105,6 +107,9 @@ class PurchaseReturnPostingServiceTest {
 
     @Mock
     private AccountPeriodGuard accountPeriodGuard;
+
+    @Mock
+    private AttachmentService attachmentService;
 
     @BeforeAll
     static void initTableInfo() {
@@ -462,6 +467,22 @@ class PurchaseReturnPostingServiceTest {
         verify(purchaseReturnQueryService, never()).getById(any());
     }
 
+    @Test
+    void postStopsAtAttachmentGateBeforeCheckingAccountingPeriod() {
+        PurchaseReturnEntity entity = purchaseReturn();
+        when(purchaseReturnMapper.selectById(RETURN_ID)).thenReturn(entity);
+        doThrow(new IllegalArgumentException("业务类型 PURCHASE_RETURN 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService)
+                .requireIfConfigured("PURCHASE_RETURN", RETURN_ID);
+
+        assertThatThrownBy(() -> service().post(RETURN_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PURCHASE_RETURN");
+
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        assertNoPostingWrites();
+    }
+
     private PurchaseReturnPostingService service() {
         PurchaseOrderLookupService purchaseOrderLookupService = new PurchaseOrderLookupService(
                 purchaseOrderMapper,
@@ -480,7 +501,8 @@ class PurchaseReturnPostingServiceTest {
                 financePostingService,
                 auditMetadataFactory,
                 purchaseReturnQueryService,
-                accountPeriodGuard
+                accountPeriodGuard,
+                attachmentService
         );
     }
 

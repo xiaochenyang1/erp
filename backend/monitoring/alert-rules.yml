@@ -1,62 +1,11 @@
-# Prometheus告警规则配置
-# 配合 docs/production-readiness-audit.md 使用
+# Prometheus rules for metrics emitted by Spring Boot/Micrometer and the ERP
+# business-health binder. Keep this file in sync with the application metric
+# names; a rule referencing an unregistered metric silently never fires.
 
 groups:
-  - name: erp_server_alerts
+  - name: erp-availability
     interval: 30s
     rules:
-      # ========================================
-      # 基础设施告警
-      # ========================================
-
-      - alert: HighCPUUsage
-        expr: system_cpu_usage > 0.8
-        for: 5m
-        labels:
-          severity: warning
-          component: infrastructure
-        annotations:
-          summary: "CPU使用率过高"
-          description: "实例 {{ $labels.instance }} CPU使用率 {{ $value | humanizePercentage }}，持续5分钟"
-          action: "检查是否有CPU密集型任务，考虑扩容"
-
-      - alert: CriticalCPUUsage
-        expr: system_cpu_usage > 0.95
-        for: 2m
-        labels:
-          severity: critical
-          component: infrastructure
-        annotations:
-          summary: "CPU使用率严重过高"
-          description: "实例 {{ $labels.instance }} CPU使用率 {{ $value | humanizePercentage }}，系统可能无响应"
-          action: "立即扩容或重启过载实例"
-
-      - alert: HighMemoryUsage
-        expr: jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.85
-        for: 5m
-        labels:
-          severity: warning
-          component: jvm
-        annotations:
-          summary: "JVM堆内存使用率过高"
-          description: "实例 {{ $labels.instance }} JVM堆内存使用 {{ $value | humanizePercentage }}"
-          action: "检查是否有内存泄漏，考虑增加堆内存"
-
-      - alert: DiskSpaceLow
-        expr: disk_free_bytes / disk_total_bytes < 0.1
-        for: 10m
-        labels:
-          severity: warning
-          component: infrastructure
-        annotations:
-          summary: "磁盘空间不足"
-          description: "实例 {{ $labels.instance }} 磁盘剩余空间 {{ $value | humanizePercentage }}"
-          action: "清理日志或扩容磁盘"
-
-      # ========================================
-      # 应用健康告警
-      # ========================================
-
       - alert: ServiceDown
         expr: up{job="erp-server"} == 0
         for: 1m
@@ -64,182 +13,137 @@ groups:
           severity: critical
           component: application
         annotations:
-          summary: "ERP服务不可用"
-          description: "实例 {{ $labels.instance }} 已下线超过1分钟"
-          action: "立即检查服务状态，查看日志，必要时重启"
+          summary: ERP service is unavailable
+          description: Prometheus cannot scrape the ERP service for more than one minute.
 
-      - alert: HealthCheckFailed
-        expr: erp_health_status != 1
+      - alert: HighCPUUsage
+        expr: system_cpu_usage{job="erp-server"} > 0.80
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: ERP CPU usage is high
+          description: System CPU usage has remained above 80 percent for five minutes.
+
+      - alert: CriticalCPUUsage
+        expr: system_cpu_usage{job="erp-server"} > 0.95
         for: 2m
         labels:
           severity: critical
-          component: application
+          component: infrastructure
         annotations:
-          summary: "健康检查失败"
-          description: "实例 {{ $labels.instance }} 健康检查失败"
-          action: "检查数据库、Redis等依赖服务"
+          summary: ERP CPU usage is critical
+          description: System CPU usage has remained above 95 percent for two minutes.
 
+      - alert: HighMemoryUsage
+        expr: >-
+          sum by (instance) (jvm_memory_used_bytes{job="erp-server",area="heap"})
+          /
+          clamp_min(sum by (instance) (jvm_memory_max_bytes{job="erp-server",area="heap"}), 1)
+          > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          component: jvm
+        annotations:
+          summary: ERP JVM heap usage is high
+          description: JVM heap usage has remained above 85 percent for five minutes.
+
+      - alert: DiskSpaceLow
+        expr: >-
+          sum by (instance,path) (disk_free_bytes{job="erp-server"})
+          /
+          clamp_min(sum by (instance,path) (disk_total_bytes{job="erp-server"}), 1)
+          < 0.10
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: ERP disk space is low
+          description: Less than ten percent of the monitored filesystem is available.
+
+  - name: erp-application
+    interval: 30s
+    rules:
       - alert: HighErrorRate
-        expr: rate(http_server_requests_seconds_count{status=~"5.."}[5m]) / rate(http_server_requests_seconds_count[5m]) > 0.05
+        expr: >-
+          sum by (instance) (rate(http_server_requests_seconds_count{job="erp-server",status=~"5.."}[5m]))
+          /
+          clamp_min(sum by (instance) (rate(http_server_requests_seconds_count{job="erp-server"}[5m])), 0.001)
+          > 0.05
         for: 3m
         labels:
           severity: warning
           component: application
         annotations:
-          summary: "HTTP 5xx错误率过高"
-          description: "实例 {{ $labels.instance }} 5xx错误率 {{ $value | humanizePercentage }}"
-          action: "查看应用日志，定位错误原因"
+          summary: ERP HTTP 5xx rate is high
+          description: More than five percent of ERP HTTP requests returned a 5xx status for three minutes.
 
-      - alert: SlowRequests
-        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m])) > 5
+      - alert: DatabaseConnectionPoolHigh
+        expr: >-
+          hikaricp_connections_active{job="erp-server"}
+          /
+          clamp_min(hikaricp_connections_max{job="erp-server"}, 1)
+          > 0.80
         for: 5m
         labels:
           severity: warning
-          component: performance
+          component: database
         annotations:
-          summary: "请求响应时间过长"
-          description: "实例 {{ $labels.instance }} P95响应时间 {{ $value }}秒"
-          action: "检查慢查询、慢接口，优化性能"
+          summary: ERP database connection pool is saturated
+          description: An ERP HikariCP pool has used more than 80 percent of its configured connections.
 
-      # ========================================
-      # 业务健康告警
-      # ========================================
+  - name: erp-business-health
+    interval: 30s
+    rules:
+      - alert: ErpReadinessP0P1Unpassed
+        expr: erp_business_health_check_count{check="READINESS_UNPASSED_P0_P1"} > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: release
+        annotations:
+          summary: ERP readiness P0/P1 checks are not fully passed
+          description: One or more P0/P1 readiness items are pending, failed, blocked, or skipped.
 
-      - alert: BusinessHealthDegraded
-        expr: erp_business_health_status{component!="all"} == 0
+      - alert: ErpRecentImportFailures
+        expr: erp_business_health_check_count{check="IMPORT_FAILED_RECENT"} > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: import
+        annotations:
+          summary: ERP import jobs failed in the last 24 hours
+          description: Recent failed import jobs need operator review.
+
+      - alert: ErpNegativeInventoryBalance
+        expr: erp_business_health_check_count{check="NEGATIVE_INVENTORY_BALANCE"} > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: inventory
+        annotations:
+          summary: ERP negative inventory balances exist
+          description: The business-health summary detected negative stock balances.
+
+      - alert: ErpNoOpenAccountingPeriod
+        expr: erp_business_health_check_count{check="OPEN_PERIOD_COUNT"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: finance
+        annotations:
+          summary: ERP has no open accounting period
+          description: The current account book has no OPEN accounting period.
+
+      - alert: ErpBusinessHealthWarn
+        expr: erp_business_health_overall_status > 0
         for: 5m
         labels:
           severity: warning
           component: business
         annotations:
-          summary: "业务组件异常"
-          description: "组件 {{ $labels.component }} 健康状态异常"
-          action: "检查对应业务模块日志和数据"
-
-      - alert: HighRateLimitRejects
-        expr: rate(erp_rate_limit_rejected_total[5m]) > 10
-        for: 5m
-        labels:
-          severity: warning
-          component: security
-        annotations:
-          summary: "API限流触发频繁"
-          description: "实例 {{ $labels.instance }} 每秒拒绝 {{ $value }} 个请求"
-          action: "检查是否有恶意攻击或合法流量激增"
-
-      - alert: AuditLogErrors
-        expr: rate(erp_audit_log_errors_total[5m]) > 1
-        for: 10m
-        labels:
-          severity: warning
-          component: audit
-        annotations:
-          summary: "审计日志记录失败"
-          description: "实例 {{ $labels.instance }} 审计日志记录失败"
-          action: "检查日志文件权限和磁盘空间"
-
-      # ========================================
-      # 数据库告警
-      # ========================================
-
-      - alert: DatabaseConnectionPoolLow
-        expr: hikaricp_connections_active / hikaricp_connections_max > 0.8
-        for: 5m
-        labels:
-          severity: warning
-          component: database
-        annotations:
-          summary: "数据库连接池使用率过高"
-          description: "连接池使用率 {{ $value | humanizePercentage }}"
-          action: "增加连接池大小或优化查询"
-
-      - alert: SlowDatabaseQueries
-        expr: rate(erp_slow_query_total[5m]) > 10
-        for: 5m
-        labels:
-          severity: warning
-          component: database
-        annotations:
-          summary: "慢查询数量过多"
-          description: "每分钟慢查询 {{ $value }} 个"
-          action: "检查慢查询日志，优化SQL或添加索引"
-
-      # ========================================
-      # Redis告警
-      # ========================================
-
-      - alert: RedisConnectionErrors
-        expr: rate(erp_redis_connection_errors_total[5m]) > 0
-        for: 2m
-        labels:
-          severity: critical
-          component: redis
-        annotations:
-          summary: "Redis连接失败"
-          description: "实例 {{ $labels.instance }} Redis连接错误"
-          action: "检查Redis服务状态和网络连接"
-
-      - alert: CacheHitRateLow
-        expr: rate(erp_cache_hits_total[5m]) / (rate(erp_cache_hits_total[5m]) + rate(erp_cache_misses_total[5m])) < 0.7
-        for: 10m
-        labels:
-          severity: info
-          component: performance
-        annotations:
-          summary: "缓存命中率偏低"
-          description: "缓存命中率 {{ $value | humanizePercentage }}"
-          action: "检查缓存配置和TTL设置"
-
-# ========================================
-# AlertManager配置示例
-# 配置文件: alertmanager.yml
-# ========================================
-#
-# global:
-#   resolve_timeout: 5m
-#   smtp_smarthost: 'smtp.example.com:587'
-#   smtp_from: 'alertmanager@example.com'
-#   smtp_auth_username: 'alertmanager@example.com'
-#   smtp_auth_password: 'password'
-#
-# route:
-#   group_by: ['alertname', 'severity']
-#   group_wait: 10s
-#   group_interval: 10s
-#   repeat_interval: 12h
-#   receiver: 'default'
-#   routes:
-#     - match:
-#         severity: critical
-#       receiver: 'critical-alerts'
-#       continue: true
-#     - match:
-#         severity: warning
-#       receiver: 'warning-alerts'
-#
-# receivers:
-#   - name: 'default'
-#     email_configs:
-#       - to: 'team@example.com'
-#
-#   - name: 'critical-alerts'
-#     email_configs:
-#       - to: 'oncall@example.com'
-#         headers:
-#           Subject: '[CRITICAL] {{ .GroupLabels.alertname }}'
-#     webhook_configs:
-#       - url: 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN'
-#         send_resolved: true
-#
-#   - name: 'warning-alerts'
-#     email_configs:
-#       - to: 'team@example.com'
-#         headers:
-#           Subject: '[WARNING] {{ .GroupLabels.alertname }}'
-#
-# inhibit_rules:
-#   - source_match:
-#       severity: 'critical'
-#     target_match:
-#       severity: 'warning'
-#     equal: ['alertname', 'instance']
+          summary: ERP business health is WARN
+          description: At least one ERP business-health check reports WARN.

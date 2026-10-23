@@ -177,6 +177,103 @@ class InventoryReservationPostingServiceTest {
         assertThat(second.getQtyReserved()).isEqualByComparingTo("3.0000");
     }
 
+    @Test
+    void releaseReservationUpdatesReservationAndReleasesLatestLocationFirst() {
+        InventoryReservationPostingService service = new InventoryReservationPostingService(
+                inventoryBalanceMapper,
+                inventoryReservationMapper,
+                inventoryReservationEventMapper
+        );
+        InventoryReservationEntity reservation = reservation("4.0000", "1.0000");
+        InventoryBalanceEntity first = balance(1L, "5.0000", "1.0000");
+        InventoryBalanceEntity second = balance(2L, "5.0000", "3.0000");
+        when(inventoryReservationMapper.selectOne(any())).thenReturn(reservation);
+        when(inventoryReservationMapper.updateById(reservation)).thenReturn(1);
+        when(inventoryBalanceMapper.selectList(any())).thenReturn(List.of(first, second));
+        when(inventoryBalanceMapper.updateById(any(InventoryBalanceEntity.class))).thenReturn(1);
+        AuditMetadata audit = new AuditMetadata(900L, 1L, 2L, LocalDateTime.of(2026, 6, 2, 10, 0));
+
+        service.releaseReservation("SALES_ORDER", 40L, new BigDecimal("2.0000"), audit);
+
+        assertThat(reservation.getReleasedQty()).isEqualByComparingTo("3.0000");
+        assertThat(reservation.getRemainingQty()).isEqualByComparingTo("2.0000");
+        assertThat(reservation.getStatus()).isEqualTo("ACTIVE");
+        assertThat(first.getQtyReserved()).isEqualByComparingTo("1.0000");
+        assertThat(second.getQtyReserved()).isEqualByComparingTo("1.0000");
+
+        ArgumentCaptor<InventoryReservationEventEntity> eventCaptor =
+                ArgumentCaptor.forClass(InventoryReservationEventEntity.class);
+        verify(inventoryReservationEventMapper).insert(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getEventType()).isEqualTo("RELEASE");
+        assertThat(eventCaptor.getValue().getRemainingQtyBefore()).isEqualByComparingTo("4.0000");
+        assertThat(eventCaptor.getValue().getRemainingQtyAfter()).isEqualByComparingTo("2.0000");
+    }
+
+    @Test
+    void restoreReservationReallocatesFromFirstAvailableLocationAndWritesReason() {
+        InventoryReservationPostingService service = new InventoryReservationPostingService(
+                inventoryBalanceMapper,
+                inventoryReservationMapper,
+                inventoryReservationEventMapper
+        );
+        InventoryReservationEntity reservation = reservation("1.0000", "3.0000");
+        InventoryBalanceEntity first = balance(1L, "5.0000", "2.0000");
+        InventoryBalanceEntity second = balance(2L, "5.0000", "0.0000");
+        when(inventoryReservationMapper.selectOne(any())).thenReturn(reservation);
+        when(inventoryReservationMapper.updateById(reservation)).thenReturn(1);
+        when(inventoryBalanceMapper.selectList(any())).thenReturn(List.of(first, second));
+        when(inventoryBalanceMapper.updateById(any(InventoryBalanceEntity.class))).thenReturn(1);
+        AuditMetadata audit = new AuditMetadata(900L, 1L, 2L, LocalDateTime.of(2026, 6, 2, 10, 30));
+
+        service.restoreReservation(
+                "PRODUCTION_ORDER", 40L, new BigDecimal("2.0000"), audit, "生产退料恢复"
+        );
+
+        assertThat(reservation.getReleasedQty()).isEqualByComparingTo("1.0000");
+        assertThat(reservation.getRemainingQty()).isEqualByComparingTo("3.0000");
+        assertThat(reservation.getStatus()).isEqualTo("ACTIVE");
+        assertThat(first.getQtyReserved()).isEqualByComparingTo("4.0000");
+        assertThat(second.getQtyReserved()).isEqualByComparingTo("0.0000");
+
+        ArgumentCaptor<InventoryReservationEventEntity> eventCaptor =
+                ArgumentCaptor.forClass(InventoryReservationEventEntity.class);
+        verify(inventoryReservationEventMapper).insert(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getEventType()).isEqualTo("RESTORE");
+        assertThat(eventCaptor.getValue().getReason()).isEqualTo("生产退料恢复");
+    }
+
+    private InventoryReservationEntity reservation(String remainingQty, String releasedQty) {
+        InventoryReservationEntity reservation = new InventoryReservationEntity();
+        reservation.setId(50L);
+        reservation.setCompanyId(1L);
+        reservation.setAccountBookId(2L);
+        reservation.setWarehouseId(10L);
+        reservation.setProductId(20L);
+        reservation.setSourceType("SALES_ORDER");
+        reservation.setSourceId(30L);
+        reservation.setSourceNo("SO-001");
+        reservation.setSourceLineId(40L);
+        reservation.setReservedQty(new BigDecimal("5.0000"));
+        reservation.setReleasedQty(new BigDecimal(releasedQty));
+        reservation.setRemainingQty(new BigDecimal(remainingQty));
+        reservation.setStatus("ACTIVE");
+        reservation.setVersion(0);
+        return reservation;
+    }
+
+    private InventoryBalanceEntity balance(Long id, String qtyOnHand, String qtyReserved) {
+        InventoryBalanceEntity balance = new InventoryBalanceEntity();
+        balance.setId(id);
+        balance.setCompanyId(1L);
+        balance.setAccountBookId(2L);
+        balance.setWarehouseId(10L);
+        balance.setProductId(20L);
+        balance.setQtyOnHand(new BigDecimal(qtyOnHand));
+        balance.setQtyReserved(new BigDecimal(qtyReserved));
+        balance.setVersion(0);
+        return balance;
+    }
+
     private void assertTenantScoped(AbstractWrapper<?, ?, ?> wrapper) {
         assertThat(wrapper.getSqlSegment().toLowerCase(Locale.ROOT))
                 .contains("company_id")

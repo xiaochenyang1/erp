@@ -69,8 +69,8 @@ class ReceivableQueryServiceExportTest {
         service.exportReceivables(query).writeTo(outputStream);
 
         String csv = outputStream.toString(StandardCharsets.UTF_8);
-        assertThat(csv).startsWith("\uFEFFreceivableNo,customerId,bizDate,sourceType,sourceNo,direction,originalAmount,settledAmount,remainingAmount,status,remark\r\n");
-        assertThat(csv).contains("AR-2026-001,5001,2026-05-18,SALES_ORDER,SO-2026-001,INCREASE,100.00,20.00,80.00,UNSETTLED,export test\r\n");
+        assertThat(csv).startsWith("\uFEFFreceivableNo,customerId,bizDate,dueDate,sourceType,sourceNo,direction,originalAmount,settledAmount,remainingAmount,status,remark\r\n");
+        assertThat(csv).contains("AR-2026-001,5001,2026-05-18,2026-05-18,SALES_ORDER,SO-2026-001,INCREASE,100.00,20.00,80.00,UNSETTLED,export test\r\n");
         verify(financeSettlementScopeSupport).applyReceivableScope(any());
         verify(receivableMapper).selectList(any());
     }

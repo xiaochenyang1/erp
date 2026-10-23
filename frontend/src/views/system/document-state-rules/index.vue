@@ -18,7 +18,7 @@
             :placeholder="$t('documentStateRules.keywordPlaceholder')"
             clearable
             style="width: 200px"
-            @keyup.enter="() => {}"
+            @keyup.enter="loadData"
           />
         </el-form-item>
         <el-form-item>
