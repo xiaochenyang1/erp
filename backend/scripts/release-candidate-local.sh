@@ -53,10 +53,12 @@ run_gate backend-release "${backend_root}" ./scripts/test-local.sh --release-che
 cp "${backend_root}/target/erp-server-1.0.0.jar" "${evidence_root}/"
 cp "${backend_root}/target/bom.json" "${evidence_root}/"
 cp "${backend_root}/target/classes/META-INF/sbom/application.cdx.json" "${evidence_root}/"
-for task in type-check lint test check:contracts build; do
+for task in type-check lint test check:contracts test:release; do
   run_gate "frontend-${task//:/-}" "${repo_root}/frontend" npm run "${task}"
 done
-cp -R "${repo_root}/frontend/dist" "${evidence_root}/frontend-dist"
+run_gate frontend-build "${repo_root}/frontend" npm run release:build -- --output "${evidence_root}/frontend"
+run_gate frontend-artifact-verify "${repo_root}/frontend" npm run release:verify -- \
+  --artifact "${evidence_root}/frontend" --expected-revision "${candidate}"
 run_gate monitoring-config "${backend_root}" ./scripts/verify-monitoring.sh
 run_gate monitoring-runtime "${backend_root}" node scripts/monitoring-runtime-smoke.mjs
 run_gate ui-and-api "${backend_root}" env UI_SMOKE_ROUTES=1 UI_SMOKE_WORKFLOW= \
@@ -114,7 +116,7 @@ for (const dir of runtimeReports) {
 const paths = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean)
 const files = Object.fromEntries(paths.map(p => [p, createHash('sha256').update(readFileSync(`${root}/${p}`)).digest('hex')]))
 writeFileSync(`${evidence}/source-sha256.json`, JSON.stringify({head, dirtyWorktree: false, files}, null, 2) + '\n')
-const artifacts = Object.fromEntries(['erp-server-1.0.0.jar', 'bom.json', 'application.cdx.json'].map(p => [p, createHash('sha256').update(readFileSync(`${evidence}/${p}`)).digest('hex')]))
+const artifacts = Object.fromEntries(['erp-server-1.0.0.jar', 'bom.json', 'application.cdx.json', 'frontend/manifest.json'].map(p => [p, createHash('sha256').update(readFileSync(`${evidence}/${p}`)).digest('hex')]))
 writeFileSync(`${evidence}/artifact-sha256.json`, JSON.stringify(artifacts, null, 2) + '\n')
 JS
 completed=true

@@ -54,6 +54,7 @@ class CiWorkflowConfigurationTest {
                 .contains("backend/target/release-check-report.json")
                 .contains("backend/target/release-check-report.md")
                 .contains("backend/target/surefire-reports/**")
+                .contains("retention-days: 90")
                 .contains("if-no-files-found: warn");
         assertThat(content)
                 .doesNotContain("verify-release-check-report.ps1 -ReportDirectory target -AllowFailed")
@@ -102,10 +103,30 @@ class CiWorkflowConfigurationTest {
                 .contains("npm run lint")
                 .contains("npm test")
                 .contains("npm run check:contracts")
-                .contains("npm run build")
+                .contains("npm run test:release")
+                .contains("npm run release:build")
+                .contains("npm run release:verify -- --artifact release-artifacts --expected-revision \"$CANDIDATE_REVISION\"")
+                .contains("name: erp-frontend-release-artifacts")
+                .contains("path: frontend/release-artifacts/")
+                .contains("retention-days: 90")
+                .contains("actions/download-artifact@v8")
+                .contains("artifact-ids: ${{ steps.upload-artifact.outputs.artifact-id }}")
+                .contains("MANIFEST_SHA256: ${{ steps.verify-artifact.outputs.manifest-sha256 }}")
+                .contains("--expected-manifest-sha256 \"$MANIFEST_SHA256\"")
+                .contains("if-no-files-found: error")
                 .contains("npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org")
                 .doesNotContain("actions/checkout@v4")
                 .doesNotContain("actions/setup-node@v4");
+        assertThat(content.indexOf("npm run release:build"))
+                .isLessThan(content.indexOf("npm audit --omit=dev"));
+        assertThat(content.indexOf("npm audit --omit=dev"))
+                .isLessThan(content.indexOf("npm run release:verify"));
+        assertThat(content.indexOf("npm run release:verify"))
+                .isLessThan(content.indexOf("actions/upload-artifact@v7"));
+        assertThat(content.indexOf("actions/upload-artifact@v7"))
+                .isLessThan(content.indexOf("actions/download-artifact@v8"));
+        assertThat(content.indexOf("actions/download-artifact@v8"))
+                .isLessThan(content.indexOf("--expected-manifest-sha256"));
         assertThat(Path.of(".github", "workflows", "pr-verify.yml")).doesNotExist();
         assertThat(Path.of("..", "frontend", ".github", "workflows", "frontend-verify.yml")).doesNotExist();
     }

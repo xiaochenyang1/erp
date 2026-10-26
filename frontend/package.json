@@ -11,6 +11,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "release:build": "node scripts/release-artifact.mjs build",
+    "release:verify": "node scripts/release-artifact.mjs verify",
+    "test:release": "node --test scripts/release-artifact.test.mjs",
     "type-check": "vue-tsc --noEmit --skipLibCheck",
     "test": "vitest run",
     "test:watch": "vitest",

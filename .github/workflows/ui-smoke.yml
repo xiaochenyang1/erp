@@ -205,7 +205,7 @@ jobs:
         with:
           name: erp-ui-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 90
           path: |
             backend/target/ui-smoke-report.json
             backend/target/ui-smoke-cleanup.json

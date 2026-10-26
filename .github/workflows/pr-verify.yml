@@ -117,7 +117,7 @@ jobs:
         with:
           name: erp-server-release-artifacts
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 90
           path: |
             backend/target/erp-server-1.0.0.jar
             backend/target/classes/META-INF/sbom/application.cdx.json

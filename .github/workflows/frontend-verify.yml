@@ -96,8 +96,44 @@ jobs:
       - name: Contract checks
         run: npm run check:contracts
 
-      - name: Build
-        run: npm run build
+      - name: Release artifact regression tests
+        run: npm run test:release
+
+      - name: Build release artifact
+        run: npm run release:build
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
+
+      - name: Verify frontend release artifact
+        id: verify-artifact
+        env:
+          CANDIDATE_REVISION: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          npm run release:verify -- --artifact release-artifacts --expected-revision "$CANDIDATE_REVISION"
+          echo "manifest-sha256=$(sha256sum release-artifacts/manifest.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload frontend release artifact
+        id: upload-artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: erp-frontend-release-artifacts
+          if-no-files-found: error
+          retention-days: 90
+          path: frontend/release-artifacts/
+
+      - name: Download uploaded frontend release artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.upload-artifact.outputs.artifact-id }}
+          path: ${{ runner.temp }}/frontend-release-roundtrip
+          merge-multiple: true
+
+      - name: Verify downloaded frontend release artifact
+        env:
+          CANDIDATE_REVISION: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ARTIFACT_DIRECTORY: ${{ runner.temp }}/frontend-release-roundtrip
+          MANIFEST_SHA256: ${{ steps.verify-artifact.outputs.manifest-sha256 }}
+        run: |
+          npm run release:verify -- --artifact "$ARTIFACT_DIRECTORY" \
+            --expected-revision "$CANDIDATE_REVISION" --expected-manifest-sha256 "$MANIFEST_SHA256"

@@ -19,6 +19,7 @@ backend/*.ipr
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
+frontend/release-artifacts/
 frontend/.npm-cache/
 frontend/*.local
 frontend/*.tsbuildinfo
