@@ -24,7 +24,7 @@ export ERP_UI_SMOKE_DATASOURCE_USERNAME="root"
 export ERP_UI_SMOKE_DATASOURCE_PASSWORD="ui_smoke_disposable_password"
 
 [[ -f "${backend_root}/target/erp-server-1.0.0.jar" ]] || { echo 'Build the backend package before running UI smoke.' >&2; exit 1; }
-node --test "${script_dir}/ui-smoke-cdp.test.mjs" "${script_dir}/ui-smoke-processes.test.mjs"
+node --test "${script_dir}/ui-smoke-cdp.test.mjs" "${script_dir}/ui-smoke-processes.test.mjs" "${script_dir}/ui-smoke-readiness.test.mjs"
 if [[ "${UI_SMOKE_FRONTEND_MODE}" == preview ]]; then
   npm --prefix "${backend_root}/../frontend" run build
 fi
@@ -64,8 +64,8 @@ start_backend() {
   bootstrap_pid=$!
   for attempt in $(seq 1 120); do
     kill -0 "${bootstrap_pid}" 2>/dev/null || { tail -30 "$1"; exit 1; }
-    if curl --fail --silent "${ERP_UI_SMOKE_BACKEND_URL}/actuator/health" >/dev/null; then break; fi
-    [[ "${attempt}" -lt 120 ]] || { echo 'UI smoke backend did not become healthy.' >&2; exit 1; }
+    if curl --fail --silent --max-time 2 "${ERP_UI_SMOKE_BACKEND_URL}/actuator/health/readiness" >/dev/null; then break; fi
+    [[ "${attempt}" -lt 120 ]] || { echo 'UI smoke backend did not become ready.' >&2; exit 1; }
     sleep 1
   done
 }

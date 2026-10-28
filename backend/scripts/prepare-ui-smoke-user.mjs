@@ -1,3 +1,5 @@
+import { waitForBackendReadiness } from './ui-smoke-readiness.mjs'
+
 const backendUrl = (process.env.ERP_UI_SMOKE_BACKEND_URL || 'http://127.0.0.1:8081').replace(/\/$/, '')
 const adminPassword = process.env.ERP_LOCAL_ADMIN_PASSWORD || 'LocalAdmin123'
 const smokePassword = process.env.ERP_UI_SMOKE_RUNTIME_PASSWORD || 'RuntimeSmoke123'
@@ -25,6 +27,10 @@ async function apiRequest(method, path, { token, body } = {}) {
 }
 
 async function main() {
+  await waitForBackendReadiness(backendUrl, {
+    timeoutMs: Number(process.env.ERP_UI_SMOKE_BACKEND_TIMEOUT_MS || 90000)
+  })
+  process.stdout.write('Backend readiness is UP; preparing the UI smoke submitter.\n')
   const login = await apiRequest('POST', '/api/auth/login', {
     body: { username: 'admin', password: adminPassword }
   })

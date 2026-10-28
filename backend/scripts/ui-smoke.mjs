@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { spawnSmokeProcess, cleanupSmokeProcesses } from './ui-smoke-processes.mjs'
 import { connectCdpSocket, pageConditionExpression } from './ui-smoke-cdp.mjs'
+import { waitForBackendReadiness } from './ui-smoke-readiness.mjs'
 import { runMrpUiSmoke } from './mrp-ui-smoke.mjs'
 import { runCurrencyDocumentsUiSmoke, runRoundingReportUiSmoke } from './currency-document-ui-smoke.mjs'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
@@ -6845,7 +6846,7 @@ async function main() {
     `--erp.security.cors.allowed-origins=http://127.0.0.1:${frontendPort}`
   ], backendDir)
 
-  await waitFor('backend', `${backendBaseUrl}/actuator/health`, backendTimeoutMs)
+  await waitForBackendReadiness(backendBaseUrl, { timeoutMs: backendTimeoutMs })
   const { credentials, auth } = await login()
 
   process.env.ERP_API_PROXY_TARGET = backendBaseUrl
