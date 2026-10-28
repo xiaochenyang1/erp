@@ -1,0 +1,98 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      MYSQL_DATABASE: erp_server
+      MYSQL_USER: erp_app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Initialize the private .env file}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Initialize the private .env file}
+      TZ: Asia/Shanghai
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci", "--default-time-zone=+08:00"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -uerp_app erp_server -e 'SELECT 1' >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      ERP_REDIS_PASSWORD: ${ERP_REDIS_PASSWORD:?Initialize the private .env file}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$ERP_REDIS_PASSWORD\""]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$ERP_REDIS_PASSWORD\" redis-cli ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  erp-server:
+    build: ./backend
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      ERP_DATASOURCE_URL: jdbc:mysql://mysql:3306/erp_server?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      ERP_DATASOURCE_USERNAME: erp_app
+      ERP_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?Initialize the private .env file}
+      ERP_REDIS_HOST: redis
+      ERP_REDIS_PORT: 6379
+      ERP_REDIS_PASSWORD: ${ERP_REDIS_PASSWORD:?Initialize the private .env file}
+      ERP_JWT_SECRET: ${ERP_JWT_SECRET:?Initialize the private .env file}
+      ERP_BOOTSTRAP_ADMIN_PASSWORD: ${ERP_BOOTSTRAP_ADMIN_PASSWORD:?Initialize the private .env file}
+      ERP_CORS_ALLOWED_ORIGINS: ${ERP_PUBLIC_ORIGIN:?Set the actual public origin}
+      ERP_TRUSTED_PROXIES: ${ERP_TRUSTED_PROXIES:-}
+      ERP_ATTACHMENT_STORAGE_ROOT: /var/lib/erp-server/attachments
+      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 20MB
+      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 21MB
+    volumes:
+      - attachments:/var/lib/erp-server/attachments
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --max-time 3 http://127.0.0.1:8080/actuator/health/readiness | grep '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    logging: *logging
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    ports:
+      - "${ERP_HTTP_BIND_HOST:-127.0.0.1}:${ERP_HTTP_PORT:-8080}:8080"
+    depends_on:
+      erp-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/readyz | grep '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mysql-data:
+  redis-data:
+  attachments:
