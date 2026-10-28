@@ -34,6 +34,8 @@ docker compose -p erp-preprod --env-file .env -f compose.yaml up -d --build --wa
 
 初始化仅生成 `0600` 私有配置，拒绝覆盖、不输出凭据。部署细节和停止/升级注意事项在包内 `README.md`；目标域名、TLS、代理信任范围和实际岗位/数据仍需绑定。不要把本机默认 Origin 当作真实预生产环境。
 
+本机新库需要可操作样例时，继续使用 [采销与财务演示](LOCAL-BUSINESS-TRIAL.md)，生成受限录单账号和保留的业务单据，核对分次收付款及库存结余。
+
 ## 隔离运行验证
 
 ```bash

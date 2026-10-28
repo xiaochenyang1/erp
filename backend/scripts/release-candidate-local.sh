@@ -47,7 +47,7 @@ run_gate frontend-audit "${repo_root}/frontend" npm audit --omit=dev --audit-lev
 run_gate rehearsal-command-tests "${backend_root}" node --test scripts/production-rehearsal.test.mjs
 run_gate fq-config-tests "${backend_root}" node --test scripts/fq-signoff-config.test.cjs
 run_gate fq-period-tests "${backend_root}" node --test scripts/fq-period-lock-check.test.cjs
-run_gate deployment-bundle-tests "${backend_root}" node --test scripts/deployment-bundle.test.mjs
+run_gate deployment-bundle-tests "${backend_root}" node --test scripts/deployment-bundle.test.mjs scripts/trial-business-acceptance.test.mjs
 run_gate backend-release "${backend_root}" ./scripts/test-local.sh --release-check \
   -MavenRepoLocal "${ERP_MAVEN_REPO_LOCAL:-${HOME}/.m2/repository}" \
   -ReportDirectory "${evidence_root}/release-check"
