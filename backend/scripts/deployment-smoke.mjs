@@ -65,7 +65,7 @@ async function browserCheck(base, password, directory, evidence, children) {
     assert(!result.exceptionDetails, 'Browser evaluation failed')
     return result.result.value
   }
-  const wait = expression => until(async () => assert.equal(await evaluate(`Boolean(document.body) && (${expression})`), true), 30000)
+  const wait = expression => until(async () => assert.equal(await evaluate(`Boolean(document.body) && (${expression})`), true, expression), 30000)
   try {
     await cdp.send('Page.enable'); await cdp.send('Runtime.enable')
     await cdp.send('Page.navigate', { url: `${base}/sales/orders` })
@@ -86,13 +86,20 @@ async function browserCheck(base, password, directory, evidence, children) {
     for (const [route, text] of routes) {
       await cdp.send('Page.navigate', { url: base + route })
       await wait(`location.pathname === ${JSON.stringify(route)} && document.body.innerText.includes(${JSON.stringify(text)})`)
+      await evaluate('window.__deploymentReloadMarker = true')
       await cdp.send('Page.reload', { ignoreCache: true })
-      await wait(`location.pathname === ${JSON.stringify(route)} && document.body.innerText.includes(${JSON.stringify(text)})`)
+      await wait(`window.__deploymentReloadMarker !== true && document.readyState === 'complete' && location.pathname === ${JSON.stringify(route)} && document.body.innerText.includes(${JSON.stringify(text)})`)
     }
     assert.deepEqual(errors, [], 'Browser runtime errors')
     const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' })
     await writeFile(path.join(evidence, 'browser.png'), Buffer.from(screenshot.data, 'base64'))
     return { loginThroughUi: true, protectedDeepLink: true, refreshedRoutes: routes.map(([route]) => route), runtimeErrors: errors }
+  } catch (error) {
+    try {
+      const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' })
+      await writeFile(path.join(evidence, 'browser-failure.png'), Buffer.from(screenshot.data, 'base64'))
+    } catch { /* Preserve the original browser failure if the process is already gone. */ }
+    throw error
   } finally { cdp.close() }
 }
 
