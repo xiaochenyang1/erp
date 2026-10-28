@@ -181,7 +181,7 @@ export async function runTrial({ bundleDirectory, expectedManifestSha256, projec
       const dept = await create('department', '/api/system/depts', { deptCode: prefix, deptName: `演示业务部 ${suffix}`, parentId: 0, sortNo: 99, remark })
       warehouse = await create('warehouse', '/api/masterdata/warehouses', { warehouseCode: prefix, warehouseName: `演示仓 ${suffix}`, deptId: dept.id, managerUserId: report.adminUserId, remark })
       supplier = await create('supplier', '/api/masterdata/suppliers', { supplierCode: prefix, supplierName: `演示供应商 ${suffix}`, settlementMethod: 'BANK', remark })
-      customer = await create('customer', '/api/masterdata/customers', { customerCode: prefix, customerName: `演示客户 ${suffix}`, settlementMethod: 'BANK', remark })
+      customer = await create('customer', '/api/masterdata/customers', { customerCode: prefix, customerName: `演示客户 ${suffix}`, customerType: 'ENTERPRISE', settlementMethod: 'BANK', creditLimit: 1000, remark })
       product = await create('product', '/api/masterdata/products', { productCode: prefix, productName: `演示商品 ${suffix}`, productType: 'GOODS', categoryName: '演示', unitName: '件', purchasePrice: 10, salePrice: 15, taxRate: 0, lotControlled: false, shelfLifeControlled: false, remark })
       return { warehouseId: warehouse.id, productId: product.id }
     })
