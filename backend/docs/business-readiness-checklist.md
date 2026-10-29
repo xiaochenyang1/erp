@@ -46,7 +46,7 @@
 ## 当前候选状态
 
 - 预生产执行人先用 `git rev-parse HEAD` 记录最终 commit，并用 `git status --short --branch` 确认工作树干净。应用制品与部署工具分别记录版本和摘要，不能用旧报告证明新候选通过。
-- 完整本地候选入口是 `scripts/release-candidate-local.sh /absolute/new/evidence-directory`，包含 Docker/Testcontainers 发布检查、前端审计与制品、监控、浏览器及财务/质检技术预检。测试数量和结果以该候选独立证据目录为准。
+- 完整本地候选入口是 `scripts/release-candidate-local.sh /absolute/new/evidence-directory`，包含 Docker/Testcontainers 发布检查、前端审计与制品、监控、浏览器及财务/质检技术预检。测试数量、失败数以最新命令输出为准，并将原始输出保存到该候选独立证据目录。
 - [完整部署回归](FULLSTACK-DEPLOYMENT.md)使用 Docker 启动一次性 MySQL、Redis、prod 后端和 Nginx，并执行真实采销 API、结余和受限账号校验。交互式本机试用另按[采销演示](LOCAL-BUSINESS-TRIAL.md)保留样例；隔离回归和本机试用均不能替代目标环境验收。
 
 ## 发布边界冻结
