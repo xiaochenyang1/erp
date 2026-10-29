@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
-import { cp, mkdir, mkdtemp, readFile, writeFile, appendFile, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, writeFile, appendFile, realpath, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -13,6 +13,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { verifyDeploymentBundle, initializeDeployment } from './deployment-bundle.mjs'
 import { connectCdpSocket } from './ui-smoke-cdp.mjs'
 import { spawnSmokeProcess, cleanupSmokeProcesses } from './ui-smoke-processes.mjs'
+import { runTrial } from './trial-business-acceptance.mjs'
 
 const execute = promisify(execFile)
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -112,9 +113,9 @@ async function main() {
   const evidence = path.resolve(values.evidence)
   assert(evidence !== repo && !evidence.startsWith(repo + path.sep), 'Evidence must be outside the source tree')
   await mkdir(evidence, { mode: 0o700 }) // Refuse to overwrite previous evidence.
-  const directory = await mkdtemp(path.join(tmpdir(), 'erp-deployment-smoke-'))
+  const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'erp-deployment-smoke-')))
   const work = path.join(directory, 'bundle')
-  const project = `erp-deployment-${randomBytes(6).toString('hex')}`
+  const project = `erp-preview-deployment-${randomBytes(6).toString('hex')}`
   const holder = `${project}-ip-holder`
   const children = []
   const report = { status: 'RUNNING', startedAt: new Date().toISOString(), ...verified,
@@ -235,6 +236,25 @@ async function main() {
       assert.equal(response.status, 200); assert.equal(hash(Buffer.from(await response.arrayBuffer())), hash(attachment))
       await api(`/api/system/attachments/${attachmentId}`, { method: 'DELETE' })
       return { oldBackendIp: endpoint.IPAddress, newBackendIp: newIp, sameNginxContainer: true, attachmentPreserved: true }
+    })
+    await check('Purchase payment sales receipt and restricted-user business trial', async () => {
+      const trialEvidence = path.join(evidence, 'business-trial')
+      const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai',
+        year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      try {
+        const trial = await runTrial({ bundleDirectory: work, expectedManifestSha256: verified.manifestSha256,
+          project, outputDirectory: trialEvidence, date })
+        assert.equal(trial.status, 'PASSED')
+        const details = JSON.parse(await readFile(path.join(trialEvidence, 'report.json')))
+        assert.equal(details.sourceRevision, report.runtimeToolRevision)
+        assert.equal(details.applicationRevision, report.applicationRevision)
+        return { checks: trial.checks, report: 'business-trial/report.json', retainedForInteractiveUse: false }
+      } finally {
+        // This database is disposable; preserve results but never archive trial credentials
+        // or instructions referring to an account removed during the parent cleanup.
+        await rm(path.join(trialEvidence, 'private-account.json'), { force: true })
+        await rm(path.join(trialEvidence, 'HANDOFF.md'), { force: true })
+      }
     })
     verifyDeploymentBundle({ bundleDirectory: values.bundle, expectedManifestSha256: values['expected-manifest-sha256'] })
     report.status = 'PASSED'

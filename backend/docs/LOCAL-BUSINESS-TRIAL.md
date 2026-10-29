@@ -41,3 +41,7 @@ node backend/scripts/trial-business-acceptance.mjs \
 - 写请求不自动重试。中途失败记录 `FAILED` 和 `activeStep`，保留已创建对象；如果请求结果不明确，按演示标记和操作日志核对后再处理。脚本不自动删除单据或补偿已核销资金。
 
 这是本机合成样例和技术核验，不能代替真实主数据 / 期初导入、业务人员核对或财务质检签字，也不会写入发布 GO 决定。
+
+## 自动部署回归
+
+`deployment-smoke.mjs` 已调用同一采销脚本，在一次性完整部署中验证真实 API 契约和业务结余。它保存 `business-trial/report.json`，但删除临时密码和交互说明，并随父脚本清理数据库与账号。交付时应同时检查父报告的 `status=PASSED`、`cleanupPassed=true` 及采销检查结果，不能把仅辅助函数测试通过当作整条业务链通过。
