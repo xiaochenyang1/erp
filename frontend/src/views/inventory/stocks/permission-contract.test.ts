@@ -40,3 +40,11 @@ describe('inventory reservation action permissions', () => {
     expectButtonPermission('submitManualRelease', 'inventory:reservation:release')
   })
 })
+
+describe('inventory reservation check states', () => {
+  it('renders an explicit failure state without exposing the empty-success state', () => {
+    expect(componentSource).toContain('v-if="reservationCheckFailed"')
+    expect(componentSource).toContain(':title="$t(\'inventoryStocks.message.reservationCheckFailed\')"')
+    expect(componentSource).toContain('v-else-if="!checkIssues.length && !reservationCheckLoading && !reservationCheckFailed"')
+  })
+})

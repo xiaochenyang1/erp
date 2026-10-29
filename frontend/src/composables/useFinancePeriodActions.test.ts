@@ -23,6 +23,7 @@ describe('finance period actions', () => {
         passed: true,
         issues: []
       } as any)),
+      getCloseSnapshots: vi.fn(async () => []),
       lockPeriod: vi.fn(async () => ({})),
       closePeriod: vi.fn(async () => ({})),
       unlockPeriod: vi.fn(async () => ({})),
@@ -102,5 +103,15 @@ describe('finance period actions', () => {
     expect(actions.wizardStep.value).toBe(1)
     expect(checkClose).toHaveBeenCalledWith('1')
     expect(actions.wizardCheck.value?.passed).toBe(false)
+  })
+
+  it('blocks close when the latest check has issues', async () => {
+    const closePeriod = vi.fn(async () => ({}))
+    const actions = createActions({
+      closePeriod,
+      checkClose: vi.fn(async () => ({ passed: false, issues: [{ type: 'OPEN_DOCUMENTS' }] } as any))
+    })
+    await actions.handleClose({ id: '1', periodMonth: '2026-07', status: 'LOCKED' } as AccountPeriod)
+    expect(closePeriod).not.toHaveBeenCalled()
   })
 })

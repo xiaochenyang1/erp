@@ -5,6 +5,7 @@ import type { PageQuery, PageResponse } from '@/types/common'
 export interface PurchaseOrder {
   id: string | number
   orderNo: string
+  contractId?: string
   supplierId: string | number
   supplierName: string
   orderDate: string
@@ -13,6 +14,11 @@ export interface PurchaseOrder {
   totalAmount: number
   totalTaxAmount?: number
   totalQuantity?: number
+  /** Amounts are stored in the order currency; base* fields are in the account-book currency. */
+  currencyCode?: string
+  exchangeRate?: number
+  baseTotalAmount?: number
+  baseTotalTaxAmount?: number
   status: 'DRAFT' | 'SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CLOSED' | 'COMPLETED' | 'CANCELLED'
   approvalStatus?: 'NOT_SUBMITTED' | 'IN_APPROVAL' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | string
   receiptStatus?: 'NOT_RECEIVED' | 'PARTIAL_RECEIVED' | 'RECEIVED' | string
@@ -33,6 +39,10 @@ export interface PurchaseOrderItem {
   auxUnitName?: string
   conversionFactor?: number | null
   id?: string | number
+  contractLineId?: string | number | null
+  contractQuantity?: number
+  committedQuantity?: number
+  fulfilledQuantity?: number
   productId: string | number
   productCode?: string
   productName?: string
@@ -92,10 +102,13 @@ export interface PurchaseOrderQuery extends PageQuery {
 
 // 采购订单保存请求
 export interface PurchaseOrderSaveRequest {
+  contractId?: string | number
   supplierId: string | number
   orderDate: string
   expectedDate?: string
   deliveryDate?: string
+  currencyCode?: string
+  exchangeRate?: number
   items: PurchaseOrderItem[]
   remark?: string
 }
@@ -203,12 +216,16 @@ const toPurchaseOrderQueryParams = (params: PurchaseOrderQuery) => {
 }
 
 const toPurchaseOrderPayload = (data: PurchaseOrderSaveRequest) => ({
+  contractId: data.contractId,
   supplierId: data.supplierId,
   orderDate: data.orderDate,
   deliveryDate: data.deliveryDate || data.expectedDate || undefined,
+  currencyCode: data.currencyCode || undefined,
+  exchangeRate: data.exchangeRate,
   remark: data.remark,
   lines: data.items.map((item) => ({
     productId: item.productId,
+    contractLineId: item.contractLineId ?? undefined,
     qty: item.qty ?? item.quantity,
     auxQty: item.auxQty ?? undefined,
     auxUnitName: item.auxUnitName || undefined,
@@ -234,20 +251,29 @@ const normalizePurchaseOrderLine = (item: PurchaseOrderItem): PurchaseOrderItem 
   receivedQty: Number(item.receivedQty ?? 0),
   sourceInquiryId: item.sourceInquiryId != null ? String(item.sourceInquiryId) : item.sourceInquiryId,
   sourceInquiryLineId: item.sourceInquiryLineId != null ? String(item.sourceInquiryLineId) : item.sourceInquiryLineId
+  ,contractLineId: item.contractLineId != null ? String(item.contractLineId) : item.contractLineId
 })
 
 const normalizePurchaseOrder = (order: PurchaseOrder): PurchaseOrder => {
   const lines = (order.lines || order.items || []).map(normalizePurchaseOrderLine)
+  const totalAmount = Number(order.totalAmount ?? 0)
+  const totalTaxAmount = Number(order.totalTaxAmount ?? 0)
+  const exchangeRate = Number(order.exchangeRate ?? 1)
   return {
     ...order,
     id: String(order.id),
+    contractId: order.contractId != null ? String(order.contractId) : undefined,
     supplierId: String(order.supplierId),
     sourceInquiryId: order.sourceInquiryId != null ? String(order.sourceInquiryId) : order.sourceInquiryId,
     sourceQuoteId: order.sourceQuoteId != null ? String(order.sourceQuoteId) : order.sourceQuoteId,
     expectedDate: order.expectedDate || order.deliveryDate,
-    totalAmount: Number(order.totalAmount ?? 0),
-    totalTaxAmount: Number(order.totalTaxAmount ?? 0),
+    totalAmount,
+    totalTaxAmount,
     totalQuantity: Number(order.totalQuantity ?? 0),
+    currencyCode: String(order.currencyCode || 'CNY').trim().toUpperCase(),
+    exchangeRate,
+    baseTotalAmount: Number(order.baseTotalAmount ?? totalAmount * exchangeRate),
+    baseTotalTaxAmount: Number(order.baseTotalTaxAmount ?? totalTaxAmount * exchangeRate),
     items: lines,
     lines,
     createdAt: order.createdAt || '',
@@ -708,6 +734,8 @@ export interface PurchaseInquiryLine {
   id?: string | number
   lineNo?: number
   productId: string | number
+  productCode?: string
+  productName?: string
   qty: number
   remark?: string
 }

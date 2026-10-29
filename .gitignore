@@ -19,6 +19,7 @@ backend/*.ipr
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
+frontend/release-artifacts/
 frontend/.npm-cache/
 frontend/*.local
 frontend/*.tsbuildinfo
@@ -28,4 +29,9 @@ frontend/.idea/
 # Common
 .DS_Store
 *.log
+*.core
+/core
 .vscode
+
+# 发布证据产物（JAR/SBOM 等二进制，独立归档，不入库）
+/release-evidence/

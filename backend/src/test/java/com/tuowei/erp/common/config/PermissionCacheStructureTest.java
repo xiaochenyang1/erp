@@ -2,7 +2,7 @@ package com.tuowei.erp.common.config;
 
 import com.tuowei.erp.common.cache.CacheService;
 import com.tuowei.erp.common.security.UserPermissionService;
-import com.tuowei.erp.system.user.service.UserService;
+import com.tuowei.erp.system.user.service.UserCommandService;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
@@ -19,8 +19,8 @@ class PermissionCacheStructureTest {
     }
 
     @Test
-    void userServiceCanEvictPermissionCacheWhenRolesChange() {
-        assertThat(constructorParameterTypes(UserService.class))
+    void userCommandServiceCanEvictPermissionCacheWhenRolesChange() {
+        assertThat(constructorParameterTypes(UserCommandService.class))
                 .anySatisfy(parameters -> assertThat(parameters).contains(UserPermissionService.class));
     }
 

@@ -657,9 +657,6 @@ const PRODUCT_TEXTS = {
   }
 } as const
 const texts = computed(() => PRODUCT_TEXTS[appStore.locale as keyof typeof PRODUCT_TEXTS])
-const displayPreferences = computed(() => ({
-  locale: appStore.locale
-}))
 
 const {
   activeCount: countActive,
@@ -703,7 +700,7 @@ const {
   enableProduct,
   deleteProduct,
   exportProducts,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message),
@@ -737,11 +734,14 @@ const productColumnOptions = computed(() => ([
 ]))
 const {
   columnVisible,
+  isColumnVisible,
+  resetColumns,
   setColumnVisible,
   searchForm: preferredSearchForm
 } = useTablePreference('masterdata.products', {
-  defaultColumnVisible: Object.fromEntries(productColumns.map((column) => [column.prop, true])),
-  defaultSearchForm: searchForm
+  defaultSearchForm: searchForm,
+  persistentSearchKeys: ['code', 'name', 'categoryName', 'status'],
+  columns: productColumns.map((column) => ({ prop: column.prop, label: column.labelKey }))
 })
 Object.assign(searchForm, preferredSearchForm)
 

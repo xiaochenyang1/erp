@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/store/modules/user'
+import { useMenuStore } from '@/store/modules/menu'
+import { i18n } from '@/i18n'
 import { ElMessage } from 'element-plus'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
@@ -224,6 +226,16 @@ const routes: RouteRecordRaw[] = [
           }
         ]
       },
+      {
+        path: '/contracts',
+        name: 'Contracts',
+        component: () => import('@/views/commercial/contracts/index.vue'),
+        meta: {
+          title: '合同管理',
+          icon: 'Files',
+          permission: 'contract:view'
+        }
+      },
       // 库存管理
       {
         path: '/inventory',
@@ -311,6 +323,16 @@ const routes: RouteRecordRaw[] = [
               title: '补货建议',
               icon: 'ShoppingCart',
               permission: 'inventory:replenishment:view'
+            }
+          },
+          {
+            path: 'lot-genealogy',
+            name: 'InventoryLotGenealogy',
+            component: () => import('@/views/inventory/lot-genealogy/index.vue'),
+            meta: {
+              title: '批次谱系',
+              icon: 'Share',
+              permission: 'inventory:lot:genealogy'
             }
           }
         ]
@@ -637,6 +659,16 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'budgets',
+            name: 'FinanceBudgets',
+            component: () => import('@/views/finance/budgets/index.vue'),
+            meta: {
+              title: '预算管理',
+              icon: 'PieChart',
+              permission: 'finance:budget:view'
+            }
+          },
+          {
             path: 'invoices',
             name: 'FinanceInvoices',
             component: () => import('@/views/finance/invoices/index.vue'),
@@ -645,6 +677,9 @@ const routes: RouteRecordRaw[] = [
               icon: 'Tickets',
               permission: 'finance:invoice:view'
             }
+          }
+          ,{
+            path: 'currencies', name: 'FinanceCurrencies', component: () => import('@/views/finance/currencies/index.vue'), meta: { title: '币种与汇率', icon: 'Money', permission: 'masterdata:currency:view' }
           }
         ]
       },
@@ -836,6 +871,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   const userStore = useUserStore()
+  const menuStore = useMenuStore()
 
   // 刷新页面后用户信息/权限尚未加载：先拉取，保证后续权限校验有依据（消除竞态）
   if (!userStore.userInfo) {
@@ -848,6 +884,11 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
+  // 运行时菜单是页面白名单；首次导航必须等待它完成，避免直达 URL 绕过侧栏裁剪。
+  if (!menuStore.loaded) {
+    await menuStore.loadMenus()
+  }
+
   // 已登录访问登录页
   if (to.path === '/login') {
     next('/')
@@ -857,7 +898,14 @@ router.beforeEach(async (to, from, next) => {
   // 页面级权限校验
   const required = to.meta.permission as string | undefined
   if (required && !userStore.hasPermission(required)) {
-    ElMessage.warning('您没有访问该页面的权限')
+    ElMessage.warning(i18n.global.t('common.noPagePermission'))
+    next('/dashboard')
+    return
+  }
+
+  const isDashboard = to.path === '/' || to.path === '/dashboard'
+  if (menuStore.loaded && !isDashboard && !menuStore.visiblePaths.has(to.path)) {
+    ElMessage.warning(i18n.global.t('common.menuNotAssigned'))
     next('/dashboard')
     return
   }

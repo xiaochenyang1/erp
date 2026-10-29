@@ -25,7 +25,9 @@ const createList = (overrides: Partial<Parameters<typeof useWorkflowRecordList>[
   useWorkflowRecordList(t, {
     getWorkflowRecords: vi.fn(async () => ({
       records: [record()],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 20
     })),
     getBusinessWorkflowRecords: vi.fn(async () => [
       record({ id: '1', action: 'SUBMIT', businessNo: 'SO1' }),
@@ -66,7 +68,12 @@ describe('workflow record list helpers', () => {
 
 describe('workflow record list', () => {
   it('loads global and business-scoped records', async () => {
-    const getWorkflowRecords = vi.fn(async () => ({ records: [record()], total: 5 }))
+    const getWorkflowRecords = vi.fn(async () => ({
+      records: [record()],
+      total: 5,
+      pageNo: 1,
+      pageSize: 20
+    }))
     const getBusinessWorkflowRecords = vi.fn(async () => [
       record({ id: '1', action: 'SUBMIT', businessNo: 'SO1' }),
       record({ id: '2', action: 'APPROVE', businessNo: 'SO1' }),

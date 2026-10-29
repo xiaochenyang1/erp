@@ -50,7 +50,8 @@ public class SecurityConfig {
                 "/api/auth/login",
                 "/api/auth/refresh",
                 "/api/auth/logout",
-                "/actuator/health"
+                "/actuator/health",
+                "/actuator/health/readiness"
         ));
         if (environment.getProperty("erp.security.public-api-docs-enabled", Boolean.class, false)) {
             publicEndpoints.addAll(List.of(

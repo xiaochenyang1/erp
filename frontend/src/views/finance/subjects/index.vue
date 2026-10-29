@@ -227,7 +227,7 @@ const {
   updateAccountSubject,
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
-  onSubmitted: () => loadData()
+  onSubmitted: async () => { await loadData() }
 })
 
 const formRules = computed<FormRules>(() => ({

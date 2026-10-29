@@ -275,20 +275,22 @@ public class ReadinessPreflightService {
                             select %s
                             from %s
                             where company_id = ?
+                              and account_book_id = ?
                               and deleted_flag = 0
                             group by %s
                             having count(*) > 1
                         ) t
-                        """.formatted(codeColumn, tableName, codeColumn), audit.companyId()),
+                        """.formatted(codeColumn, tableName, codeColumn), audit.companyId(), audit.accountBookId()),
                 sample("""
                         select concat('%s ', %s, ' count=', count(*))
                         from %s
                         where company_id = ?
+                          and account_book_id = ?
                           and deleted_flag = 0
                         group by %s
                         having count(*) > 1
                         limit 5
-                        """.formatted(tableName, codeColumn, tableName, codeColumn), audit.companyId())
+                        """.formatted(tableName, codeColumn, tableName, codeColumn), audit.companyId(), audit.accountBookId())
         );
     }
 

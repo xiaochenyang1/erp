@@ -2,9 +2,12 @@ import { computed, reactive, ref } from 'vue'
 
 import type {
   FinanceSettlementReportRow,
+  FxGainLossReportRow,
   InventoryBalanceReportRow,
   InventoryTransactionReportRow,
+  InventoryValuationReportRow,
   OrderReportRow,
+  ProductionCostReportRow,
   ReportQuery
 } from '@/api/workflow'
 import type { PageResponse } from '@/types/common'
@@ -50,6 +53,20 @@ export const buildReportParams = (
   } else if (key === 'financeSettlement') {
     params.bizDateFrom = dateRange?.[0]
     params.bizDateTo = dateRange?.[1]
+  } else if (key === 'fxGainLoss') {
+    // FX gain/loss filters on the settlement date: the difference is realised when the
+    // receipt/payment allocates, not on the subledger business date.
+    params.currencyCode = normalizedKeyword || undefined
+    params.settlementDateFrom = dateRange?.[0]
+    params.settlementDateTo = dateRange?.[1]
+  } else if (key === 'inventoryValuation') {
+    params.keyword = normalizedKeyword || undefined
+    params.periodStart = dateRange?.[0]
+    params.asOfDate = dateRange?.[1]
+  } else if (key === 'productionCost') {
+    params.keyword = normalizedKeyword || undefined
+    params.plannedStartDateFrom = dateRange?.[0]
+    params.plannedStartDateTo = dateRange?.[1]
   }
   return params
 }
@@ -62,11 +79,17 @@ export const useReportList = (
     getInventoryBalanceReport: (params: ReportQuery) => Promise<PageResponse<InventoryBalanceReportRow>>
     getInventoryTransactionReport: (params: ReportQuery) => Promise<PageResponse<InventoryTransactionReportRow>>
     getFinanceSettlementReport: (params: ReportQuery) => Promise<PageResponse<FinanceSettlementReportRow>>
+    getFxGainLossReport: (params: ReportQuery) => Promise<PageResponse<FxGainLossReportRow>>
+    getInventoryValuationReport: (params: ReportQuery) => Promise<PageResponse<InventoryValuationReportRow>>
+    getProductionCostReport: (params: ReportQuery) => Promise<PageResponse<ProductionCostReportRow>>
     exportPurchaseOrderReport: ExportReport
     exportSalesOrderReport: ExportReport
     exportInventoryBalanceReport: ExportReport
     exportInventoryTransactionReport: ExportReport
     exportFinanceSettlementReport: ExportReport
+    exportFxGainLossReport: ExportReport
+    exportInventoryValuationReport: ExportReport
+    exportProductionCostReport: ExportReport
     downloadBlob: (blob: Blob, fileName: string) => void
     now?: () => number
     onError?: Notify
@@ -79,6 +102,8 @@ export const useReportList = (
   const reportStates = reactive<Record<ReportKey, ReportState>>(
     Object.fromEntries(reportKeys.map((key) => [key, createEmptyReportState()])) as Record<ReportKey, ReportState>
   )
+  // Keep requests isolated per tab so a slower response cannot overwrite a newer query.
+  const reportRequestIds = Object.fromEntries(reportKeys.map((key) => [key, 0])) as Record<ReportKey, number>
   const activeState = computed(() => reportStates[activeKey.value])
 
   const loaders: Record<ReportKey, (params: ReportQuery) => Promise<PageResponse<ReportRecord>>> = {
@@ -86,14 +111,20 @@ export const useReportList = (
     sales: options.getSalesOrderReport,
     inventoryBalance: options.getInventoryBalanceReport,
     inventoryTransaction: options.getInventoryTransactionReport,
-    financeSettlement: options.getFinanceSettlementReport
+    financeSettlement: options.getFinanceSettlementReport,
+    fxGainLoss: options.getFxGainLossReport,
+    inventoryValuation: options.getInventoryValuationReport,
+    productionCost: options.getProductionCostReport
   }
   const exporters: Record<ReportKey, ExportReport> = {
     purchase: options.exportPurchaseOrderReport,
     sales: options.exportSalesOrderReport,
     inventoryBalance: options.exportInventoryBalanceReport,
     inventoryTransaction: options.exportInventoryTransactionReport,
-    financeSettlement: options.exportFinanceSettlementReport
+    financeSettlement: options.exportFinanceSettlementReport,
+    fxGainLoss: options.exportFxGainLossReport,
+    inventoryValuation: options.exportInventoryValuationReport,
+    productionCost: options.exportProductionCostReport
   }
 
   const buildParams = (key = activeKey.value, state = reportStates[key]) =>
@@ -102,19 +133,23 @@ export const useReportList = (
   const loadActiveReport = async () => {
     const key = activeKey.value
     const state = reportStates[key]
+    const requestId = ++reportRequestIds[key]
+    const params = buildParams(key, state)
     state.loading = true
     try {
-      const page = await loaders[key](buildParams(key, state))
+      const page = await loaders[key](params)
+      if (requestId !== reportRequestIds[key]) return false
       state.records = page.records || []
       state.total = page.total || 0
       state.pageNo = page.pageNo || state.pageNo
       state.pageSize = page.pageSize || state.pageSize
       return true
     } catch {
+      if (requestId !== reportRequestIds[key]) return false
       options.onError?.(t('financeReportPages.reports.message.loadFailed'))
       return false
     } finally {
-      state.loading = false
+      if (requestId === reportRequestIds[key]) state.loading = false
     }
   }
 

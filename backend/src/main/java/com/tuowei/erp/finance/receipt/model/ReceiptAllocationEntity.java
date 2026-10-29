@@ -18,6 +18,12 @@ public class ReceiptAllocationEntity {
     private Long receiptId;
     private Long receivableId;
     private BigDecimal amount;
+    private BigDecimal baseAmount;
+    private BigDecimal baseSettledAmount;
+    private BigDecimal fxGainLossAmount;
+    private BigDecimal postedBaseAmount;
+    private BigDecimal postedBaseSettledAmount;
+    private BigDecimal roundingAmount;
     private Long createdBy;
     private LocalDateTime createdTime;
     private Long updatedBy;
@@ -37,6 +43,18 @@ public class ReceiptAllocationEntity {
     public void setReceivableId(Long receivableId) { this.receivableId = receivableId; }
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public BigDecimal getBaseAmount() { return baseAmount; }
+    public void setBaseAmount(BigDecimal baseAmount) { this.baseAmount = baseAmount; }
+    public BigDecimal getBaseSettledAmount() { return baseSettledAmount; }
+    public void setBaseSettledAmount(BigDecimal baseSettledAmount) { this.baseSettledAmount = baseSettledAmount; }
+    public BigDecimal getFxGainLossAmount() { return fxGainLossAmount; }
+    public void setFxGainLossAmount(BigDecimal fxGainLossAmount) { this.fxGainLossAmount = fxGainLossAmount; }
+    public BigDecimal getPostedBaseAmount() { return postedBaseAmount; }
+    public void setPostedBaseAmount(BigDecimal value) { this.postedBaseAmount = value; }
+    public BigDecimal getPostedBaseSettledAmount() { return postedBaseSettledAmount; }
+    public void setPostedBaseSettledAmount(BigDecimal value) { this.postedBaseSettledAmount = value; }
+    public BigDecimal getRoundingAmount() { return roundingAmount; }
+    public void setRoundingAmount(BigDecimal value) { this.roundingAmount = value; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public LocalDateTime getCreatedTime() { return createdTime; }

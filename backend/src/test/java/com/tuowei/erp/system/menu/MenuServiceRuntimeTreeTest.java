@@ -5,14 +5,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.CurrentUserContext;
 import com.tuowei.erp.common.security.ErpPrincipal;
-import com.tuowei.erp.common.security.UserPermissionService;
 import com.tuowei.erp.common.cache.CacheService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuowei.erp.system.menu.mapper.MenuMapper;
 import com.tuowei.erp.system.menu.mapper.RoleMenuMapper;
 import com.tuowei.erp.system.menu.model.MenuEntity;
 import com.tuowei.erp.system.menu.model.RoleMenuEntity;
-import com.tuowei.erp.system.menu.service.MenuService;
+import com.tuowei.erp.system.menu.service.MenuQueryService;
 import com.tuowei.erp.system.menu.web.MenuResponse;
 import com.tuowei.erp.system.role.mapper.RoleMapper;
 import com.tuowei.erp.system.role.model.RoleEntity;
@@ -58,7 +57,7 @@ class MenuServiceRuntimeTreeTest {
         when(userRoleMapper.selectList(any())).thenReturn(List.of(userRole()));
         when(roleMapper.selectList(any())).thenReturn(List.of());
 
-        MenuService service = service(currentUserContext, userRoleMapper, roleMapper, mock(RoleMenuMapper.class), mock(MenuMapper.class));
+        MenuQueryService service = service(currentUserContext, userRoleMapper, roleMapper, mock(RoleMenuMapper.class), mock(MenuMapper.class));
 
         assertThat(service.runtimeTreeForCurrentUser()).isEmpty();
 
@@ -89,7 +88,7 @@ class MenuServiceRuntimeTreeTest {
                 menu(6002L, 6001L, "MENU", "WORKFLOW_TASK", "审批待办", "/workflow/tasks", "workflow:view")
         ));
 
-        MenuService service = service(currentUserContext, userRoleMapper, roleMapper, roleMenuMapper, menuMapper);
+        MenuQueryService service = service(currentUserContext, userRoleMapper, roleMapper, roleMenuMapper, menuMapper);
 
         List<MenuResponse> tree = service.runtimeTreeForCurrentUser();
 
@@ -114,7 +113,7 @@ class MenuServiceRuntimeTreeTest {
                 menu(5003L, 5001L, "MENU", "SYSTEM_ROLE", "角色管理", "/system/roles", "system:role:view")
         ));
 
-        MenuService service = service(currentUserContext, userRoleMapper, roleMapper, roleMenuMapper, menuMapper);
+        MenuQueryService service = service(currentUserContext, userRoleMapper, roleMapper, roleMenuMapper, menuMapper);
 
         List<MenuResponse> tree = service.runtimeTreeForCurrentUser();
 
@@ -150,7 +149,7 @@ class MenuServiceRuntimeTreeTest {
         List<MenuEntity> allMenus = List.of(system, active, invisible, disabledCatalog, childOfDisabled, orphan);
         when(menuMapper.selectList(any())).thenReturn(allMenus);
 
-        MenuService service = service(currentUserContext, userRoleMapper, roleMapper, roleMenuMapper, menuMapper);
+        MenuQueryService service = service(currentUserContext, userRoleMapper, roleMapper, roleMenuMapper, menuMapper);
 
         List<MenuResponse> runtimeTree = service.runtimeTreeForCurrentUser();
 
@@ -160,18 +159,15 @@ class MenuServiceRuntimeTreeTest {
         verify(roleMenuMapper, never()).selectList(any());
     }
 
-    private static MenuService service(
+    private static MenuQueryService service(
             CurrentUserContext currentUserContext,
             UserRoleMapper userRoleMapper,
             RoleMapper roleMapper,
             RoleMenuMapper roleMenuMapper,
             MenuMapper menuMapper
     ) {
-        return new MenuService(
+        return new MenuQueryService(
                 menuMapper,
-                mock(com.tuowei.erp.common.security.AuditMetadataFactory.class),
-                mock(com.tuowei.erp.common.security.SecurityPrincipalCache.class),
-                mock(UserPermissionService.class),
                 currentUserContext,
                 userRoleMapper,
                 roleMapper,

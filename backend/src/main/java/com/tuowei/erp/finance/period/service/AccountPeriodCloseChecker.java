@@ -2,6 +2,9 @@ package com.tuowei.erp.finance.period.service;
 
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.persistence.NativeSqlTenantScoped;
+import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.fx.service.FxRevaluationService;
 import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckItemResponse;
@@ -15,29 +18,40 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @NativeSqlTenantScoped("JdbcTemplate close checks use the selected account period as the scope source and pass its company_id/account_book_id into every tenant-owned balance, voucher, and settlement query.")
 public class AccountPeriodCloseChecker {
 
     private final AccountPeriodMapper accountPeriodMapper;
+    private final AuditMetadataFactory auditMetadataFactory;
     private final InventoryFinanceReconciliationService reconciliationService;
     private final JdbcTemplate jdbcTemplate;
+    private final FxRevaluationService fxRevaluationService;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AccountPeriodCloseChecker(
             AccountPeriodMapper accountPeriodMapper,
+            AuditMetadataFactory auditMetadataFactory,
             InventoryFinanceReconciliationService reconciliationService,
-            JdbcTemplate jdbcTemplate
+            JdbcTemplate jdbcTemplate,
+            FxRevaluationService fxRevaluationService
     ) {
         this.accountPeriodMapper = accountPeriodMapper;
+        this.auditMetadataFactory = auditMetadataFactory;
         this.reconciliationService = reconciliationService;
         this.jdbcTemplate = jdbcTemplate;
+        this.fxRevaluationService = fxRevaluationService;
     }
 
     @Transactional(readOnly = true)
     public AccountPeriodCloseCheckResponse check(Long periodId) {
+        AuditMetadata audit = auditMetadataFactory.current();
         AccountPeriodEntity period = accountPeriodMapper.selectById(periodId);
-        if (period == null) {
+        if (period == null
+                || !Objects.equals(period.getCompanyId(), audit.companyId())
+                || !Objects.equals(period.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("会计期间不存在");
         }
         List<AccountPeriodCloseIssueResponse> issues = new ArrayList<>();
@@ -49,6 +63,7 @@ public class AccountPeriodCloseChecker {
         addSettlementChecks(period, issues, checks);
         addBankStatementCheck(period, issues, checks);
         addInventoryBalanceCheck(period, issues, checks);
+        addFxRevaluationCheck(period, issues, checks);
 
         return new AccountPeriodCloseCheckResponse(
                 period.getId(),
@@ -343,6 +358,18 @@ public class AccountPeriodCloseChecker {
                     "存在负库存数量或金额",
                     ScalePrecision.amount(BigDecimal.valueOf(negative))
             ));
+        }
+    }
+
+    private void addFxRevaluationCheck(
+            AccountPeriodEntity period,
+            List<AccountPeriodCloseIssueResponse> issues,
+            List<AccountPeriodCloseCheckItemResponse> checks
+    ) {
+        AccountPeriodCloseCheckItemResponse check = fxRevaluationService.checkForClose(period);
+        checks.add(check);
+        if (!check.passed()) {
+            issues.add(new AccountPeriodCloseIssueResponse("FX_REVALUATION", check.message(), check.metric()));
         }
     }
 

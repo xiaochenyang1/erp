@@ -21,18 +21,27 @@ const quote = (overrides: Partial<SalesQuote> = {}): SalesQuote => ({
 
 const createList = (overrides: Partial<Parameters<typeof useSalesQuoteList>[1]> = {}) =>
   useSalesQuoteList(t, {
-    getSalesQuotes: vi.fn(async () => ({ records: [quote()], total: 1 })),
+    getSalesQuotes: vi.fn(async () => ({
+      records: [quote()],
+      total: 1,
+      pageNo: 1,
+      pageSize: 20
+    })),
     getSalesQuote: vi.fn(async () => quote({ totalAmount: 120 })),
     confirmSalesQuote: vi.fn(async () => ({})),
     cancelSalesQuote: vi.fn(async () => ({})),
     convertSalesQuoteToOrder: vi.fn(async () => ({ orderNo: 'SO9' })),
     getWarehouses: vi.fn(async () => ({
       records: [{ id: 'w1', warehouseName: 'Main' } as any],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
     })),
     getProducts: vi.fn(async () => ({
       records: [{ id: 'p1', productCode: 'SKU', productName: 'Item' } as any],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
     })),
     printSalesQuote: vi.fn(),
     detailContent: (detail) => `detail:${detail.quoteNo}`,

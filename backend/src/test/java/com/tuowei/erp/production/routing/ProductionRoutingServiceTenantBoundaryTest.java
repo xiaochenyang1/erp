@@ -11,6 +11,8 @@ import com.tuowei.erp.production.bom.model.ProductionBomEntity;
 import com.tuowei.erp.production.routing.mapper.ProductionRoutingMapper;
 import com.tuowei.erp.production.routing.mapper.ProductionRoutingOperationMapper;
 import com.tuowei.erp.production.routing.model.ProductionRoutingEntity;
+import com.tuowei.erp.production.routing.service.ProductionRoutingCommandService;
+import com.tuowei.erp.production.routing.service.ProductionRoutingQueryService;
 import com.tuowei.erp.production.routing.service.ProductionRoutingService;
 import com.tuowei.erp.production.routing.web.ProductionRoutingCreateRequest;
 import com.tuowei.erp.production.routing.web.ProductionRoutingOperationRequest;
@@ -116,7 +118,22 @@ class ProductionRoutingServiceTenantBoundaryTest {
     }
 
     private ProductionRoutingService service() {
-        return new ProductionRoutingService(routingMapper, routingOperationMapper, bomMapper, workCenterMapper, auditMetadataFactory);
+        ProductionRoutingQueryService queryService = new ProductionRoutingQueryService(
+                routingMapper,
+                routingOperationMapper,
+                bomMapper,
+                workCenterMapper,
+                auditMetadataFactory
+        );
+        ProductionRoutingCommandService commandService = new ProductionRoutingCommandService(
+                routingMapper,
+                routingOperationMapper,
+                bomMapper,
+                workCenterMapper,
+                auditMetadataFactory,
+                queryService
+        );
+        return new ProductionRoutingService(queryService, commandService);
     }
 
     private ProductionBomEntity activeBom(Long id, Long companyId, Long accountBookId) {

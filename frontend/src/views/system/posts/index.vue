@@ -193,7 +193,7 @@ const {
   getPost,
   createPost,
   updatePost,
-  onSubmitted: loadData,
+  onSubmitted: async () => { await loadData() },
   ...notify
 })
 

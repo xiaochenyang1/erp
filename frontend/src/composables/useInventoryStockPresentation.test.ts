@@ -21,7 +21,13 @@ const messages: Record<string, string> = {
   'inventoryStocks.expiryStatus.expiring': 'Expiring',
   'inventoryStocks.expiryStatus.normal': 'Normal',
   'inventoryStocks.severityValue.error': 'Error',
-  'inventoryStocks.severityValue.warning': 'Warning'
+  'inventoryStocks.severityValue.warning': 'Warning',
+  'inventoryStocks.issueTypeValue.reservationBalanceMissing': 'Reserved stock has no balance record',
+  'inventoryStocks.issueTypeValue.balanceReservedMismatch': 'Balance mismatch',
+  'inventoryStocks.issueTypeValue.balanceAvailableNegative': 'Available stock is negative',
+  'inventoryStocks.issueTypeValue.reservationQuantityInvalid': 'Quantities are inconsistent',
+  'inventoryStocks.issueTypeValue.reservationSourceMissing': 'Source document is missing',
+  'inventoryStocks.issueTypeValue.reservationSourceStatusInvalid': 'Source status does not match'
 }
 
 const translate = (key: string, params?: Record<string, unknown>) => {
@@ -63,6 +69,11 @@ describe('inventory stock presentation', () => {
     expect(presentation.expiryStatusLabel('EXPIRED')).toBe('Expired')
     expect(presentation.expiryStatusType('EXPIRED')).toBe('danger')
     expect(presentation.severityLabel('WARNING')).toBe('Warning')
+    expect(presentation.severityLabel('WARN')).toBe('Warning')
+    expect(presentation.issueTypeLabel('BALANCE_AVAILABLE_NEGATIVE')).toBe('Available stock is negative')
+    expect(presentation.issueTypeLabel('RESERVATION_SOURCE_STATUS_INVALID')).toBe('Source status does not match')
+    expect(presentation.issueTypeLabel('FUTURE_ISSUE')).toBe('FUTURE_ISSUE')
+    expect(presentation.issueTypeLabel()).toBe('-')
     expect(presentation.sourceTypeLabel('FUTURE_SOURCE')).toBe('FUTURE_SOURCE')
     expect(presentation.sourceTypeLabel()).toBe('-')
   })

@@ -5,8 +5,12 @@ import type { components as ProductApiComponents } from '@/api/generated/product
 // ==================== 产品管理 ====================
 
 type ProductContract = ProductApiComponents['schemas']['ProductResponse']
-export type ProductCreateContract = ProductApiComponents['schemas']['ProductCreateRequest']
-export type ProductUpdateContract = ProductApiComponents['schemas']['ProductUpdateRequest']
+export type ProductCreateContract = ProductApiComponents['schemas']['ProductCreateRequest'] & {
+  serialControlled?: boolean
+}
+export type ProductUpdateContract = ProductApiComponents['schemas']['ProductUpdateRequest'] & {
+  serialControlled?: boolean
+}
 type ProductQueryContract = ProductApiComponents['schemas']['ProductPageQuery']
 
 export interface Product extends Omit<ProductContract, 'id' | 'status'> {
@@ -302,6 +306,29 @@ export const exportCustomers = (params: CustomerQuery) => {
   })
 }
 
+export interface CustomerProductRelation {
+  id: string
+  customerId: string
+  productId: string
+  productCode?: string
+  productName?: string
+  customerProductCode?: string
+  customerProductName?: string
+  deliveryPreference?: string
+  packagingPreference?: string
+  remark?: string
+  status: 'ACTIVE' | 'INACTIVE'
+}
+
+export const getCustomerProductRelations = (customerId: string | number) =>
+  request.get<CustomerProductRelation[]>(`/masterdata/customers/${customerId}/products`).then((rows) => rows.map((row) => ({ ...row, id: String(row.id), customerId: String(row.customerId), productId: String(row.productId) })))
+
+export const saveCustomerProductRelation = (customerId: string | number, data: Omit<CustomerProductRelation, 'id' | 'customerId' | 'productCode' | 'productName' | 'status'>) =>
+  request.post<CustomerProductRelation>(`/masterdata/customers/${customerId}/products`, data).then((row) => ({ ...row, id: String(row.id), customerId: String(row.customerId), productId: String(row.productId) }))
+
+export const deleteCustomerProductRelation = (customerId: string | number, id: string | number) =>
+  request.delete(`/masterdata/customers/${customerId}/products/${id}`)
+
 const toCustomerQueryParams = (params: CustomerQuery) => {
   const { code, name, ...rest } = params
   return {
@@ -418,6 +445,30 @@ export const exportSuppliers = (params: SupplierQuery) => {
     responseType: 'blob'
   })
 }
+
+export interface SupplierProductRelation {
+  id: string
+  supplierId: string
+  productId: string
+  productCode?: string
+  productName?: string
+  supplierProductCode?: string
+  supplierProductName?: string
+  minPurchaseQty: number
+  leadTimeDays: number
+  defaultSupplier: boolean
+  remark?: string
+  status: 'ACTIVE' | 'INACTIVE'
+}
+
+export const getSupplierProductRelations = (supplierId: string | number) =>
+  request.get<SupplierProductRelation[]>(`/masterdata/suppliers/${supplierId}/products`).then((rows) => rows.map((row) => ({ ...row, id: String(row.id), supplierId: String(row.supplierId), productId: String(row.productId), minPurchaseQty: Number(row.minPurchaseQty || 0), leadTimeDays: Number(row.leadTimeDays || 0), defaultSupplier: Boolean(row.defaultSupplier) })))
+
+export const saveSupplierProductRelation = (supplierId: string | number, data: Omit<SupplierProductRelation, 'id' | 'supplierId' | 'productCode' | 'productName' | 'status'>) =>
+  request.post<SupplierProductRelation>(`/masterdata/suppliers/${supplierId}/products`, data).then((row) => ({ ...row, id: String(row.id), supplierId: String(row.supplierId), productId: String(row.productId), minPurchaseQty: Number(row.minPurchaseQty || 0), leadTimeDays: Number(row.leadTimeDays || 0), defaultSupplier: Boolean(row.defaultSupplier) }))
+
+export const deleteSupplierProductRelation = (supplierId: string | number, id: string | number) =>
+  request.delete(`/masterdata/suppliers/${supplierId}/products/${id}`)
 
 const toSupplierQueryParams = (params: SupplierQuery) => {
   const { code, name, ...rest } = params

@@ -22,6 +22,8 @@ public class NotificationEntity {
     private Long businessId;
     private String businessNo;
     private String targetUrl;
+    /** Nullable database-backed idempotency key for automation notifications. */
+    private String dedupKey;
     private String status;
     private Integer deletedFlag;
     private Long createdBy;
@@ -53,6 +55,8 @@ public class NotificationEntity {
     public void setBusinessNo(String businessNo) { this.businessNo = businessNo; }
     public String getTargetUrl() { return targetUrl; }
     public void setTargetUrl(String targetUrl) { this.targetUrl = targetUrl; }
+    public String getDedupKey() { return dedupKey; }
+    public void setDedupKey(String dedupKey) { this.dedupKey = dedupKey; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Integer getDeletedFlag() { return deletedFlag; }

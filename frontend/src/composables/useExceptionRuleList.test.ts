@@ -154,7 +154,6 @@ describe('exception rule list', () => {
       getRules: vi.fn(async () => { throw new Error('boom') }),
       getHits: vi.fn(async () => { throw new Error('boom') }),
       scanRule: vi.fn(async () => { throw new Error('boom') }),
-      toggleFailed: undefined,
       disableRule: vi.fn(async () => { throw new Error('boom') }),
       onError
     })

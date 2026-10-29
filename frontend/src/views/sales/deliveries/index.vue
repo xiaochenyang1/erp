@@ -134,10 +134,13 @@
         <el-table-column prop="createdAt" :label="t('salesDelivery.createdAt')" width="190">
           <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column :label="t('salesDelivery.actions')" width="150" fixed="right">
+        <el-table-column :label="t('salesDelivery.actions')" width="215" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
               {{ t('salesDelivery.view') }}
+            </el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.deliveryNo)">
+              {{ t('documentAttachment.entry') }}
             </el-button>
             <el-button link type="primary" @click="handlePrint(row)">
               {{ t('salesDelivery.print') }}
@@ -261,9 +264,33 @@
             <el-option :label="t('salesDelivery.logistics.pendingShip')" value="PENDING_SHIP" />
             <el-option :label="t('salesDelivery.logistics.pickedUp')" value="PICKED_UP" />
             <el-option :label="t('salesDelivery.logistics.inTransit')" value="IN_TRANSIT" />
-            <el-option :label="t('salesDelivery.logistics.delivered')" value="DELIVERED" />
+            <el-option :label="t('salesDelivery.logistics.delivered')" value="DELIVERED" disabled />
           </el-select>
         </el-form-item>
+        <el-descriptions
+          v-if="isView && (formData.logisticsStatus === 'DELIVERED' || formData.deliveredBy || formData.deliveryProofAttachmentId)"
+          :column="3"
+          border
+          class="delivery-acceptance"
+        >
+          <el-descriptions-item :label="t('salesDelivery.deliveredBy')">
+            {{ formData.deliveredBy || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('salesDelivery.deliveredTime')">
+            {{ formData.deliveredTime ? formatLocalizedDateTime(formData.deliveredTime) : '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('salesDelivery.deliveryProof')">
+            <el-button
+              v-if="formData.deliveryProofAttachmentId"
+              link
+              type="primary"
+              @click="downloadDeliveryProof(formData)"
+            >
+              {{ t('salesDelivery.downloadProof') }}
+            </el-button>
+            <span v-else>-</span>
+          </el-descriptions-item>
+        </el-descriptions>
         <el-form-item :label="t('salesDelivery.remark')">
           <el-input
             v-model="formData.remark"
@@ -412,6 +439,15 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="SALES_DELIVERY"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -428,8 +464,11 @@ import {
   updateSalesDelivery,
   cancelSalesDelivery,
   postSalesDelivery,
-  updateSalesDeliveryLogistics
+  updateSalesDeliveryLogistics,
+  uploadSalesDeliveryAttachment
 } from '@/api/sales'
+import { downloadAttachment } from '@/api/attachment'
+import { downloadBlob } from '@/utils/download'
 import { printSalesDelivery } from '@/utils/bizPrint'
 import { getSalesOrders, getSalesOrder } from '@/api/sales'
 import {
@@ -445,12 +484,25 @@ import {
   serialCaptureProgress
 } from '@/utils/productLines'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useSalesDeliveryPresentation } from '@/composables/useSalesDeliveryPresentation'
 import { useSalesDeliveryList } from '@/composables/useSalesDeliveryList'
 import { useSalesDeliveryForm } from '@/composables/useSalesDeliveryForm'
+import { useUserStore } from '@/store/modules/user'
 
 const route = useRoute()
 const { t } = useI18n()
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 const readQueryString = (key: string) => {
   const value = route.query[key]
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
@@ -481,18 +533,20 @@ const {
   cancelDelivery: cancelSalesDelivery,
   postDelivery: postSalesDelivery,
   updateLogistics: updateSalesDeliveryLogistics,
+  uploadDeliveryAttachment: uploadSalesDeliveryAttachment,
   getCustomers,
   getWarehouses,
   getOrders: getSalesOrders,
   getLocations,
   printDelivery: printSalesDelivery,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   initialDeliveryNo: readQueryString('keyword'),
   initialLogisticsStatus: readQueryString('logisticsStatus'),
   initialTrackingNo: readQueryString('trackingNo'),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
-  onInfo: (message) => ElMessage.info(message)
+  onInfo: (message) => ElMessage.info(message),
+  prompt: (message, title, opts) => ElMessageBox.prompt(message, title, opts as any)
 })
 
 const {
@@ -526,7 +580,7 @@ const {
   loadProductByBarcode: getProductByBarcode,
   loadLocations,
   formatBusinessDate,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message),
@@ -538,6 +592,16 @@ const {
   logisticsStatusType,
   locationsForWarehouse
 } = useSalesDeliveryPresentation(t, locations, () => formData.warehouseId)
+
+const downloadDeliveryProof = async (delivery: { deliveryProofAttachmentId?: string | number; deliveryNo?: string }) => {
+  if (!delivery.deliveryProofAttachmentId) return
+  try {
+    const blob = await downloadAttachment(delivery.deliveryProofAttachmentId)
+    downloadBlob(blob, `${delivery.deliveryNo || 'sales-delivery'}-delivery-proof`)
+  } catch {
+    ElMessage.error(t('salesDelivery.message.deliveryProofDownloadFailed'))
+  }
+}
 
 onMounted(async () => {
   await loadOptions()

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { adminWorkflowPageMessages } from './admin-workflow-pages'
 import { financeReportPageMessages } from './finance-report-pages'
 import { i18n } from './index'
+import { masterdataRelationMessages } from './masterdata-relation-pages'
 import { operationsPageMessages } from './operations-pages'
 import { platformPageMessages } from './platform-pages'
 import { salesCommercialPageMessages } from './sales-commercial-pages'
@@ -15,12 +16,13 @@ const modules = {
   financeReport: financeReportPageMessages,
   adminWorkflow: adminWorkflowPageMessages,
   platform: platformPageMessages,
-  salesCommercial: salesCommercialPageMessages
+  salesCommercial: salesCommercialPageMessages,
+  masterdataRelation: masterdataRelationMessages
 } as unknown as Record<string, LocaleMessages>
 
 const coreNamespaces = new Set([
   'common', 'app', 'settings', 'user', 'login', 'dashboard', 'workflow',
-  'financeAccount', 'financeAging', 'financeGrossMargin', 'financeStatement',
+  'financeAccount', 'financeAging', 'financeGrossMargin', 'financeStatement', 'barcodeScan',
   'salesOrder', 'salesDelivery', 'purchaseOrder', 'purchaseReceipt', 'purchaseReturn',
   'qcInspection', 'inventoryMrp', 'inventoryReplenishment', 'productionRouting',
   'productionWorkCenter', 'productionBom', 'productionOrder'

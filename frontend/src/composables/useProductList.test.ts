@@ -144,8 +144,8 @@ describe('product list', () => {
     const onSuccess = vi.fn()
     const list = createList({ enableProduct, exportProducts, onSuccess })
     list.selectedRows.value = [
-      { id: '1', name: 'A', status: 'DISABLED' } as Product,
-      { id: '2', name: 'B', status: 'DISABLED' } as Product
+      { id: '1', name: 'A', status: 'INACTIVE' } as Product,
+      { id: '2', name: 'B', status: 'INACTIVE' } as Product
     ]
 
     await list.handleBatchEnable()

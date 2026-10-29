@@ -17,18 +17,27 @@ const serial = (overrides: Partial<InventorySerial> = {}): InventorySerial => ({
 
 const createList = (overrides: Partial<Parameters<typeof useInventorySerialList>[1]> = {}) =>
   useInventorySerialList(t, {
-    getInventorySerials: vi.fn(async () => ({ records: [serial()], total: 1 })),
+    getInventorySerials: vi.fn(async () => ({
+      records: [serial()],
+      total: 1,
+      pageNo: 1,
+      pageSize: 20
+    })),
     issueInventorySerial: vi.fn(async () => ({})),
     scrapInventorySerial: vi.fn(async () => ({})),
     getWarehouses: vi.fn(async () => ({
       records: [{ id: 'w1', warehouseName: 'Main' } as any],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
     })),
     getLocations: vi.fn(async () => ({
       records: [
         { id: 'l1', warehouseId: 'w1', locationCode: 'A1', locationName: 'Bin' } as any
       ],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
     })),
     locationsForWarehouse: (warehouseId, all = []) =>
       warehouseId

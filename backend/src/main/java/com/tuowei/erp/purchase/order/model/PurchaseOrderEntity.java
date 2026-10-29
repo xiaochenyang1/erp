@@ -23,6 +23,8 @@ public class PurchaseOrderEntity {
 
     private Long supplierId;
 
+    private Long contractId;
+
     private LocalDate orderDate;
 
     private LocalDate deliveryDate;
@@ -44,6 +46,20 @@ public class PurchaseOrderEntity {
     private BigDecimal totalAmount;
 
     private BigDecimal totalTaxAmount;
+
+    private String currencyCode;
+    private BigDecimal exchangeRate;
+    private BigDecimal baseTotalAmount;
+    private BigDecimal baseTotalTaxAmount;
+
+    public String getCurrencyCode() { return currencyCode; }
+    public void setCurrencyCode(String v) { currencyCode = v; }
+    public BigDecimal getExchangeRate() { return exchangeRate; }
+    public void setExchangeRate(BigDecimal v) { exchangeRate = v; }
+    public BigDecimal getBaseTotalAmount() { return baseTotalAmount; }
+    public void setBaseTotalAmount(BigDecimal v) { baseTotalAmount = v; }
+    public BigDecimal getBaseTotalTaxAmount() { return baseTotalTaxAmount; }
+    public void setBaseTotalTaxAmount(BigDecimal v) { baseTotalTaxAmount = v; }
 
     private Integer deletedFlag;
 
@@ -98,6 +114,14 @@ public class PurchaseOrderEntity {
 
     public void setSupplierId(Long supplierId) {
         this.supplierId = supplierId;
+    }
+
+    public Long getContractId() {
+        return contractId;
+    }
+
+    public void setContractId(Long contractId) {
+        this.contractId = contractId;
     }
 
     public LocalDate getOrderDate() {

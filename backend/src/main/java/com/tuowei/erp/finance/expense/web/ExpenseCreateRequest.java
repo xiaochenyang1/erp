@@ -11,6 +11,16 @@ public record ExpenseCreateRequest(
         @NotNull(message = "subjectId不能为空") Long subjectId,
         @NotNull(message = "paymentSubjectId不能为空") Long paymentSubjectId,
         @NotNull(message = "amount不能为空") @DecimalMin(value = "0.01", message = "费用金额必须大于0") BigDecimal amount,
-        String remark
+        String remark,
+        Long deptId
 ) {
+    public ExpenseCreateRequest(
+            LocalDate expenseDate,
+            Long subjectId,
+            Long paymentSubjectId,
+            BigDecimal amount,
+            String remark
+    ) {
+        this(expenseDate, subjectId, paymentSubjectId, amount, remark, null);
+    }
 }

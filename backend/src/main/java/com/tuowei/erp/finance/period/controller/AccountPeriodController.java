@@ -2,12 +2,15 @@ package com.tuowei.erp.finance.period.controller;
 
 import com.tuowei.erp.common.security.PermissionCodes;
 import com.tuowei.erp.common.web.ApiResponse;
+import com.tuowei.erp.finance.fx.service.FxRevaluationService;
+import com.tuowei.erp.finance.fx.web.FxRevaluationResponse;
 import com.tuowei.erp.finance.period.service.AccountPeriodCloseChecker;
 import com.tuowei.erp.finance.period.service.AccountPeriodService;
 import com.tuowei.erp.finance.period.service.InventoryFinanceReconciliationService;
 import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckResponse;
 import com.tuowei.erp.finance.period.web.AccountPeriodGenerateRequest;
 import com.tuowei.erp.finance.period.web.AccountPeriodResponse;
+import com.tuowei.erp.finance.period.web.AccountPeriodCloseSnapshotResponse;
 import com.tuowei.erp.finance.period.web.InventoryFinanceDifferenceDetailResponse;
 import com.tuowei.erp.finance.period.web.InventoryFinanceDifferenceQuery;
 import com.tuowei.erp.finance.period.web.InventoryFinanceDifferenceResponse;
@@ -32,15 +35,18 @@ public class AccountPeriodController {
     private final AccountPeriodService accountPeriodService;
     private final AccountPeriodCloseChecker closeChecker;
     private final InventoryFinanceReconciliationService reconciliationService;
+    private final FxRevaluationService fxRevaluationService;
 
     public AccountPeriodController(
             AccountPeriodService accountPeriodService,
             AccountPeriodCloseChecker closeChecker,
-            InventoryFinanceReconciliationService reconciliationService
+            InventoryFinanceReconciliationService reconciliationService,
+            FxRevaluationService fxRevaluationService
     ) {
         this.accountPeriodService = accountPeriodService;
         this.closeChecker = closeChecker;
         this.reconciliationService = reconciliationService;
+        this.fxRevaluationService = fxRevaluationService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_MANAGE)
@@ -70,6 +76,20 @@ public class AccountPeriodController {
     }
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_CLOSE)
+    @PostMapping("/{id}/fx-revaluation")
+    @OperationLog(module = "finance", operation = "fx-revaluation", message = "期末调汇", bizNo = "#id")
+    public ApiResponse<FxRevaluationResponse> revalue(@PathVariable Long id) {
+        return ApiResponse.success(fxRevaluationService.revalue(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_CLOSE)
+    @PostMapping("/{id}/fx-revaluation/cancel")
+    @OperationLog(module = "finance", operation = "cancel-fx-revaluation", message = "撤销期末调汇", bizNo = "#id")
+    public ApiResponse<FxRevaluationResponse> cancelRevalue(@PathVariable Long id) {
+        return ApiResponse.success(fxRevaluationService.cancel(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_CLOSE)
     @PostMapping("/{id}/close")
     @OperationLog(module = "finance", operation = "close-account-period", message = "结账会计期间", bizNo = "#id")
     public ApiResponse<AccountPeriodResponse> close(@PathVariable Long id) {
@@ -81,6 +101,12 @@ public class AccountPeriodController {
     @OperationLog(module = "finance", operation = "reopen-account-period", message = "解锁会计期间", bizNo = "#id")
     public ApiResponse<AccountPeriodResponse> reopen(@PathVariable Long id) {
         return ApiResponse.success(accountPeriodService.reopen(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_VIEW)
+    @GetMapping("/{id}/close-snapshots")
+    public ApiResponse<List<AccountPeriodCloseSnapshotResponse>> closeSnapshots(@PathVariable Long id) {
+        return ApiResponse.success(accountPeriodService.closeSnapshots(id));
     }
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_PERIOD_VIEW)

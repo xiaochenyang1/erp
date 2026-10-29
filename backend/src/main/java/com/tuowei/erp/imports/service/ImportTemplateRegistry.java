@@ -22,8 +22,8 @@ public class ImportTemplateRegistry {
             ImportConstants.WAREHOUSE, List.of("warehouse_code", "warehouse_name", "dept_id", "manager_user_id", "address", "status", "remark"),
             ImportConstants.LOCATION, List.of("warehouse_code", "location_code", "location_name", "is_default", "status", "remark"),
             ImportConstants.OPENING_INVENTORY, List.of("warehouse_code", "product_code", "location_code", "qty_on_hand", "amount_on_hand", "opening_date", "lot_no", "production_date", "expiry_date", "serial_nos", "remark"),
-            ImportConstants.OPENING_RECEIVABLE, List.of("customer_code", "receivable_no", "biz_date", "original_amount", "settled_amount", "remark"),
-            ImportConstants.OPENING_PAYABLE, List.of("supplier_code", "payable_no", "biz_date", "original_amount", "settled_amount", "remark"),
+            ImportConstants.OPENING_RECEIVABLE, List.of("customer_code", "receivable_no", "biz_date", "original_amount", "settled_amount", "currency_code", "exchange_rate", "remark"),
+            ImportConstants.OPENING_PAYABLE, List.of("supplier_code", "payable_no", "biz_date", "original_amount", "settled_amount", "currency_code", "exchange_rate", "remark"),
             ImportConstants.OPENING_ACCOUNT_BALANCE, List.of("subject_code", "biz_date", "debit_amount", "credit_amount", "summary")
     );
 
@@ -37,9 +37,14 @@ public class ImportTemplateRegistry {
             ImportConstants.WAREHOUSE, List.of("W001", "主仓库", "1", "1", "北京市", "ACTIVE", "仓库期初导入示例"),
             ImportConstants.LOCATION, List.of("W001", "A-01", "A区01货架", "0", "ACTIVE", "库位导入示例"),
             ImportConstants.OPENING_INVENTORY, List.of("W001", "P001", "MAIN", "100.0000", "1000.00", "2026-01-01", "LOT-001", "2026-01-01", "2026-12-31", "", "期初库存示例"),
-            ImportConstants.OPENING_RECEIVABLE, List.of("C001", "AR-OPEN-001", "2026-01-01", "500.00", "0", "期初应收示例"),
-            ImportConstants.OPENING_PAYABLE, List.of("S001", "AP-OPEN-001", "2026-01-01", "800.00", "0", "期初应付示例"),
+            ImportConstants.OPENING_RECEIVABLE, List.of("C001", "AR-OPEN-001", "2026-01-01", "500.00", "0", "CNY", "1", "期初应收示例"),
+            ImportConstants.OPENING_PAYABLE, List.of("S001", "AP-OPEN-001", "2026-01-01", "800.00", "0", "CNY", "1", "期初应付示例"),
             ImportConstants.OPENING_ACCOUNT_BALANCE, List.of("1001", "2026-01-01", "1000.00", "0", "期初科目余额示例")
+    );
+
+    private static final Map<String, List<String>> LEGACY_HEADERS = Map.of(
+            ImportConstants.OPENING_RECEIVABLE, List.of("customer_code", "receivable_no", "biz_date", "original_amount", "settled_amount", "remark"),
+            ImportConstants.OPENING_PAYABLE, List.of("supplier_code", "payable_no", "biz_date", "original_amount", "settled_amount", "remark")
     );
 
     public List<String> headers(String importType) {
@@ -48,6 +53,15 @@ public class ImportTemplateRegistry {
             throw new IllegalArgumentException("不支持的导入类型: " + importType);
         }
         return headers;
+    }
+
+    public List<List<String>> acceptedHeaders(String importType) {
+        List<String> current = headers(importType);
+        List<String> legacy = LEGACY_HEADERS.get(importType);
+        if (legacy == null) {
+            return List.of(current);
+        }
+        return List.of(current, legacy);
     }
 
     public String csvTemplate(String importType) {

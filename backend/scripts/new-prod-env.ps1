@@ -72,9 +72,11 @@ if ((Test-Path -LiteralPath $OutputPath) -and -not $Force) {
 
 Assert-CorsAllowedOrigins $CorsAllowedOrigins
 
+$applicationDatabasePassword = New-Secret 40
 $replacements = @{
     "MYSQL_ROOT_PASSWORD" = New-Secret 40
-    "MYSQL_PASSWORD" = New-Secret 40
+    "MYSQL_PASSWORD" = $applicationDatabasePassword
+    "ERP_DATASOURCE_PASSWORD" = $applicationDatabasePassword
     "ERP_REDIS_PASSWORD" = New-Secret 40
     "ERP_JWT_SECRET" = New-Secret 72
     "ERP_BOOTSTRAP_ADMIN_PASSWORD" = New-Secret 24

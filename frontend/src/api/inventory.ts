@@ -104,9 +104,59 @@ export interface InventoryLotTrace {
   documentLabel?: string | null
 }
 
+export interface LotGenealogyCounterparty {
+  type: 'SUPPLIER' | 'CUSTOMER' | string
+  id: string
+  code?: string | null
+  name?: string | null
+  documentNo?: string | null
+}
+
+export interface LotGenealogyLink {
+  bizType: string
+  bizNo?: string | null
+  bizLabel?: string | null
+  documentRoute?: string | null
+  occurredTime?: string | null
+  qty?: number | string | null
+  warehouseId?: string | number | null
+  warehouseName?: string | null
+  counterparty?: LotGenealogyCounterparty | null
+  terminalReason?: string | null
+  node?: LotGenealogyNode | null
+}
+
+export interface LotGenealogyNode {
+  productId: string
+  productCode?: string | null
+  productName?: string | null
+  lotNo?: string | null
+  productionDate?: string | null
+  expiryDate?: string | null
+  depth: number
+  links: LotGenealogyLink[]
+}
+
+export interface GenealogyLimits {
+  maxDepth: number
+  perLevelNodeLimit: number
+  totalNodeLimit: number
+  truncated: boolean
+  truncationReasons: string[]
+  scopeLimited: boolean
+}
+
+export interface InventoryLotGenealogy {
+  root: LotGenealogyNode
+  upstream?: LotGenealogyNode | null
+  downstream?: LotGenealogyNode | null
+  limits: GenealogyLimits
+}
+
 export interface InventoryLotExpiryAlert {
   id: string
   warehouseId: string
+  locationId?: string
   productId: string
   lotNo: string
   productionDate?: string
@@ -156,6 +206,13 @@ export interface InventoryLotTraceQuery extends PageQuery {
   occurredTimeTo?: string
 }
 
+export interface InventoryLotGenealogyQuery {
+  productId: string | number
+  lotNo: string
+  direction?: 'UPSTREAM' | 'DOWNSTREAM' | 'BOTH'
+  maxDepth?: number
+}
+
 export interface InventoryLotExpiryAlertQuery extends PageQuery {
   warehouseId?: string | number
   productId?: string | number
@@ -190,6 +247,10 @@ export const getInventoryLotTrace = (params: InventoryLotTraceQuery) => {
     ...page,
     records: page.records.map(normalizeInventoryLotTrace)
   }))
+}
+
+export const getInventoryLotGenealogy = (params: InventoryLotGenealogyQuery) => {
+  return request.get<InventoryLotGenealogy>('/inventory/lots/genealogy', { params }).then(normalizeInventoryLotGenealogy)
 }
 
 export const getInventoryLotExpiryAlerts = (params: InventoryLotExpiryAlertQuery) => {
@@ -235,6 +296,39 @@ const normalizeInventoryLotTrace = (item: InventoryLotTrace): InventoryLotTrace 
   documentRoute: item.documentRoute || null,
   documentLabel: item.documentLabel || null
 })
+
+const normalizeInventoryLotGenealogy = (response: InventoryLotGenealogy): InventoryLotGenealogy => {
+  const normalizeNode = (node: LotGenealogyNode | null | undefined): LotGenealogyNode | null | undefined => {
+    if (!node) return node
+    return {
+      ...node,
+      productId: String(node.productId),
+      links: (node.links || []).map((link) => ({
+        ...link,
+        warehouseId: link.warehouseId != null ? String(link.warehouseId) : link.warehouseId,
+        qty: link.qty != null ? Number(link.qty) : link.qty,
+        counterparty: link.counterparty
+          ? { ...link.counterparty, id: String(link.counterparty.id) }
+          : null,
+        node: normalizeNode(link.node)
+      }))
+    }
+  }
+
+  return {
+    ...response,
+    root: normalizeNode(response.root) as LotGenealogyNode,
+    upstream: normalizeNode(response.upstream),
+    downstream: normalizeNode(response.downstream),
+    limits: {
+      ...response.limits,
+      maxDepth: Number(response.limits?.maxDepth ?? 5),
+      perLevelNodeLimit: Number(response.limits?.perLevelNodeLimit ?? 200),
+      totalNodeLimit: Number(response.limits?.totalNodeLimit ?? 500),
+      truncationReasons: response.limits?.truncationReasons || []
+    }
+  }
+}
 
 const normalizeInventoryLotExpiryAlert = (item: InventoryLotExpiryAlert): InventoryLotExpiryAlert => ({
   ...item,
@@ -497,7 +591,7 @@ export interface InventoryAdjustmentItem {
   remark?: string
 }
 
-interface InventoryAdjustmentLineResponse {
+export interface InventoryAdjustmentLineResponse {
   id?: string | number
   productId: string | number
   productCode?: string
@@ -810,7 +904,7 @@ export interface InventoryTransferItem {
   remark?: string
 }
 
-interface InventoryTransferLineResponse {
+export interface InventoryTransferLineResponse {
   id?: string | number
   lineNo?: number
   productId: string | number

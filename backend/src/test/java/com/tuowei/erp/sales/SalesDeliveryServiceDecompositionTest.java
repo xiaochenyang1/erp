@@ -9,9 +9,13 @@ import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.qc.inspection.service.QcInspectionGate;
+import com.tuowei.erp.sales.delivery.service.SalesDeliveryCommandService;
 import com.tuowei.erp.sales.delivery.service.SalesDeliveryPostingService;
 import com.tuowei.erp.sales.delivery.service.SalesDeliveryQueryService;
 import com.tuowei.erp.sales.delivery.service.SalesDeliveryService;
+import com.tuowei.erp.sales.delivery.web.SalesDeliveryCreateRequest;
+import com.tuowei.erp.sales.delivery.web.SalesDeliveryLogisticsUpdateRequest;
+import com.tuowei.erp.sales.delivery.web.SalesDeliveryUpdateRequest;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
@@ -27,11 +31,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SalesDeliveryServiceDecompositionTest {
 
     @Test
-    void salesDeliveryServiceKeepsReadSideSecurityBehindQueryService() {
+    void salesDeliveryServiceKeepsCommandsQueriesAndPostingBehindDedicatedServices() {
         Set<Class<?>> constructorDependencies = constructorDependencies(SalesDeliveryService.class);
 
         assertThat(constructorDependencies)
-                .contains(SalesDeliveryQueryService.class, SalesDeliveryPostingService.class)
+                .containsExactlyInAnyOrder(
+                        SalesDeliveryQueryService.class,
+                        SalesDeliveryPostingService.class,
+                        SalesDeliveryCommandService.class
+                );
+        assertThat(constructorDependencies(SalesDeliveryCommandService.class))
+                .doesNotContain(SalesDeliveryService.class, SalesDeliveryPostingService.class);
+        assertThat(constructorDependencies(SalesDeliveryPostingService.class))
+                .doesNotContain(SalesDeliveryService.class, SalesDeliveryCommandService.class);
+        assertThat(constructorDependencies)
                 .doesNotContain(
                         CurrentUserContext.class,
                         DataScopeService.class,
@@ -44,12 +57,24 @@ class SalesDeliveryServiceDecompositionTest {
                         AccountPeriodGuard.class,
                         QcInspectionGate.class
                 );
-        assertThat(constructorDependencies(SalesDeliveryPostingService.class))
-                .doesNotContain(SalesDeliveryService.class);
     }
 
     @Test
-    void deliveryPostingKeepsRequiredWriteTransactionsOnFacadeAndCollaborator() throws NoSuchMethodException {
+    void deliveryCommandsKeepRequiredWriteTransactionsOnFacadeAndCollaborators() throws NoSuchMethodException {
+        assertRequiredWriteTransaction(SalesDeliveryService.class.getDeclaredMethod(
+                "create", SalesDeliveryCreateRequest.class));
+        assertRequiredWriteTransaction(SalesDeliveryCommandService.class.getDeclaredMethod(
+                "create", SalesDeliveryCreateRequest.class));
+        assertRequiredWriteTransaction(SalesDeliveryService.class.getDeclaredMethod(
+                "update", Long.class, SalesDeliveryUpdateRequest.class));
+        assertRequiredWriteTransaction(SalesDeliveryCommandService.class.getDeclaredMethod(
+                "update", Long.class, SalesDeliveryUpdateRequest.class));
+        assertRequiredWriteTransaction(SalesDeliveryService.class.getDeclaredMethod("cancel", Long.class));
+        assertRequiredWriteTransaction(SalesDeliveryCommandService.class.getDeclaredMethod("cancel", Long.class));
+        assertRequiredWriteTransaction(SalesDeliveryService.class.getDeclaredMethod(
+                "updateLogistics", Long.class, SalesDeliveryLogisticsUpdateRequest.class));
+        assertRequiredWriteTransaction(SalesDeliveryCommandService.class.getDeclaredMethod(
+                "updateLogistics", Long.class, SalesDeliveryLogisticsUpdateRequest.class));
         assertRequiredWriteTransaction(SalesDeliveryService.class.getDeclaredMethod("post", Long.class));
         assertRequiredWriteTransaction(SalesDeliveryPostingService.class.getDeclaredMethod("post", Long.class));
     }

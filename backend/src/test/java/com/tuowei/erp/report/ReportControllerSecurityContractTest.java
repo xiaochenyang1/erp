@@ -196,6 +196,10 @@ class ReportControllerSecurityContractTest {
                 "PARTIAL",
                 new BigDecimal("10.00"),
                 new BigDecimal("1000.00"),
+                new BigDecimal("130.00"),
+                "CNY",
+                BigDecimal.ONE,
+                new BigDecimal("1000.00"),
                 new BigDecimal("130.00")
         );
     }
@@ -211,6 +215,9 @@ class ReportControllerSecurityContractTest {
                 "PO-2026-001",
                 new BigDecimal("100.00"),
                 new BigDecimal("20.00"),
+                new BigDecimal("80.00"),
+                "CNY",
+                BigDecimal.ONE,
                 new BigDecimal("80.00"),
                 "SETTLED"
         );

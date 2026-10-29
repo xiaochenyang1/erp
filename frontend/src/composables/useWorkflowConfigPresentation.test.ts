@@ -9,12 +9,16 @@ describe('workflow config presentation', () => {
   it('builds business type options and labels', () => {
     const presentation = useWorkflowConfigPresentation(t)
     expect(presentation.businessTypes.value).toEqual([
+      { label: 'workflowConfig.businessTypes.purchaseRequisition', value: 'PURCHASE_REQUISITION' },
       { label: 'workflowConfig.businessTypes.purchaseOrder', value: 'PURCHASE_ORDER' },
       { label: 'workflowConfig.businessTypes.salesOrder', value: 'SALES_ORDER' },
       { label: 'workflowConfig.businessTypes.expense', value: 'EXPENSE' }
     ])
     expect(presentation.businessTypeLabel('SALES_ORDER')).toBe(
       'workflowConfig.businessTypes.salesOrder'
+    )
+    expect(presentation.businessTypeLabel('PURCHASE_REQUISITION')).toBe(
+      'workflowConfig.businessTypes.purchaseRequisition'
     )
     expect(presentation.businessTypeLabel('UNKNOWN')).toBe('UNKNOWN')
   })

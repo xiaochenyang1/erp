@@ -13,6 +13,7 @@ public class NotificationRecipientEntity {
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
     private Long companyId;
+    private Long accountBookId;
     private Long notificationId;
     private Long recipientUserId;
     private Integer readFlag;
@@ -29,6 +30,8 @@ public class NotificationRecipientEntity {
     public void setId(Long id) { this.id = id; }
     public Long getCompanyId() { return companyId; }
     public void setCompanyId(Long companyId) { this.companyId = companyId; }
+    public Long getAccountBookId() { return accountBookId; }
+    public void setAccountBookId(Long accountBookId) { this.accountBookId = accountBookId; }
     public Long getNotificationId() { return notificationId; }
     public void setNotificationId(Long notificationId) { this.notificationId = notificationId; }
     public Long getRecipientUserId() { return recipientUserId; }

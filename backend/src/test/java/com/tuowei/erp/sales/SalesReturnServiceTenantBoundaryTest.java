@@ -14,6 +14,7 @@ import com.tuowei.erp.sales.delivery.model.SalesDeliveryLineEntity;
 import com.tuowei.erp.sales.returnorder.mapper.SalesReturnLineMapper;
 import com.tuowei.erp.sales.returnorder.mapper.SalesReturnMapper;
 import com.tuowei.erp.sales.returnorder.model.SalesReturnLineEntity;
+import com.tuowei.erp.sales.returnorder.service.SalesReturnCommandService;
 import com.tuowei.erp.sales.returnorder.service.SalesReturnNumberService;
 import com.tuowei.erp.sales.returnorder.service.SalesReturnPostingService;
 import com.tuowei.erp.sales.returnorder.service.SalesReturnQueryService;
@@ -175,7 +176,7 @@ class SalesReturnServiceTenantBoundaryTest {
     }
 
     private SalesReturnService service() {
-        return new SalesReturnService(
+        SalesReturnCommandService commandService = new SalesReturnCommandService(
                 salesReturnMapper,
                 salesReturnLineMapper,
                 salesDeliveryMapper,
@@ -183,8 +184,12 @@ class SalesReturnServiceTenantBoundaryTest {
                 productValidator,
                 salesReturnNumberService,
                 auditMetadataFactory,
+                salesReturnQueryService
+        );
+        return new SalesReturnService(
                 salesReturnQueryService,
-                salesReturnPostingService
+                salesReturnPostingService,
+                commandService
         );
     }
 

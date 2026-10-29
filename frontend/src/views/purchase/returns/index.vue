@@ -85,7 +85,6 @@
       @page-change="handlePageChange"
       class="return-table"
     >
-      <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="returnNo" :label="t('purchaseReturn.returnNo')" width="160" fixed>
         <template #default="{ row }">
           <span class="return-no">{{ row.returnNo }}</span>
@@ -108,12 +107,15 @@
       <el-table-column prop="createdAt" :label="t('purchaseReturn.createdAt')" width="190">
         <template #default="{ row }">{{ formatLocalizedDateTime(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column :label="t('purchaseReturn.actions')" width="280" fixed="right" align="center">
+      <el-table-column :label="t('purchaseReturn.actions')" width="340" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button link type="primary" size="small" @click="handleView(row)">
               <el-icon><View /></el-icon>
               {{ t('purchaseReturn.view') }}
+            </el-button>
+            <el-button v-if="canViewAttachments" link type="primary" size="small" @click="openAttachments(row.id, row.returnNo)">
+              {{ t('documentAttachment.entry') }}
             </el-button>
             <el-button link type="primary" size="small" @click="handlePrint(row)">
               {{ t('purchaseReturn.print') }}
@@ -467,6 +469,15 @@
         {{ t('purchaseReturn.loadingReceipt') }}
       </div>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="PURCHASE_RETURN"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -475,7 +486,6 @@ import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Box,
   View,
   Edit,
   CircleCheck,
@@ -500,10 +510,12 @@ import {
   serialCaptureProgress
 } from '@/utils/productLines'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
 import { downloadBlob } from '@/utils/download'
 import { printPurchaseReturn } from '@/utils/bizPrint'
 import { useUserStore } from '@/store/modules/user'
 import { formatLocalizedDateTime } from '@/utils/locale'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { usePurchaseReturnSummary } from '@/composables/usePurchaseReturnPresentation'
 import { usePurchaseReturnList } from '@/composables/usePurchaseReturnList'
 import { usePurchaseReturnForm } from '@/composables/usePurchaseReturnForm'
@@ -511,6 +523,16 @@ import { usePurchaseReturnForm } from '@/composables/usePurchaseReturnForm'
 const userStore = useUserStore()
 const { t } = useI18n()
 const canCreate = computed(() => userStore.hasPermission('purchase:return:create'))
+
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const {
   availableReceipts,
@@ -551,7 +573,7 @@ const {
   getLocations,
   printReturn: printPurchaseReturn,
   downloadBlob,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message)

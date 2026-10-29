@@ -9,13 +9,15 @@ const source = readFileSync(resolve(process.cwd(), 'src/views/login/index.vue'),
 describe('login page completion contract', () => {
   afterEach(() => setI18nLocale('zh-CN'))
 
-  it('localizes the prefilled local account and password reset guidance', () => {
+  it('does not expose a default account and keeps password reset guidance localized', () => {
     setI18nLocale('en-US')
 
-    expect(i18n.global.t('login.prefilledTestAccount')).toBe('admin / LocalAdmin123 (prefilled)')
     expect(i18n.global.t('login.passwordResetHint'))
       .toBe('Contact your system administrator to reset your password')
-    expect(source).toContain("$t('login.prefilledTestAccount')")
+    expect(source).not.toContain('prefilledTestAccount')
+    expect(source).not.toContain('test-accounts')
+    expect(source).toContain("username: ''")
+    expect(source).toContain("password: ''")
     expect(source).toContain('@click="showPasswordResetHint"')
   })
 

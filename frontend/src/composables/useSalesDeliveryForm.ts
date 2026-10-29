@@ -65,7 +65,10 @@ export const useSalesDeliveryForm = (
     remark: '',
     carrierName: '',
     trackingNo: '',
-    logisticsStatus: 'PENDING_SHIP'
+    logisticsStatus: 'PENDING_SHIP',
+    deliveredBy: undefined,
+    deliveredTime: undefined,
+    deliveryProofAttachmentId: undefined
   })
 
   const formRules = computed<FormRules>(() => ({
@@ -90,6 +93,9 @@ export const useSalesDeliveryForm = (
     formData.carrierName = ''
     formData.trackingNo = ''
     formData.logisticsStatus = 'PENDING_SHIP'
+    formData.deliveredBy = undefined
+    formData.deliveredTime = undefined
+    formData.deliveryProofAttachmentId = undefined
     scanFeedback.value = ''
     formRef.value?.resetFields()
   }
@@ -153,6 +159,9 @@ export const useSalesDeliveryForm = (
       formData.carrierName = detail.carrierName || ''
       formData.trackingNo = detail.trackingNo || ''
       formData.logisticsStatus = detail.logisticsStatus || 'PENDING_SHIP'
+      formData.deliveredBy = detail.deliveredBy
+      formData.deliveredTime = detail.deliveredTime
+      formData.deliveryProofAttachmentId = detail.deliveryProofAttachmentId
       const deliveryItems = (detail.items || detail.lines || []).map((item) => {
         const orderLineId = item.orderLineId ?? item.orderItemId
         const orderItem = orderItems.find((oi) => String(oi.id) === String(orderLineId))

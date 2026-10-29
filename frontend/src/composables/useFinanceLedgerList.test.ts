@@ -25,6 +25,7 @@ const summary = (overrides: Partial<LedgerSummary> = {}): LedgerSummary => ({
 })
 
 const entry = (overrides: Partial<LedgerEntry> = {}): LedgerEntry => ({
+  id: 'entry-1',
   bizDate: '2026-07-01',
   voucherId: 'v1',
   lineNo: 1,

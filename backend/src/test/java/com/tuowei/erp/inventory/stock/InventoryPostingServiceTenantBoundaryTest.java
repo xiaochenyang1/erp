@@ -90,12 +90,14 @@ class InventoryPostingServiceTenantBoundaryTest {
 
     @Test
     void serviceDoesNotKeepLegacyCompanyOnlyBalanceLookup() throws Exception {
-        String source = Files.readString(
-                Path.of("src", "main", "java", "com", "tuowei", "erp", "inventory", "stock", "service", "InventoryPostingService.java"),
-                StandardCharsets.UTF_8
-        );
+        String querySource = serviceSource("InventoryPostingQueryService.java");
+        String postingSource = serviceSource("InventoryBalancePostingService.java");
 
-        assertThat(source)
+        assertThat(querySource)
+                .contains("Long companyId, Long accountBookId, Long warehouseId, Long productId, Long locationId")
+                .doesNotContain("private InventoryBalanceEntity selectBalance(Long companyId, Long warehouseId, Long productId)");
+        assertThat(postingSource)
+                .contains("Long companyId, Long accountBookId, Long warehouseId, Long productId, Long locationId")
                 .doesNotContain("private InventoryBalanceEntity selectBalance(Long companyId, Long warehouseId, Long productId)");
     }
 
@@ -106,6 +108,13 @@ class InventoryPostingServiceTenantBoundaryTest {
                 inventoryReservationPostingService,
                 productMapper,
                 inventoryLotBalanceMapper
+        );
+    }
+
+    private String serviceSource(String fileName) throws Exception {
+        return Files.readString(
+                Path.of("src", "main", "java", "com", "tuowei", "erp", "inventory", "stock", "service", fileName),
+                StandardCharsets.UTF_8
         );
     }
 

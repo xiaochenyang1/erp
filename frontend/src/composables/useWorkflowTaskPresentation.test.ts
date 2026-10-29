@@ -8,6 +8,9 @@ describe('workflow task presentation', () => {
   it('maps business types, statuses and tag types', () => {
     const presentation = useWorkflowTaskPresentation(t)
     expect(presentation.businessTypeLabel('SALES_ORDER')).toBe('workflow.salesOrder')
+    expect(presentation.businessTypeLabel('PURCHASE_ORDER')).toBe('workflow.purchaseOrder')
+    expect(presentation.businessTypeLabel('PURCHASE_REQUISITION')).toBe('workflow.purchaseRequisition')
+    expect(presentation.businessTypeLabel('EXPENSE')).toBe('workflow.expense')
     expect(presentation.businessTypeLabel('UNKNOWN')).toBe('UNKNOWN')
     expect(presentation.businessTypeLabel()).toBe('-')
 

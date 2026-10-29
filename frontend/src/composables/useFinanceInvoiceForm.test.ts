@@ -32,6 +32,21 @@ const createForm = (overrides: Partial<Parameters<typeof useFinanceInvoiceForm>[
   })
 
 describe('finance invoice form', () => {
+  it('preserves the invoice currency and saved rate through editing and clears them for a new invoice', async () => {
+    const updateFinanceInvoice = vi.fn(async () => ({}))
+    const form = createForm({
+      getFinanceInvoice: vi.fn(async () => invoice({ currencyCode: 'USD', exchangeRate: 7.2, baseAmount: 720 })),
+      updateFinanceInvoice
+    })
+    await form.handleEdit({ id: '1' })
+    form.formData.remark = 'note changed'
+    await form.submitSave()
+    expect(updateFinanceInvoice).toHaveBeenCalledWith('1', expect.objectContaining({ currencyCode: 'USD', exchangeRate: 7.2, amount: 100 }))
+    form.handleAdd()
+    expect(form.formData.currencyCode).toBeUndefined()
+    expect(form.formData.exchangeRate).toBeUndefined()
+  })
+
   it('opens create with today and creates invoices', async () => {
     const createFinanceInvoice = vi.fn(async () => ({}))
     const onSuccess = vi.fn()
@@ -53,6 +68,8 @@ describe('finance invoice form', () => {
     expect(await form.submitSave()).toBe(true)
     expect(createFinanceInvoice).toHaveBeenCalledWith({
       invoiceType: 'INPUT',
+      currencyCode: undefined,
+      exchangeRate: undefined,
       partnerName: 'Vendor',
       invoiceDate: form.formData.invoiceDate,
       amount: 50,

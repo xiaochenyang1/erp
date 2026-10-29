@@ -18,9 +18,13 @@ public class ExpenseEntity {
     private Long accountBookId;
     private String expenseNo;
     private LocalDate expenseDate;
+    private Long deptId;
     private Long subjectId;
     private Long paymentSubjectId;
     private BigDecimal amount;
+    private Long budgetLineId;
+    private String budgetState;
+    private Integer budgetOverrunFlag;
     private String status;
     private Long voucherId;
     private Integer deletedFlag;
@@ -42,12 +46,20 @@ public class ExpenseEntity {
     public void setExpenseNo(String expenseNo) { this.expenseNo = expenseNo; }
     public LocalDate getExpenseDate() { return expenseDate; }
     public void setExpenseDate(LocalDate expenseDate) { this.expenseDate = expenseDate; }
+    public Long getDeptId() { return deptId; }
+    public void setDeptId(Long deptId) { this.deptId = deptId; }
     public Long getSubjectId() { return subjectId; }
     public void setSubjectId(Long subjectId) { this.subjectId = subjectId; }
     public Long getPaymentSubjectId() { return paymentSubjectId; }
     public void setPaymentSubjectId(Long paymentSubjectId) { this.paymentSubjectId = paymentSubjectId; }
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public Long getBudgetLineId() { return budgetLineId; }
+    public void setBudgetLineId(Long budgetLineId) { this.budgetLineId = budgetLineId; }
+    public String getBudgetState() { return budgetState; }
+    public void setBudgetState(String budgetState) { this.budgetState = budgetState; }
+    public Integer getBudgetOverrunFlag() { return budgetOverrunFlag; }
+    public void setBudgetOverrunFlag(Integer budgetOverrunFlag) { this.budgetOverrunFlag = budgetOverrunFlag; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Long getVoucherId() { return voucherId; }
