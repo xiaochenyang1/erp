@@ -1,6 +1,6 @@
 # ERP Server 业务验收清单
 
-本文档用于上线前确认 ERP 后端核心业务链路已经可验收。当前仓库已恢复最小自动化回归和发布检查脚本，但这些检查只能证明关键接口、迁移和发布产物没有明显断裂；真实业务链路仍必须在预生产人工验收。
+本文档用于上线前确认 ERP 核心业务链路可验收。仓库提供后端、前端、浏览器工作流、隔离部署及采销演示检查；这些技术结果应绑定具体候选，真实岗位和业务口径仍须在预生产人工验收。
 
 ## 发布门禁
 
@@ -45,15 +45,15 @@
 
 ## 当前候选状态
 
-- 当前本轮改动已拆分为明确提交；预生产执行人必须先用 `git rev-parse --short HEAD` 记录最终 commit，并用 `git status --short --branch` 确认工作树干净。
-- 当前本地默认 `mvn test` 已通过；测试数量、失败数以最新命令输出为准，不得沿用历史文档数字。完整发布门禁仍需在有 Docker 的最终发布环境重新执行 `.\scripts\release-check.ps1 -IncludeTestcontainers`，并记录测试数量、失败数、`target/erp-server-1.0.0.jar`、`target/classes/META-INF/sbom/application.cdx.json` 和 `target/bom.json`。
-- 当前本机没有 Docker，不能完成真实 Docker Compose 启动、MySQL/Redis 依赖和业务链路验收；这些项必须在预生产机器补齐。
+- 预生产执行人先用 `git rev-parse HEAD` 记录最终 commit，并用 `git status --short --branch` 确认工作树干净。应用制品与部署工具分别记录版本和摘要，不能用旧报告证明新候选通过。
+- 完整本地候选入口是 `scripts/release-candidate-local.sh /absolute/new/evidence-directory`，包含 Docker/Testcontainers 发布检查、前端审计与制品、监控、浏览器及财务/质检技术预检。测试数量和结果以该候选独立证据目录为准。
+- [完整部署回归](FULLSTACK-DEPLOYMENT.md)使用 Docker 启动一次性 MySQL、Redis、prod 后端和 Nginx，并执行真实采销 API、结余和受限账号校验。交互式本机试用另按[采销演示](LOCAL-BUSINESS-TRIAL.md)保留样例；隔离回归和本机试用均不能替代目标环境验收。
 
 ## 发布边界冻结
 
 - 发布候选必须来自一个明确 Git commit，不能从当前脏工作树直接打包上线。
 - 进入预生产前执行 `git status --short --branch`，逐项确认已修改、已删除和未跟踪文件都属于本次发布范围。
-- 当前仓库保留的是最小自动化回归，不是历史全量测试集；如果大量旧测试删除是有意策略调整，需要在发布记录中写明批准人和替代验收方式。
+- 发布材料应列明实际执行的测试范围、失败及跳过项；后端测试、页面检查和业务工作流分别统计。若缩减覆盖范围，需要记录原因及替代验收方式。
 - 创建 release tag 或镜像前，必须在最终发布 commit 上重新运行 `.\scripts\release-check.ps1 -IncludeTestcontainers`。
 - 预生产失败后不得在同一 release tag 上“顺手改一把再试”，必须产生新的候选 commit 并重新记录验收。
 
