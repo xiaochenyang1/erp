@@ -31,7 +31,10 @@ function fixture(t) {
   for (const name of ['backup-manifest.json', 'attachments.json']) copyFileSync(path.join(backups, name), path.join(evidenceDirectory, name))
   for (const name of ['database-before-backup.json', 'database-restored.json']) save(path.join(evidenceDirectory, name), baseline)
   for (const name of ['inventory-before-upgrade.json', 'inventory-after-upgrade.json']) save(path.join(evidenceDirectory, name), { dataSha256: 'f'.repeat(64) })
-  for (const name of ['configuration-before-upgrade.json', 'configuration-after-upgrade.json']) save(path.join(evidenceDirectory, name), { custom: 'preserved' })
+  for (const name of ['configuration-before-upgrade.json', 'configuration-after-upgrade.json']) save(path.join(evidenceDirectory, name), {
+    customMenu: '9000000000001\tRECOVERY_CUSTOM_KEEP\t历史自定义权限\tcustom:recovery:keep\t0',
+    existingApprovalConfigs: '123\t1\t1\tPURCHASE_ORDER\t历史自定义采购审批 🧪\tACTIVE\thistorical configuration\t0'
+  })
   save(path.join(evidenceDirectory, 'attachments-restored.json'), attachment)
   const legacy = { schemaVersion: 1, kind: 'erp-historical-fixture', sourceRevision: legacyRevision, toolRevision: revision,
     jarSha256: '1'.repeat(64), buildPassed: true, schema: '168' }
@@ -91,6 +94,18 @@ test('mixed checkpoint metadata and leaked private files invalidate recovery', t
     writeFileSync(path.join(f.evidenceDirectory, name), 'private')
     assert.throws(() => validateRecoveryReports(f.options), /Private recovery/)
     rmSync(path.join(f.evidenceDirectory, name))
+  }
+})
+
+test('matching empty or unrelated configuration snapshots cannot satisfy historical preservation', t => {
+  const f = fixture(t)
+  const before = path.join(f.evidenceDirectory, 'configuration-before-upgrade.json')
+  const after = path.join(f.evidenceDirectory, 'configuration-after-upgrade.json')
+  const original = JSON.parse(readFileSync(before, 'utf8'))
+  for (const update of [{ customMenu: '' }, { existingApprovalConfigs: '' },
+    { existingApprovalConfigs: original.existingApprovalConfigs.replace('PURCHASE_ORDER', 'SALES_ORDER') }]) {
+    save(before, { ...original, ...update }); save(after, { ...original, ...update })
+    assert.throws(() => validateRecoveryReports(f.options), /checkpoint must contain/)
   }
 })
 

@@ -36,6 +36,14 @@ export const recoveryChecks = [
 ]
 const within = (parent, child) => parent === child || child.startsWith(parent + path.sep)
 
+function requireHistoricalConfiguration(snapshot) {
+  assert.match(snapshot.customMenu, /^9000000000001\tRECOVERY_CUSTOM_KEEP\t历史自定义权限\tcustom:recovery:keep\t0$/,
+    'The checkpoint must contain the custom historical menu')
+  assert.match(snapshot.existingApprovalConfigs, /\tPURCHASE_ORDER\t历史自定义采购审批 🧪\tACTIVE\t/,
+    'The checkpoint must contain a persisted custom purchase approval configuration')
+  return snapshot
+}
+
 export function configureRecoveryNetworks(configuration, project) {
   assert(recoveryProjectPattern.test(project || ''))
   for (const name of ['mysql', 'redis', 'erp-server']) {
@@ -117,7 +125,8 @@ export function validateRecoveryReports({ evidenceDirectory, expectedRevision, e
   assert.deepEqual(read('database-before-backup.json'), checkpoint.databaseSnapshot)
   assert.deepEqual(read('database-restored.json'), checkpoint.databaseSnapshot)
   assert.deepEqual(read('inventory-before-upgrade.json'), read('inventory-after-upgrade.json'))
-  assert.deepEqual(read('configuration-before-upgrade.json'), read('configuration-after-upgrade.json'))
+  assert.deepEqual(requireHistoricalConfiguration(read('configuration-before-upgrade.json')),
+    requireHistoricalConfiguration(read('configuration-after-upgrade.json')))
   assert.equal(hash(readFileSync(path.join(evidenceDirectory, 'attachments.json'))), checkpoint.artifacts.attachmentSnapshot.sha256)
   assert.deepEqual(read('attachments-restored.json'), read('attachments.json'))
   const attachments = read('attachments.json')
@@ -335,7 +344,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       fixture = await seedHistoricalBusiness({ api, admin, date, rememberSecret })
       beforeAttachments = [await upload('before-one', fixture.posted.id), await upload('before-two', fixture.draft.id)]
       for (const attachment of beforeAttachments) await download(attachment)
-      await sql('mysql', "INSERT INTO sys_menu (id,parent_id,menu_type,menu_code,menu_name,permission) VALUES (9000000000001,0,'BUTTON','RECOVERY_CUSTOM_KEEP','历史自定义权限','custom:recovery:keep'); UPDATE wf_approval_config SET config_name='历史自定义采购审批 🧪' WHERE business_type='PURCHASE_ORDER' AND company_id=1 AND account_book_id=1;")
+      await sql('mysql', "INSERT INTO sys_menu (id,parent_id,menu_type,menu_code,menu_name,permission) VALUES (9000000000001,0,'BUTTON','RECOVERY_CUSTOM_KEEP','历史自定义权限','custom:recovery:keep');")
       report.fixtures = { ...fixture, reviewer: { username: fixture.reviewer.username }, attachments: beforeAttachments }
       return { generatedThroughOldApplication: true, postedAdjustmentId: fixture.posted.id, draftId: fixture.draft.id,
         adjustedCountId: fixture.adjusted.id, countedId: fixture.counted.id, attachments: beforeAttachments.length }
@@ -346,7 +355,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       assert.equal((await command('docker', ['inspect', '--format', '{{.State.Running}}', container])).stdout.trim(), 'false')
       baseline = await snapshot('mysql')
       inventoryBefore = await snapshot('mysql', inventoryTables)
-      settingsBefore = await settings('mysql')
+      settingsBefore = requireHistoricalConfiguration(await settings('mysql'))
       writeJson(path.join(evidence, 'database-before-backup.json'), baseline)
       writeJson(path.join(evidence, 'inventory-before-upgrade.json'), inventoryBefore)
       writeJson(path.join(evidence, 'configuration-before-upgrade.json'), settingsBefore)

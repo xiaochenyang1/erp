@@ -44,10 +44,17 @@ export async function seedHistoricalBusiness({ api, admin, date, rememberSecret 
   const role = roles.records.find(row => row.roleCode === 'ERP_ADMIN')
   assert(role, 'Missing ERP_ADMIN role')
   await api('PUT', `/api/system/users/${user.id}/roles`, { roleIds: [role.id] })
+  const approvalConfig = await api('PUT', '/api/workflow/configs/PURCHASE_ORDER', {
+    configName: '历史自定义采购审批 🧪', status: 'ACTIVE', taskTimeoutHours: 72, remark,
+    nodes: [{ nodeName: '历史采购审核', nodeOrder: 1, approvalMode: 'ALL',
+      approvers: [{ approverType: 'ROLE', approverId: role.id }] }]
+  })
+  assert(approvalConfig.id, 'Historical approval configuration must be persisted')
+  assert.equal(approvalConfig.configName, '历史自定义采购审批 🧪')
   const stocks = await api('GET', `/api/inventory/balances?pageNo=1&pageSize=200&warehouseId=${warehouse.id}`)
   checkStock(stocks.records, warehouse.id, product.id, 10, 100)
   return { warehouse, product, countedProduct, adjusted, posted, draft, cancelled, counted, customer,
-    reviewer, reviewerId: user.id, adminRoleId: role.id, prefix }
+    approvalConfig, reviewer, reviewerId: user.id, adminRoleId: role.id, prefix }
 }
 
 export async function verifyHistoricalReads(api, fixture) {
