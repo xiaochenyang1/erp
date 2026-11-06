@@ -17,11 +17,11 @@ const redact = value => secrets.reduce((text, value) => text.replaceAll(value, '
 const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
   !/^(ERP_|MYSQL_|REDIS_|COMPOSE_|GF_|SPRING_|JAVA_)/.test(key)))
 
-export async function run(command, args, { input, timeout = 300_000, allowFailure = false } = {}) {
+export async function run(command, args, { input, timeout = 300_000, allowFailure = false, cwd = backend } = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now()
     const startedMonotonic = performance.now()
-    const child = spawn(command, args, { cwd: backend, env: environment, stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn(command, args, { cwd, env: environment, stdio: ['pipe', 'pipe', 'pipe'] })
     let stdout = '', stderr = '', timedOut = false
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL') }, timeout)
     child.stdout.on('data', data => { stdout += data })

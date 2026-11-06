@@ -56,6 +56,7 @@ jobs:
         with:
           ref: ${{ env.CANDIDATE_REVISION }}
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Prepare isolated output directories
         shell: bash
@@ -89,13 +90,17 @@ jobs:
         run: npm ci --audit=false
 
       - name: Test deployment tooling and failure handling
-        run: >-
-          node --test backend/scripts/deployment-ci.test.mjs
-          backend/scripts/deployment-bundle.test.mjs
-          backend/scripts/deployment-smoke-network.test.mjs
-          backend/scripts/trial-business-acceptance.test.mjs
-          backend/scripts/ui-smoke-processes.test.mjs
-          backend/scripts/ui-smoke-cdp.test.mjs
+        run: |
+          node --test backend/scripts/deployment-ci.test.mjs \
+            backend/scripts/deployment-bundle.test.mjs \
+            backend/scripts/deployment-smoke-network.test.mjs \
+            backend/scripts/deployment-recovery.test.mjs \
+            backend/scripts/recovery-checkpoint.test.mjs \
+            backend/scripts/production-rehearsal.test.mjs \
+            backend/scripts/trial-business-acceptance.test.mjs \
+            backend/scripts/ui-smoke-processes.test.mjs \
+            backend/scripts/ui-smoke-cdp.test.mjs
+          python3 -B backend/scripts/recovery-attachments.test.py
 
       - name: Build and test backend including Testcontainers
         working-directory: backend
@@ -223,6 +228,48 @@ jobs:
           --expected-manifest-sha256 "$MANIFEST_SHA256" --evidence "$DEPLOYMENT_ROOT/runtime"
           --expected-revision "$CANDIDATE_REVISION" > "$DEPLOYMENT_ROOT/verification.json"
 
+      - name: Build the pinned V168 historical fixture
+        id: legacy
+        timeout-minutes: 9
+        shell: bash
+        run: |
+          set -euo pipefail
+          node backend/scripts/deployment-recovery.mjs prepare-legacy \
+            --output "$DEPLOYMENT_ROOT/legacy" > "$DEPLOYMENT_ROOT/legacy.json"
+          legacy_manifest_sha256="$(jq -er .manifestSha256 "$DEPLOYMENT_ROOT/legacy.json")"
+          echo "manifest_sha256=$legacy_manifest_sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Run V168 upgrade and joint database attachment recovery
+        id: recovery
+        timeout-minutes: 18
+        shell: bash
+        env:
+          MANIFEST_SHA256: ${{ steps.bundle.outputs.manifest_sha256 }}
+          LEGACY_MANIFEST_SHA256: ${{ steps.legacy.outputs.manifest_sha256 }}
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=120s 15m \
+            node backend/scripts/deployment-recovery.mjs run \
+            --bundle "$DEPLOYMENT_ROOT/deployed-bundle" --expected-manifest-sha256 "$MANIFEST_SHA256" \
+            --legacy "$DEPLOYMENT_ROOT/legacy" --expected-legacy-manifest-sha256 "$LEGACY_MANIFEST_SHA256" \
+            --evidence "$DEPLOYMENT_ROOT/recovery" 2>&1 | tee "$DEPLOYMENT_ROOT/recovery.log"
+
+      - name: Ensure disposable recovery resources are removed
+        if: ${{ always() && (steps.recovery.outcome == 'success' || steps.recovery.outcome == 'failure' || steps.recovery.outcome == 'cancelled') }}
+        timeout-minutes: 5
+        run: >-
+          node backend/scripts/deployment-recovery.mjs cleanup
+          --evidence "$DEPLOYMENT_ROOT/recovery" --expected-revision "$CANDIDATE_REVISION"
+          > "$DEPLOYMENT_ROOT/recovery-cleanup.json"
+
+      - name: Verify upgrade and recovery evidence
+        env:
+          MANIFEST_SHA256: ${{ steps.bundle.outputs.manifest_sha256 }}
+        run: >-
+          node backend/scripts/deployment-recovery.mjs verify --bundle "$DEPLOYMENT_ROOT/deployed-bundle"
+          --expected-manifest-sha256 "$MANIFEST_SHA256" --evidence "$DEPLOYMENT_ROOT/recovery"
+          --expected-revision "$CANDIDATE_REVISION" > "$DEPLOYMENT_ROOT/recovery-verification.json"
+
       - name: Collect backend diagnostics
         if: ${{ always() && env.DEPLOYMENT_ROOT != '' }}
         shell: bash
@@ -253,4 +300,7 @@ jobs:
             ${{ env.DEPLOYMENT_ROOT }}/runtime/compose-redacted.json
             ${{ env.DEPLOYMENT_ROOT }}/runtime/browser*.png
             ${{ env.DEPLOYMENT_ROOT }}/runtime/business-trial/report.json
+            ${{ env.DEPLOYMENT_ROOT }}/recovery/*.json
+            ${{ env.DEPLOYMENT_ROOT }}/recovery/*.log
+            ${{ env.DEPLOYMENT_ROOT }}/legacy/build.log
             ${{ env.DEPLOYMENT_ROOT }}/backend/**

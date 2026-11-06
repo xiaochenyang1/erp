@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict'
-import { execFile, execFileSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseArgs, promisify } from 'node:util'
+import { parseArgs } from 'node:util'
 import { verifyArtifact } from '../../frontend/scripts/release-artifact.mjs'
 import { verifyDeploymentBundle } from './deployment-bundle.mjs'
+import { cleanupDisposableDocker } from './deployment-docker-cleanup.mjs'
 
 const script = fileURLToPath(import.meta.url)
 const defaultRepository = path.resolve(path.dirname(script), '../..')
-const execute = promisify(execFile)
 const revisionPattern = /^[a-f0-9]{40}$/
 const projectPattern = /^erp-preview-deployment-[a-f0-9]{12}$/
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -147,8 +147,7 @@ export function verifyDeploymentEvidence({ bundleDirectory, expectedManifestSha2
 
 // Fallback for a timed-out smoke process. Queries always use the exact random
 // project from its report, and all removals are attempted even if one fails.
-export async function cleanupDeploymentEvidence({ evidenceDirectory, expectedRevision, docker = async args =>
-  (await execute('docker', args, { timeout: 60000, maxBuffer: 1024 * 1024 })).stdout }) {
+export async function cleanupDeploymentEvidence({ evidenceDirectory, expectedRevision, docker }) {
   assert(revisionPattern.test(expectedRevision || ''), 'Provide the full expected revision')
   const reportFile = path.join(evidenceDirectory, 'report.json')
   if (!existsSync(reportFile)) return { passed: true, skipped: true, reason: 'Smoke did not publish a project before starting Docker' }
@@ -158,26 +157,9 @@ export async function cleanupDeploymentEvidence({ evidenceDirectory, expectedRev
   assert.equal(report.runtimeToolRevision, expectedRevision, 'Cleanup report revision mismatch')
   assert(projectPattern.test(report.project || ''), 'Refusing cleanup of a non-smoke project')
   const project = report.project
-  const groups = [
-    { name: 'containers', list: ['ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`], remove: ['rm', '-f'] },
-    { name: 'IP holder', list: ['ps', '-aq', '--filter', `name=^${project}-ip-holder$`], remove: ['rm', '-f'] },
-    { name: 'volumes', list: ['volume', 'ls', '-q', '--filter', `label=com.docker.compose.project=${project}`], remove: ['volume', 'rm'] },
-    { name: 'networks', list: ['network', 'ls', '-q', '--filter', `label=com.docker.compose.project=${project}`], remove: ['network', 'rm'] },
-    { name: 'images', list: ['image', 'ls', '--format', '{{.Repository}}:{{.Tag}}', '--filter', `reference=${project}-*`], remove: ['image', 'rm'] }
-  ]
-  const failures = []
-  for (const group of groups) {
-    try {
-      const resources = (await docker(group.list)).trim().split(/\s+/).filter(Boolean)
-      if (resources.length) await docker([...group.remove, ...resources])
-    } catch (error) { failures.push({ resource: group.name, error: error.message }) }
-  }
-  for (const group of groups) {
-    try { assert.equal((await docker(group.list)).trim(), '', `Owned ${group.name} remain`) }
-    catch (error) { failures.push({ resource: group.name, error: error.message }) }
-  }
+  const result = await cleanupDisposableDocker(project, docker)
   for (const name of ['private-account.json', 'HANDOFF.md']) rmSync(path.join(evidenceDirectory, 'business-trial', name), { force: true })
-  return { passed: failures.length === 0, checkedAt: new Date().toISOString(), project, failures }
+  return result
 }
 
 async function main() {
