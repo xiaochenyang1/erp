@@ -92,6 +92,7 @@ jobs:
         run: >-
           node --test backend/scripts/deployment-ci.test.mjs
           backend/scripts/deployment-bundle.test.mjs
+          backend/scripts/deployment-smoke-network.test.mjs
           backend/scripts/trial-business-acceptance.test.mjs
           backend/scripts/ui-smoke-processes.test.mjs
           backend/scripts/ui-smoke-cdp.test.mjs

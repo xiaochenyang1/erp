@@ -14,6 +14,7 @@ import { verifyDeploymentBundle, initializeDeployment } from './deployment-bundl
 import { connectCdpSocket } from './ui-smoke-cdp.mjs'
 import { spawnSmokeProcess, cleanupSmokeProcesses } from './ui-smoke-processes.mjs'
 import { runTrial } from './trial-business-acceptance.mjs'
+import { prepareReplacementNetwork } from './deployment-smoke-network.mjs'
 
 const execute = promisify(execFile)
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -170,12 +171,14 @@ async function main() {
       return { onlyWebPublished: true, prodProfile: true }
     })
     await check('Build accepted artifacts and start MySQL Redis backend and Nginx', async () => {
-      await compose(['build']); await compose(['up', '-d', '--wait', '--wait-timeout', '300'])
+      await compose(['build'])
+      const replacementNetwork = await prepareReplacementNetwork(args => command('docker', args), project)
+      await compose(['up', '-d', '--wait', '--wait-timeout', '300'])
       const manifest = JSON.parse(await readFile(path.join(work, 'deployment-manifest.json')))
       assert.equal((await compose(['exec', '-T', 'erp-server', 'sha256sum', '/app/erp-server.jar'])).split(/\s/)[0], manifest.jarSha256)
       const nginxUser = (await compose(['exec', '-T', 'web', 'id', '-u'])).trim(); assert.notEqual(nginxUser, '0')
       report.images = await compose(['images', '--format', 'json'])
-      return { jarSha256: manifest.jarSha256, nginxNonRoot: true }
+      return { jarSha256: manifest.jarSha256, nginxNonRoot: true, replacementNetwork }
     })
     await check('Static bytes deep links cache rules and missing assets', async () => {
       const index = await readFile(path.join(work, 'frontend/artifact/dist/index.html'))
