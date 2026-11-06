@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { cleanupRecoveryEvidence, recoveryChecks, validateRecoveryReports } from './deployment-recovery.mjs'
+import { cleanupRecoveryEvidence, configureRecoveryNetworks, recoveryChecks, validateRecoveryReports } from './deployment-recovery.mjs'
 import { hash, legacyRevision, sealCheckpoint } from './recovery-checkpoint.mjs'
 import { runLegacyGit, verifyLegacyArtifact } from './deployment-recovery-legacy.mjs'
 
@@ -170,4 +170,20 @@ test('historical Git inventory and archive use repository-relative paths from th
   mkdirSync(extracted)
   execFileSync('tar', ['-xf', archive, '-C', extracted])
   assert.equal(readFileSync(path.join(extracted, relative), 'utf8'), 'SELECT 168;\n')
+})
+
+test('recovery exposes only Nginx through an entry network while keeping data services internal', () => {
+  const configuration = { services: Object.fromEntries(['mysql', 'redis', 'erp-server', 'web'].map(name => [name, {}])) }
+  configuration.services.web.ports = [{ host_ip: '127.0.0.1', target: 8080, published: '42123' }]
+  configureRecoveryNetworks(configuration, project)
+  assert.equal(configuration.networks.default.internal, true)
+  assert.equal(configuration.networks.edge.internal, false)
+  assert.deepEqual(Object.keys(configuration.services.web.networks).sort(), ['default', 'edge'])
+  for (const name of ['mysql', 'redis', 'erp-server']) {
+    assert.deepEqual(Object.keys(configuration.services[name].networks), ['default'])
+    assert.equal(configuration.services[name].ports, undefined)
+  }
+  assert.equal(configuration.services.web.ports[0].host_ip, '127.0.0.1')
+  configuration.services.mysql.ports = [{ published: '3306' }]
+  assert.throws(() => configureRecoveryNetworks(configuration, project), /Only the web entry/)
 })

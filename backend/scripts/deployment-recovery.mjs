@@ -36,6 +36,21 @@ export const recoveryChecks = [
 ]
 const within = (parent, child) => parent === child || child.startsWith(parent + path.sep)
 
+export function configureRecoveryNetworks(configuration, project) {
+  assert(recoveryProjectPattern.test(project || ''))
+  for (const name of ['mysql', 'redis', 'erp-server']) {
+    assert(!configuration.services[name].ports?.length, 'Only the web entry may publish a port')
+    configuration.services[name].networks = { default: null }
+  }
+  configuration.networks = {
+    default: { name: `${project}_default`, internal: true },
+    // Docker internal bridges do not provide the host port ingress used by the
+    // API driver. Only Nginx joins this separate, project-owned entry network.
+    edge: { name: `${project}_edge`, internal: false }
+  }
+  configuration.services.web.networks = { default: null, edge: null }
+}
+
 export async function cleanupRecoveryEvidence({ evidenceDirectory, expectedRevision, docker, removePrivate = true }) {
   assert(revisionPattern.test(expectedRevision || ''), 'Provide the full expected revision')
   const file = path.join(evidenceDirectory, 'report.json')
@@ -191,7 +206,10 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
   const schema = service => sql(service, 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')
   const fileTool = (args, options = {}) => compose(['run', '--rm', '--no-deps', 'attachment-tools', 'python', '/tools/recovery-attachments.py', ...args], options)
   const attachmentSnapshot = async root => JSON.parse((await fileTool(['snapshot', '--root', root])).stdout)
-  const request = (route, options = {}) => fetch(base + route, { ...options, redirect: 'error', signal: AbortSignal.timeout(15000) })
+  const request = async (route, options = {}) => {
+    try { return await fetch(base + route, { ...options, redirect: 'error', signal: AbortSignal.timeout(15000) }) }
+    catch (error) { throw new Error(`${options.method || 'GET'} ${route}: ${error.cause?.code || error.name}: ${error.message}`) }
+  }
   const api = async (method, route, body, token = adminToken, expectedStatus = 200, expectedMessage) => {
     const form = body instanceof FormData
     const response = await request(route, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -256,6 +274,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
     const port = server.address().port
     await new Promise(resolve => server.close(resolve))
     base = `http://127.0.0.1:${port}`
+    report.baseUrl = base
     initializeDeployment({ bundleDirectory: work, expectedManifestSha256, origin: base, port })
     config = parseEnv(await readFile(path.join(work, '.env'), 'utf8'))
     Object.entries(config).filter(([key]) => /PASSWORD|SECRET/.test(key)).forEach(([, value]) => rememberSecret(value))
@@ -263,7 +282,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
     configuration = JSON.parse((await command('docker', ['compose', '-p', project, '--env-file', path.join(work, '.env'),
       '-f', path.join(work, 'compose.yaml'), 'config', '--format', 'json'], { log: false })).stdout)
     for (const service of Object.values(configuration.services)) { delete service.container_name; service.restart = 'no' }
-    configuration.networks = { default: { name: `${project}_default`, internal: true } }
+    configureRecoveryNetworks(configuration, project)
     for (const [key, volume] of Object.entries(configuration.volumes)) { assert(!volume.external); volume.name = `${project}_${key}` }
     const services = configuration.services
     services.mysql.volumes.push({ type: 'bind', source: backups, target: '/backups' },
@@ -297,6 +316,8 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       assert.equal(rendered.services.web.ports[0].host_ip, '127.0.0.1')
       assert.equal(services['erp-server'].environment.SPRING_PROFILES_ACTIVE, 'prod')
       assert.equal(rendered.networks.default.internal, true)
+      assert.notEqual(rendered.networks.edge.internal, true)
+      assert.deepEqual(Object.keys(rendered.services.web.networks).sort(), ['default', 'edge'])
       await writeFile(path.join(evidence, 'compose-redacted.json'), redact(JSON.stringify(rendered, null, 2)))
       await compose(['build', 'erp-server', 'web'])
       await compose(['up', '-d', '--wait', '--wait-timeout', '300', 'mysql', 'redis', 'erp-server', 'web'])
@@ -304,6 +325,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       assert.equal(await sql('mysql', 'SELECT COUNT(*) FROM flyway_schema_history WHERE success=0;'), '0')
       const jarSha256 = (await compose(['exec', '-T', 'erp-server', 'sha256sum', '/app/erp-server.jar'])).stdout.split(/\s/)[0]
       assert.equal(jarSha256, legacy.jarSha256)
+      await ready()
       report.sourceImages = (await compose(['images', '--format', 'json'])).stdout
       return { sourceRevision: legacyRevision, schema: '168', jarSha256, isolated: true }
     })

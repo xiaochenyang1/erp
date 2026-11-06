@@ -4,6 +4,8 @@
 
 入口为 [deployment-recovery.mjs](../scripts/deployment-recovery.mjs)。它只创建随机 `erp-preview-recovery-*` 项目，不接收既有环境地址或业务凭据；历史库、恢复库、Redis、附件卷均为一次性资源。
 
+应用、数据库和 Redis 使用内部网络，Nginx 同时连接单独的入口网络，仅在宿主机 `127.0.0.1` 发布 HTTP 端口。演练同时检查容器内部健康与 runner 到入口的实际可达性。
+
 ## 历史来源与检查范围
 
 旧版后端固定为 `8766ef0ac966da8628bbdfc2b9bbb12c6e93ba17`，该提交的最高迁移是 V168。工具从 Git 归档源码，在独立目录构建旧 JAR，核对打包迁移与旧源码，记录构建日志、提交及 JAR SHA-256。旧版构建跳过测试，仅用于产生升级样例；待发布的新候选仍须通过完整后端（含 Testcontainers）和前端检查。不会修改迁移历史、调用 Flyway repair 或用新代码伪装旧版单据。
