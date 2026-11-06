@@ -44,7 +44,7 @@ export async function seedHistoricalBusiness({ api, admin, date, rememberSecret 
   const role = roles.records.find(row => row.roleCode === 'ERP_ADMIN')
   assert(role, 'Missing ERP_ADMIN role')
   await api('PUT', `/api/system/users/${user.id}/roles`, { roleIds: [role.id] })
-  const stocks = await api('GET', `/api/inventory/stocks?pageNo=1&pageSize=200&warehouseId=${warehouse.id}`)
+  const stocks = await api('GET', `/api/inventory/balances?pageNo=1&pageSize=200&warehouseId=${warehouse.id}`)
   checkStock(stocks.records, warehouse.id, product.id, 10, 100)
   return { warehouse, product, countedProduct, adjusted, posted, draft, cancelled, counted, customer,
     reviewer, reviewerId: user.id, adminRoleId: role.id, prefix }
@@ -67,11 +67,11 @@ export async function verifyHistoricalReads(api, fixture) {
 export async function verifyUpgradedApproval({ api, fixture, reviewerToken }) {
   const { draft, warehouse, product, counted, countedProduct } = fixture
   const stock = async (item, qty, amount) => {
-    const rows = (await api('GET', `/api/inventory/stocks?pageNo=1&pageSize=200&warehouseId=${warehouse.id}`)).records
+    const rows = (await api('GET', `/api/inventory/balances?pageNo=1&pageSize=200&warehouseId=${warehouse.id}`)).records
     return checkStock(rows, warehouse.id, item.id, qty, amount)
   }
   const countedStockStillEmpty = async () => {
-    const rows = (await api('GET', `/api/inventory/stocks?pageNo=1&pageSize=200&warehouseId=${warehouse.id}`)).records
+    const rows = (await api('GET', `/api/inventory/balances?pageNo=1&pageSize=200&warehouseId=${warehouse.id}`)).records
     if (rows.some(row => String(row.productId) === String(countedProduct.id))) checkStock(rows, warehouse.id, countedProduct.id, 0, 0)
   }
   await api('POST', `${adjustments}/${draft.id}/post`, undefined, undefined, 400, /审批通过/)
