@@ -11,6 +11,7 @@ import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentPageQuery;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentResponse;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
+import com.tuowei.erp.inventory.check.model.InventoryStockCheckEntity;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
@@ -71,6 +72,16 @@ public class InventoryAdjustmentService {
     @Transactional
     public InventoryAdjustmentResponse create(InventoryAdjustmentCreateRequest request) {
         return adjustmentCommandService.create(request);
+    }
+
+    @Transactional
+    public InventoryAdjustmentResponse createForStockCheck(InventoryAdjustmentCreateRequest request, InventoryStockCheckEntity source) {
+        return adjustmentCommandService.createForStockCheck(request, source);
+    }
+
+    @Transactional
+    public InventoryAdjustmentResponse update(Long id, InventoryAdjustmentCreateRequest request) {
+        return adjustmentCommandService.update(id, request);
     }
 
     @Transactional(readOnly = true)

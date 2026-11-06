@@ -561,7 +561,10 @@ export interface InventoryAdjustment {
   warehouseName: string
   adjustmentDate: string
   type: 'GAIN' | 'LOSS' | 'OTHER'
-  status: 'DRAFT' | 'POSTED' | 'COMPLETED' | 'CANCELLED'
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'POSTED' | 'COMPLETED' | 'CANCELLED'
+  sourceType?: string
+  sourceId?: string | number | null
+  sourceNo?: string
   items: InventoryAdjustmentItem[]
   lines?: InventoryAdjustmentLineResponse[]
   remark?: string
@@ -642,6 +645,39 @@ export const createInventoryAdjustment = (data: InventoryAdjustmentCreateRequest
   return request.post<InventoryAdjustment>('/inventory/adjustments', toAdjustmentPayload(data)).then(normalizeInventoryAdjustment)
 }
 
+export const updateInventoryAdjustment = (id: string | number, data: InventoryAdjustmentCreateRequest) =>
+  request.put<InventoryAdjustment>(`/inventory/adjustments/${id}`, toAdjustmentPayload(data)).then(normalizeInventoryAdjustment)
+
+export const submitInventoryAdjustment = (id: string | number) =>
+  request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/submit`).then(normalizeInventoryAdjustment)
+
+export const approveInventoryAdjustment = (id: string | number) =>
+  request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/approve`).then(normalizeInventoryAdjustment)
+
+export const rejectInventoryAdjustment = (id: string | number, comment: string) =>
+  request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/reject`, { comment }).then(normalizeInventoryAdjustment)
+
+export const withdrawInventoryAdjustment = (id: string | number) =>
+  request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/withdraw`).then(normalizeInventoryAdjustment)
+
+export interface InventoryAdjustmentApprovalInfo {
+  instanceId?: string | number | null
+  status: string
+  submitUserId?: string | number | null
+  submitTime?: string | null
+  completedTime?: string | null
+  records: Array<{
+    id: string | number
+    action: string
+    operatorUserId: string | number
+    comment?: string | null
+    actionTime: string
+  }>
+}
+
+export const getInventoryAdjustmentApprovalInfo = (id: string | number) =>
+  request.get<InventoryAdjustmentApprovalInfo>(`/inventory/adjustments/${id}/approval-info`)
+
 export const completeInventoryAdjustment = (id: string | number) => {
   return request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/post`).then(normalizeInventoryAdjustment)
 }
@@ -676,6 +712,8 @@ const normalizeInventoryAdjustment = (adjustment: InventoryAdjustment): Inventor
     ...adjustment,
     id: adjustment.id,
     warehouseId: String(adjustment.warehouseId),
+    createdAt: adjustment.createdAt || (adjustment as InventoryAdjustment & { createdTime?: string }).createdTime || '',
+    updatedAt: adjustment.updatedAt || (adjustment as InventoryAdjustment & { updatedTime?: string }).updatedTime || '',
     status: adjustment.status === 'POSTED' ? 'COMPLETED' : adjustment.status,
     type: adjustmentType(items, adjustment.type),
     items
@@ -708,7 +746,7 @@ export interface InventoryCheck {
   warehouseId: string | number
   warehouseName?: string
   checkDate: string
-  status: 'COUNTED' | 'ADJUSTED' | 'CANCELLED'
+  status: 'COUNTED' | 'ADJUSTMENT_PENDING' | 'ADJUSTED' | 'CANCELLED'
   items: InventoryCheckItem[]
   lines?: InventoryCheckLineResponse[]
   generatedAdjustmentId?: string | number

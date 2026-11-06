@@ -406,12 +406,14 @@ async function smokeOqc(adminToken, submitterToken) {
     }, 'create oqc product')
 
     // seed stock via inventory adjustment
-    const adjust = await must(adminToken, 'POST', '/api/inventory/adjustments', {
+    const adjust = await must(submitterToken, 'POST', '/api/inventory/adjustments', {
       warehouseId: warehouse.id,
       adjustmentDate: today,
       remark: `oqc-adj-${SUFFIX}`,
       lines: [{ productId: product.id, direction: 'IN', qty: 20, unitCost: 10, reason: 'seed' }],
     }, 'create adjustment')
+    await must(submitterToken, 'POST', `/api/inventory/adjustments/${adjust.id}/submit`, { comment: 'OQC stock preparation' }, 'submit adjustment')
+    await must(adminToken, 'POST', `/api/inventory/adjustments/${adjust.id}/approve`, { comment: 'OQC independent stock review' }, 'approve adjustment')
     await must(adminToken, 'POST', `/api/inventory/adjustments/${adjust.id}/post`, undefined, 'post adjustment')
 
     const order = await must(submitterToken, 'POST', '/api/sales/orders', {

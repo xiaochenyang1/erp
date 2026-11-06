@@ -12,7 +12,8 @@ describe('workflow config presentation', () => {
       { label: 'workflowConfig.businessTypes.purchaseRequisition', value: 'PURCHASE_REQUISITION' },
       { label: 'workflowConfig.businessTypes.purchaseOrder', value: 'PURCHASE_ORDER' },
       { label: 'workflowConfig.businessTypes.salesOrder', value: 'SALES_ORDER' },
-      { label: 'workflowConfig.businessTypes.expense', value: 'EXPENSE' }
+      { label: 'workflowConfig.businessTypes.expense', value: 'EXPENSE' },
+      { label: 'workflowConfig.businessTypes.inventoryAdjustment', value: 'INVENTORY_ADJUSTMENT' }
     ])
     expect(presentation.businessTypeLabel('SALES_ORDER')).toBe(
       'workflowConfig.businessTypes.salesOrder'

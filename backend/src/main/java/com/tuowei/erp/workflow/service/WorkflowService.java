@@ -93,4 +93,9 @@ public class WorkflowService {
     public WorkflowApprovalInfoResponse approvalInfo(String businessType, Long businessId) {
         return queryService.approvalInfo(businessType, businessId);
     }
+
+    @Transactional(readOnly = true)
+    public WorkflowApprovalInfoResponse approvalHistory(String businessType, Long businessId) {
+        return queryService.approvalHistory(businessType, businessId);
+    }
 }

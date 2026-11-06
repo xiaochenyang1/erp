@@ -153,6 +153,59 @@ async function apiRequest(auth, method, path, body) {
   return payload.data
 }
 
+async function approveInventoryAdjustmentFixture(auth, adjustmentId) {
+  const submitter = await loginWithCredentials({ username: 'runtime_smoke', password: 'RuntimeSmoke123' })
+  await apiRequest(submitter, 'POST', `/inventory/adjustments/${adjustmentId}/submit`, { comment: 'UI smoke 库存备货提交' })
+  const approved = await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustmentId}/approve`, { comment: 'UI smoke 独立库存复核' })
+  if (approved.status !== 'APPROVED') throw new Error('Inventory fixture requires completed approval before posting')
+}
+
+async function assertInventoryFixtureQuantity(auth, fixture, expectedQty) {
+  const balances = await apiRequest(auth, 'GET', `/inventory/balances?pageNo=1&pageSize=100&warehouseId=${fixture.warehouse.id}&productId=${fixture.product.id}`)
+  const qty = (balances.records || []).reduce((total, balance) => total + Number(balance.qtyOnHand), 0)
+  if (qty !== expectedQty) throw new Error(`Inventory changed before posting: expected ${expectedQty}, got ${qty}`)
+}
+
+function inventoryAdjustmentRowExpression(adjustmentNo) {
+  return `[...document.querySelectorAll('.el-table__body-wrapper tbody tr')]
+    .find(item => item.getBoundingClientRect().height > 0 && item.innerText.includes(${JSON.stringify(adjustmentNo)}))`
+}
+
+async function approveInventoryAdjustmentThroughUi(cdp, auth, adjustment, fixture, initialQty) {
+  const row = inventoryAdjustmentRowExpression(adjustment.adjustmentNo)
+  await waitForPage(cdp, visibleTextExpression(row, '草稿'), 'adjustment draft before approval')
+  const canPostDraft = await evaluatePage(cdp, `Boolean(${row}?.innerText.includes('过账'))`)
+  if (canPostDraft) throw new Error('Draft adjustment must not offer posting')
+  await assertInventoryFixtureQuantity(auth, fixture, initialQty)
+  await clickButton(cdp, '提交审批', row)
+  await clickButton(cdp, '确定', messageBoxExpression('确认提交此库存调整单审批吗'))
+  await waitForPage(cdp, visibleTextExpression(row, '待审批'), 'adjustment submitted')
+  await assertInventoryFixtureQuantity(auth, fixture, initialQty)
+
+  await setBrowserAuth(cdp, auth)
+  await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/adjustments?adjustmentNo=${encodeURIComponent(adjustment.adjustmentNo)}` })
+  await waitForPage(cdp, visibleTextExpression(row, '待审批'), 'adjustment visible to independent approver')
+  await clickButton(cdp, '通过', row)
+  await clickButton(cdp, '确定', messageBoxExpression('确认通过当前审批节点吗'))
+  await waitForPage(cdp, visibleTextExpression(row, '已通过'), 'adjustment approved')
+  await assertInventoryFixtureQuantity(auth, fixture, initialQty)
+  await clickButton(cdp, '审批记录', row)
+  const historyDialog = dialogExpression('审批记录')
+  await waitForPage(cdp, `
+    (() => {
+      const dialog = ${historyDialog};
+      if (!dialog?.innerText.includes(${JSON.stringify(adjustment.adjustmentNo)})) return false;
+      const records = [...dialog.querySelectorAll('.el-table__body-wrapper tbody tr')]
+        .map(record => [...record.querySelectorAll('td')].map(cell => cell.innerText.trim()));
+      const submitted = records.find(record => record[0] === '提交');
+      const approved = records.find(record => record[0] === '通过');
+      return Boolean(records.length === 2 && submitted?.[1] && approved?.[1]
+        && submitted[1] !== approved[1] && submitted[3] && approved[3]);
+    })()
+  `, 'adjustment approval history with distinct submitter and approver')
+  await clickElement(cdp, `${historyDialog}.querySelector('.el-dialog__headerbtn')`, 'close approval history')
+}
+
 async function apiUploadAttachment(auth, businessType, businessId, businessNo, filename) {
   const form = new FormData()
   form.set('businessType', businessType)
@@ -295,6 +348,7 @@ async function prepareProductionOrderFixture(auth) {
       }
     ]
   })
+  await approveInventoryAdjustmentFixture(auth, adjustment.id)
   await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustment.id}/post`)
 
   return {
@@ -367,6 +421,7 @@ async function prepareSalesOrderFixture(auth) {
       }
     ]
   })
+  await approveInventoryAdjustmentFixture(auth, adjustment.id)
   await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustment.id}/post`)
 
   return {
@@ -470,6 +525,7 @@ async function prepareInventoryTransferFixture(auth) {
       }
     ]
   })
+  await approveInventoryAdjustmentFixture(auth, adjustment.id)
   await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustment.id}/post`)
 
   return {
@@ -526,6 +582,7 @@ async function prepareInventoryCheckFixture(auth) {
       }
     ]
   })
+  await approveInventoryAdjustmentFixture(auth, adjustment.id)
   await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustment.id}/post`)
 
   return {
@@ -970,7 +1027,7 @@ async function clickElement(cdp, elementExpression, label) {
         return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
       };
       const element = ${elementExpression};
-      if (!visible(element)) return null;
+      if (!visible(element) || element.disabled) return null;
       let rect = element.getBoundingClientRect();
       if (rect.top < 0 || rect.bottom > window.innerHeight || rect.left < 0 || rect.right > window.innerWidth) {
         element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
@@ -979,6 +1036,9 @@ async function clickElement(cdp, elementExpression, label) {
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
       if (centerX < 0 || centerX > window.innerWidth || centerY < 0 || centerY > window.innerHeight) return null;
+      // Loading masks and closing dialogs may still intercept clicks after rows have refreshed.
+      const hit = document.elementFromPoint(centerX, centerY);
+      if (hit !== element && !element.contains(hit)) return null;
       return {
         x: centerX,
         y: centerY,
@@ -2912,6 +2972,8 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
 async function runInventoryAdjustmentWorkflow(cdp, auth) {
   resetEvents(cdp.events)
   const fixture = await prepareInventoryAdjustmentFixture(auth)
+  const submitterAuth = await loginWithCredentials({ username: 'runtime_smoke', password: 'RuntimeSmoke123' })
+  await setBrowserAuth(cdp, submitterAuth)
   const remark = `UI smoke 库存调整 ${fixture.suffix}`
   let adjustment = null
   try {
@@ -3028,6 +3090,7 @@ async function runInventoryAdjustmentWorkflow(cdp, auth) {
         return row?.innerText.includes('草稿') && row?.innerText.includes(${JSON.stringify(remark)});
       })()
     `, 'inventory adjustment draft row visible')
+    await approveInventoryAdjustmentThroughUi(cdp, auth, adjustment, fixture, 0)
     await evaluatePage(cdp, `
       (() => {
         window.__uiSmoke = {
@@ -3430,6 +3493,8 @@ async function runInventoryTransferWorkflow(cdp, auth) {
 async function runInventoryCheckWorkflow(cdp, auth) {
   resetEvents(cdp.events)
   const fixture = await prepareInventoryCheckFixture(auth)
+  const submitterAuth = await loginWithCredentials({ username: 'runtime_smoke', password: 'RuntimeSmoke123' })
+  await setBrowserAuth(cdp, submitterAuth)
   const remark = `UI smoke 库存盘点 ${fixture.suffix}`
   let check = null
   try {
@@ -3547,7 +3612,7 @@ async function runInventoryCheckWorkflow(cdp, auth) {
     `, 'inventory check counted row visible')
     await invokeElement(
       cdp,
-      `[...document.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '调整库存')`,
+      `[...document.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '生成调整单')`,
       'inventory check adjust button'
     )
     await waitForPage(cdp, `
@@ -3558,10 +3623,10 @@ async function runInventoryCheckWorkflow(cdp, auth) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return Boolean(${messageBoxExpression('确认根据此盘点单调整库存吗')});
+        return Boolean(${messageBoxExpression('确认根据盘点差异生成调整草稿吗')});
       })()
     `, 'inventory check adjust confirm')
-    await clickButton(cdp, '确定', messageBoxExpression('确认根据此盘点单调整库存吗'))
+    await clickButton(cdp, '确定', messageBoxExpression('确认根据盘点差异生成调整草稿吗'))
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -3571,11 +3636,27 @@ async function runInventoryCheckWorkflow(cdp, auth) {
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
         const row = ${checkRowExpression};
-        return row?.innerText.includes('已调整');
+        return row?.innerText.includes('待调整过账');
       })()
-    `, 'inventory check adjusted row visible', 30000).catch(async (error) => {
+    `, 'inventory check pending row visible', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after inventory check adjust'))}`)
     })
+    await assertInventoryFixtureQuantity(auth, fixture, fixture.initialQty)
+    const pendingCheck = await apiRequest(auth, 'GET', `/inventory/checks/${check.id}`)
+    const adjustment = await apiRequest(auth, 'GET', `/inventory/adjustments/${pendingCheck.generatedAdjustmentId}`)
+    if (adjustment.status !== 'DRAFT' || String(adjustment.sourceId) !== String(check.id)) {
+      throw new Error('Stock count must create a linked draft adjustment')
+    }
+    await clickButton(cdp, pendingCheck.generatedAdjustmentNo)
+    await waitForPage(cdp, `location.pathname === '/inventory/adjustments'`, 'navigate to generated adjustment')
+    await approveInventoryAdjustmentThroughUi(cdp, auth, adjustment, fixture, fixture.initialQty)
+    const adjustmentRow = inventoryAdjustmentRowExpression(adjustment.adjustmentNo)
+    await clickButton(cdp, '过账', adjustmentRow)
+    await clickButton(cdp, '确定', messageBoxExpression('确认过账此库存调整吗'))
+    await waitForPage(cdp, visibleTextExpression(adjustmentRow, '已完成'), 'generated adjustment posted')
+    await clickButton(cdp, check.checkNo, adjustmentRow)
+    await waitForPage(cdp, `location.pathname === '/inventory/checks'`, 'return to linked stock count')
+    await waitForPage(cdp, `Boolean(${checkRowExpression.replace('visible(item) && ', '')}?.innerText.includes('已调整'))`, 'count updated after adjustment posting')
 
     await waitForPage(cdp, `
       (async () => {

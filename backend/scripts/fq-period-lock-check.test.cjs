@@ -10,8 +10,8 @@ function fixture(options = {}) {
   const calls = []
   let status = options.periodStatus || 'OPEN', revalued = false
   let adjustment = 'DRAFT'
-  const request = async (method, path, body) => {
-    calls.push({ method, path, body })
+  const client = async (actor, method, path, body) => {
+    calls.push({ actor, method, path, body })
     if (path === '/api/finance/periods/generate') return ok([])
     if (path === '/api/finance/periods?year=2099') return ok([{ id: 'P', periodMonth: '2099-01', status }])
     if (path.endsWith('/close-check')) {
@@ -34,7 +34,25 @@ function fixture(options = {}) {
     if (path.startsWith('/api/masterdata/warehouses?')) return ok({ records: [{ id: 'W' }] })
     if (path === '/api/masterdata/products') return ok({ id: 'G' })
     if (path === '/api/inventory/adjustments') return ok({ id: 'A', status: 'DRAFT' })
+    if (path === '/api/inventory/adjustments/A/submit') {
+      assert.equal(actor, 'submitter')
+      adjustment = 'SUBMITTED'
+      return ok({ id: 'A', status: adjustment })
+    }
+    if (path === '/api/inventory/adjustments/A/approve') {
+      assert.equal(actor, 'admin')
+      assert.equal(adjustment, 'SUBMITTED')
+      if (options.approvalFailure) return conflict('approval failed')
+      adjustment = 'APPROVED'
+      return ok({ id: 'A', status: adjustment })
+    }
+    if (path === '/api/inventory/adjustments/A/withdraw') {
+      assert.equal(actor, 'submitter')
+      adjustment = 'DRAFT'
+      return ok({ status: adjustment })
+    }
     if (path === '/api/inventory/adjustments/A/post') {
+      assert.equal(adjustment, 'APPROVED')
       if (options.postAllowed) { adjustment = 'POSTED'; return ok({ status: adjustment }) }
       return options.postResult || conflict('业务日期 2099-01-15 所属期间 2099-01 已锁定，不能执行库存调整过账')
     }
@@ -48,17 +66,21 @@ function fixture(options = {}) {
     }
     throw new Error(`Unexpected ${method} ${path}`)
   }
-  return { request, calls, state: () => ({ status, revalued }) }
+  return {
+    request: (...args) => client('admin', ...args),
+    submitterRequest: (...args) => client('submitter', ...args),
+    calls, state: () => ({ status, revalued })
+  }
 }
 
 test('foreign balance requires revaluation before lock and cancels only its own adjustment afterward', async () => {
   const f = fixture({ issues: [missingFx] })
-  const result = await runPeriodLockCheck(f.request, { stamp: 'test' })
+  const result = await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })
   assert.equal(result.pass, true)
   assert.deepEqual(result.evidence.closeCheckBeforeLock.body.data.issues, [missingFx])
   assert.equal(result.evidence.closeCheckAfterRevaluation.body.data.passed, true)
   assert.equal(result.evidence.post.http, 409)
-  assert.equal(result.evidence.adjustmentAfterPost.status, 'DRAFT')
+  assert.equal(result.evidence.adjustmentAfterPost.status, 'APPROVED')
   assert.deepEqual(f.state(), { status: 'OPEN', revalued: false })
   const paths = f.calls.map(c => c.path)
   assert(paths.indexOf('/api/finance/periods/P/fx-revaluation') < paths.indexOf('/api/finance/periods/P/lock'))
@@ -67,7 +89,7 @@ test('foreign balance requires revaluation before lock and cancels only its own 
 
 test('an already-ready period needs no revaluation', async () => {
   const f = fixture()
-  assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test' })).pass, true)
+  assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })).pass, true)
   assert(!f.calls.some(c => c.path.includes('fx-revaluation')))
 })
 
@@ -79,7 +101,7 @@ test('unrelated or stale month-end failures remain visible without locking or ch
     [missingFx, { type: 'VOUCHER_UNBALANCED', message: '借贷不平' }],
   ]) {
     const f = fixture({ issues })
-    const result = await runPeriodLockCheck(f.request, { stamp: 'test' })
+    const result = await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })
     assert.equal(result.pass, false)
     assert.deepEqual(result.evidence.closeCheckBeforeLock.body.data.issues, issues)
     assert(!f.calls.some(c => c.path.endsWith('/lock') || c.path.includes('fx-revaluation')))
@@ -89,27 +111,27 @@ test('unrelated or stale month-end failures remain visible without locking or ch
 test('existing locked or closed periods are not reopened by the test', async () => {
   for (const periodStatus of ['LOCKED', 'CLOSED']) {
     const f = fixture({ periodStatus })
-    assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test' })).pass, false)
+    assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })).pass, false)
     assert(!f.calls.some(c => c.path.endsWith('/reopen')))
   }
 })
 
 test('a failed revaluation stops before locking and is not cancelled as if owned', async () => {
   const f = fixture({ issues: [missingFx], fxFailure: true })
-  assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test' })).pass, false)
+  assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })).pass, false)
   assert(!f.calls.some(c => c.path.endsWith('/lock') || c.path.endsWith('/cancel')))
 })
 
 test('month-end checks must pass after revaluation; cleanup still runs on failure', async () => {
   const f = fixture({ issues: [missingFx], afterIssues: [{ type: 'VOUCHER_UNBALANCED', message: '借贷不平' }] })
-  assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test' })).pass, false)
+  assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })).pass, false)
   assert(!f.calls.some(c => c.path.endsWith('/lock')))
   assert.equal(f.state().revalued, false)
 })
 
 test('a concurrently existing revaluation is preserved', async () => {
   const f = fixture({ issues: [missingFx], alreadyPosted: true })
-  assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test' })).pass, true)
+  assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })).pass, true)
   assert(!f.calls.some(c => c.path.endsWith('/fx-revaluation/cancel')))
   assert.equal(f.state().revalued, true)
 })
@@ -122,15 +144,33 @@ test('HTTP errors mentioning a period, unrelated conflicts and successful postin
     { postAllowed: true },
   ]) {
     const f = fixture(options)
-    assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test' })).pass, false)
+    assert.equal((await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })).pass, false)
     assert.equal(f.state().status, 'OPEN')
   }
 })
 
 test('cleanup failure makes the check fail even after a correct locked-period rejection', async () => {
   const f = fixture({ issues: [missingFx], cleanupFailure: true })
-  const result = await runPeriodLockCheck(f.request, { stamp: 'test' })
+  const result = await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })
   assert.equal(result.pass, false)
   assert.equal(result.evidence.post.http, 409)
   assert.match(result.detail, /cleanup failed/)
+})
+
+
+test('approval failure cannot pass the period check and withdraws before cancelling its draft', async () => {
+  const f = fixture({ approvalFailure: true })
+  const result = await runPeriodLockCheck(f.request, { stamp: 'test', submitterRequest: f.submitterRequest })
+  assert.equal(result.pass, false)
+  assert(!f.calls.some(c => c.path.endsWith('/post')))
+  const paths = f.calls.map(c => c.path)
+  assert(paths.indexOf('/api/inventory/adjustments/A/withdraw') < paths.indexOf('/api/inventory/adjustments/A/cancel'))
+  assert.equal(f.state().status, 'OPEN')
+})
+
+test('requires a separate submitter before making changes', async () => {
+  const f = fixture()
+  const result = await runPeriodLockCheck(f.request, { stamp: 'test' })
+  assert.equal(result.pass, false)
+  assert.deepEqual(f.calls, [])
 })

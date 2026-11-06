@@ -1,9 +1,10 @@
 // F10 runs in a dedicated acceptance account book. A future period still carries
 // that book's open foreign balances, so normal month-end prerequisites apply.
-async function runPeriodLockCheck(request, { stamp }) {
+async function runPeriodLockCheck(request, { stamp, submitterRequest }) {
   const evidence = { cleanup: [] }
   let periodId, productId, adjustmentId
   let ownsLock = false, ownsRevaluation = false
+  let adjustmentSubmitted = false
   let pass = false, detail = ''
   const successful = response => response.http >= 200 && response.http < 300 && String(response.body?.code) === '0'
   const requireOk = (response, action) => {
@@ -15,9 +16,9 @@ async function runPeriodLockCheck(request, { stamp }) {
     evidence[key] = response
     return requireOk(response, 'month-end check failed')
   }
-  const cleanup = async (action, method, path, expectedStatus) => {
+  const cleanup = async (action, method, path, expectedStatus, client = request) => {
     try {
-      const response = await request(method, path)
+      const response = await client(method, path)
       evidence.cleanup.push({ action, response })
       const result = requireOk(response, action)
       if (expectedStatus && result?.status !== expectedStatus) throw new Error(`${action}: unexpected status ${result?.status}`)
@@ -31,6 +32,7 @@ async function runPeriodLockCheck(request, { stamp }) {
   }
 
   try {
+    if (typeof submitterRequest !== 'function') throw new Error('F10 requires a separate inventory adjustment submitter')
     requireOk(await request('POST', '/api/finance/periods/generate', { year: 2099 }), 'generate period failed')
     const periods = requireOk(await request('GET', '/api/finance/periods?year=2099'), 'list periods failed')
     const period = periods.find(p => p.periodMonth === '2099-01')
@@ -69,29 +71,37 @@ async function runPeriodLockCheck(request, { stamp }) {
       categoryName: 'SIGN', unitName: 'pcs', purchasePrice: 1, salePrice: 1, taxRate: 0,
     }), 'create F10 product failed')
     productId = product.id
-    const adjustment = requireOk(await request('POST', '/api/inventory/adjustments', {
+    const adjustment = requireOk(await submitterRequest('POST', '/api/inventory/adjustments', {
       warehouseId: warehouse.id, adjustmentDate: '2099-01-15', remark: `F10 lock ${stamp}`,
       lines: [{ productId, direction: 'IN', qty: 1, unitCost: 1, reason: 'F10' }],
     }), 'create adjustment failed')
     adjustmentId = adjustment.id
-    evidence.adjustmentBeforePost = adjustment
+    evidence.submission = await submitterRequest('POST', `/api/inventory/adjustments/${adjustmentId}/submit`, { comment: 'F10 lock check' })
+    requireOk(evidence.submission, 'submit adjustment failed')
+    adjustmentSubmitted = true
+    evidence.approval = await request('POST', `/api/inventory/adjustments/${adjustmentId}/approve`, { comment: 'F10 independent review' })
+    const approved = requireOk(evidence.approval, 'approve adjustment failed')
+    if (approved?.status !== 'APPROVED') throw new Error('F10 requires all inventory approval steps to be complete')
+    adjustmentSubmitted = false
+    evidence.adjustmentBeforePost = approved
     evidence.post = await request('POST', `/api/inventory/adjustments/${adjustmentId}/post`)
     const message = evidence.post.body?.message || ''
     const rejectedForLockedPeriod = evidence.post.http === 409 && String(evidence.post.body?.code) === '409'
       && /2099-01.*已锁定/.test(message)
     evidence.adjustmentAfterPost = requireOk(await request('GET', `/api/inventory/adjustments/${adjustmentId}`), 'read adjustment after rejection failed')
-    if (!rejectedForLockedPeriod || evidence.adjustmentAfterPost.status !== 'DRAFT') {
-      throw new Error(`expected locked-period conflict and unchanged DRAFT; got HTTP ${evidence.post.http}: ${message}`)
+    if (!rejectedForLockedPeriod || evidence.adjustmentAfterPost.status !== 'APPROVED') {
+      throw new Error(`expected locked-period conflict and unchanged APPROVED; got HTTP ${evidence.post.http}: ${message}`)
     }
     evidence.reopen = await request('POST', `/api/finance/periods/${periodId}/reopen`)
     if (requireOk(evidence.reopen, 'reopen failed')?.status !== 'OPEN') throw new Error('reopen did not return OPEN status')
     ownsLock = false
     pass = true
-    detail = `period=2099-01; prerequisites passed; post rejected with locked-period 409; adjustment remained DRAFT; reopened=true; preparedRevaluation=${ownsRevaluation}`
+    detail = `period=2099-01; prerequisites and inventory approval passed; post rejected with locked-period 409; adjustment remained APPROVED; reopened=true; preparedRevaluation=${ownsRevaluation}`
   } catch (error) {
     detail = `error: ${error.message}`
   } finally {
     if (ownsLock && await cleanup('reopen F10 period', 'POST', `/api/finance/periods/${periodId}/reopen`, 'OPEN')) ownsLock = false
+    if (adjustmentSubmitted) await cleanup('withdraw F10 adjustment', 'POST', `/api/inventory/adjustments/${adjustmentId}/withdraw`, 'DRAFT', submitterRequest)
     if (adjustmentId) await cleanup('cancel F10 adjustment', 'POST', `/api/inventory/adjustments/${adjustmentId}/cancel`, 'CANCELLED')
     if (productId) await cleanup('disable F10 product', 'POST', `/api/masterdata/products/${productId}/disable`, 'INACTIVE')
     if (ownsRevaluation && !ownsLock) await cleanup('cancel F10 revaluation', 'POST', `/api/finance/periods/${periodId}/fx-revaluation/cancel`, 'CANCELLED')

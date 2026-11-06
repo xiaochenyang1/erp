@@ -190,13 +190,12 @@ public class InventoryStockCheckCommandService {
             throw new IllegalArgumentException("盘点无差异，不需要生成调整单");
         }
 
-        InventoryAdjustmentResponse adjustment = adjustmentService.create(new InventoryAdjustmentCreateRequest(
+        InventoryAdjustmentResponse adjustment = adjustmentService.createForStockCheck(new InventoryAdjustmentCreateRequest(
                 check.getWarehouseId(), check.getCheckDate(), "盘点调整：" + check.getCheckNo(), adjustmentLines
-        ));
-        InventoryAdjustmentResponse postedAdjustment = adjustmentService.post(adjustment.id());
-        check.setStatus(STATUS_ADJUSTED);
-        check.setGeneratedAdjustmentId(postedAdjustment.id());
-        check.setGeneratedAdjustmentNo(postedAdjustment.adjustmentNo());
+        ), check);
+        check.setStatus(InventoryStockCheckAdjustmentLinkService.PENDING);
+        check.setGeneratedAdjustmentId(adjustment.id());
+        check.setGeneratedAdjustmentNo(adjustment.adjustmentNo());
         check.setUpdatedBy(audit.userId());
         check.setUpdatedTime(audit.now());
         if (checkMapper.updateById(check) != 1) {
@@ -255,7 +254,8 @@ public class InventoryStockCheckCommandService {
     public InventoryStockCheckResponse cancel(Long id) {
         AuditMetadata audit = auditMetadataFactory.current();
         InventoryStockCheckEntity check = requireCheck(id, audit);
-        if (STATUS_ADJUSTED.equals(check.getStatus())) {
+        if (STATUS_ADJUSTED.equals(check.getStatus())
+                || InventoryStockCheckAdjustmentLinkService.PENDING.equals(check.getStatus())) {
             throw new IllegalArgumentException("已生成调整的盘点单不能取消");
         }
         if (STATUS_CANCELLED.equals(check.getStatus())) {

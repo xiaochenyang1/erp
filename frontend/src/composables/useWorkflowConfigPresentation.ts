@@ -20,7 +20,8 @@ export const useWorkflowConfigPresentation = (t: Translate) => {
     { label: t('workflowConfig.businessTypes.purchaseRequisition'), value: 'PURCHASE_REQUISITION' },
     { label: t('workflowConfig.businessTypes.purchaseOrder'), value: 'PURCHASE_ORDER' },
     { label: t('workflowConfig.businessTypes.salesOrder'), value: 'SALES_ORDER' },
-    { label: t('workflowConfig.businessTypes.expense'), value: 'EXPENSE' }
+    { label: t('workflowConfig.businessTypes.expense'), value: 'EXPENSE' },
+    { label: t('workflowConfig.businessTypes.inventoryAdjustment'), value: 'INVENTORY_ADJUSTMENT' }
   ])
 
   const businessTypeLabel = (value?: string) =>

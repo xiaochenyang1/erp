@@ -23,7 +23,8 @@ const messageSource = {
       purchaseRequisition: ['采购请购单', 'Purchase requisition'],
       purchaseOrder: ['采购订单', 'Purchase order'],
       salesOrder: ['销售订单', 'Sales order'],
-      expense: ['费用报销', 'Expense claim']
+      expense: ['费用报销', 'Expense claim'],
+      inventoryAdjustment: ['库存调整', 'Inventory adjustment']
     },
     refresh: ['刷新', 'Refresh'],
     configName: ['配置名称', 'Configuration name'],
@@ -78,7 +79,8 @@ const messageSource = {
       purchaseRequisition: ['采购请购单', 'Purchase requisition'],
       purchaseOrder: ['采购订单', 'Purchase order'],
       salesOrder: ['销售订单', 'Sales order'],
-      expense: ['费用报销', 'Expense claim']
+      expense: ['费用报销', 'Expense claim'],
+      inventoryAdjustment: ['库存调整', 'Inventory adjustment']
     },
     businessId: ['业务ID', 'Business ID'],
     businessIdPlaceholder: ['请输入业务ID', 'Enter a business ID'],

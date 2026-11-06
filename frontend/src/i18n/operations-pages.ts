@@ -2,6 +2,7 @@ export const operationsPageMessages = {
   'zh-CN': {
     inventoryAdjustments: {
       adjustmentNo: '调整单号',
+      sourceNo: '来源盘点单',
       warehouse: '仓库',
       location: '库位',
       lotNo: '批次号',
@@ -44,10 +45,19 @@ export const operationsPageMessages = {
         productionDate: '生产日期',
         lotNo: '请输入批次号'},
       type: { gain: '盘盈', loss: '盘亏', other: '其他' },
-      status: { draft: '草稿', completed: '已完成', cancelled: '已取消' },
+      status: { draft: '草稿', submitted: '待审批', approved: '已通过', rejected: '已驳回', completed: '已完成', cancelled: '已取消' },
       action: {
         search: '查询', reset: '重置', create: '新增调整', view: '查看', print: '打印', post: '过账',
+        edit: '编辑', submit: '提交审批', approve: '通过', reject: '驳回', withdraw: '撤回', history: '审批记录',
         cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
+      },
+      approval: {
+        submitConfirm: '确认提交此库存调整单审批吗？提交后不可编辑，审批通过后才能过账。',
+        approveConfirm: '确认通过当前审批节点吗？全部审批完成后才能过账。',
+        withdrawConfirm: '确认撤回审批并恢复为草稿吗？仅提交人可在审批节点尚未处理时撤回。',
+        rejectReason: '请填写驳回原因（1至255字）',
+        loadFailed: '加载审批记录失败',
+        hint: '提交和审批不会改变库存；全部审批通过后，需执行过账。盘点生成的调整单须取消后回到盘点单修改。'
       },
       validation: {
         warehouse: '请选择仓库', adjustmentDate: '请选择调整日期',
@@ -63,9 +73,10 @@ export const operationsPageMessages = {
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
         printLoadFailed: '加载打印数据失败',
         postConfirm: '确认过账此库存调整吗？', cancelConfirm: '确认取消此库存调整吗？',
+        editNotAllowed: '仅草稿或已驳回的手工调整单可编辑；盘点生成的调整单请先取消，再修改盘点单并重新生成。',
         success: '操作成功', failed: '操作失败'
       },
-      dialog: { create: '新增库存调整', view: '查看库存调整' }
+      dialog: { create: '新增库存调整', edit: '编辑库存调整', view: '查看库存调整' }
     },
     inventoryTransfers: {
       transferNo: '调拨单号',
@@ -129,6 +140,7 @@ export const operationsPageMessages = {
     },
     inventoryChecks: {
       checkNo: '盘点单号',
+      generatedAdjustment: '差异调整单',
       warehouse: '仓库',
       location: '库位',
       lotNo: '批次号',
@@ -162,10 +174,10 @@ export const operationsPageMessages = {
         productionDate: '生产日期',
         serialNos: '多个序列号用逗号/分号/换行分隔',
         lotNo: '请输入批次号'},
-      status: { counted: '已盘点', adjusted: '已调整', cancelled: '已取消' },
+      status: { counted: '已盘点', adjustmentPending: '待调整过账', adjusted: '已调整', cancelled: '已取消' },
       action: {
         search: '查询', reset: '重置', create: '新增盘点', view: '查看', print: '打印', edit: '编辑',
-        adjust: '调整库存', cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
+        adjust: '生成调整单', cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
       },
       validation: {
         warehouse: '请选择仓库', checkDate: '请选择盘点日期', itemRequired: '请至少添加一条盘点明细',
@@ -179,7 +191,7 @@ export const operationsPageMessages = {
         loadFailed: '加载数据失败', warehousesLoadFailed: '加载仓库列表失败',
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
         printLoadFailed: '加载打印数据失败',
-        stockLoadFailed: '加载库存数据失败', adjustConfirm: '确认根据此盘点单调整库存吗？',
+        stockLoadFailed: '加载库存数据失败', adjustConfirm: '确认根据盘点差异生成调整草稿吗？请在库存调整页提交审批，审批通过并过账后才会更新库存。',
         cancelConfirm: '确认取消此库存盘点吗？', success: '操作成功', failed: '操作失败'
       },
       dialog: { create: '新增库存盘点', edit: '编辑库存盘点', view: '查看库存盘点' }
@@ -537,6 +549,7 @@ export const operationsPageMessages = {
   'en-US': {
     inventoryAdjustments: {
       adjustmentNo: 'Adjustment no.',
+      sourceNo: 'Source stock count',
       warehouse: 'Warehouse',
       location: 'Location',
       productionDate: 'Production date',
@@ -579,10 +592,19 @@ export const operationsPageMessages = {
         productionDate: 'Production date',
         lotNo: 'Enter a lot no.'},
       type: { gain: 'Stock gain', loss: 'Stock loss', other: 'Other' },
-      status: { draft: 'Draft', completed: 'Completed', cancelled: 'Cancelled' },
+      status: { draft: 'Draft', submitted: 'Pending approval', approved: 'Approved', rejected: 'Rejected', completed: 'Completed', cancelled: 'Cancelled' },
       action: {
         search: 'Search', reset: 'Reset', create: 'New adjustment', view: 'View', print: 'Print', post: 'Post',
+        edit: 'Edit', submit: 'Submit for approval', approve: 'Approve', reject: 'Reject', withdraw: 'Withdraw', history: 'Approval history',
         cancel: 'Cancel', addProduct: 'Add product', delete: 'Delete', confirm: 'Confirm'
+      },
+      approval: {
+        submitConfirm: 'Submit this adjustment for approval? Editing is disabled after submission; posting requires completed approval.',
+        approveConfirm: 'Approve the current step? Posting is available after all approval steps are complete.',
+        withdrawConfirm: 'Withdraw and return to draft? Only the submitter can withdraw before an approval step has been processed.',
+        rejectReason: 'Enter a rejection reason (1–255 characters)',
+        loadFailed: 'Failed to load approval history',
+        hint: 'Submission and approval do not change stock. Post after all approvals are complete. To correct a count-derived adjustment, cancel it and edit the stock count.'
       },
       validation: {
         warehouse: 'Select a warehouse', adjustmentDate: 'Select an adjustment date',
@@ -598,9 +620,10 @@ export const operationsPageMessages = {
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
         printLoadFailed: 'Failed to load print data',
         postConfirm: 'Post this inventory adjustment?', cancelConfirm: 'Cancel this inventory adjustment?',
+        editNotAllowed: 'Only manual draft or rejected adjustments can be edited. For count-derived adjustments, cancel, correct the stock count and regenerate.',
         success: 'Operation successful', failed: 'Operation failed'
       },
-      dialog: { create: 'New inventory adjustment', view: 'View inventory adjustment' }
+      dialog: { create: 'New inventory adjustment', edit: 'Edit inventory adjustment', view: 'View inventory adjustment' }
     },
     inventoryTransfers: {
       transferNo: 'Transfer no.',
@@ -664,6 +687,7 @@ export const operationsPageMessages = {
     },
     inventoryChecks: {
       checkNo: 'Stock count no.',
+      generatedAdjustment: 'Difference adjustment',
       warehouse: 'Warehouse',
       location: 'Location',
       lotNo: 'Lot no.',
@@ -697,10 +721,10 @@ export const operationsPageMessages = {
         productionDate: 'Production date',
         serialNos: 'Separate serials with comma, semicolon, or newline',
         lotNo: 'Enter a lot no.'},
-      status: { counted: 'Counted', adjusted: 'Adjusted', cancelled: 'Cancelled' },
+      status: { counted: 'Counted', adjustmentPending: 'Awaiting adjustment posting', adjusted: 'Adjusted', cancelled: 'Cancelled' },
       action: {
         search: 'Search', reset: 'Reset', create: 'New stock count', view: 'View', print: 'Print', edit: 'Edit',
-        adjust: 'Adjust stock', cancel: 'Cancel', addProduct: 'Add product', delete: 'Delete', confirm: 'Confirm'
+        adjust: 'Generate adjustment', cancel: 'Cancel', addProduct: 'Add product', delete: 'Delete', confirm: 'Confirm'
       },
       validation: {
         warehouse: 'Select a warehouse', checkDate: 'Select a count date',
@@ -716,7 +740,7 @@ export const operationsPageMessages = {
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
         printLoadFailed: 'Failed to load print data',
         stockLoadFailed: 'Failed to load stock data',
-        adjustConfirm: 'Adjust inventory from this stock count?',
+        adjustConfirm: 'Generate a draft adjustment for the count differences? Submit it for approval on the inventory adjustments page, then post it to update stock.',
         cancelConfirm: 'Cancel this stock count?', success: 'Operation successful', failed: 'Operation failed'
       },
       dialog: { create: 'New stock count', edit: 'Edit stock count', view: 'View stock count' }

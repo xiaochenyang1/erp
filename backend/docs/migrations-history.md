@@ -20,4 +20,5 @@
 - V164 补种 6061「财务费用-汇兑损益」科目，V165 给 `fin_receipt_allocation`/`fin_payment_allocation` 增加 `base_settled_amount` 与 `fx_gain_loss_amount`。两者连续追加、无跳号；V165 为纯 DDL，历史行保留 0 默认值，不回填虚构汇率。
 - V166 新增 `fin_fx_revaluation`，记录期末未实现汇兑损益调汇。已过账行占用 `generation = 0`，撤销时把 generation 改为行 id，以便同一期间再次调汇。纯 DDL，无跳号。
 - V167 为 `fin_fx_revaluation` 追加 `basis_hash` 与 `basis_json`，保存逐笔期末余额、币种和汇率依据。历史记录保留 NULL；其原币合计不足以证明计算依据相同，打开期间须撤销旧调汇后重算，月结也按此检查。该迁移不回填历史依据，不改原凭证或已关闭期间，纯 DDL、无跳号。
+- V169 为库存调整增加待审批、通过、驳回状态，为盘点增加待调整过账状态，并按业务编码补种编辑、提交、审批权限与默认审批节点。历史已过账调整和已调整盘点保持原状；未过账调整必须先审批。ERP_ADMIN 获得新权限，其他角色由管理员明确分配；审批人不能是提交人。连续追加，无跳号。
 - 发布复核看到版本缺口时，先查本文档，再核对 `flyway_schema_history`。

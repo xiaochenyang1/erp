@@ -45,6 +45,9 @@
             style="width: 150px"
           >
             <el-option :label="$t('inventoryAdjustments.status.draft')" value="DRAFT" />
+            <el-option :label="$t('inventoryAdjustments.status.submitted')" value="SUBMITTED" />
+            <el-option :label="$t('inventoryAdjustments.status.approved')" value="APPROVED" />
+            <el-option :label="$t('inventoryAdjustments.status.rejected')" value="REJECTED" />
             <el-option :label="$t('inventoryAdjustments.status.completed')" value="POSTED" />
             <el-option :label="$t('inventoryAdjustments.status.cancelled')" value="CANCELLED" />
           </el-select>
@@ -99,6 +102,17 @@
         stripe
       >
         <el-table-column prop="adjustmentNo" :label="$t('inventoryAdjustments.adjustmentNo')" width="180" />
+        <el-table-column :label="$t('inventoryAdjustments.sourceNo')" width="180">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.sourceType === 'INVENTORY_CHECK' && row.sourceNo && userStore.hasPermission('inventory:check:view')"
+              link
+              type="primary"
+              @click="router.push({ name: 'InventoryChecks', query: { checkNo: row.sourceNo } })"
+            >{{ row.sourceNo }}</el-button>
+            <span v-else>{{ row.sourceNo || '-' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="warehouseName" :label="$t('inventoryAdjustments.warehouse')" width="150" />
         <el-table-column prop="adjustmentDate" :label="$t('inventoryAdjustments.adjustmentDate')" width="120" />
         <el-table-column prop="type" :label="$t('inventoryAdjustments.adjustmentType')" width="100">
@@ -114,7 +128,7 @@
         <el-table-column prop="remark" :label="$t('inventoryAdjustments.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="$t('inventoryAdjustments.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="$t('inventoryAdjustments.createdTime')" width="160" />
-        <el-table-column :label="$t('inventoryAdjustments.actions')" width="310" fixed="right">
+        <el-table-column :label="$t('inventoryAdjustments.actions')" width="480" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
               {{ $t('inventoryAdjustments.action.view') }}
@@ -126,7 +140,59 @@
               {{ $t('inventoryAdjustments.action.print') }}
             </el-button>
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="['DRAFT', 'REJECTED'].includes(row.status) && !row.sourceId"
+              v-permission="'inventory:adjustment:update'"
+              link
+              type="primary"
+              @click="handleEdit(row)"
+            >
+              {{ $t('inventoryAdjustments.action.edit') }}
+            </el-button>
+            <el-button
+              v-if="['DRAFT', 'REJECTED'].includes(row.status)"
+              v-permission="'inventory:adjustment:submit'"
+              link
+              type="primary"
+              :disabled="busy"
+              @click="runApprovalAction(row, 'submit')"
+            >
+              {{ $t('inventoryAdjustments.action.submit') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'SUBMITTED'"
+              v-permission="'inventory:adjustment:approve'"
+              link
+              type="success"
+              :disabled="busy"
+              @click="runApprovalAction(row, 'approve')"
+            >
+              {{ $t('inventoryAdjustments.action.approve') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'SUBMITTED'"
+              v-permission="'inventory:adjustment:approve'"
+              link
+              type="danger"
+              :disabled="busy"
+              @click="runApprovalAction(row, 'reject')"
+            >
+              {{ $t('inventoryAdjustments.action.reject') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'SUBMITTED'"
+              v-permission="'inventory:adjustment:submit'"
+              link
+              type="warning"
+              :disabled="busy"
+              @click="runApprovalAction(row, 'withdraw')"
+            >
+              {{ $t('inventoryAdjustments.action.withdraw') }}
+            </el-button>
+            <el-button link type="primary" @click="openApprovalHistory(row)">
+              {{ $t('inventoryAdjustments.action.history') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'APPROVED'"
               v-permission="'inventory:adjustment:post'"
               link
               type="success"
@@ -135,7 +201,7 @@
               {{ $t('inventoryAdjustments.action.post') }}
             </el-button>
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="['DRAFT', 'REJECTED', 'APPROVED'].includes(row.status)"
               v-permission="'inventory:adjustment:cancel'"
               link
               type="danger"
@@ -389,6 +455,28 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="historyVisible" :title="$t('inventoryAdjustments.action.history')" width="720px">
+      <p>{{ historyNo }}</p>
+      <el-alert
+        :title="$t('inventoryAdjustments.approval.hint')"
+        type="info"
+        :closable="false"
+        class="mb-sm"
+      />
+      <el-table v-loading="historyLoading" :data="approvalInfo?.records || []" border>
+        <el-table-column :label="$t('workflowRecord.action')" width="110">
+          <template #default="{ row }">
+            <el-tag :type="actionType(row.action)">{{ actionLabel(row.action) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="operatorUserId" :label="$t('workflowRecord.operatorId')" width="110" />
+        <el-table-column prop="comment" :label="$t('workflow.comment')" min-width="180" />
+        <el-table-column :label="$t('workflowRecord.actionTime')" width="180">
+          <template #default="{ row }">{{ formatTime(row.actionTime) }}</template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
     <DocumentAttachmentDialog
       v-model="attachmentVisible"
       business-type="INVENTORY_ADJUSTMENT"
@@ -402,6 +490,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -409,6 +498,12 @@ import {
   getInventoryAdjustments,
   getInventoryAdjustment,
   createInventoryAdjustment,
+  updateInventoryAdjustment,
+  submitInventoryAdjustment,
+  approveInventoryAdjustment,
+  rejectInventoryAdjustment,
+  withdrawInventoryAdjustment,
+  getInventoryAdjustmentApprovalInfo,
   completeInventoryAdjustment,
   cancelInventoryAdjustment
 } from '@/api/inventory'
@@ -420,9 +515,13 @@ import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentE
 import { useInventoryAdjustmentList } from '@/composables/useInventoryAdjustmentList'
 import { useInventoryAdjustmentFormPresentation } from '@/composables/useInventoryAdjustmentPresentation'
 import { useInventoryAdjustmentForm } from '@/composables/useInventoryAdjustmentForm'
+import { useInventoryAdjustmentWorkflow } from '@/composables/useInventoryAdjustmentWorkflow'
+import { useWorkflowRecordPresentation } from '@/composables/useWorkflowRecordPresentation'
 import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const formRef = ref<FormInstance>()
 
@@ -477,6 +576,7 @@ const {
   handleAddItem,
   handleCreate,
   handleDeleteItem,
+  handleEdit,
   handleProductChange,
   handleSubmit,
   handleView,
@@ -486,12 +586,31 @@ const {
 } = useInventoryAdjustmentForm(t, {
   getAdjustment: getInventoryAdjustment,
   createAdjustment: createInventoryAdjustment,
+  updateAdjustment: updateInventoryAdjustment,
   findProduct: (productId) => findProduct(productId),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
   onWarning: (message) => ElMessage.warning(message),
   onSubmitted: loadData
 })
+
+const { busy, runApprovalAction, historyVisible, historyLoading, historyNo, approvalInfo, openApprovalHistory } =
+  useInventoryAdjustmentWorkflow(t, {
+    submit: submitInventoryAdjustment,
+    approve: approveInventoryAdjustment,
+    reject: rejectInventoryAdjustment,
+    withdraw: withdrawInventoryAdjustment,
+    getApprovalInfo: getInventoryAdjustmentApprovalInfo,
+    confirm: (message) => ElMessageBox.confirm(message, t('inventoryAdjustments.prompt'), { type: 'warning' }),
+    prompt: (message) => ElMessageBox.prompt(message, t('inventoryAdjustments.action.reject'), {
+      inputType: 'textarea',
+      inputValidator: (value) => Boolean(value?.trim()) && value.trim().length <= 255 || message
+    }),
+    reload: loadData,
+    onError: (message) => ElMessage.error(message),
+    onSuccess: (message) => ElMessage.success(message)
+  })
+const { actionLabel, actionType, formatTime } = useWorkflowRecordPresentation(t)
 
 const {
   findProduct,
@@ -528,7 +647,20 @@ const submitForm = async () => {
   })
 }
 
+const applyRouteFilter = () => {
+  const value = route.query.adjustmentNo || route.query.keyword
+  queryParams.adjustmentNo = (Array.isArray(value) ? value[0] : value) || ''
+  queryParams.pageNo = 1
+}
+
+watch(() => route.fullPath, () => {
+  if (route.name !== 'InventoryAdjustments') return
+  applyRouteFilter()
+  loadData()
+})
+
 onMounted(async () => {
+  applyRouteFilter()
   await loadOptions()
   await loadData()
 })

@@ -21,6 +21,8 @@ final class H2MigrationTestSupport {
     private static final String RECEIPT_PAYMENT_SUBJECT_MIGRATION = "V153__receipt_payment_voucher_subjects.sql";
     private static final String AUTOMATION_IDEMPOTENCY_MIGRATION = "V155__automation_idempotency_and_ticket_sequence.sql";
     private static final String SCHEDULER_LEASE_MIGRATION = "V156__exception_rule_scheduler_lease.sql";
+    private static final String INVENTORY_SCHEMA_MIGRATION = "V19__inventory_operation_schema.sql";
+    private static final String INVENTORY_APPROVAL_MIGRATION = "V169__inventory_adjustment_approval.sql";
 
     private H2MigrationTestSupport() {
     }
@@ -38,7 +40,17 @@ final class H2MigrationTestSupport {
                     .sorted(Comparator.comparing(path -> path.getFileName().toString()))
                     .toList()) {
                 Path target = targetDir.resolve(migration.getFileName());
-                if (migration.getFileName().toString().equals(WORKFLOW_SCHEMA_MIGRATION)) {
+                if (migration.getFileName().toString().equals(INVENTORY_SCHEMA_MIGRATION)) {
+                    String sql = Files.readString(migration, StandardCharsets.UTF_8)
+                            .replace("DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'POSTED', 'CANCELLED'))",
+                                    "DEFAULT 'DRAFT' CONSTRAINT inv_adjustment_chk_1 CHECK (status IN ('DRAFT', 'POSTED', 'CANCELLED'))")
+                            .replace("DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'COUNTED', 'ADJUSTED', 'CANCELLED'))",
+                                    "DEFAULT 'DRAFT' CONSTRAINT inv_stock_check_chk_1 CHECK (status IN ('DRAFT', 'COUNTED', 'ADJUSTED', 'CANCELLED'))");
+                    Files.writeString(target, sql, StandardCharsets.UTF_8);
+                } else if (migration.getFileName().toString().equals(INVENTORY_APPROVAL_MIGRATION)) {
+                    Files.writeString(target, Files.readString(migration, StandardCharsets.UTF_8)
+                            .replace("DROP CHECK", "DROP CONSTRAINT"), StandardCharsets.UTF_8);
+                } else if (migration.getFileName().toString().equals(WORKFLOW_SCHEMA_MIGRATION)) {
                     Files.writeString(target, h2CompatibleWorkflowSchemaMigration(migration), StandardCharsets.UTF_8);
                 } else if (migration.getFileName().toString().equals(OQC_MIGRATION)) {
                     Files.writeString(target, h2CompatibleOqcMigration(migration), StandardCharsets.UTF_8);

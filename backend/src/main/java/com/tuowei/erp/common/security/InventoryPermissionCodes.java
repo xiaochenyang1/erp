@@ -5,6 +5,9 @@ public interface InventoryPermissionCodes {
     String INVENTORY_STOCK_VIEW = "inventory:stock:view";
     String INVENTORY_ADJUSTMENT_VIEW = "inventory:adjustment:view";
     String INVENTORY_ADJUSTMENT_CREATE = "inventory:adjustment:create";
+    String INVENTORY_ADJUSTMENT_UPDATE = "inventory:adjustment:update";
+    String INVENTORY_ADJUSTMENT_SUBMIT = "inventory:adjustment:submit";
+    String INVENTORY_ADJUSTMENT_APPROVE = "inventory:adjustment:approve";
     String INVENTORY_ADJUSTMENT_POST = "inventory:adjustment:post";
     String INVENTORY_CHECK_VIEW = "inventory:check:view";
     String INVENTORY_CHECK_CREATE = "inventory:check:create";
@@ -37,6 +40,9 @@ public interface InventoryPermissionCodes {
     String HAS_INVENTORY_STOCK_VIEW = "hasAuthority('" + INVENTORY_STOCK_VIEW + "')";
     String HAS_INVENTORY_ADJUSTMENT_VIEW = "hasAuthority('" + INVENTORY_ADJUSTMENT_VIEW + "')";
     String HAS_INVENTORY_ADJUSTMENT_CREATE = "hasAuthority('" + INVENTORY_ADJUSTMENT_CREATE + "')";
+    String HAS_INVENTORY_ADJUSTMENT_UPDATE = "hasAuthority('" + INVENTORY_ADJUSTMENT_UPDATE + "')";
+    String HAS_INVENTORY_ADJUSTMENT_SUBMIT = "hasAuthority('" + INVENTORY_ADJUSTMENT_SUBMIT + "')";
+    String HAS_INVENTORY_ADJUSTMENT_APPROVE = "hasAuthority('" + INVENTORY_ADJUSTMENT_APPROVE + "')";
     String HAS_INVENTORY_ADJUSTMENT_POST = "hasAuthority('" + INVENTORY_ADJUSTMENT_POST + "')";
     String HAS_INVENTORY_ADJUSTMENT_CANCEL = "hasAuthority('" + INVENTORY_ADJUSTMENT_CANCEL + "')";
     String HAS_INVENTORY_CHECK_VIEW = "hasAuthority('" + INVENTORY_CHECK_VIEW + "')";

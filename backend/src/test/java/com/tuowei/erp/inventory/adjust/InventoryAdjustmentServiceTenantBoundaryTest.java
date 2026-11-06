@@ -227,6 +227,7 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
     @Test
     void postTriggersFinancePostingForReconciliation() {
         InventoryAdjustmentEntity adjustment = adjustment(AUDIT.accountBookId());
+        adjustment.setStatus("APPROVED");
         InventoryAdjustmentLineEntity inboundLine = adjustmentLine(9101L, 1, "IN", "12.00");
         InventoryAdjustmentLineEntity outboundLine = adjustmentLine(9102L, 2, "OUT", "5.00");
         List<InventoryAdjustmentLineEntity> lines = List.of(inboundLine, outboundLine);
@@ -244,6 +245,7 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
     @Test
     void postStopsAtAttachmentGateBeforeCheckingAccountingPeriod() {
         InventoryAdjustmentEntity adjustment = adjustment(AUDIT.accountBookId());
+        adjustment.setStatus("APPROVED");
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
         when(adjustmentMapper.selectById(ADJUSTMENT_ID)).thenReturn(adjustment);
         doThrow(new IllegalArgumentException("业务类型 INVENTORY_ADJUSTMENT 要求至少上传 1 个附件，当前 0 个"))
@@ -254,10 +256,27 @@ class InventoryAdjustmentServiceTenantBoundaryTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("INVENTORY_ADJUSTMENT");
 
-        assertThat(adjustment.getStatus()).isEqualTo("DRAFT");
+        assertThat(adjustment.getStatus()).isEqualTo("APPROVED");
         verify(accountPeriodGuard, never()).requireOpen(any(), any());
         verify(adjustmentMapper, never()).updateById(any(InventoryAdjustmentEntity.class));
         verify(inventoryPostingService, never()).postInbound(any(), any());
+        verify(financePostingService, never()).recordInventoryAdjustment(any(), any(), any());
+    }
+
+    @Test
+    void draftCannotPostStockOrFinanceBeforeApproval() {
+        InventoryAdjustmentEntity adjustment = adjustment(AUDIT.accountBookId());
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(adjustmentMapper.selectById(ADJUSTMENT_ID)).thenReturn(adjustment);
+
+        assertThatThrownBy(() -> service().post(ADJUSTMENT_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("审批通过");
+
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        verify(adjustmentMapper, never()).updateById(any(InventoryAdjustmentEntity.class));
+        verify(inventoryPostingService, never()).postInbound(any(), any());
+        verify(inventoryPostingService, never()).postOutbound(any(), any(), any());
         verify(financePostingService, never()).recordInventoryAdjustment(any(), any(), any());
     }
 

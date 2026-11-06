@@ -3584,7 +3584,7 @@ for (const fragment of [
 
 const inventoryCheckRequiredFragments = [
   'export interface InventoryCheck {\n  id: string | number',
-  "status: 'COUNTED' | 'ADJUSTED' | 'CANCELLED'",
+  "status: 'COUNTED' | 'ADJUSTMENT_PENDING' | 'ADJUSTED' | 'CANCELLED'",
   'generatedAdjustmentId?: string | number',
   'export const getInventoryCheck = (id: string | number)',
   'export const updateInventoryCheck = (id: string | number, data: InventoryCheckUpdateRequest)',

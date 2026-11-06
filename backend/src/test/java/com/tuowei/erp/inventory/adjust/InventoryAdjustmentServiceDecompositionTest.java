@@ -15,6 +15,7 @@ import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentService;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentCreateRequest;
 import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentPageQuery;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
+import com.tuowei.erp.inventory.check.service.InventoryStockCheckAdjustmentLinkService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
@@ -59,6 +60,7 @@ class InventoryAdjustmentServiceDecompositionTest {
                         InventoryAdjustmentNumberService.class,
                         InventoryPostingService.class,
                         InventorySerialNumberService.class,
+                        InventoryStockCheckAdjustmentLinkService.class,
                         FinancePostingService.class,
                         AuditMetadataFactory.class,
                         WarehouseMapper.class,

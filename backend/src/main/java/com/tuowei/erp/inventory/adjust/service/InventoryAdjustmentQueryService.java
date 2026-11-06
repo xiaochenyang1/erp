@@ -121,6 +121,11 @@ public class InventoryAdjustmentQueryService {
         return toResponse(adjustment, selectLines(adjustment));
     }
 
+    @Transactional(readOnly = true)
+    public InventoryAdjustmentEntity requireAdjustment(Long id) {
+        return requireAdjustment(id, auditMetadataFactory.current());
+    }
+
     private InventoryAdjustmentEntity requireAdjustment(Long id, AuditMetadata audit) {
         InventoryAdjustmentEntity adjustment = adjustmentMapper.selectById(id);
         if (adjustment == null || Integer.valueOf(1).equals(adjustment.getDeletedFlag())
@@ -186,7 +191,9 @@ public class InventoryAdjustmentQueryService {
         return new InventoryAdjustmentResponse(
                 adjustment.getId(), adjustment.getAdjustmentNo(), adjustment.getWarehouseId(),
                 adjustment.getAdjustmentDate(), adjustment.getStatus(), adjustment.getTotalQuantity(),
-                adjustment.getTotalAmount(), adjustment.getRemark(), lines
+                adjustment.getTotalAmount(), adjustment.getRemark(), lines,
+                adjustment.getSourceType(), adjustment.getSourceId(), adjustment.getSourceNo(),
+                adjustment.getCreatedBy(), adjustment.getCreatedTime(), adjustment.getUpdatedTime()
         );
     }
 

@@ -111,6 +111,24 @@ public class WorkflowQueryService {
         );
     }
 
+    /** Includes prior rejected/withdrawn submissions while reporting the latest instance state. */
+    @Transactional(readOnly = true)
+    public WorkflowApprovalInfoResponse approvalHistory(String businessType, Long businessId) {
+        WorkflowApprovalInfoResponse latest = approvalInfo(businessType, businessId);
+        AuditMetadata audit = auditMetadataFactory.current();
+        List<WorkflowApprovalRecordResponse> records = recordMapper.selectList(new LambdaQueryWrapper<WorkflowRecordEntity>()
+                        .eq(WorkflowRecordEntity::getCompanyId, audit.companyId())
+                        .eq(WorkflowRecordEntity::getAccountBookId, audit.accountBookId())
+                        .eq(WorkflowRecordEntity::getBusinessType, businessType)
+                        .eq(WorkflowRecordEntity::getBusinessId, businessId)
+                        .inSql(WorkflowRecordEntity::getInstanceId, scopedInstanceIdSubQuery(audit))
+                        .orderByAsc(WorkflowRecordEntity::getActionTime)
+                        .orderByAsc(WorkflowRecordEntity::getId))
+                .stream().map(this::toApprovalRecordResponse).toList();
+        return new WorkflowApprovalInfoResponse(latest.instanceId(), latest.status(), latest.submitUserId(),
+                latest.submitTime(), latest.completedTime(), records);
+    }
+
     /**
      * Loads a workflow task scoped to the current tenant (company + account book).
      * Shared by the read side ({@link #taskDetail}) and the posting service write guards.

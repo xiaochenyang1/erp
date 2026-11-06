@@ -1,6 +1,7 @@
 package com.tuowei.erp.workflow.service;
 
 import com.tuowei.erp.finance.expense.service.ExpenseService;
+import com.tuowei.erp.inventory.adjust.service.InventoryAdjustmentWorkflowService;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
 import com.tuowei.erp.purchase.requisition.service.PurchaseRequisitionService;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderApproveRequest;
@@ -22,19 +23,22 @@ public class WorkflowTaskActionService {
     private final PurchaseOrderService purchaseOrderService;
     private final PurchaseRequisitionService purchaseRequisitionService;
     private final ExpenseService expenseService;
+    private final InventoryAdjustmentWorkflowService inventoryAdjustmentWorkflowService;
 
     public WorkflowTaskActionService(
             WorkflowService workflowService,
             SalesOrderService salesOrderService,
             PurchaseOrderService purchaseOrderService,
             PurchaseRequisitionService purchaseRequisitionService,
-            ExpenseService expenseService
+            ExpenseService expenseService,
+            InventoryAdjustmentWorkflowService inventoryAdjustmentWorkflowService
     ) {
         this.workflowService = workflowService;
         this.salesOrderService = salesOrderService;
         this.purchaseOrderService = purchaseOrderService;
         this.purchaseRequisitionService = purchaseRequisitionService;
         this.expenseService = expenseService;
+        this.inventoryAdjustmentWorkflowService = inventoryAdjustmentWorkflowService;
     }
 
     @Transactional
@@ -48,6 +52,7 @@ public class WorkflowTaskActionService {
             case "PURCHASE_REQUISITION" ->
                     purchaseRequisitionService.approveWorkflowTask(task.id(), task.businessId(), comment);
             case "EXPENSE" -> expenseService.approveWorkflowTask(task.id(), task.businessId(), comment);
+            case "INVENTORY_ADJUSTMENT" -> inventoryAdjustmentWorkflowService.approveWorkflowTask(task.id(), task.businessId(), comment);
             default -> throw new IllegalArgumentException("审批中心暂不支持处理该业务类型");
         }
     }
@@ -63,7 +68,18 @@ public class WorkflowTaskActionService {
             case "PURCHASE_REQUISITION" ->
                     purchaseRequisitionService.rejectWorkflowTask(task.id(), task.businessId(), comment);
             case "EXPENSE" -> expenseService.rejectWorkflowTask(task.id(), task.businessId(), comment);
+            case "INVENTORY_ADJUSTMENT" -> inventoryAdjustmentWorkflowService.rejectWorkflowTask(task.id(), task.businessId(), comment);
             default -> throw new IllegalArgumentException("审批中心暂不支持处理该业务类型");
+        }
+    }
+
+    @Transactional
+    public void withdraw(String businessType, Long businessId, String comment) {
+        String normalized = normalizeBusinessType(businessType);
+        if ("INVENTORY_ADJUSTMENT".equals(normalized)) {
+            inventoryAdjustmentWorkflowService.withdraw(businessId, comment);
+        } else {
+            workflowService.withdraw(businessType, businessId, comment);
         }
     }
 

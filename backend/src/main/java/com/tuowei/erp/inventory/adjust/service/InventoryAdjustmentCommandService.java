@@ -21,6 +21,8 @@ import com.tuowei.erp.inventory.adjust.web.InventoryAdjustmentResponse;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
+import com.tuowei.erp.inventory.check.model.InventoryStockCheckEntity;
+import com.tuowei.erp.inventory.check.service.InventoryStockCheckAdjustmentLinkService;
 import com.tuowei.erp.masterdata.product.service.ProductValidator;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
@@ -59,6 +61,7 @@ public class InventoryAdjustmentCommandService {
     private final CurrentUserContext currentUserContext;
     private final DataScopeService dataScopeService;
     private final UserMapper userMapper;
+    private final InventoryStockCheckAdjustmentLinkService stockCheckLinkService;
 
     @Autowired
     public InventoryAdjustmentCommandService(
@@ -75,7 +78,8 @@ public class InventoryAdjustmentCommandService {
             AttachmentService attachmentService,
             CurrentUserContext currentUserContext,
             DataScopeService dataScopeService,
-            UserMapper userMapper
+            UserMapper userMapper,
+            InventoryStockCheckAdjustmentLinkService stockCheckLinkService
     ) {
         this.adjustmentMapper = adjustmentMapper;
         this.lineMapper = lineMapper;
@@ -91,6 +95,20 @@ public class InventoryAdjustmentCommandService {
         this.currentUserContext = currentUserContext;
         this.dataScopeService = dataScopeService;
         this.userMapper = userMapper;
+        this.stockCheckLinkService = stockCheckLinkService;
+    }
+
+    public InventoryAdjustmentCommandService(
+            InventoryAdjustmentMapper adjustmentMapper, InventoryAdjustmentLineMapper lineMapper,
+            InventoryAdjustmentNumberService numberService, InventoryPostingService inventoryPostingService,
+            InventorySerialNumberService inventorySerialNumberService, FinancePostingService financePostingService,
+            AuditMetadataFactory auditMetadataFactory, WarehouseMapper warehouseMapper,
+            ProductValidator productValidator, AccountPeriodGuard accountPeriodGuard, AttachmentService attachmentService,
+            CurrentUserContext currentUserContext, DataScopeService dataScopeService, UserMapper userMapper
+    ) {
+        this(adjustmentMapper, lineMapper, numberService, inventoryPostingService, inventorySerialNumberService,
+                financePostingService, auditMetadataFactory, warehouseMapper, productValidator, accountPeriodGuard,
+                attachmentService, currentUserContext, dataScopeService, userMapper, null);
     }
 
     public InventoryAdjustmentCommandService(
@@ -113,8 +131,26 @@ public class InventoryAdjustmentCommandService {
 
     @Transactional
     public InventoryAdjustmentResponse create(InventoryAdjustmentCreateRequest request) {
+        return create(request, null);
+    }
+
+    @Transactional
+    public InventoryAdjustmentResponse createForStockCheck(InventoryAdjustmentCreateRequest request,
+                                                          InventoryStockCheckEntity source) {
+        Objects.requireNonNull(source, "盘点来源不能为空");
+        return create(request, source);
+    }
+
+    private InventoryAdjustmentResponse create(InventoryAdjustmentCreateRequest request, InventoryStockCheckEntity source) {
         List<InventoryAdjustmentLineRequest> requestLines = requireLines(request);
         AuditMetadata audit = auditMetadataFactory.current();
+        if (source != null && (!Objects.equals(source.getCompanyId(), audit.companyId())
+                || !Objects.equals(source.getAccountBookId(), audit.accountBookId())
+                || !Objects.equals(source.getWarehouseId(), request.warehouseId())
+                || !Objects.equals(source.getCheckDate(), request.adjustmentDate())
+                || !"COUNTED".equals(source.getStatus()) || source.getGeneratedAdjustmentId() != null)) {
+            throw new IllegalArgumentException("盘点来源不存在或已生成调整单");
+        }
         LocalDateTime now = audit.now();
         requireWarehouse(request.warehouseId(), audit.companyId(), audit.accountBookId());
         productValidator.requireProducts(
@@ -132,6 +168,11 @@ public class InventoryAdjustmentCommandService {
         adjustment.setWarehouseId(request.warehouseId());
         adjustment.setAdjustmentDate(request.adjustmentDate());
         adjustment.setStatus(STATUS_DRAFT);
+        if (source != null) {
+            adjustment.setSourceType(InventoryStockCheckAdjustmentLinkService.SOURCE_TYPE);
+            adjustment.setSourceId(source.getId());
+            adjustment.setSourceNo(source.getCheckNo());
+        }
         adjustment.setTotalQuantity(ScalePrecision.quantity(lines.stream()
                 .map(InventoryAdjustmentLineEntity::getQty).reduce(BigDecimal.ZERO, BigDecimal::add)));
         adjustment.setTotalAmount(ScalePrecision.amount(lines.stream()
@@ -152,11 +193,54 @@ public class InventoryAdjustmentCommandService {
     }
 
     @Transactional
+    public InventoryAdjustmentResponse update(Long id, InventoryAdjustmentCreateRequest request) {
+        List<InventoryAdjustmentLineRequest> requestLines = requireLines(request);
+        AuditMetadata audit = auditMetadataFactory.current();
+        InventoryAdjustmentEntity adjustment = requireAdjustment(id, audit);
+        if (!STATUS_DRAFT.equals(adjustment.getStatus()) && !"REJECTED".equals(adjustment.getStatus())) {
+            throw new IllegalArgumentException("只有草稿或已驳回的库存调整单可以编辑");
+        }
+        if (adjustment.getSourceId() != null) {
+            throw new IllegalArgumentException("盘点生成的调整单不能直接编辑，请作废调整单后修改盘点结果并重新生成");
+        }
+        requireWarehouse(request.warehouseId(), audit.companyId(), audit.accountBookId());
+        productValidator.requireProducts(requestLines.stream().map(InventoryAdjustmentLineRequest::productId).toList(),
+                audit.companyId(), audit.accountBookId());
+        List<InventoryAdjustmentLineEntity> lines = requestLines.stream()
+                .map(line -> calculateLine(line, audit.companyId(), audit.accountBookId())).toList();
+        adjustment.setWarehouseId(request.warehouseId());
+        adjustment.setAdjustmentDate(request.adjustmentDate());
+        adjustment.setRemark(request.remark());
+        adjustment.setTotalQuantity(ScalePrecision.quantity(lines.stream().map(InventoryAdjustmentLineEntity::getQty)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)));
+        adjustment.setTotalAmount(ScalePrecision.amount(lines.stream().map(InventoryAdjustmentLineEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)));
+        assertCanView(adjustment);
+        adjustment.setUpdatedBy(audit.userId());
+        adjustment.setUpdatedTime(audit.now());
+        if (adjustmentMapper.updateById(adjustment) != 1) {
+            throw new BusinessConflictException("库存调整单已被其他操作修改，请重试");
+        }
+        lineMapper.delete(new LambdaQueryWrapper<InventoryAdjustmentLineEntity>()
+                .eq(InventoryAdjustmentLineEntity::getCompanyId, audit.companyId())
+                .eq(InventoryAdjustmentLineEntity::getAccountBookId, audit.accountBookId())
+                .eq(InventoryAdjustmentLineEntity::getAdjustmentId, id));
+        int lineNo = 1;
+        for (InventoryAdjustmentLineEntity line : lines) {
+            line.setAdjustmentId(id);
+            line.setLineNo(lineNo++);
+            fillCreateAudit(line, audit, audit.now());
+            lineMapper.insert(line);
+        }
+        return InventoryAdjustmentQueryService.toResponse(adjustment, lines);
+    }
+
+    @Transactional
     public InventoryAdjustmentResponse post(Long id) {
         AuditMetadata audit = auditMetadataFactory.current();
         InventoryAdjustmentEntity adjustment = requireAdjustment(id, audit);
-        if (!STATUS_DRAFT.equals(adjustment.getStatus())) {
-            throw new IllegalArgumentException("只有草稿状态的库存调整单可以过账");
+        if (!"APPROVED".equals(adjustment.getStatus())) {
+            throw new IllegalArgumentException("只有审批通过的库存调整单可以过账");
         }
         attachmentService.requireIfConfigured(AttachmentBusinessType.INVENTORY_ADJUSTMENT, adjustment.getId());
         accountPeriodGuard.requireOpen(adjustment.getAdjustmentDate(), "库存调整过账");
@@ -192,6 +276,9 @@ public class InventoryAdjustmentCommandService {
         if (adjustmentMapper.updateById(adjustment) != 1) {
             throw new BusinessConflictException("库存调整单已被其他操作修改，请重试");
         }
+        if (InventoryStockCheckAdjustmentLinkService.SOURCE_TYPE.equals(adjustment.getSourceType())) {
+            Objects.requireNonNull(stockCheckLinkService, "缺少盘点关联服务").complete(adjustment, audit);
+        }
         return InventoryAdjustmentQueryService.toResponse(adjustment, lines);
     }
 
@@ -205,11 +292,18 @@ public class InventoryAdjustmentCommandService {
         if (STATUS_CANCELLED.equals(adjustment.getStatus())) {
             throw new IllegalArgumentException("库存调整单已经取消");
         }
+        if (!STATUS_DRAFT.equals(adjustment.getStatus()) && !"REJECTED".equals(adjustment.getStatus())
+                && !"APPROVED".equals(adjustment.getStatus())) {
+            throw new IllegalArgumentException("审批中的库存调整单请先撤回或驳回后再作废");
+        }
         adjustment.setStatus(STATUS_CANCELLED);
         adjustment.setUpdatedBy(audit.userId());
         adjustment.setUpdatedTime(audit.now());
         if (adjustmentMapper.updateById(adjustment) != 1) {
             throw new BusinessConflictException("库存调整单已被其他操作修改，请重试");
+        }
+        if (InventoryStockCheckAdjustmentLinkService.SOURCE_TYPE.equals(adjustment.getSourceType())) {
+            Objects.requireNonNull(stockCheckLinkService, "缺少盘点关联服务").cancel(adjustment, audit);
         }
         return InventoryAdjustmentQueryService.toResponse(adjustment, selectLines(adjustment));
     }

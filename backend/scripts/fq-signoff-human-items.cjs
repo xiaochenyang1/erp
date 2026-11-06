@@ -65,7 +65,10 @@ async function main() {
 
   // ---------- F10: complete month-end prerequisites, then verify the lock ----------
   const periodCheck = await runPeriodLockCheck(
-    (method, urlPath, body) => req(admin, method, urlPath, body), { stamp },
+    (method, urlPath, body) => req(admin, method, urlPath, body), {
+      stamp,
+      submitterRequest: (method, urlPath, body) => req(smokeLogin.accessToken, method, urlPath, body),
+    },
   )
   results.push(item('F10', '锁定期间不可过账（负例）', periodCheck.pass, periodCheck.detail,
     { evidence: periodCheck.evidence }))
