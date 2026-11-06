@@ -107,3 +107,18 @@ export async function verifyUpgradedApproval({ api, fixture, reviewerToken }) {
   return { oldDraftRequiresApproval: true, selfApprovalRejected: true, duplicatePostingRejected: true,
     countWaitedForPosting: true, draftStock, countedStock }
 }
+
+export async function verifyLegacyPosting(api, fixture) {
+  const { draft, warehouse, product } = fixture
+  const balances = await api('GET', `/api/inventory/balances?pageNo=1&pageSize=200&warehouseId=${warehouse.id}`)
+  checkStock(balances.records, warehouse.id, product.id, 10, 100)
+  assert.equal((await api('POST', `${adjustments}/${draft.id}/post`)).status, 'POSTED')
+  return verifyLegacyPostedStock(api, fixture)
+}
+
+export async function verifyLegacyPostedStock(api, fixture) {
+  const { draft, warehouse, product } = fixture
+  assert.equal((await api('GET', `${adjustments}/${draft.id}`)).status, 'POSTED')
+  const balances = await api('GET', `/api/inventory/balances?pageNo=1&pageSize=200&warehouseId=${warehouse.id}`)
+  return checkStock(balances.records, warehouse.id, product.id, 12, 120)
+}

@@ -11,9 +11,12 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { run } from './production-rehearsal.mjs'
 import { verifyDeploymentBundle, initializeDeployment } from './deployment-bundle.mjs'
 import { cleanupDisposableDocker } from './deployment-docker-cleanup.mjs'
-import { prepareLegacyArtifact, verifyLegacyArtifact } from './deployment-recovery-legacy.mjs'
-import { seedHistoricalBusiness, verifyHistoricalReads, verifyUpgradedApproval } from './deployment-recovery-business.mjs'
-import { hash, legacyRevision, readJson, revisionPattern, recoveryProjectPattern, sealCheckpoint, verifyCheckpoint,
+import { cleanupSmokeProcesses } from './ui-smoke-processes.mjs'
+import { browserCheck } from './deployment-browser.mjs'
+import { addRecoveryStores, recoveryApplication } from './deployment-recovery-compose.mjs'
+import { prepareLegacyArtifact, verifyLegacyArtifact, verifyLegacyFrontend } from './deployment-recovery-legacy.mjs'
+import { seedHistoricalBusiness, verifyHistoricalReads, verifyUpgradedApproval, verifyLegacyPosting, verifyLegacyPostedStock } from './deployment-recovery-business.mjs'
+import { hash, legacyRevision, readJson, revisionPattern, sha256Pattern, recoveryProjectPattern, sealCheckpoint, verifyCheckpoint,
   validateCheckpoint, writeJson } from './recovery-checkpoint.mjs'
 
 const script = fileURLToPath(import.meta.url)
@@ -32,7 +35,10 @@ export const recoveryChecks = [
   'Preserve historical inventory and configuration during migration',
   'Read restored documents and attachments and exclude later source changes',
   'Apply V169 approval rules to historical drafts and counted stock checks',
-  'Keep source data isolated and recovered writes durable across restart'
+  'Keep source data isolated and recovered writes durable across restart',
+  'Restore the pre-upgrade checkpoint into fresh rollback volumes',
+  'Run the pinned V168 backend and frontend on the rollback checkpoint',
+  'Keep upgraded data intact while rollback writes survive restart'
 ]
 const within = (parent, child) => parent === child || child.startsWith(parent + path.sep)
 
@@ -117,6 +123,22 @@ export function validateRecoveryReports({ evidenceDirectory, expectedRevision, e
   assert.equal(legacy.jarSha256, report.sourceJarSha256)
   assert.equal(legacy.buildPassed, true)
   assert.equal(legacy.schema, '168')
+  assert.equal(legacy.frontend, 'frontend')
+  const legacyFrontendBytes = readFileSync(path.join(evidenceDirectory, 'legacy-frontend.json'))
+  assert.equal(hash(legacyFrontendBytes), legacy.frontendManifestSha256)
+  const legacyFrontend = JSON.parse(legacyFrontendBytes)
+  assert.equal(legacyFrontend.kind, 'erp-historical-frontend')
+  assert.equal(legacyFrontend.schemaVersion, 1)
+  assert.equal(legacyFrontend.sourceRevision, legacyRevision)
+  assert.equal(legacyFrontend.toolRevision, expectedRevision)
+  assert.equal(legacyFrontend.buildPassed, true)
+  assert(sha256Pattern.test(legacyFrontend.sourceInputSha256 || ''))
+  for (const file of legacyFrontend.files) {
+    assert(file.path.startsWith('dist/') && !file.path.includes('\\') && !file.path.split('/').some(part => ['', '.', '..'].includes(part)))
+    assert(sha256Pattern.test(file.sha256) && Number.isSafeInteger(file.size) && file.size >= 0)
+  }
+  assert(legacyFrontend.files.some(file => file.path === 'dist/index.html' && file.size > 0))
+  assert(legacyFrontend.files.some(file => /^dist\/assets\/.+\.js$/.test(file.path) && file.size > 0))
   assert.equal(report.checks[0].schema, '168')
   assert.equal(report.checks[0].sourceRevision, legacyRevision)
   assert.equal(report.checks[0].jarSha256, legacy.jarSha256)
@@ -146,9 +168,43 @@ export function validateRecoveryReports({ evidenceDirectory, expectedRevision, e
   assert.deepEqual(approval.draftStock, { quantity: 12, amount: 120, reserved: 0 })
   assert.deepEqual(approval.countedStock, { quantity: 3, amount: 30, reserved: 0 })
   for (const key of ['sourceDatabaseUnchanged', 'sourceAttachmentsUnchanged', 'newAttachmentWritable', 'restartPassed']) assert.equal(report.checks[10][key], true)
+  const rollback = report.checks[11], rollbackApp = report.checks[12], retained = report.checks[13]
+  for (const key of ['writersStopped', 'separateVolumes', 'databaseSnapshotMatched', 'attachmentSnapshotMatched']) assert.equal(rollback[key], true)
+  assert.equal(rollback.schema, '168')
+  assert.equal(rollback.checkpointSha256, report.checkpointSha256)
+  assert.equal(rollback.tableCount, checkpoint.databaseSnapshot.tableCount)
+  assert.deepEqual(read('database-rollback-restored.json'), checkpoint.databaseSnapshot)
+  assert.deepEqual(read('attachments-rollback-restored.json'), attachments)
+  assert.equal(rollbackApp.schema, '168')
+  assert.equal(rollbackApp.sourceRevision, legacyRevision)
+  assert.equal(rollbackApp.jarSha256, legacy.jarSha256)
+  assert.equal(rollbackApp.frontendManifestSha256, legacy.frontendManifestSha256)
+  assert.equal(rollbackApp.frontendFilesVerified, legacyFrontend.files.length)
+  for (const key of ['postedPreserved', 'draftPreserved', 'cancelledPreserved', 'adjustedLinkPreserved', 'countedPreserved',
+    'unicodeCustomerPreserved', 'originalAttachmentsRestored', 'laterWritesAbsent']) assert.equal(rollbackApp[key], true)
+  assert.equal(rollbackApp.browser.loginThroughUi, true)
+  assert.equal(rollbackApp.browser.protectedDeepLink, true)
+  assert.deepEqual(rollbackApp.browser.refreshedRoutes, ['/dashboard', '/sales/orders', '/inventory/stocks', '/finance/periods'])
+  assert.deepEqual(rollbackApp.browser.runtimeErrors, [])
+  for (const key of ['legacyPostingPassed', 'rollbackWritesDurable', 'upgradedDatabaseUnchanged', 'upgradedAttachmentsUnchanged',
+    'sourceDatabaseUnchanged', 'sourceAttachmentsUnchanged', 'restartPassed']) assert.equal(retained[key], true)
+  assert.deepEqual(retained.stock, { quantity: 12, amount: 120, reserved: 0 })
+  assert.deepEqual(retained.stockAfterRestart, retained.stock)
+  const upgradedDatabase = read('database-upgraded-before-rollback.json'), upgradedAttachments = read('attachments-upgraded-before-rollback.json')
+  assert.equal(upgradedDatabase.tableCount, checkpoint.databaseSnapshot.tableCount)
+  assert(sha256Pattern.test(upgradedDatabase.dataSha256) && upgradedDatabase.rowCounts?.length > 100)
+  assert.notEqual(upgradedDatabase.dataSha256, checkpoint.databaseSnapshot.dataSha256)
+  assert.equal(upgradedAttachments.kind, attachments.kind)
+  assert.equal(upgradedAttachments.entries.filter(entry => entry.kind === 'file').length, 3)
+  assert.deepEqual(read('database-upgraded-after-rollback.json'), upgradedDatabase)
+  assert.deepEqual(read('attachments-upgraded-after-rollback.json'), upgradedAttachments)
+  assert.equal(report.browserCleanup?.passed, true)
+  assert.equal(report.browserCleanup.processes.length, 1)
+  assert(report.browserCleanup.processes.every(process => process.name === 'chrome' && process.passed === true && process.childClosed === true))
   for (const name of ['.env', 'mysql.cnf', 'private-account.json', 'database.sql.gz', 'attachments.tar.gz']) assert(!existsSync(path.join(evidenceDirectory, name)), 'Private recovery inputs must not be archived')
   return { passed: true, applicationRevision: expectedRevision, sourceRevision: legacyRevision,
     manifestSha256: expectedManifestSha256, sourceSchema: '168', targetSchema: '169', checks: recoveryChecks.length,
+    upgradeRecoveryChecks: 11, rollbackChecks: 3, rollbackSchema: '168', rollbackApplicationRevision: legacyRevision,
     checkpointSha256: report.checkpointSha256, tableCount: checkpoint.databaseSnapshot.tableCount, cleanupPassed: true }
 }
 
@@ -175,9 +231,11 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
   const report = { schemaVersion: 1, kind: 'erp-upgrade-recovery', status: 'RUNNING', startedAt: new Date().toISOString(),
     ...verified, runtimeToolRevision: revision, sourceRevision: legacyRevision, sourceJarSha256: legacy.jarSha256,
     legacyManifestSha256: expectedLegacyManifestSha256, project, privateDirectory: path.basename(directory), checks: [],
-    scope: 'Isolated upgrade from a pinned V168 application using synthetic historical data and joint DB/attachment recovery; not production data acceptance' }
+    scope: 'Isolated V168 to V169 upgrade, joint DB/attachment recovery and fullstack V168 rollback using synthetic history; not production data acceptance' }
   let interrupted = false, configured = false, config, configuration, base, adminToken, fixture, beforeAttachments,
-    sourceAfterDatabase, sourceAfterAttachments, baseline, inventoryBefore, settingsBefore, checkpoint
+    sourceAfterDatabase, sourceAfterAttachments, baseline, inventoryBefore, settingsBefore, checkpoint,
+    upgradedDatabase, upgradedAttachments, upgradedAttachment
+  const children = []
   const signal = () => { interrupted = true }
   process.on('SIGINT', signal); process.on('SIGTERM', signal)
   const persist = async () => {
@@ -263,6 +321,11 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
     throw error
   }
   const ready = () => until(async () => assert.equal((await request('/readyz')).status, 200))
+  const stopWriters = async () => {
+    await compose(['stop', '-t', '45', 'erp-server'])
+    const container = (await compose(['ps', '-aq', 'erp-server'])).stdout.trim()
+    assert.equal((await command('docker', ['inspect', '--format', '{{.State.Running}}', container])).stdout.trim(), 'false')
+  }
   const check = async (index, action) => {
     if (interrupted) throw new Error('Recovery interrupted')
     const name = recoveryChecks[index]
@@ -271,9 +334,12 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
     catch (error) { report.checks.push({ name, passed: false, failure: redact(error.message) }); throw error }
     report.activeStep = null; await persist()
   }
-  const restoreDatabase = (name, allowFailure = false) => compose(['exec', '-T', 'mysql-restore', 'bash', '-ceu',
-    'export MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD"; exec bash /scripts/restore-database.sh "$1"',
-    'restore', '/backups/' + name], { input: 'YES\n', allowFailure })
+  const restoreDatabase = (name, { allowFailure = false, service = 'mysql-restore' } = {}) => {
+    assert(['mysql-restore', 'mysql-rollback'].includes(service))
+    return compose(['exec', '-T', service, 'bash', '-ceu',
+      'export MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD"; exec bash /scripts/restore-database.sh "$1"',
+      'restore', '/backups/' + name], { input: 'YES\n', allowFailure })
+  }
   await persist()
   try {
     await cp(path.resolve(bundleDirectory), work, { recursive: true, filter: source => path.basename(source) !== '.env' })
@@ -297,17 +363,11 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
     services.mysql.volumes.push({ type: 'bind', source: backups, target: '/backups' },
       { type: 'bind', source: path.join(repo, 'backend/scripts'), target: '/scripts', read_only: true },
       { type: 'bind', source: path.join(directory, 'mysql.cnf'), target: '/recovery/mysql.cnf', read_only: true })
-    services['mysql-restore'] = structuredClone(services.mysql)
-    for (const volume of services['mysql-restore'].volumes) {
-      if (volume.type === 'volume') volume.source = 'restore-mysql-data'
-      if (volume.target === '/backups') volume.read_only = true
-    }
-    services['redis-restore'] = structuredClone(services.redis)
-    for (const volume of services['redis-restore'].volumes) volume.source = 'restore-redis-data'
-    for (const name of ['restore-mysql-data', 'restore-redis-data', 'restore-attachments']) configuration.volumes[name] = { name: `${project}_${name}` }
+    addRecoveryStores(configuration, project)
     services['attachment-tools'] = { image: 'python:3.14-alpine', profiles: ['tools'], restart: 'no', network_mode: 'none',
       volumes: [{ type: 'volume', source: 'attachments', target: '/source', read_only: true },
         { type: 'volume', source: 'restore-attachments', target: '/restore' },
+        { type: 'volume', source: 'rollback-attachments', target: '/rollback' },
         { type: 'bind', source: backups, target: '/backups' },
         { type: 'bind', source: path.join(repo, 'backend/scripts/recovery-attachments.py'), target: '/tools/recovery-attachments.py', read_only: true }] }
     const legacyBackend = path.join(directory, 'legacy-backend')
@@ -317,11 +377,20 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
     services['erp-server'].build.context = legacyBackend
     services['erp-server'].image = `${project}-legacy`
     services['erp-server'].mem_limit = '1536m'
+    const sourceApplication = structuredClone(services['erp-server'])
+    const legacyFrontend = verifyLegacyFrontend(path.join(legacyDirectory, legacy.frontend), legacy.frontendManifestSha256, revision)
+    const legacyWeb = path.join(directory, 'legacy-web')
+    await mkdir(legacyWeb)
+    for (const name of ['Dockerfile', 'nginx.conf']) await copyFile(path.join(work, 'frontend', name), path.join(legacyWeb, name))
+    await cp(path.join(legacyDirectory, legacy.frontend), path.join(legacyWeb, 'artifact'), { recursive: true })
+    writeJson(path.join(legacyWeb, 'deployment.json'), { applicationRevision: legacyRevision, toolRevision: revision,
+      jarSha256: legacy.jarSha256, frontendManifestSha256: legacy.frontendManifestSha256 })
     await updateCompose()
     await copyFile(path.join(legacyDirectory, 'artifact.json'), path.join(evidence, 'legacy-artifact.json'))
+    await copyFile(path.join(legacyDirectory, legacy.frontend, 'manifest.json'), path.join(evidence, 'legacy-frontend.json'))
     await check(0, async () => {
       const rendered = JSON.parse((await compose(['config', '--format', 'json'], { log: false })).stdout)
-      for (const name of ['mysql', 'mysql-restore', 'redis', 'redis-restore', 'erp-server']) assert(!rendered.services[name].ports?.length)
+      for (const name of ['mysql', 'mysql-restore', 'mysql-rollback', 'redis', 'redis-restore', 'redis-rollback', 'erp-server']) assert(!rendered.services[name].ports?.length)
       assert.equal(rendered.services.web.ports[0].host_ip, '127.0.0.1')
       assert.equal(services['erp-server'].environment.SPRING_PROFILES_ACTIVE, 'prod')
       assert.equal(rendered.networks.default.internal, true)
@@ -350,9 +419,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
         adjustedCountId: fixture.adjusted.id, countedId: fixture.counted.id, attachments: beforeAttachments.length }
     })
     await check(2, async () => {
-      await compose(['stop', '-t', '45', 'erp-server'])
-      const container = (await compose(['ps', '-aq', 'erp-server'])).stdout.trim()
-      assert.equal((await command('docker', ['inspect', '--format', '{{.State.Running}}', container])).stdout.trim(), 'false')
+      await stopWriters()
       baseline = await snapshot('mysql')
       inventoryBefore = await snapshot('mysql', inventoryTables)
       settingsBefore = requireHistoricalConfiguration(await settings('mysql'))
@@ -395,7 +462,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       await empty()
       await writeFile(path.join(backups, 'corrupted.sql.gz'), 'corrupted database')
       await writeFile(path.join(backups, 'corrupted.sql.gz.sha256'), '0'.repeat(64) + '  corrupted.sql.gz\n')
-      const badDatabase = await restoreDatabase('corrupted.sql.gz', true)
+      const badDatabase = await restoreDatabase('corrupted.sql.gz', { allowFailure: true })
       assert.notEqual(badDatabase.code, 0); assert.match(badDatabase.stdout + badDatabase.stderr, /校验和.*失败/)
       await empty()
       await writeFile(path.join(backups, 'corrupted-attachments.tar.gz'), 'corrupted attachments')
@@ -426,13 +493,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       return { databaseSnapshotMatched: true, attachmentSnapshotMatched: true, tableCount: restored.tableCount, schema: '168' }
     })
     await check(6, async () => {
-      const app = services['erp-server']
-      app.build.context = path.join(work, 'backend'); app.image = `${project}-candidate`
-      app.environment.ERP_DATASOURCE_URL = app.environment.ERP_DATASOURCE_URL.replace('mysql:3306', 'mysql-restore:3306')
-      app.environment.ERP_REDIS_HOST = 'redis-restore'
-      app.depends_on = { 'mysql-restore': { condition: 'service_healthy' }, 'redis-restore': { condition: 'service_healthy' } }
-      for (const volume of app.volumes) { assert.equal(volume.source, 'attachments'); volume.source = 'restore-attachments' }
-      assert(!app.environment.SPRING_FLYWAY_TARGET && app.environment.SPRING_FLYWAY_ENABLED !== 'false')
+      services['erp-server'] = recoveryApplication(sourceApplication, { target: 'restore', project, buildContext: path.join(work, 'backend') })
       await updateCompose()
       await compose(['build', 'erp-server'])
       await compose(['up', '-d', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '240', 'erp-server'])
@@ -474,16 +535,99 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       return verifyUpgradedApproval({ api, fixture, reviewerToken: reviewer.accessToken })
     })
     await check(10, async () => {
-      const newAttachment = await upload('after-recovery', fixture.draft.id)
-      await download(newAttachment)
+      upgradedAttachment = await upload('after-recovery', fixture.draft.id)
+      await download(upgradedAttachment)
       await compose(['stop', '-t', '45', 'erp-server'])
       await compose(['up', '-d', '--no-deps', '--no-recreate', '--wait', '--wait-timeout', '180', 'erp-server'])
       await ready(); await loginAdmin()
-      for (const attachment of [...beforeAttachments, newAttachment]) await download(attachment)
+      for (const attachment of [...beforeAttachments, upgradedAttachment]) await download(attachment)
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' AND success=1;"), '1')
       assert.deepEqual(await snapshot('mysql'), sourceAfterDatabase)
       assert.deepEqual(await attachmentSnapshot('/source'), sourceAfterAttachments)
       return { sourceDatabaseUnchanged: true, sourceAttachmentsUnchanged: true, newAttachmentWritable: true, restartPassed: true }
+    })
+    await check(11, async () => {
+      await stopWriters()
+      assert.equal(await schema('mysql-restore'), '169')
+      upgradedDatabase = await snapshot('mysql-restore')
+      upgradedAttachments = await attachmentSnapshot('/restore')
+      assert.notEqual(upgradedDatabase.dataSha256, baseline.dataSha256)
+      assert.notDeepEqual(upgradedAttachments, readJson(path.join(backups, 'attachments.json')))
+      writeJson(path.join(evidence, 'database-upgraded-before-rollback.json'), upgradedDatabase)
+      writeJson(path.join(evidence, 'attachments-upgraded-before-rollback.json'), upgradedAttachments)
+      verifyCheckpoint({ directory: backups, expectedCheckpointSha256: checkpoint.checkpointSha256, applicationRevision: revision, manifestSha256: expectedManifestSha256 })
+      await fileTool(['verify', '--archive', '/backups/attachments.tar.gz', '--manifest', '/backups/attachments.json'])
+      await compose(['up', '-d', '--wait', '--wait-timeout', '180', 'mysql-rollback', 'redis-rollback'])
+      assert.equal(await sql('mysql-rollback', 'SHOW TABLES;'), '')
+      assert.deepEqual((await attachmentSnapshot('/rollback')).entries, [])
+      await restoreDatabase(checkpoint.manifest.artifacts.database.file, { service: 'mysql-rollback' })
+      const restored = await snapshot('mysql-rollback')
+      assert.deepEqual(restored, baseline)
+      assert.equal(await schema('mysql-rollback'), '168')
+      writeJson(path.join(evidence, 'database-rollback-restored.json'), restored)
+      const files = JSON.parse((await fileTool(['restore', '--root', '/rollback', '--archive', '/backups/attachments.tar.gz', '--manifest', '/backups/attachments.json'])).stdout)
+      assert.deepEqual(files, readJson(path.join(backups, 'attachments.json')))
+      writeJson(path.join(evidence, 'attachments-rollback-restored.json'), files)
+      return { writersStopped: true, checkpointSha256: checkpoint.checkpointSha256, separateVolumes: true,
+        databaseSnapshotMatched: true, attachmentSnapshotMatched: true, schema: '168', tableCount: restored.tableCount }
+    })
+    await check(12, async () => {
+      // The old application can only start on the separately restored V168
+      // checkpoint, never by reusing the upgraded database with an older JAR.
+      assert.equal(await schema('mysql-rollback'), legacy.schema)
+      services['erp-server'] = recoveryApplication(sourceApplication, { target: 'rollback', project })
+      services.web.build.context = legacyWeb
+      services.web.image = `${project}-legacy-web`
+      await updateCompose()
+      await writeFile(path.join(evidence, 'rollback-compose-redacted.json'), redact(JSON.stringify(configuration, null, 2)))
+      await compose(['build', 'web'])
+      await compose(['up', '-d', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '240', 'erp-server', 'web'])
+      await ready(); await loginAdmin()
+      const jarSha256 = (await compose(['exec', '-T', 'erp-server', 'sha256sum', '/app/erp-server.jar'])).stdout.split(/\s/)[0]
+      assert.equal(jarSha256, legacy.jarSha256)
+      assert.equal(await schema('mysql-rollback'), '168')
+      assert.equal(await sql('mysql-rollback', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' OR success=0;"), '0')
+      const reads = await verifyHistoricalReads(api, fixture)
+      for (const attachment of beforeAttachments) await download(attachment)
+      for (const attachment of [laterAttachment, upgradedAttachment]) {
+        assert.equal(await sql('mysql-rollback', `SELECT COUNT(*) FROM sys_attachment WHERE id=${id(attachment.id)};`), '0')
+        assert.equal((await request(`/api/system/attachments/${attachment.id}/download`, { headers: { Authorization: `Bearer ${adminToken}` } })).status, 400)
+      }
+      const deployed = await (await request('/__deployment.json')).json()
+      assert.deepEqual(deployed, readJson(path.join(legacyWeb, 'deployment.json')))
+      for (const file of legacyFrontend.files) {
+        assert(file.path.startsWith('dist/'))
+        const response = await request('/' + file.path.slice(5))
+        assert.equal(response.status, 200)
+        const bytes = Buffer.from(await response.arrayBuffer())
+        assert.equal(bytes.length, file.size); assert.equal(hash(bytes), file.sha256)
+      }
+      const browser = await browserCheck(base, config.ERP_BOOTSTRAP_ADMIN_PASSWORD, directory, evidence, children, () => interrupted)
+      report.rollbackImages = (await compose(['images', '--format', 'json'])).stdout
+      return { ...reads, schema: '168', sourceRevision: legacyRevision, jarSha256,
+        frontendManifestSha256: legacy.frontendManifestSha256, frontendFilesVerified: legacyFrontend.files.length,
+        originalAttachmentsRestored: true, laterWritesAbsent: true, browser }
+    })
+    await check(13, async () => {
+      const stock = await verifyLegacyPosting(api, fixture)
+      const attachment = await upload('after-rollback', fixture.draft.id)
+      await download(attachment)
+      await stopWriters()
+      await compose(['up', '-d', '--no-deps', '--no-recreate', '--wait', '--wait-timeout', '180', 'erp-server'])
+      await ready(); await loginAdmin()
+      for (const file of [...beforeAttachments, attachment]) await download(file)
+      const stockAfterRestart = await verifyLegacyPostedStock(api, fixture)
+      assert.deepEqual(stockAfterRestart, stock)
+      assert.equal(await schema('mysql-rollback'), '168')
+      const databaseAfter = await snapshot('mysql-restore'), attachmentsAfter = await attachmentSnapshot('/restore')
+      assert.deepEqual(databaseAfter, upgradedDatabase)
+      assert.deepEqual(attachmentsAfter, upgradedAttachments)
+      writeJson(path.join(evidence, 'database-upgraded-after-rollback.json'), databaseAfter)
+      writeJson(path.join(evidence, 'attachments-upgraded-after-rollback.json'), attachmentsAfter)
+      assert.deepEqual(await snapshot('mysql'), sourceAfterDatabase)
+      assert.deepEqual(await attachmentSnapshot('/source'), sourceAfterAttachments)
+      return { legacyPostingPassed: true, stock, stockAfterRestart, rollbackWritesDurable: true, upgradedDatabaseUnchanged: true,
+        upgradedAttachmentsUnchanged: true, sourceDatabaseUnchanged: true, sourceAttachmentsUnchanged: true, restartPassed: true }
     })
     verifyDeploymentBundle({ bundleDirectory, expectedManifestSha256 })
     assert.equal(await git(['rev-parse', 'HEAD']), revision)
@@ -492,6 +636,10 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
   } catch (error) { report.status = 'FAILED'; report.failure = redact(error.message) }
   finally {
     const failures = []
+    try {
+      report.browserCleanup = await cleanupSmokeProcesses(children)
+      if (!report.browserCleanup.passed) failures.push('Rollback browser cleanup failed')
+    } catch (error) { failures.push(redact(error.message)); report.browserCleanup = { passed: false } }
     if (configured) {
       try { await compose(['logs', '--no-color', '--tail', '200']) }
       catch (error) { failures.push(redact(error.message)) }

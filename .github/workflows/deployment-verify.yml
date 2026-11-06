@@ -228,9 +228,9 @@ jobs:
           --expected-manifest-sha256 "$MANIFEST_SHA256" --evidence "$DEPLOYMENT_ROOT/runtime"
           --expected-revision "$CANDIDATE_REVISION" > "$DEPLOYMENT_ROOT/verification.json"
 
-      - name: Build the pinned V168 historical fixture
+      - name: Build the pinned V168 backend and frontend
         id: legacy
-        timeout-minutes: 9
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
@@ -239,11 +239,12 @@ jobs:
           legacy_manifest_sha256="$(jq -er .manifestSha256 "$DEPLOYMENT_ROOT/legacy.json")"
           echo "manifest_sha256=$legacy_manifest_sha256" >> "$GITHUB_OUTPUT"
 
-      - name: Run V168 upgrade and joint database attachment recovery
+      - name: Run V168 upgrade recovery and fullstack rollback
         id: recovery
         timeout-minutes: 18
         shell: bash
         env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
           MANIFEST_SHA256: ${{ steps.bundle.outputs.manifest_sha256 }}
           LEGACY_MANIFEST_SHA256: ${{ steps.legacy.outputs.manifest_sha256 }}
         run: |
@@ -262,7 +263,7 @@ jobs:
           --evidence "$DEPLOYMENT_ROOT/recovery" --expected-revision "$CANDIDATE_REVISION"
           > "$DEPLOYMENT_ROOT/recovery-cleanup.json"
 
-      - name: Verify upgrade and recovery evidence
+      - name: Verify upgrade recovery and rollback evidence
         env:
           MANIFEST_SHA256: ${{ steps.bundle.outputs.manifest_sha256 }}
         run: >-
@@ -302,5 +303,8 @@ jobs:
             ${{ env.DEPLOYMENT_ROOT }}/runtime/business-trial/report.json
             ${{ env.DEPLOYMENT_ROOT }}/recovery/*.json
             ${{ env.DEPLOYMENT_ROOT }}/recovery/*.log
+            ${{ env.DEPLOYMENT_ROOT }}/recovery/*.png
             ${{ env.DEPLOYMENT_ROOT }}/legacy/build.log
+            ${{ env.DEPLOYMENT_ROOT }}/legacy/frontend-install.log
+            ${{ env.DEPLOYMENT_ROOT }}/legacy/frontend-build.log
             ${{ env.DEPLOYMENT_ROOT }}/backend/**

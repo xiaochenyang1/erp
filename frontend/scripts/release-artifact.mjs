@@ -13,7 +13,7 @@ const revisionPattern = /^[a-f0-9]{40}$/
 const hashPattern = /^[a-f0-9]{64}$/
 const inside = (parent, child) => child === parent || child.startsWith(`${parent}${path.sep}`)
 
-function filesIn(directory, prefix = '') {
+export function filesIn(directory, prefix = '') {
   assert(lstatSync(directory).isDirectory() && !lstatSync(directory).isSymbolicLink(), `Not a regular directory: ${directory}`)
   return readdirSync(directory).sort().flatMap(name => {
     assert(!name.includes('\\'), 'Artifact paths must use forward slashes')
