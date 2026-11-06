@@ -267,4 +267,8 @@ public class PurchaseOrderEntity {
     public void setVersion(Integer version) {
         this.version = version;
     }
+
+    private Long plannedWarehouseId;
+    public Long getPlannedWarehouseId() { return plannedWarehouseId; }
+    public void setPlannedWarehouseId(Long value) { this.plannedWarehouseId = value; }
 }

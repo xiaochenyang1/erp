@@ -3,6 +3,7 @@ import type { PageQuery, PageResponse } from '@/types/common'
 
 // 采购订单
 export interface PurchaseOrder {
+  plannedWarehouseId?: string | number | null
   id: string | number
   orderNo: string
   contractId?: string
@@ -102,6 +103,7 @@ export interface PurchaseOrderQuery extends PageQuery {
 
 // 采购订单保存请求
 export interface PurchaseOrderSaveRequest {
+  plannedWarehouseId?: string | number | null
   contractId?: string | number
   supplierId: string | number
   orderDate: string
@@ -145,6 +147,10 @@ export const createPurchaseOrder = (data: PurchaseOrderSaveRequest) => {
 export const updatePurchaseOrder = (id: string | number, data: PurchaseOrderSaveRequest) => {
   return request.put<PurchaseOrder>(`/purchase/orders/${id}`, toPurchaseOrderPayload(data)).then(normalizePurchaseOrder)
 }
+
+export const assignPurchaseOrderWarehouse = (id: string | number, plannedWarehouseId: string | number) =>
+  request.put<PurchaseOrder>(`/purchase/orders/${id}/planned-warehouse`, { plannedWarehouseId }).then(normalizePurchaseOrder)
+
 
 /**
  * 提交审批
@@ -218,6 +224,7 @@ const toPurchaseOrderQueryParams = (params: PurchaseOrderQuery) => {
 const toPurchaseOrderPayload = (data: PurchaseOrderSaveRequest) => ({
   contractId: data.contractId,
   supplierId: data.supplierId,
+  ...(data.plannedWarehouseId ? { plannedWarehouseId: data.plannedWarehouseId } : {}),
   orderDate: data.orderDate,
   deliveryDate: data.deliveryDate || data.expectedDate || undefined,
   currencyCode: data.currencyCode || undefined,
@@ -264,6 +271,7 @@ const normalizePurchaseOrder = (order: PurchaseOrder): PurchaseOrder => {
     id: String(order.id),
     contractId: order.contractId != null ? String(order.contractId) : undefined,
     supplierId: String(order.supplierId),
+    plannedWarehouseId: order.plannedWarehouseId != null ? String(order.plannedWarehouseId) : undefined,
     sourceInquiryId: order.sourceInquiryId != null ? String(order.sourceInquiryId) : order.sourceInquiryId,
     sourceQuoteId: order.sourceQuoteId != null ? String(order.sourceQuoteId) : order.sourceQuoteId,
     expectedDate: order.expectedDate || order.deliveryDate,

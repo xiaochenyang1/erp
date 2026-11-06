@@ -51,6 +51,7 @@ export const usePurchaseOrderForm = (
   const form = reactive<PurchaseOrderSaveRequest>({
     contractId: undefined,
     supplierId: '',
+    plannedWarehouseId: undefined,
     orderDate: '',
     expectedDate: '',
     currencyCode: undefined,
@@ -79,6 +80,7 @@ export const usePurchaseOrderForm = (
   const resetForm = () => {
     formRef.value?.resetFields()
     form.supplierId = ''
+    form.plannedWarehouseId = undefined
     form.contractId = undefined
     form.orderDate = ''
     form.expectedDate = ''
@@ -98,6 +100,7 @@ export const usePurchaseOrderForm = (
     editId.value = row.id
     Object.assign(form, {
       supplierId: row.supplierId,
+      plannedWarehouseId: row.plannedWarehouseId,
       contractId: row.contractId,
       orderDate: row.orderDate,
       expectedDate: row.expectedDate,
@@ -115,6 +118,7 @@ export const usePurchaseOrderForm = (
       editId.value = undefined
       Object.assign(form, {
         supplierId: detail.supplierId,
+        plannedWarehouseId: detail.plannedWarehouseId,
         contractId: undefined,
         orderDate: options.formatBusinessDate(),
         expectedDate: detail.expectedDate || detail.deliveryDate || '',

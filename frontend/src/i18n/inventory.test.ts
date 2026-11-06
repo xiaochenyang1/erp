@@ -7,7 +7,7 @@ describe('inventory planning localization', () => {
   it('provides English MRP labels and feedback', () => {
     setI18nLocale('en-US')
 
-    expect(i18n.global.t('inventoryMrp.title')).toBe('MRP Lite')
+    expect(i18n.global.t('inventoryMrp.title')).toBe('Multilevel MRP')
     expect(i18n.global.t('inventoryMrp.summary', {
       date: '2026-07-23',
       purchaseCount: 2,

@@ -112,6 +112,11 @@ public class PurchaseOrderService {
     }
 
     @Transactional
+    public PurchaseOrderResponse assignPlannedWarehouse(Long id, Long warehouseId) {
+        return purchaseOrderCommandService.assignPlannedWarehouse(id, warehouseId);
+    }
+
+    @Transactional
     public PurchaseOrderResponse submit(Long id, PurchaseOrderSubmitRequest request) {
         return purchaseOrderWorkflowService.submit(id, request);
     }

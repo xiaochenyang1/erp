@@ -51,4 +51,12 @@ describe('product OpenAPI contract mapping', () => {
     expect(() => toProductCreateContract({ ...form, taxRate: undefined }))
       .toThrow('税率不能为空')
   })
+
+  it('keeps omitted MRP policy absent while allowing an explicit reset to the demand warehouse', () => {
+    expect(toProductUpdateContract(form)).not.toHaveProperty('mrpPolicy')
+    expect(toProductUpdateContract({ ...form, mrpPolicy: { supplyType: 'PRODUCTION', materialWarehouseId: '9007199254740997' } }).mrpPolicy)
+      .toEqual({ supplyType: 'PRODUCTION', materialWarehouseId: '9007199254740997' })
+    expect(toProductUpdateContract({ ...form, mrpPolicy: { supplyType: 'AUTO', materialWarehouseId: null } }).mrpPolicy)
+      .toEqual({ supplyType: 'AUTO', materialWarehouseId: undefined })
+  })
 })

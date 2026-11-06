@@ -159,7 +159,9 @@ public class ProductQueryService {
                 enabled(entity.getInspectionRequired()),
                 enabled(entity.getSerialControlled()),
                 entity.getRemark(),
-                entity.getBarcode()
+                entity.getBarcode(),
+                new com.tuowei.erp.masterdata.product.web.ProductMrpPolicy(
+                        entity.getMrpSupplyType() == null ? "AUTO" : entity.getMrpSupplyType(), entity.getMrpMaterialWarehouseId())
         );
     }
 

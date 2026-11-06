@@ -221,6 +221,10 @@
               </el-form-item>
             </el-col>
           </el-row>
+          <el-form-item :label="t('purchaseOrder.plannedWarehouse')" prop="plannedWarehouseId">
+            <WarehouseSelect v-if="dialogVisible" v-model="form.plannedWarehouseId" :placeholder="t('purchaseOrder.selectPlannedWarehouse')" />
+            <span class="warehouse-hint">{{ t('purchaseOrder.warehouseHint') }}</span>
+          </el-form-item>
           <DocumentCurrencyFields
             v-if="dialogVisible"
             :key="editId ?? 'new'"
@@ -348,6 +352,14 @@
               <div class="detail-value">{{ currentRow.supplierName }}</div>
             </div>
             <div class="detail-item">
+              <div class="detail-label">{{ t('purchaseOrder.plannedWarehouse') }}</div>
+              <WarehouseSelect :model-value="currentRow.plannedWarehouseId" disabled :placeholder="t('purchaseOrder.selectPlannedWarehouse')" />
+              <el-button v-if="['DRAFT', 'REJECTED', 'SUBMITTED', 'APPROVED', 'PARTIAL'].includes(currentRow.status)"
+                v-permission="'purchase:order:update'" link type="primary" @click="openWarehouseAssignment">
+                {{ t('purchaseOrder.assignWarehouse') }}
+              </el-button>
+            </div>
+            <div class="detail-item">
               <div class="detail-label">{{ t('purchaseOrder.orderDate') }}</div>
               <div class="detail-value">{{ currentRow.orderDate }}</div>
             </div>
@@ -459,6 +471,14 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="warehouseDialogVisible" :title="t('purchaseOrder.assignWarehouse')" width="480px">
+      <p>{{ currentRow?.orderNo }}</p>
+      <el-form label-position="top"><el-form-item :label="t('purchaseOrder.plannedWarehouse')" required>
+        <WarehouseSelect v-if="warehouseDialogVisible" v-model="plannedWarehouseId" :placeholder="t('purchaseOrder.selectPlannedWarehouse')" />
+      </el-form-item></el-form>
+      <template #footer><el-button type="primary" :loading="savingWarehouse" :disabled="!plannedWarehouseId" @click="savePlannedWarehouse">{{ t('purchaseOrder.save') }}</el-button></template>
+    </el-dialog>
+
     <DocumentAttachmentDialog
       v-model="attachmentVisible"
       business-type="PURCHASE_ORDER"
@@ -493,6 +513,7 @@ import {
   getPurchaseOrders,
   createPurchaseOrder,
   updatePurchaseOrder,
+  assignPurchaseOrderWarehouse,
   getPurchaseOrder,
   submitPurchaseOrder,
   approvePurchaseOrder,
@@ -512,6 +533,7 @@ import { getProducts, getSuppliers } from '@/api/masterdata'
 import { PageTable, SearchBar, StatusTag, DetailCard } from '@/components/common'
 import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
 import DocumentCurrencyFields from '@/components/DocumentCurrencyFields.vue'
+import WarehouseSelect from '@/components/WarehouseSelect.vue'
 import { downloadBlob } from '@/utils/download'
 import { useUserStore } from '@/store/modules/user'
 import { formatBusinessDate, formatLocalizedDateTime } from '@/utils/locale'
@@ -668,6 +690,25 @@ const selectPurchaseContract = async (contractId?: string | number) => {
   } as PurchaseOrderItem))
 }
 
+const warehouseDialogVisible = ref(false)
+const plannedWarehouseId = ref<string | number | null>()
+const savingWarehouse = ref(false)
+const openWarehouseAssignment = () => {
+  plannedWarehouseId.value = currentRow.value?.plannedWarehouseId
+  warehouseDialogVisible.value = true
+}
+const savePlannedWarehouse = async () => {
+  if (!currentRow.value || !plannedWarehouseId.value) return
+  savingWarehouse.value = true
+  try {
+    currentRow.value = await assignPurchaseOrderWarehouse(currentRow.value.id, plannedWarehouseId.value)
+    warehouseDialogVisible.value = false
+    ElMessage.success(t('purchaseOrder.warehouseSaved'))
+    await handleQuery()
+  } catch { /* request interceptor shows the error */ }
+  finally { savingWarehouse.value = false }
+}
+
 const traceDocSections = computed<Array<{ key: keyof PurchaseOrderRelatedDocs; title: string }>>(() => [
   { key: 'receipts', title: t('purchaseOrder.traceSections.receipts') },
   { key: 'returns', title: t('purchaseOrder.traceSections.returns') },
@@ -684,6 +725,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.warehouse-hint { color: #606266; font-size: 12px; }
 .purchase-order-management {
   padding: 24px;
   min-height: 100vh;

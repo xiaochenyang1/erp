@@ -28,7 +28,7 @@ public class MrpPlanController {
         this.mrpPlanService = mrpPlanService;
     }
 
-    @PreAuthorize(PermissionCodes.HAS_INVENTORY_MRP_RUN + " or " + PermissionCodes.HAS_INVENTORY_MRP_VIEW)
+    @PreAuthorize(PermissionCodes.HAS_INVENTORY_MRP_RUN)
     @OperationLog(module = "inventory", operation = "mrp-run", bizNo = "#result.data.runNo")
     @PostMapping("/run")
     public ApiResponse<MrpRunResponse> run() {
@@ -47,7 +47,7 @@ public class MrpPlanController {
         return ApiResponse.success(mrpPlanService.getById(id));
     }
 
-    @PreAuthorize(PermissionCodes.HAS_INVENTORY_MRP_CONVERT + " or " + PermissionCodes.HAS_INVENTORY_MRP_RUN)
+    @PreAuthorize(PermissionCodes.HAS_INVENTORY_MRP_CONVERT)
     @OperationLog(module = "inventory", operation = "mrp-convert", bizNo = "#lineId")
     @PostMapping("/runs/{runId}/lines/{lineId}/convert")
     public ApiResponse<MrpSuggestionLineResponse> convertLine(

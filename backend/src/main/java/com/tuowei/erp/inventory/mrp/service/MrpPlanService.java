@@ -24,7 +24,7 @@ public class MrpPlanService {
         this.mrpPlanCommandService = mrpPlanCommandService;
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public MrpRunResponse run() {
         return mrpPlanCommandService.run();
     }
@@ -40,7 +40,7 @@ public class MrpPlanService {
         return mrpPlanQueryService.getById(id);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public MrpSuggestionLineResponse convertLine(Long runId, Long lineId, MrpConvertLineRequest request) {
         return mrpPlanCommandService.convertLine(runId, lineId, request);
     }

@@ -44,6 +44,7 @@ export interface ProductQuery extends PageQuery, Omit<ProductQueryContract, 'pag
 }
 
 export interface ProductSaveRequest {
+  mrpPolicy?: { supplyType: string; materialWarehouseId?: string | null }
   code?: string
   name?: string
   productCode?: string
@@ -171,6 +172,7 @@ const toProductCommonContract = (data: ProductSaveRequest): ProductUpdateContrac
   shelfLifeControlled: Boolean(data.shelfLifeControlled),
   inspectionRequired: Boolean(data.inspectionRequired),
   serialControlled: Boolean(data.serialControlled),
+  ...(data.mrpPolicy ? { mrpPolicy: { ...data.mrpPolicy, materialWarehouseId: data.mrpPolicy.materialWarehouseId || undefined } } : {}),
   remark: data.remark?.trim() || undefined
 })
 

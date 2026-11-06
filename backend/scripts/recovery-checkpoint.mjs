@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
+export const targetSchema = '170'
 export const legacyRevision = '8766ef0ac966da8628bbdfc2b9bbb12c6e93ba17'
 export const recoveryProjectPattern = /^erp-preview-recovery-[a-f0-9]{12}$/
 export const hash = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -24,7 +25,7 @@ export function validateCheckpoint(manifest, { applicationRevision, manifestSha2
   assert.equal(manifest.kind, 'erp-recovery-checkpoint')
   assert.equal(manifest.sourceRevision, legacyRevision, 'Unexpected V168 source revision')
   assert.equal(manifest.sourceSchema, '168')
-  assert.equal(manifest.targetSchema, '169')
+  assert.equal(manifest.targetSchema, targetSchema)
   assert(revisionPattern.test(applicationRevision || '') && sha256Pattern.test(manifestSha256 || ''))
   assert.equal(manifest.applicationRevision, applicationRevision)
   assert.equal(manifest.deploymentManifestSha256, manifestSha256)
@@ -48,7 +49,7 @@ export function validateCheckpoint(manifest, { applicationRevision, manifestSha2
 export function sealCheckpoint({ directory, databaseFile, applicationRevision, manifestSha256, project, databaseSnapshot }) {
   const manifest = {
     schemaVersion: 1, kind: 'erp-recovery-checkpoint', createdAt: new Date().toISOString(), project,
-    sourceRevision: legacyRevision, sourceSchema: '168', targetSchema: '169', applicationRevision,
+    sourceRevision: legacyRevision, sourceSchema: '168', targetSchema, applicationRevision,
     deploymentManifestSha256: manifestSha256, writersStopped: true, databaseSnapshot,
     artifacts: Object.fromEntries(Object.entries({ database: databaseFile, databaseChecksum: databaseFile + '.sha256',
       attachmentArchive: 'attachments.tar.gz', attachmentSnapshot: 'attachments.json' })

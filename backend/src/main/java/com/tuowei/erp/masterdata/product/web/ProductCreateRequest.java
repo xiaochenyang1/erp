@@ -23,8 +23,31 @@ public record ProductCreateRequest(
         Boolean inspectionRequired,
         Boolean serialControlled,
         String remark,
-        @Size(max = 128, message = "商品条码长度不能超过128个字符") String barcode
+        @Size(max = 128, message = "商品条码长度不能超过128个字符") String barcode,
+        @jakarta.validation.Valid ProductMrpPolicy mrpPolicy
 ) {
+    public ProductCreateRequest(
+        String productCode,
+        String productName,
+        String productType,
+        String categoryName,
+        String specification,
+        String unitName,
+        String auxUnitName,
+        BigDecimal conversionFactor,
+        BigDecimal purchasePrice,
+        BigDecimal salePrice,
+        BigDecimal taxRate,
+        Boolean lotControlled,
+        Boolean shelfLifeControlled,
+        Boolean inspectionRequired,
+        Boolean serialControlled,
+        String remark,
+        String barcode
+    ) {
+        this(productCode, productName, productType, categoryName, specification, unitName, auxUnitName, conversionFactor, purchasePrice, salePrice, taxRate, lotControlled, shelfLifeControlled, inspectionRequired, serialControlled, remark, barcode, null);
+    }
+
     public ProductCreateRequest(
             String productCode,
             String productName,

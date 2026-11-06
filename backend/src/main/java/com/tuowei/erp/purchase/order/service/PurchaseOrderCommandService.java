@@ -21,6 +21,7 @@ import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderUpdateRequest;
 import com.tuowei.erp.purchase.support.PurchaseAmountCalculator;
 import com.tuowei.erp.commercial.contract.service.ContractOrderBindingService;
+import com.tuowei.erp.masterdata.warehouse.service.WarehouseReferenceValidator;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +49,7 @@ public class PurchaseOrderCommandService {
     private final SupplierProductRelationService supplierProductRelationService;
     private final ContractOrderBindingService contractOrderBindingService;
     private final SettlementCurrencyService settlementCurrencyService;
+    private final WarehouseReferenceValidator warehouseReferenceValidator;
 
     @Autowired
     public PurchaseOrderCommandService(
@@ -61,7 +63,8 @@ public class PurchaseOrderCommandService {
             PurchasePriceEvaluator purchasePriceEvaluator,
             SupplierProductRelationService supplierProductRelationService,
             ContractOrderBindingService contractOrderBindingService,
-            SettlementCurrencyService settlementCurrencyService
+            SettlementCurrencyService settlementCurrencyService,
+            WarehouseReferenceValidator warehouseReferenceValidator
     ) {
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
@@ -74,6 +77,17 @@ public class PurchaseOrderCommandService {
         this.supplierProductRelationService = supplierProductRelationService;
         this.contractOrderBindingService = contractOrderBindingService;
         this.settlementCurrencyService = settlementCurrencyService;
+        this.warehouseReferenceValidator = warehouseReferenceValidator;
+    }
+
+    public PurchaseOrderCommandService(PurchaseOrderMapper purchaseOrderMapper, PurchaseOrderLineMapper purchaseOrderLineMapper,
+            SupplierMapper supplierMapper, ProductValidator productValidator, PurchaseOrderNumberService purchaseOrderNumberService,
+            AuditMetadataFactory auditMetadataFactory, PurchaseOrderQueryService purchaseOrderQueryService,
+            PurchasePriceEvaluator purchasePriceEvaluator, SupplierProductRelationService supplierProductRelationService,
+            ContractOrderBindingService contractOrderBindingService, SettlementCurrencyService settlementCurrencyService) {
+        this(purchaseOrderMapper, purchaseOrderLineMapper, supplierMapper, productValidator, purchaseOrderNumberService,
+                auditMetadataFactory, purchaseOrderQueryService, purchasePriceEvaluator, supplierProductRelationService,
+                contractOrderBindingService, settlementCurrencyService, null);
     }
 
     /** Compatibility constructor retained for direct callers from older releases. */
@@ -97,6 +111,28 @@ public class PurchaseOrderCommandService {
     @Transactional
     public PurchaseOrderResponse create(PurchaseOrderCreateRequest request) {
         return createInternal(request, null);
+    }
+
+    /** Receiving logistics may be assigned after approval without changing the approved commercial terms. */
+    @Transactional
+    public PurchaseOrderResponse assignPlannedWarehouse(Long id, Long warehouseId) {
+        PurchaseOrderEntity entity = purchaseOrderQueryService.requireOrder(id);
+        if (!java.util.Set.of("DRAFT", "REJECTED", "SUBMITTED", "APPROVED", "PARTIAL").contains(entity.getStatus())) {
+            throw new IllegalArgumentException("当前采购订单状态不允许设置预计收货仓库");
+        }
+        if (warehouseId == null) throw new IllegalArgumentException("预计收货仓库不能为空");
+        AuditMetadata audit = auditMetadataFactory.current();
+        applyPlannedWarehouse(entity, warehouseId, audit);
+        entity.setUpdatedBy(audit.userId());
+        entity.setUpdatedTime(audit.now());
+        OptimisticLockGuard.requireUpdated(purchaseOrderMapper.updateById(entity), "采购订单已被其他操作修改，请刷新后重试");
+        return purchaseOrderQueryService.getById(id);
+    }
+
+    private void applyPlannedWarehouse(PurchaseOrderEntity entity, Long warehouseId, AuditMetadata audit) {
+        if (warehouseId == null) return; // Existing clients do not erase an assigned receiving warehouse.
+        Objects.requireNonNull(warehouseReferenceValidator, "仓库校验服务未配置").requireActive(warehouseId, audit);
+        entity.setPlannedWarehouseId(warehouseId);
     }
 
     @Transactional
@@ -151,6 +187,7 @@ public class PurchaseOrderCommandService {
         entity.setBaseTotalAmount(totals.totalAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         entity.setRemark(request.remark());
+        applyPlannedWarehouse(entity, request.plannedWarehouseId(), audit);
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(now);
         OptimisticLockGuard.requireUpdated(
@@ -210,6 +247,7 @@ public class PurchaseOrderCommandService {
         entity.setBaseTotalTaxAmount(totals.totalTaxAmount().multiply(currency.exchangeRate()).setScale(6, java.math.RoundingMode.HALF_UP));
         entity.setDeletedFlag(0);
         entity.setRemark(request.remark());
+        applyPlannedWarehouse(entity, request.plannedWarehouseId(), audit);
         entity.setCreatedBy(audit.userId());
         entity.setCreatedTime(now);
         entity.setUpdatedBy(audit.userId());

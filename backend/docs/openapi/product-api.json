@@ -856,6 +856,9 @@
             "type": "string",
             "maxLength": 128,
             "minLength": 0
+          },
+          "mrpPolicy": {
+            "$ref": "#/components/schemas/ProductMrpPolicy"
           }
         },
         "required": [
@@ -867,6 +870,21 @@
           "salePrice",
           "taxRate",
           "unitName"
+        ]
+      },
+      "ProductMrpPolicy": {
+        "type": "object",
+        "properties": {
+          "supplyType": {
+            "type": "string",
+            "pattern": "AUTO|PURCHASE|PRODUCTION"
+          },
+          "materialWarehouseId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "supplyType"
         ]
       },
       "ProductPageQuery": {
@@ -947,6 +965,9 @@
           },
           "barcode": {
             "type": "string"
+          },
+          "mrpPolicy": {
+            "$ref": "#/components/schemas/ProductMrpPolicy"
           }
         }
       },
@@ -999,6 +1020,9 @@
             "type": "string",
             "maxLength": 128,
             "minLength": 0
+          },
+          "mrpPolicy": {
+            "$ref": "#/components/schemas/ProductMrpPolicy"
           }
         },
         "required": [

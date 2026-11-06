@@ -59,4 +59,11 @@ public class MrpRunEntity {
     public void setUpdatedTime(LocalDateTime updatedTime) { this.updatedTime = updatedTime; }
     public Integer getVersion() { return version; }
     public void setVersion(Integer version) { this.version = version; }
+
+    private Integer algorithmVersion;
+    public Integer getAlgorithmVersion() { return algorithmVersion; }
+    public void setAlgorithmVersion(Integer value) { this.algorithmVersion = value; }
+    private String calculationSnapshot;
+    public String getCalculationSnapshot() { return calculationSnapshot; }
+    public void setCalculationSnapshot(String value) { this.calculationSnapshot = value; }
 }

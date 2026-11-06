@@ -47,7 +47,9 @@ class MrpPlanServiceDecompositionTest {
                         com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper.class,
                         com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper.class,
                         MrpPlanQueryService.class,
-                        MrpPlanCalculationService.class
+                        MrpPlanCalculationService.class,
+                        com.tuowei.erp.inventory.mrp.service.MrpSnapshotCodec.class,
+                        com.tuowei.erp.inventory.mrp.service.MrpAccessPolicy.class
                 )
                 .doesNotContain(MrpPlanService.class);
     }

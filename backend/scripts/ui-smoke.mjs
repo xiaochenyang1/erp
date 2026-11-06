@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { spawnSmokeProcess, cleanupSmokeProcesses } from './ui-smoke-processes.mjs'
 import { connectCdpSocket, pageConditionExpression } from './ui-smoke-cdp.mjs'
 import { waitForBackendReadiness } from './ui-smoke-readiness.mjs'
-import { runMrpUiSmoke } from './mrp-ui-smoke.mjs'
+import { runMrpUiSmoke, runMultilevelMrpUiSmoke, runMrpWarehouseUiSmoke } from './mrp-ui-smoke.mjs'
 import { runCurrencyDocumentsUiSmoke, runRoundingReportUiSmoke } from './currency-document-ui-smoke.mjs'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
@@ -6985,6 +6985,7 @@ async function main() {
     { path: '/reports', text: '库存估值' },
     { path: '/system/attachments', text: '附件中心' },
     { path: '/inventory/stocks', text: '库存查询' },
+    { path: '/inventory/mrp', text: '多层 MRP' },
     { path: '/sales/orders', text: '销售订单' },
     { path: '/sales/deliveries', text: '销售发货' },
     { path: '/system/users', text: '用户管理' },
@@ -7050,9 +7051,12 @@ async function main() {
     .map((token) => token.trim())
     .filter(Boolean)
   const currencyHelpers = { cdp, auth, apiRequest, setBrowserAuth, frontendBaseUrl, prepareSalesOrderFixture,
-    preparePostedSalesDeliveryFixture, waitForPage, invokeElement, clickButton, setElementValue, dialogExpression }
+    preparePostedSalesDeliveryFixture, waitForPage, invokeElement, clickButton, setElementValue, dialogExpression,
+    approveInventoryAdjustmentFixture, targetDir }
   const workflowDefinitions = [
     { name: 'mrp-safety-stock-run-and-convert', run: () => runMrpUiSmoke(currencyHelpers) },
+    { name: 'mrp-multilevel-warehouse-trace-and-convert', run: () => runMultilevelMrpUiSmoke(currencyHelpers) },
+    { name: 'mrp-purchase-warehouse-assignment', run: () => runMrpWarehouseUiSmoke(currencyHelpers) },
     { name: 'currency-contract-invoice-edit-and-version', run: () => runCurrencyDocumentsUiSmoke(currencyHelpers) },
     { name: 'currency-rounding-report', run: () => runRoundingReportUiSmoke(currencyHelpers) },
     { name: 'exception-ticket-create-and-close', run: () => runExceptionTicketWorkflow(cdp) },

@@ -270,6 +270,17 @@
         <el-form-item :label="texts.barcode" prop="barcode">
           <el-input v-model="formData.barcode" :placeholder="texts.enterBarcode" />
         </el-form-item>
+        <el-form-item v-if="formData.mrpPolicy" :label="texts.mrpSupplyType" prop="mrpPolicy.supplyType">
+          <el-select v-model="formData.mrpPolicy.supplyType">
+            <el-option value="AUTO" :label="texts.mrpAuto" />
+            <el-option value="PURCHASE" :label="texts.mrpPurchase" />
+            <el-option value="PRODUCTION" :label="texts.mrpProduction" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="formData.mrpPolicy" :label="texts.mrpMaterialWarehouse" prop="mrpPolicy.materialWarehouseId">
+          <WarehouseSelect v-model="formData.mrpPolicy.materialWarehouseId" clearable :placeholder="texts.mrpDemandWarehouse" />
+          <span class="form-tip">{{ texts.mrpWarehouseHint }}</span>
+        </el-form-item>
         <el-form-item :label="texts.status" prop="status" :style="{ gridColumn: '1 / -1' }">
           <el-radio-group v-model="formData.status">
             <el-radio value="ACTIVE">{{ texts.active }}</el-radio>
@@ -424,10 +435,13 @@ import { useAppStore } from '@/store/modules/app'
 import { useProductPresentation } from '@/composables/useProductPresentation'
 import { useProductList } from '@/composables/useProductList'
 import { useProductForm } from '@/composables/useProductForm'
+import WarehouseSelect from '@/components/WarehouseSelect.vue'
 
 const appStore = useAppStore()
 const PRODUCT_TEXTS = {
   'zh-CN': {
+    mrpSupplyType: 'MRP供给策略', mrpAuto: '自动（有启用BOM则自制）', mrpPurchase: '外购', mrpProduction: '自制（必须有启用BOM）',
+    mrpMaterialWarehouse: '默认投料仓', mrpDemandWarehouse: '使用需求所在仓库', mrpWarehouseHint: 'MRP生产此商品时，从这里展开材料需求；留空使用需求仓。',
     pageTitle: '产品管理',
     pageSubtitle: '管理系统中的所有产品信息',
     totalProducts: '总产品数',
@@ -542,6 +556,8 @@ const PRODUCT_TEXTS = {
     unitBox: '箱'
   },
   'en-US': {
+    mrpSupplyType: 'MRP supply policy', mrpAuto: 'Auto (make with active BOM)', mrpPurchase: 'Purchase', mrpProduction: 'Manufacture (active BOM required)',
+    mrpMaterialWarehouse: 'Material warehouse', mrpDemandWarehouse: 'Use demand warehouse', mrpWarehouseHint: 'MRP expands materials here when manufacturing this product. Leave empty to use the demand warehouse.',
     pageTitle: 'Product Management',
     pageSubtitle: 'Manage product records in the system',
     totalProducts: 'Total products',

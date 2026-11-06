@@ -2,18 +2,15 @@ package com.tuowei.erp.inventory.mrp;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuowei.erp.common.exception.BusinessConflictException;
-import com.tuowei.erp.common.security.AuditMetadata;
-import com.tuowei.erp.common.security.AuditMetadataFactory;
-import com.tuowei.erp.inventory.mrp.mapper.MrpRunLineMapper;
-import com.tuowei.erp.inventory.mrp.mapper.MrpRunMapper;
-import com.tuowei.erp.inventory.mrp.model.MrpRunEntity;
-import com.tuowei.erp.inventory.mrp.model.MrpRunLineEntity;
-import com.tuowei.erp.inventory.mrp.service.MrpPlanCalculationService;
-import com.tuowei.erp.inventory.mrp.service.MrpPlanCommandService;
-import com.tuowei.erp.inventory.mrp.service.MrpPlanQueryService;
+import com.tuowei.erp.common.security.*;
+import com.tuowei.erp.inventory.mrp.mapper.*;
+import com.tuowei.erp.inventory.mrp.model.*;
+import com.tuowei.erp.inventory.mrp.model.MrpCalculationSnapshot.*;
+import com.tuowei.erp.inventory.mrp.service.*;
+import com.tuowei.erp.inventory.mrp.service.MrpPlanCalculationService.*;
 import com.tuowei.erp.inventory.mrp.web.MrpConvertLineRequest;
-import com.tuowei.erp.inventory.mrp.web.MrpSuggestionLineResponse;
 import com.tuowei.erp.masterdata.product.mapper.ProductMapper;
 import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.supplier.mapper.SupplierMapper;
@@ -21,622 +18,194 @@ import com.tuowei.erp.masterdata.supplier.model.SupplierEntity;
 import com.tuowei.erp.masterdata.warehouse.mapper.WarehouseMapper;
 import com.tuowei.erp.masterdata.warehouse.model.WarehouseEntity;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
+import com.tuowei.erp.production.order.web.ProductionOrderCreateRequest;
 import com.tuowei.erp.production.order.web.ProductionOrderResponse;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderService;
+import com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest;
 import com.tuowei.erp.purchase.order.web.PurchaseOrderResponse;
 import com.tuowei.erp.system.config.service.SequenceNumberGenerator;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
 class MrpPlanCommandServiceTest {
+    private static final AuditMetadata AUDIT = new AuditMetadata(9001L, 101L, 202L, LocalDateTime.of(2026,11,6,11,30));
+    private final AuditMetadataFactory audit = mock(AuditMetadataFactory.class);
+    private final MrpRunMapper runs = mock(MrpRunMapper.class);
+    private final MrpRunLineMapper lines = mock(MrpRunLineMapper.class);
+    private final SequenceNumberGenerator numbers = mock(SequenceNumberGenerator.class);
+    private final PurchaseOrderService purchase = mock(PurchaseOrderService.class);
+    private final ProductionOrderService production = mock(ProductionOrderService.class);
+    private final ProductMapper products = mock(ProductMapper.class);
+    private final SupplierMapper suppliers = mock(SupplierMapper.class);
+    private final WarehouseMapper warehouses = mock(WarehouseMapper.class);
+    private final MrpPlanQueryService query = mock(MrpPlanQueryService.class);
+    private final MrpPlanCalculationService calculation = mock(MrpPlanCalculationService.class);
+    private final MrpAccessPolicy access = mock(MrpAccessPolicy.class);
+    private final MrpSnapshotCodec codec = new MrpSnapshotCodec(new ObjectMapper());
+    private final MrpPlanCommandService service = new MrpPlanCommandService(audit,runs,lines,numbers,purchase,production,products,suppliers,warehouses,query,calculation,codec,access);
+    private MrpRunEntity run;
+    private MrpRunLineEntity line;
+    private Node node;
 
-    private static final AuditMetadata AUDIT = new AuditMetadata(
-            9001L,
-            101L,
-            202L,
-            LocalDateTime.of(2026, 8, 20, 11, 30)
-    );
-    private static final Long RUN_ID = 8101L;
-    private static final Long LINE_ID = 8201L;
-    private static final Long PRODUCT_ID = 8301L;
-    private static final Long BOM_ID = 8401L;
-    private static final Long SUPPLIER_ID = 8501L;
-    private static final Long WAREHOUSE_ID = 8601L;
-
-    @Mock
-    private AuditMetadataFactory auditMetadataFactory;
-    @Mock
-    private MrpRunMapper mrpRunMapper;
-    @Mock
-    private MrpRunLineMapper mrpRunLineMapper;
-    @Mock
-    private SequenceNumberGenerator sequenceNumberGenerator;
-    @Mock
-    private PurchaseOrderService purchaseOrderService;
-    @Mock
-    private ProductionOrderService productionOrderService;
-    @Mock
-    private ProductMapper productMapper;
-    @Mock
-    private SupplierMapper supplierMapper;
-    @Mock
-    private WarehouseMapper warehouseMapper;
-    @Mock
-    private MrpPlanQueryService mrpPlanQueryService;
-    @Mock
-    private MrpPlanCalculationService mrpPlanCalculationService;
-
-    @BeforeAll
-    static void initTableInfo() {
-        initTableInfo(MrpRunEntity.class);
-        initTableInfo(MrpRunLineEntity.class);
-        initTableInfo(SupplierEntity.class);
-        initTableInfo(WarehouseEntity.class);
+    @BeforeAll static void metadata() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(),"mrp"),MrpRunEntity.class);
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(),"mrp"),MrpRunLineEntity.class);
     }
-
-    @BeforeEach
-    void setUp() {
-        when(auditMetadataFactory.current()).thenReturn(AUDIT);
-    }
-
-    @Test
-    void runPersistsHeaderThenProductionAndPurchaseLinesAndReloadsResponse() {
-        MrpPlanCalculationService.ComputedLine production = new MrpPlanCalculationService.ComputedLine(
-                8302L, "PRODUCTION", new BigDecimal("12.00009"), new BigDecimal("2"),
-                new BigDecimal("1"), new BigDecimal("9.00009"), BOM_ID, "销售未发货;有BOM建议生产");
-        MrpPlanCalculationService.ComputedLine purchase = new MrpPlanCalculationService.ComputedLine(
-                PRODUCT_ID, "PURCHASE", new BigDecimal("8.00009"), new BigDecimal("1"),
-                new BigDecimal("2"), new BigDecimal("5.00009"), null, "无BOM建议采购");
-        when(mrpPlanCalculationService.calculate(AUDIT)).thenReturn(
-                new MrpPlanCalculationService.CalculationResult(List.of(production), List.of(purchase))
-        );
-        when(sequenceNumberGenerator.nextNumber("MRP_RUN", "MRP计划", AUDIT.now().toLocalDate()))
-                .thenReturn("MRP202608200001");
-        when(mrpRunMapper.insert(any(MrpRunEntity.class))).thenAnswer(invocation -> {
-            MrpRunEntity run = invocation.getArgument(0);
-            run.setId(RUN_ID);
-            return 1;
-        });
-        when(mrpPlanQueryService.getById(RUN_ID)).thenReturn(null);
-
-        assertThat(service().run()).isNull();
-
-        ArgumentCaptor<MrpRunEntity> runCaptor = ArgumentCaptor.forClass(MrpRunEntity.class);
-        verify(mrpRunMapper).insert(runCaptor.capture());
-        MrpRunEntity run = runCaptor.getValue();
-        assertThat(run.getId()).isEqualTo(RUN_ID);
-        assertThat(run.getCompanyId()).isEqualTo(AUDIT.companyId());
-        assertThat(run.getAccountBookId()).isEqualTo(AUDIT.accountBookId());
-        assertThat(run.getRunNo()).isEqualTo("MRP202608200001");
-        assertThat(run.getAsOfDate()).isEqualTo(AUDIT.now().toLocalDate());
-        assertThat(run.getStatus()).isEqualTo("OPEN");
-        assertThat(run.getPurchaseCount()).isEqualTo(1);
-        assertThat(run.getProductionCount()).isEqualTo(1);
-        assertThat(run.getVersion()).isZero();
-
-        ArgumentCaptor<MrpRunLineEntity> lineCaptor = ArgumentCaptor.forClass(MrpRunLineEntity.class);
-        verify(mrpRunLineMapper, org.mockito.Mockito.times(2)).insert(lineCaptor.capture());
-        List<MrpRunLineEntity> lines = lineCaptor.getAllValues();
-        assertThat(lines).extracting(MrpRunLineEntity::getLineNo).containsExactly(1, 2);
-        assertThat(lines).extracting(MrpRunLineEntity::getSuggestionType)
-                .containsExactly("PRODUCTION", "PURCHASE");
-        assertThat(lines.get(0).getNetQty()).isEqualByComparingTo("9.0001");
-        assertThat(lines.get(1).getNetQty()).isEqualByComparingTo("5.0001");
-        assertThat(lines).allSatisfy(line -> {
-            assertThat(line.getRunId()).isEqualTo(RUN_ID);
-            assertThat(line.getCompanyId()).isEqualTo(AUDIT.companyId());
-            assertThat(line.getAccountBookId()).isEqualTo(AUDIT.accountBookId());
-            assertThat(line.getStatus()).isEqualTo("OPEN");
-            assertThat(line.getDeletedFlag()).isZero();
-            assertThat(line.getVersion()).isZero();
-        });
-
-        InOrder order = inOrder(mrpPlanCalculationService, sequenceNumberGenerator, mrpRunMapper,
-                mrpRunLineMapper, mrpPlanQueryService);
-        order.verify(mrpPlanCalculationService).calculate(AUDIT);
-        order.verify(sequenceNumberGenerator).nextNumber("MRP_RUN", "MRP计划", AUDIT.now().toLocalDate());
-        order.verify(mrpRunMapper).insert(any(MrpRunEntity.class));
-        order.verify(mrpRunLineMapper, org.mockito.Mockito.times(2)).insert(any(MrpRunLineEntity.class));
-        order.verify(mrpPlanQueryService).getById(RUN_ID);
-    }
-
-    @Test
-    void convertPurchaseUsesExplicitSupplierProductPricingAndUpdatesLine() {
-        MrpRunEntity run = openRun();
-        MrpRunLineEntity line = openLine("PURCHASE");
-        ProductEntity product = product();
-        product.setPurchasePrice(new BigDecimal("12.34567"));
-        product.setTaxRate(new BigDecimal("13"));
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(run);
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier(SUPPLIER_ID));
-        when(productMapper.selectById(PRODUCT_ID)).thenReturn(product);
-        when(purchaseOrderService.create(any())).thenReturn(purchaseOrder());
-        when(mrpRunLineMapper.updateById(line)).thenReturn(1);
-        when(mrpRunLineMapper.selectCount(any())).thenReturn(1L);
-        MrpSuggestionLineResponse response = org.mockito.Mockito.mock(MrpSuggestionLineResponse.class);
-        when(mrpPlanQueryService.toLineResponse(line, AUDIT)).thenReturn(response);
-
-        assertThat(service().convertLine(
-                RUN_ID, LINE_ID, new MrpConvertLineRequest(SUPPLIER_ID, null, null)
-        )).isSameAs(response);
-
-        ArgumentCaptor<com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest> orderCaptor =
-                ArgumentCaptor.forClass(com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest.class);
-        verify(purchaseOrderService).create(orderCaptor.capture());
-        var request = orderCaptor.getValue();
-        assertThat(request.supplierId()).isEqualTo(SUPPLIER_ID);
-        assertThat(request.orderDate()).isEqualTo(AUDIT.now().toLocalDate());
-        assertThat(request.deliveryDate()).isEqualTo(AUDIT.now().toLocalDate().plusDays(7));
-        assertThat(request.remark()).isEqualTo("由MRP计划行生成");
-        assertThat(request.lines()).singleElement().satisfies(orderLine -> {
-            assertThat(orderLine.productId()).isEqualTo(PRODUCT_ID);
-            assertThat(orderLine.qty()).isEqualByComparingTo(line.getNetQty());
-            assertThat(orderLine.price()).isEqualByComparingTo("12.35");
-            assertThat(orderLine.taxRate()).isEqualByComparingTo("0.13");
-        });
-        assertThat(line.getStatus()).isEqualTo("CONVERTED");
-        assertThat(line.getConvertedBizType()).isEqualTo("PURCHASE_ORDER");
-        assertThat(line.getConvertedBizId()).isEqualTo(9901L);
-        verify(mrpRunMapper, never()).updateById(any(MrpRunEntity.class));
-    }
-
-    @Test
-    void convertPurchaseFallsBackToFirstActiveTenantSupplierWhenRequestIsNull() {
-        MrpRunEntity run = openRun();
-        MrpRunLineEntity line = openLine("PURCHASE");
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(run);
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-        when(supplierMapper.selectOne(any())).thenReturn(supplier(SUPPLIER_ID));
-        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier(SUPPLIER_ID));
-        when(productMapper.selectById(PRODUCT_ID)).thenReturn(product());
-        when(purchaseOrderService.create(any())).thenReturn(purchaseOrder());
-        when(mrpRunLineMapper.updateById(line)).thenReturn(1);
-        when(mrpRunLineMapper.selectCount(any())).thenReturn(1L);
-        when(mrpPlanQueryService.toLineResponse(line, AUDIT)).thenReturn(null);
-
-        service().convertLine(RUN_ID, LINE_ID, null);
-
-        ArgumentCaptor<com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest> captor =
-                ArgumentCaptor.forClass(com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest.class);
-        verify(purchaseOrderService).create(captor.capture());
-        assertThat(captor.getValue().supplierId()).isEqualTo(SUPPLIER_ID);
-        ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SupplierEntity>> wrapper =
-                ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class);
-        verify(supplierMapper).selectOne(wrapper.capture());
-        assertThat(wrapper.getValue().getSqlSegment().toLowerCase()).contains("company_id", "account_book_id", "deleted_flag", "status");
-    }
-
-    @Test
-    void convertProductionFallsBackToOneActiveTenantWarehouseForBothRoles() {
-        MrpRunEntity run = openRun();
-        MrpRunLineEntity line = openLine("PRODUCTION");
-        WarehouseEntity warehouse = warehouse(WAREHOUSE_ID);
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(run);
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-        when(warehouseMapper.selectOne(any())).thenReturn(warehouse);
-        when(warehouseMapper.selectById(WAREHOUSE_ID)).thenReturn(warehouse);
-        when(productionOrderService.create(any())).thenReturn(productionOrder());
-        when(mrpRunLineMapper.updateById(line)).thenReturn(1);
-        when(mrpRunLineMapper.selectCount(any())).thenReturn(1L);
-        when(mrpPlanQueryService.toLineResponse(line, AUDIT)).thenReturn(null);
-
-        service().convertLine(RUN_ID, LINE_ID, new MrpConvertLineRequest(null, null, null));
-
-        ArgumentCaptor<com.tuowei.erp.production.order.web.ProductionOrderCreateRequest> captor =
-                ArgumentCaptor.forClass(com.tuowei.erp.production.order.web.ProductionOrderCreateRequest.class);
-        verify(productionOrderService).create(captor.capture());
-        assertThat(captor.getValue().bomId()).isEqualTo(BOM_ID);
-        assertThat(captor.getValue().finishedWarehouseId()).isEqualTo(WAREHOUSE_ID);
-        assertThat(captor.getValue().materialWarehouseId()).isEqualTo(WAREHOUSE_ID);
-        assertThat(line.getStatus()).isEqualTo("CONVERTED");
-    }
-
-    @Test
-    void convertRejectsNonOpenRunBeforeLoadingLine() {
-        MrpRunEntity run = openRun();
-        run.setStatus("CLOSED");
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(run);
-
-        assertThatThrownBy(() -> service().convertLine(RUN_ID, LINE_ID, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("当前MRP计划状态不允许转单");
-        verify(mrpPlanQueryService, never()).requireLine(anyLong(), anyLong(), eq(AUDIT));
-        verify(purchaseOrderService, never()).create(any());
-        verify(productionOrderService, never()).create(any());
-    }
-
-    @Test
-    void convertRejectsNonOpenLineBeforeReadingConversionDependencies() {
-        MrpRunLineEntity line = openLine("PURCHASE");
-        line.setStatus("CONVERTED");
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-
-        assertThatThrownBy(() -> service().convertLine(RUN_ID, LINE_ID, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("当前建议行状态不允许转单");
-        verify(supplierMapper, never()).selectOne(any());
-        verify(purchaseOrderService, never()).create(any());
-        verify(productionOrderService, never()).create(any());
-    }
-
-    @Test
-    void convertRejectsUnknownSuggestionTypeBeforeWriting() {
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(openLine("TRANSFER"));
-
-        assertThatThrownBy(() -> service().convertLine(RUN_ID, LINE_ID, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("未知建议类型: TRANSFER");
-        verify(mrpRunLineMapper, never()).updateById(any(MrpRunLineEntity.class));
-    }
-
-    @Test
-    void convertPurchaseRejectsMissingDefaultSupplierBeforeProductLookup() {
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(openLine("PURCHASE"));
-        when(supplierMapper.selectOne(any())).thenReturn(null);
-
-        assertThatThrownBy(() -> service().convertLine(RUN_ID, LINE_ID, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("请选择供应商后再转采购订单");
-        verify(supplierMapper, never()).selectById(any());
-        verify(productMapper, never()).selectById(any());
-        verify(purchaseOrderService, never()).create(any());
-    }
-
-    @Test
-    void convertPurchaseRejectsSupplierFromAnotherAccountBook() {
-        SupplierEntity supplier = supplier(SUPPLIER_ID);
-        supplier.setAccountBookId(999L);
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(openLine("PURCHASE"));
-        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier);
-
-        assertThatThrownBy(() -> service().convertLine(
-                RUN_ID, LINE_ID, new MrpConvertLineRequest(SUPPLIER_ID, null, null)
-        )).isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("供应商不存在或未启用");
-        verify(productMapper, never()).selectById(any());
-        verify(purchaseOrderService, never()).create(any());
-    }
-
-    @Test
-    void convertPurchaseRejectsProductFromAnotherTenant() {
-        ProductEntity product = product();
-        product.setCompanyId(999L);
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(openLine("PURCHASE"));
-        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier(SUPPLIER_ID));
-        when(productMapper.selectById(PRODUCT_ID)).thenReturn(product);
-
-        assertThatThrownBy(() -> service().convertLine(
-                RUN_ID, LINE_ID, new MrpConvertLineRequest(SUPPLIER_ID, null, null)
-        )).isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("商品不存在");
-        verify(purchaseOrderService, never()).create(any());
-    }
-
-    @Test
-    void convertPurchaseKeepsDecimalTaxRateAndDoesNotRequireActiveProductStatus() {
-        MrpRunLineEntity line = openLine("PURCHASE");
-        ProductEntity product = product();
-        product.setStatus("INACTIVE");
-        product.setTaxRate(new BigDecimal("0.13"));
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier(SUPPLIER_ID));
-        when(productMapper.selectById(PRODUCT_ID)).thenReturn(product);
-        when(purchaseOrderService.create(any())).thenReturn(purchaseOrder());
-        when(mrpRunLineMapper.updateById(line)).thenReturn(1);
-        when(mrpRunLineMapper.selectCount(any())).thenReturn(1L);
-        when(mrpPlanQueryService.toLineResponse(line, AUDIT)).thenReturn(null);
-
-        service().convertLine(
-                RUN_ID, LINE_ID, new MrpConvertLineRequest(SUPPLIER_ID, null, null)
-        );
-
-        ArgumentCaptor<com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest> captor =
-                ArgumentCaptor.forClass(com.tuowei.erp.purchase.order.web.PurchaseOrderCreateRequest.class);
-        verify(purchaseOrderService).create(captor.capture());
-        assertThat(captor.getValue().lines()).singleElement()
-                .satisfies(orderLine -> assertThat(orderLine.taxRate()).isEqualByComparingTo("0.13"));
-    }
-
-    @Test
-    void convertProductionUsesExplicitWarehousesAndValidatesMaterialBeforeFinished() {
-        Long finishedWarehouseId = 8602L;
-        Long materialWarehouseId = 8603L;
-        MrpRunLineEntity line = openLine("PRODUCTION");
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-        when(warehouseMapper.selectById(materialWarehouseId)).thenReturn(warehouse(materialWarehouseId));
-        when(warehouseMapper.selectById(finishedWarehouseId)).thenReturn(warehouse(finishedWarehouseId));
-        when(productionOrderService.create(any())).thenReturn(productionOrder());
-        when(mrpRunLineMapper.updateById(line)).thenReturn(1);
-        when(mrpRunLineMapper.selectCount(any())).thenReturn(1L);
-        when(mrpPlanQueryService.toLineResponse(line, AUDIT)).thenReturn(null);
-
-        service().convertLine(
-                RUN_ID,
-                LINE_ID,
-                new MrpConvertLineRequest(null, finishedWarehouseId, materialWarehouseId)
-        );
-
-        ArgumentCaptor<com.tuowei.erp.production.order.web.ProductionOrderCreateRequest> captor =
-                ArgumentCaptor.forClass(com.tuowei.erp.production.order.web.ProductionOrderCreateRequest.class);
-        verify(productionOrderService).create(captor.capture());
-        assertThat(captor.getValue().finishedWarehouseId()).isEqualTo(finishedWarehouseId);
-        assertThat(captor.getValue().materialWarehouseId()).isEqualTo(materialWarehouseId);
-        assertThat(captor.getValue().plannedQty()).isEqualByComparingTo(line.getNetQty());
-        assertThat(captor.getValue().plannedStartDate()).isEqualTo(AUDIT.now().toLocalDate());
-        assertThat(captor.getValue().plannedFinishDate()).isEqualTo(AUDIT.now().toLocalDate().plusDays(7));
-        InOrder warehouseOrder = inOrder(warehouseMapper, productionOrderService);
-        warehouseOrder.verify(warehouseMapper).selectById(materialWarehouseId);
-        warehouseOrder.verify(warehouseMapper).selectById(finishedWarehouseId);
-        warehouseOrder.verify(productionOrderService).create(any());
-    }
-
-    @Test
-    void convertProductionUsesDefaultOnlyForMissingWarehouse() {
-        Long explicitFinishedWarehouseId = 8602L;
-        MrpRunLineEntity line = openLine("PRODUCTION");
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-        when(warehouseMapper.selectOne(any())).thenReturn(warehouse(WAREHOUSE_ID));
-        when(warehouseMapper.selectById(WAREHOUSE_ID)).thenReturn(warehouse(WAREHOUSE_ID));
-        when(warehouseMapper.selectById(explicitFinishedWarehouseId))
-                .thenReturn(warehouse(explicitFinishedWarehouseId));
-        when(productionOrderService.create(any())).thenReturn(productionOrder());
-        when(mrpRunLineMapper.updateById(line)).thenReturn(1);
-        when(mrpRunLineMapper.selectCount(any())).thenReturn(1L);
-        when(mrpPlanQueryService.toLineResponse(line, AUDIT)).thenReturn(null);
-
-        service().convertLine(
-                RUN_ID,
-                LINE_ID,
-                new MrpConvertLineRequest(null, explicitFinishedWarehouseId, null)
-        );
-
-        ArgumentCaptor<com.tuowei.erp.production.order.web.ProductionOrderCreateRequest> captor =
-                ArgumentCaptor.forClass(com.tuowei.erp.production.order.web.ProductionOrderCreateRequest.class);
-        verify(productionOrderService).create(captor.capture());
-        assertThat(captor.getValue().finishedWarehouseId()).isEqualTo(explicitFinishedWarehouseId);
-        assertThat(captor.getValue().materialWarehouseId()).isEqualTo(WAREHOUSE_ID);
-    }
-
-    @Test
-    void convertProductionRejectsMissingBomBeforeWarehouseLookup() {
-        MrpRunLineEntity line = openLine("PRODUCTION");
-        line.setBomId(null);
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-
-        assertThatThrownBy(() -> service().convertLine(RUN_ID, LINE_ID, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("生产建议缺少BOM，无法转生产订单");
-        verify(warehouseMapper, never()).selectOne(any());
-        verify(warehouseMapper, never()).selectById(any());
-        verify(productionOrderService, never()).create(any());
-    }
-
-    @Test
-    void convertProductionRejectsMissingDefaultWarehouse() {
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(openLine("PRODUCTION"));
-        when(warehouseMapper.selectOne(any())).thenReturn(null);
-
-        assertThatThrownBy(() -> service().convertLine(RUN_ID, LINE_ID, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("请选择材料仓和成品仓后再转生产订单");
-        verify(warehouseMapper, never()).selectById(any());
-        verify(productionOrderService, never()).create(any());
-    }
-
-    @Test
-    void convertProductionRejectsCrossTenantMaterialWarehouseBeforeFinishedWarehouse() {
-        Long finishedWarehouseId = 8602L;
-        WarehouseEntity materialWarehouse = warehouse(WAREHOUSE_ID);
-        materialWarehouse.setCompanyId(999L);
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(openRun());
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(openLine("PRODUCTION"));
-        when(warehouseMapper.selectById(WAREHOUSE_ID)).thenReturn(materialWarehouse);
-
-        assertThatThrownBy(() -> service().convertLine(
-                RUN_ID,
-                LINE_ID,
-                new MrpConvertLineRequest(null, finishedWarehouseId, WAREHOUSE_ID)
-        )).isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("仓库不存在或未启用");
-        verify(warehouseMapper, never()).selectById(finishedWarehouseId);
-        verify(productionOrderService, never()).create(any());
-    }
-
-    @Test
-    void convertReturnsConflictAndDoesNotRefreshRunWhenLineOptimisticLockFails() {
-        MrpRunEntity run = openRun();
-        MrpRunLineEntity line = openLine("PURCHASE");
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(run);
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier(SUPPLIER_ID));
-        when(productMapper.selectById(PRODUCT_ID)).thenReturn(product());
-        when(purchaseOrderService.create(any())).thenReturn(purchaseOrder());
-        when(mrpRunLineMapper.updateById(line)).thenReturn(0);
-
-        assertThatThrownBy(() -> service().convertLine(
-                RUN_ID, LINE_ID, new MrpConvertLineRequest(SUPPLIER_ID, null, null)
-        )).isInstanceOf(BusinessConflictException.class)
-                .hasMessage("MRP建议行已被其他操作修改，请刷新后重试");
-        verify(mrpRunLineMapper, never()).selectCount(any());
-        verify(mrpRunMapper, never()).updateById(any(MrpRunEntity.class));
-    }
-
-    @Test
-    void convertLastOpenLineClosesRunWithOptimisticLock() {
-        MrpRunEntity run = openRun();
-        MrpRunLineEntity line = openLine("PURCHASE");
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(run);
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier(SUPPLIER_ID));
-        when(productMapper.selectById(PRODUCT_ID)).thenReturn(product());
-        when(purchaseOrderService.create(any())).thenReturn(purchaseOrder());
-        when(mrpRunLineMapper.updateById(line)).thenReturn(1);
-        when(mrpRunLineMapper.selectCount(any())).thenReturn(0L);
-        when(mrpRunMapper.updateById(run)).thenReturn(1);
-        when(mrpPlanQueryService.toLineResponse(line, AUDIT)).thenReturn(null);
-
-        service().convertLine(RUN_ID, LINE_ID, new MrpConvertLineRequest(SUPPLIER_ID, null, null));
-
-        assertThat(run.getStatus()).isEqualTo("CLOSED");
-        assertThat(run.getUpdatedBy()).isEqualTo(AUDIT.userId());
-        assertThat(run.getUpdatedTime()).isEqualTo(AUDIT.now());
-        verify(mrpRunMapper).updateById(run);
-    }
-
-    @Test
-    void convertLastOpenLineReturnsConflictWhenRunOptimisticLockFails() {
-        MrpRunEntity run = openRun();
-        MrpRunLineEntity line = openLine("PURCHASE");
-        when(mrpPlanQueryService.requireRun(RUN_ID, AUDIT)).thenReturn(run);
-        when(mrpPlanQueryService.requireLine(RUN_ID, LINE_ID, AUDIT)).thenReturn(line);
-        when(supplierMapper.selectById(SUPPLIER_ID)).thenReturn(supplier(SUPPLIER_ID));
-        when(productMapper.selectById(PRODUCT_ID)).thenReturn(product());
-        when(purchaseOrderService.create(any())).thenReturn(purchaseOrder());
-        when(mrpRunLineMapper.updateById(line)).thenReturn(1);
-        when(mrpRunLineMapper.selectCount(any())).thenReturn(0L);
-        when(mrpRunMapper.updateById(run)).thenReturn(0);
-
-        assertThatThrownBy(() -> service().convertLine(
-                RUN_ID, LINE_ID, new MrpConvertLineRequest(SUPPLIER_ID, null, null)
-        )).isInstanceOf(BusinessConflictException.class)
-                .hasMessage("MRP计划已被其他操作修改，请刷新后重试");
-        verify(mrpPlanQueryService, never()).toLineResponse(any(MrpRunLineEntity.class), eq(AUDIT));
-    }
-
-    private MrpPlanCommandService service() {
-        return new MrpPlanCommandService(
-                auditMetadataFactory,
-                mrpRunMapper,
-                mrpRunLineMapper,
-                sequenceNumberGenerator,
-                purchaseOrderService,
-                productionOrderService,
-                productMapper,
-                supplierMapper,
-                warehouseMapper,
-                mrpPlanQueryService,
-                mrpPlanCalculationService
-        );
-    }
-
-    private MrpRunEntity openRun() {
-        MrpRunEntity run = new MrpRunEntity();
-        run.setId(RUN_ID);
-        run.setCompanyId(AUDIT.companyId());
-        run.setAccountBookId(AUDIT.accountBookId());
-        run.setStatus("OPEN");
-        run.setVersion(0);
-        return run;
-    }
-
-    private MrpRunLineEntity openLine(String type) {
-        MrpRunLineEntity line = new MrpRunLineEntity();
-        line.setId(LINE_ID);
-        line.setCompanyId(AUDIT.companyId());
-        line.setAccountBookId(AUDIT.accountBookId());
-        line.setRunId(RUN_ID);
-        line.setLineNo(1);
-        line.setProductId(PRODUCT_ID);
-        line.setSuggestionType(type);
-        line.setNetQty(new BigDecimal("5.0000"));
-        line.setBomId("PRODUCTION".equals(type) ? BOM_ID : null);
-        line.setStatus("OPEN");
-        line.setDeletedFlag(0);
-        line.setVersion(0);
-        return line;
-    }
-
-    private ProductEntity product() {
-        ProductEntity product = new ProductEntity();
-        product.setId(PRODUCT_ID);
-        product.setCompanyId(AUDIT.companyId());
-        product.setAccountBookId(AUDIT.accountBookId());
-        product.setPurchasePrice(new BigDecimal("2.0000"));
-        product.setTaxRate(new BigDecimal("0.13"));
-        product.setDeletedFlag(0);
-        return product;
-    }
-
-    private SupplierEntity supplier(Long id) {
-        SupplierEntity supplier = new SupplierEntity();
-        supplier.setId(id);
-        supplier.setCompanyId(AUDIT.companyId());
-        supplier.setAccountBookId(AUDIT.accountBookId());
-        supplier.setStatus("ACTIVE");
-        supplier.setDeletedFlag(0);
-        return supplier;
-    }
-
-    private WarehouseEntity warehouse(Long id) {
-        WarehouseEntity warehouse = new WarehouseEntity();
-        warehouse.setId(id);
-        warehouse.setCompanyId(AUDIT.companyId());
-        warehouse.setAccountBookId(AUDIT.accountBookId());
-        warehouse.setStatus("ACTIVE");
-        warehouse.setDeletedFlag(0);
-        return warehouse;
-    }
-
-    private PurchaseOrderResponse purchaseOrder() {
-        return new PurchaseOrderResponse(
-                9901L, "PO202608200001", SUPPLIER_ID, null,
-                AUDIT.now().toLocalDate(), AUDIT.now().toLocalDate().plusDays(7),
-                "DRAFT", null, null, null, null, null, null,
-                BigDecimal.ZERO, BigDecimal.ZERO, "MRP", List.of()
-        );
-    }
-
-    private ProductionOrderResponse productionOrder() {
-        return new ProductionOrderResponse(
-                9951L, "MO202608200001", BOM_ID, PRODUCT_ID, WAREHOUSE_ID, WAREHOUSE_ID,
-                new BigDecimal("5.0000"), BigDecimal.ZERO,
-                AUDIT.now().toLocalDate(), AUDIT.now().toLocalDate().plusDays(7),
-                "DRAFT", BigDecimal.ZERO, BigDecimal.ZERO, "MRP", List.of()
-        );
-    }
-
-    private static void initTableInfo(Class<?> entityClass) {
-        if (TableInfoHelper.getTableInfo(entityClass) != null) {
-            return;
+    @BeforeEach void setup() {
+        when(audit.current()).thenReturn(AUDIT);
+        run = new MrpRunEntity(); run.setId(81L); run.setCompanyId(101L); run.setAccountBookId(202L); run.setStatus("OPEN"); run.setAlgorithmVersion(2);
+        line = new MrpRunLineEntity(); line.setId(82L); line.setRunId(81L); line.setCompanyId(101L); line.setAccountBookId(202L); line.setLineNo(1); line.setStatus("OPEN");
+        when(query.requireRun(81L,AUDIT)).thenReturn(run); when(query.requireLine(81L,82L,AUDIT)).thenReturn(line);
+        when(lines.updateById(any(MrpRunLineEntity.class))).thenReturn(1); when(lines.selectCount(any())).thenReturn(1L);
+        when(runs.updateById(any(MrpRunEntity.class))).thenReturn(1);
+        setPlan(false);
+        ProductEntity product = new ProductEntity(); product.setId(83L); product.setCompanyId(101L); product.setAccountBookId(202L); product.setDeletedFlag(0);
+        product.setPurchasePrice(bd("12.30")); product.setTaxRate(bd("13")); when(products.selectById(83L)).thenReturn(product);
+        SupplierEntity supplier = new SupplierEntity(); supplier.setId(85L); supplier.setCompanyId(101L); supplier.setAccountBookId(202L); supplier.setDeletedFlag(0); supplier.setStatus("ACTIVE");
+        when(suppliers.selectById(85L)).thenReturn(supplier);
+        for (long id : List.of(86L,87L)) {
+            WarehouseEntity w = new WarehouseEntity(); w.setId(id); w.setCompanyId(101L); w.setAccountBookId(202L); w.setDeletedFlag(0); w.setStatus("ACTIVE");
+            when(warehouses.selectById(id)).thenReturn(w);
         }
-        MapperBuilderAssistant assistant = new MapperBuilderAssistant(
-                new MybatisConfiguration(), entityClass.getName()
-        );
-        assistant.setCurrentNamespace(entityClass.getName());
-        TableInfoHelper.initTableInfo(assistant, entityClass);
+        PurchaseOrderResponse po = mock(PurchaseOrderResponse.class); when(po.id()).thenReturn(91L); when(po.orderNo()).thenReturn("PO-91"); when(purchase.create(any())).thenReturn(po);
+        ProductionOrderResponse mo = mock(ProductionOrderResponse.class); when(mo.id()).thenReturn(92L); when(mo.orderNo()).thenReturn("MO-92"); when(production.create(any())).thenReturn(mo);
     }
+
+    @Test void savesWarehouseBomAndFullCalculationSnapshot() {
+        setPlan(true);
+        when(numbers.nextNumber(anyString(),anyString(),any())).thenReturn("MRP-1");
+        when(runs.insert(any(MrpRunEntity.class))).thenAnswer(inv -> { inv.getArgument(0,MrpRunEntity.class).setId(99L); return 1; });
+        service.run();
+        var runCaptor = ArgumentCaptor.forClass(MrpRunEntity.class); verify(runs).insert(runCaptor.capture());
+        assertThat(runCaptor.getValue().getAlgorithmVersion()).isEqualTo(2);
+        assertThat(codec.snapshot(runCaptor.getValue().getCalculationSnapshot()).nodes()).containsExactly(node);
+        var captor = ArgumentCaptor.forClass(MrpRunLineEntity.class); verify(lines).insert(captor.capture());
+        assertThat(captor.getValue().getWarehouseId()).isEqualTo(86L);
+        assertThat(captor.getValue().getMaterialWarehouseId()).isEqualTo(87L);
+        assertThat(captor.getValue().getBomVersion()).isEqualTo(7);
+        assertThat(codec.node(captor.getValue().getCalculationTrace())).isEqualTo(node);
+        var order = inOrder(calculation,runs); order.verify(calculation).lockPlanning(AUDIT); order.verify(calculation).calculate(AUDIT); order.verify(runs).insert(any(MrpRunEntity.class));
+    }
+
+    @Test void emptyPlanIsClosedAndCalculationFailureDoesNotPersist() {
+        when(calculation.calculate(AUDIT)).thenReturn(new CalculationResult(List.of(),List.of(),new MrpCalculationSnapshot(2,List.of(),List.of())));
+        service.run();
+        var captor = ArgumentCaptor.forClass(MrpRunEntity.class); verify(runs).insert(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo("CLOSED"); verify(lines,never()).insert(any(MrpRunLineEntity.class));
+        reset(runs); when(calculation.calculate(AUDIT)).thenThrow(new IllegalArgumentException("循环BOM"));
+        assertThatThrownBy(service::run).hasMessageContaining("循环BOM"); verifyNoInteractions(runs);
+    }
+
+    @Test void purchaseConversionUsesExplicitSupplierAndCalculatedReceivingWarehouse() {
+        convert();
+        var captor = ArgumentCaptor.forClass(PurchaseOrderCreateRequest.class); verify(purchase).create(captor.capture());
+        assertThat(captor.getValue().supplierId()).isEqualTo(85L); assertThat(captor.getValue().plannedWarehouseId()).isEqualTo(86L);
+        assertThat(captor.getValue().lines().get(0).qty()).isEqualByComparingTo("10");
+        assertThat(captor.getValue().lines().get(0).taxRate()).isEqualByComparingTo("0.13");
+        assertThat(line.getConvertedBizNo()).isEqualTo("PO-91"); assertThat(line.getStatus()).isEqualTo("CONVERTED");
+        verify(access).requireConversion("PURCHASE");
+        var order = inOrder(calculation,purchase,lines); order.verify(calculation).lockPlanning(AUDIT); order.verify(calculation).calculate(AUDIT); order.verify(purchase).create(any()); order.verify(lines).updateById(line);
+    }
+
+    @Test void productionConversionUsesSnapshotBomAndBothWarehousesWithoutFallback() {
+        setPlan(true); service.convertLine(81L,82L,null);
+        var captor = ArgumentCaptor.forClass(ProductionOrderCreateRequest.class); verify(production).create(captor.capture());
+        assertThat(captor.getValue().bomId()).isEqualTo(84L); assertThat(captor.getValue().finishedWarehouseId()).isEqualTo(86L);
+        assertThat(captor.getValue().materialWarehouseId()).isEqualTo(87L); assertThat(captor.getValue().plannedQty()).isEqualByComparingTo("10");
+        verify(access).requireConversion("PRODUCTION");
+    }
+
+    @Test void refusesWarehouseChangesDuringConversion() {
+        setPlan(true);
+        assertThatThrownBy(() -> service.convertLine(81L,82L,new MrpConvertLineRequest(null,86L,86L))).hasMessageContaining("计算仓库一致");
+        verifyNoInteractions(production);
+    }
+
+    @Test void requiresSupplierAndValidTenantReferences() {
+        assertThatThrownBy(() -> service.convertLine(81L,82L,null)).hasMessageContaining("请选择供应商");
+        when(suppliers.selectById(85L)).thenReturn(null);
+        assertThatThrownBy(this::convert).hasMessageContaining("供应商不存在"); verifyNoInteractions(purchase);
+    }
+
+    @Test void refusesForeignProductOrDisabledWarehouse() {
+        when(products.selectById(83L)).thenReturn(new ProductEntity());
+        assertThatThrownBy(this::convert).hasMessageContaining("商品不存在");
+        when(warehouses.selectById(86L)).thenReturn(null);
+        assertThatThrownBy(this::convert).hasMessageContaining("仓库不存在"); verifyNoInteractions(purchase);
+    }
+
+    @Test void rejectsLegacyPlansRatherThanInventingWarehouseAssignments() {
+        run.setAlgorithmVersion(1); run.setCalculationSnapshot(null); line.setCalculationTrace(null);
+        assertThatThrownBy(this::convert).isInstanceOf(BusinessConflictException.class).hasMessageContaining("历史MRP");
+        verifyNoInteractions(purchase,production);
+    }
+
+    @Test void rejectsWarningsInSavedOrFreshInputs() {
+        var warnings = List.of(new Warning("PURCHASE_WAREHOUSE_REQUIRED",91L,"PO-91",83L,bd("1"),"补仓"));
+        run.setCalculationSnapshot(codec.write(new MrpCalculationSnapshot(2,List.of(node),warnings)));
+        assertThatThrownBy(this::convert).hasMessageContaining("预计收货仓库");
+        run.setCalculationSnapshot(codec.write(new MrpCalculationSnapshot(2,List.of(node),List.of())));
+        when(calculation.calculate(AUDIT)).thenReturn(new CalculationResult(List.of(),List.of(),new MrpCalculationSnapshot(2,List.of(node),warnings)));
+        assertThatThrownBy(this::convert).hasMessageContaining("预计收货仓库"); verifyNoInteractions(purchase);
+    }
+
+    @Test void rejectsOldShortagesAfterAnotherPlanReservedSupply() {
+        when(calculation.calculate(AUDIT)).thenReturn(new CalculationResult(List.of(),List.of(),new MrpCalculationSnapshot(2,List.of(),List.of())));
+        assertThatThrownBy(this::convert).hasMessageContaining("已变化"); verifyNoInteractions(purchase,production);
+    }
+
+    @Test void refusesChangedQuantityOrBomEvenIfAnotherRunHasTheSameProduct() {
+        line.setNetQty(bd("11")); assertThatThrownBy(this::convert).hasMessageContaining("已变化");
+        setPlan(true); line.setBomVersion(6); assertThatThrownBy(this::convert).hasMessageContaining("已变化");
+        verifyNoInteractions(purchase,production);
+    }
+
+    @Test void checksTargetCreatePermissionBeforeRecalculationOrWrites() {
+        doThrow(new AccessDeniedException("缺少创建权限")).when(access).requireConversion("PURCHASE");
+        assertThatThrownBy(this::convert).isInstanceOf(AccessDeniedException.class);
+        verify(calculation,never()).calculate(AUDIT); verifyNoInteractions(purchase,production);
+    }
+
+    @Test void rejectsRepeatedConversionAndClosesFullyConvertedRun() {
+        when(lines.selectCount(any())).thenReturn(0L); convert();
+        assertThat(run.getStatus()).isEqualTo("CLOSED");
+        assertThatThrownBy(this::convert).hasMessageContaining("计划状态不允许");
+        verify(purchase,times(1)).create(any());
+    }
+
+    @Test void rejectsAlreadyConvertedLineInOpenRun() {
+        line.setStatus("CONVERTED"); assertThatThrownBy(this::convert).hasMessageContaining("建议行状态不允许");
+        verifyNoInteractions(purchase,production);
+    }
+
+    @Test void optimisticWriteFailurePropagatesToRollBackTransaction() {
+        when(lines.updateById(any(MrpRunLineEntity.class))).thenReturn(0);
+        assertThatThrownBy(this::convert).isInstanceOf(BusinessConflictException.class);
+        verify(purchase).create(any()); verify(runs,never()).updateById(any(MrpRunEntity.class));
+    }
+
+    private void convert() { service.convertLine(81L,82L,new MrpConvertLineRequest(85L,null,null)); }
+    private void setPlan(boolean make) {
+        node = new Node(83L,"P83","商品",86L,"成品仓",make?"PRODUCTION":"PURCHASE",make?87L:null,make?"材料仓":null,
+                make?84L:null,make?"BOM84":null,make?7:null,1,bd("12"),bd("1"),bd("1"),bd("0"),bd("0"),bd("10"),
+                List.of(Source.direct("SALES_ORDER",1L,"SO1",2L,bd("12"))),List.of(),make?List.of(new Material(88L,bd("2"),bd("1"),bd("0"))):List.of());
+        var snapshot = new MrpCalculationSnapshot(2,List.of(node),List.of());
+        run.setCalculationSnapshot(codec.write(snapshot));
+        line.setProductId(83L);line.setSuggestionType(node.supplyType());line.setDemandQty(node.demandQty());line.setOnHandQty(node.onHandQty());
+        line.setOpenSupplyQty(node.openSupplyQty());line.setNetQty(node.netQty());line.setWarehouseId(node.warehouseId());line.setMaterialWarehouseId(node.materialWarehouseId());
+        line.setBomId(node.bomId());line.setBomVersion(node.bomVersion());line.setCalculationTrace(codec.write(node));
+        var computed = new ComputedLine(83L,node.supplyType(),node.demandQty(),node.onHandQty(),node.openSupplyQty(),node.netQty(),node.bomId(),"计算",node);
+        when(calculation.calculate(AUDIT)).thenReturn(new CalculationResult(make?List.of(computed):List.of(),make?List.of():List.of(computed),snapshot));
+    }
+    private BigDecimal bd(String value) { return new BigDecimal(value); }
 }

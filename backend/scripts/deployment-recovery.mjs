@@ -17,7 +17,7 @@ import { addRecoveryStores, recoveryApplication } from './deployment-recovery-co
 import { prepareLegacyArtifact, verifyLegacyArtifact, verifyLegacyFrontend } from './deployment-recovery-legacy.mjs'
 import { seedHistoricalBusiness, verifyHistoricalReads, verifyUpgradedApproval, verifyLegacyPosting, verifyLegacyPostedStock } from './deployment-recovery-business.mjs'
 import { hash, legacyRevision, readJson, revisionPattern, sha256Pattern, recoveryProjectPattern, sealCheckpoint, verifyCheckpoint,
-  validateCheckpoint, writeJson } from './recovery-checkpoint.mjs'
+  validateCheckpoint, writeJson, targetSchema } from './recovery-checkpoint.mjs'
 
 const script = fileURLToPath(import.meta.url)
 const repo = path.resolve(path.dirname(script), '../..')
@@ -31,7 +31,7 @@ export const recoveryChecks = [
   'Create post-checkpoint changes and remove an original attachment',
   'Reject damaged and mismatched backups before target writes',
   'Restore the exact V168 database and attachment snapshot into fresh volumes',
-  'Upgrade the restored database to V169 using the accepted candidate',
+  'Upgrade the restored database to V170 using the accepted candidate',
   'Preserve historical inventory and configuration during migration',
   'Read restored documents and attachments and exclude later source changes',
   'Apply V169 approval rules to historical drafts and counted stock checks',
@@ -158,8 +158,9 @@ export function validateRecoveryReports({ evidenceDirectory, expectedRevision, e
   const negatives = report.checks[4]
   for (const key of ['databaseRejected', 'attachmentsRejected', 'mixedCheckpointRejected', 'targetsUntouched']) assert.equal(negatives[key], true)
   const upgrade = report.checks[6]
-  assert.equal(upgrade.from, '168'); assert.equal(upgrade.to, '169'); assert.equal(upgrade.appliedOnce, true)
+  assert.equal(upgrade.from, '168'); assert.equal(upgrade.to, targetSchema); assert.equal(upgrade.appliedOnce, true)
   assert.equal(upgrade.jarSha256, expectedJarSha256)
+  assert.deepEqual(upgrade.appliedVersions, ['169', '170'])
   const reads = report.checks[8]
   for (const key of ['postedPreserved', 'draftPreserved', 'cancelledPreserved', 'adjustedLinkPreserved', 'countedPreserved',
     'unicodeCustomerPreserved', 'originalAttachmentsRestored', 'laterRecordsAbsent']) assert.equal(reads[key], true)
@@ -203,7 +204,7 @@ export function validateRecoveryReports({ evidenceDirectory, expectedRevision, e
   assert(report.browserCleanup.processes.every(process => process.name === 'chrome' && process.passed === true && process.childClosed === true))
   for (const name of ['.env', 'mysql.cnf', 'private-account.json', 'database.sql.gz', 'attachments.tar.gz']) assert(!existsSync(path.join(evidenceDirectory, name)), 'Private recovery inputs must not be archived')
   return { passed: true, applicationRevision: expectedRevision, sourceRevision: legacyRevision,
-    manifestSha256: expectedManifestSha256, sourceSchema: '168', targetSchema: '169', checks: recoveryChecks.length,
+    manifestSha256: expectedManifestSha256, sourceSchema: '168', targetSchema, checks: recoveryChecks.length,
     upgradeRecoveryChecks: 11, rollbackChecks: 3, rollbackSchema: '168', rollbackApplicationRevision: legacyRevision,
     checkpointSha256: report.checkpointSha256, tableCount: checkpoint.databaseSnapshot.tableCount, cleanupPassed: true }
 }
@@ -231,7 +232,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
   const report = { schemaVersion: 1, kind: 'erp-upgrade-recovery', status: 'RUNNING', startedAt: new Date().toISOString(),
     ...verified, runtimeToolRevision: revision, sourceRevision: legacyRevision, sourceJarSha256: legacy.jarSha256,
     legacyManifestSha256: expectedLegacyManifestSha256, project, privateDirectory: path.basename(directory), checks: [],
-    scope: 'Isolated V168 to V169 upgrade, joint DB/attachment recovery and fullstack V168 rollback using synthetic history; not production data acceptance' }
+    scope: 'Isolated V168 to V170 upgrade, joint DB/attachment recovery and fullstack V168 rollback using synthetic history; not production data acceptance' }
   let interrupted = false, configured = false, config, configuration, base, adminToken, fixture, beforeAttachments,
     sourceAfterDatabase, sourceAfterAttachments, baseline, inventoryBefore, settingsBefore, checkpoint,
     upgradedDatabase, upgradedAttachments, upgradedAttachment
@@ -500,13 +501,14 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       await ready()
       const jarSha256 = (await compose(['exec', '-T', 'erp-server', 'sha256sum', '/app/erp-server.jar'])).stdout.split(/\s/)[0]
       assert.equal(jarSha256, readJson(path.join(work, 'deployment-manifest.json')).jarSha256)
-      assert.equal(await schema('mysql-restore'), '169')
+      assert.equal(await schema('mysql-restore'), targetSchema)
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' AND success=1;"), '1')
+      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='170' AND success=1;"), '1')
       assert.equal(await sql('mysql-restore', 'SELECT COUNT(*) FROM flyway_schema_history WHERE success=0;'), '0')
       assert.equal(await sql('mysql-restore', 'SELECT COUNT(*) FROM flyway_schema_history WHERE CAST(version AS UNSIGNED)<=168;'),
         await sql('mysql', 'SELECT COUNT(*) FROM flyway_schema_history WHERE CAST(version AS UNSIGNED)<=168;'))
       report.targetImages = (await compose(['images', '--format', 'json'])).stdout
-      return { from: '168', to: '169', appliedOnce: true, jarSha256 }
+      return { from: '168', to: targetSchema, appliedOnce: true, appliedVersions: ['169', '170'], jarSha256 }
     })
     await check(7, async () => {
       const inventoryAfter = await snapshot('mysql-restore', inventoryTables)
@@ -542,13 +544,14 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       await ready(); await loginAdmin()
       for (const attachment of [...beforeAttachments, upgradedAttachment]) await download(attachment)
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' AND success=1;"), '1')
+      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='170' AND success=1;"), '1')
       assert.deepEqual(await snapshot('mysql'), sourceAfterDatabase)
       assert.deepEqual(await attachmentSnapshot('/source'), sourceAfterAttachments)
       return { sourceDatabaseUnchanged: true, sourceAttachmentsUnchanged: true, newAttachmentWritable: true, restartPassed: true }
     })
     await check(11, async () => {
       await stopWriters()
-      assert.equal(await schema('mysql-restore'), '169')
+      assert.equal(await schema('mysql-restore'), targetSchema)
       upgradedDatabase = await snapshot('mysql-restore')
       upgradedAttachments = await attachmentSnapshot('/restore')
       assert.notEqual(upgradedDatabase.dataSha256, baseline.dataSha256)
@@ -586,7 +589,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       const jarSha256 = (await compose(['exec', '-T', 'erp-server', 'sha256sum', '/app/erp-server.jar'])).stdout.split(/\s/)[0]
       assert.equal(jarSha256, legacy.jarSha256)
       assert.equal(await schema('mysql-rollback'), '168')
-      assert.equal(await sql('mysql-rollback', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' OR success=0;"), '0')
+      assert.equal(await sql('mysql-rollback', "SELECT COUNT(*) FROM flyway_schema_history WHERE CAST(version AS UNSIGNED)>168 OR success=0;"), '0')
       const reads = await verifyHistoricalReads(api, fixture)
       for (const attachment of beforeAttachments) await download(attachment)
       for (const attachment of [laterAttachment, upgradedAttachment]) {

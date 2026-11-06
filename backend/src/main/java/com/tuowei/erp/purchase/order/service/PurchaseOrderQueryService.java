@@ -169,7 +169,8 @@ public class PurchaseOrderQueryService {
                 entity.getBaseTotalAmount(),
                 entity.getBaseTotalTaxAmount(),
                 entity.getRemark(),
-                lines.stream().map(this::toLineResponse).toList()
+                lines.stream().map(this::toLineResponse).toList(),
+                entity.getPlannedWarehouseId()
         );
     }
 
@@ -268,7 +269,8 @@ public class PurchaseOrderQueryService {
                 entity.getBaseTotalAmount(),
                 entity.getBaseTotalTaxAmount(),
                 entity.getRemark(),
-                List.of()
+                List.of(),
+                entity.getPlannedWarehouseId()
         );
     }
 

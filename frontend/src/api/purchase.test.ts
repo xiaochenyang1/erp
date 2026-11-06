@@ -18,6 +18,8 @@ import {
   getPurchaseInquiry,
   getPurchaseOrder,
   getPurchaseOrders,
+  createPurchaseOrder,
+  assignPurchaseOrderWarehouse,
   updatePurchaseReceipt
 } from '@/api/purchase'
 
@@ -28,6 +30,17 @@ beforeEach(() => {
 })
 
 describe('purchase API 归一化', () => {
+  it('persists the receiving warehouse on create and on an approved order without editing commercial terms', async () => {
+    const response = { id: '1', supplierId: '2', plannedWarehouseId: '9007199254740997', totalAmount: 1, items: [] }
+    post.mockResolvedValue(response)
+    await createPurchaseOrder({ supplierId: '2', plannedWarehouseId: '9007199254740997', orderDate: '2026-11-06', items: [] })
+    expect(post).toHaveBeenCalledWith('/purchase/orders', expect.objectContaining({ plannedWarehouseId: '9007199254740997' }))
+    put.mockResolvedValue({ ...response, status: 'APPROVED' })
+    const assigned = await assignPurchaseOrderWarehouse('1', '9007199254740997')
+    expect(put).toHaveBeenCalledWith('/purchase/orders/1/planned-warehouse', { plannedWarehouseId: '9007199254740997' })
+    expect(assigned.plannedWarehouseId).toBe('9007199254740997')
+    expect(assigned.status).toBe('APPROVED')
+  })
   it('getPurchaseOrder 归一化雪花 id', async () => {
     get.mockResolvedValue({
       id: '9007199254740993',

@@ -15,8 +15,22 @@ public record PurchaseOrderUpdateRequest(
         String currencyCode,
         java.math.BigDecimal exchangeRate,
         String remark,
-        @Valid @NotEmpty(message = "lines不能为空") List<PurchaseOrderLineRequest> lines
+        @Valid @NotEmpty(message = "lines不能为空") List<PurchaseOrderLineRequest> lines,
+        @jakarta.validation.constraints.Positive Long plannedWarehouseId
 ) {
+    public PurchaseOrderUpdateRequest(
+        Long contractId,
+        Long supplierId,
+        LocalDate orderDate,
+        LocalDate deliveryDate,
+        String currencyCode,
+        java.math.BigDecimal exchangeRate,
+        String remark,
+        List<PurchaseOrderLineRequest> lines
+    ) {
+        this(contractId, supplierId, orderDate, deliveryDate, currencyCode, exchangeRate, remark, lines, null);
+    }
+
     public PurchaseOrderUpdateRequest(Long supplierId, LocalDate orderDate, LocalDate deliveryDate,
                                       String remark, List<PurchaseOrderLineRequest> lines) {
         this(null, supplierId, orderDate, deliveryDate, null, null, remark, lines);

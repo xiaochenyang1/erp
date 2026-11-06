@@ -13,9 +13,12 @@ import com.tuowei.erp.masterdata.product.model.ProductEntity;
 import com.tuowei.erp.masterdata.product.web.ProductCreateRequest;
 import com.tuowei.erp.masterdata.product.web.ProductResponse;
 import com.tuowei.erp.masterdata.product.web.ProductUpdateRequest;
+import com.tuowei.erp.masterdata.product.web.ProductMrpPolicy;
+import com.tuowei.erp.masterdata.warehouse.service.WarehouseReferenceValidator;
 import com.tuowei.erp.system.dict.service.SystemDictService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -34,14 +37,17 @@ public class ProductCommandService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final SystemDictService systemDictService;
     private final ProductQueryService productQueryService;
+    private final WarehouseReferenceValidator warehouseReferenceValidator;
 
+    @Autowired
     public ProductCommandService(
             ProductMapper productMapper,
             InventoryBalanceMapper inventoryBalanceMapper,
             InventoryLotBalanceMapper inventoryLotBalanceMapper,
             AuditMetadataFactory auditMetadataFactory,
             SystemDictService systemDictService,
-            ProductQueryService productQueryService
+            ProductQueryService productQueryService,
+            WarehouseReferenceValidator warehouseReferenceValidator
     ) {
         this.productMapper = productMapper;
         this.inventoryBalanceMapper = inventoryBalanceMapper;
@@ -49,6 +55,14 @@ public class ProductCommandService {
         this.auditMetadataFactory = auditMetadataFactory;
         this.systemDictService = systemDictService;
         this.productQueryService = productQueryService;
+        this.warehouseReferenceValidator = warehouseReferenceValidator;
+    }
+
+    public ProductCommandService(ProductMapper productMapper, InventoryBalanceMapper inventoryBalanceMapper,
+                                 InventoryLotBalanceMapper inventoryLotBalanceMapper, AuditMetadataFactory auditMetadataFactory,
+                                 SystemDictService systemDictService, ProductQueryService productQueryService) {
+        this(productMapper, inventoryBalanceMapper, inventoryLotBalanceMapper, auditMetadataFactory,
+                systemDictService, productQueryService, null);
     }
 
     @Transactional
@@ -86,6 +100,8 @@ public class ProductCommandService {
         entity.setInspectionRequired(flag(request.inspectionRequired()));
         entity.setSerialControlled(flag(request.serialControlled()));
         entity.setRemark(request.remark());
+        entity.setMrpSupplyType("AUTO");
+        applyMrpPolicy(entity, request.mrpPolicy(), audit);
         setAudit(entity, audit, now);
 
         try {
@@ -127,6 +143,7 @@ public class ProductCommandService {
         entity.setInspectionRequired(flag(request.inspectionRequired()));
         entity.setSerialControlled(flag(request.serialControlled()));
         entity.setRemark(request.remark());
+        applyMrpPolicy(entity, request.mrpPolicy(), audit);
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(audit.now());
         try {
@@ -175,6 +192,19 @@ public class ProductCommandService {
         if (productMapper.selectOne(wrapper) != null) {
             throw new IllegalArgumentException("商品条码已存在");
         }
+    }
+
+    private void applyMrpPolicy(ProductEntity entity, ProductMrpPolicy policy, AuditMetadata audit) {
+        if (policy == null) return;
+        if (policy.supplyType() == null || !java.util.Set.of("AUTO", "PURCHASE", "PRODUCTION").contains(policy.supplyType())) {
+            throw new IllegalArgumentException("MRP供给策略必须为AUTO、PURCHASE或PRODUCTION");
+        }
+        if (policy.materialWarehouseId() != null) {
+            java.util.Objects.requireNonNull(warehouseReferenceValidator, "仓库校验服务未配置")
+                    .requireActive(policy.materialWarehouseId(), audit);
+        }
+        entity.setMrpSupplyType(policy.supplyType());
+        entity.setMrpMaterialWarehouseId(policy.materialWarehouseId());
     }
 
     private void applyAuxUnit(ProductEntity entity, String auxUnitName, BigDecimal conversionFactor) {

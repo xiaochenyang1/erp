@@ -1,275 +1,205 @@
 package com.tuowei.erp.inventory.mrp.service;
 
-import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.persistence.NativeSqlTenantScoped;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.inventory.mrp.model.MrpCalculationSnapshot;
+import com.tuowei.erp.inventory.mrp.model.MrpCalculationSnapshot.*;
+import com.tuowei.erp.inventory.mrp.service.MrpPlanEngine.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.TreeSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-/**
- * MRP 运行的只读计算协作者。
- *
- * <p>这里负责收集需求、抵扣现有供应并展开 BOM；它不生成单号、不持久化运行结果，
- * 也不参与采购订单或生产订单转换。这样运行门面可以继续保持单一写事务，计算规则则能
- * 在没有数据库写入的情况下独立验证。</p>
- */
+/** Loads tenant-scoped facts; all netting and BOM traversal live in the pure calculation engine. */
 @Service
-@NativeSqlTenantScoped("MRP calculation scoped by current tenant")
+@NativeSqlTenantScoped("MRP inputs and planning lock scoped by company and account book")
 public class MrpPlanCalculationService {
-
-    private static final String TYPE_PURCHASE = "PURCHASE";
-    private static final String TYPE_PRODUCTION = "PRODUCTION";
-
     private final JdbcTemplate jdbcTemplate;
 
-    public MrpPlanCalculationService(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public MrpPlanCalculationService(JdbcTemplate jdbcTemplate) { this.jdbcTemplate = jdbcTemplate; }
+
+    /** The existing per-book MRP numbering rule serializes planning/conversion across application instances. */
+    @Transactional
+    public void lockPlanning(AuditMetadata audit) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                select id from sys_sequence_rule
+                where company_id = ? and account_book_id = ? and biz_type = 'MRP_RUN'
+                for update
+                """, audit.companyId(), audit.accountBookId());
+        if (rows.isEmpty()) throw new IllegalArgumentException("MRP计划编号规则不存在");
     }
 
     @Transactional(readOnly = true)
     public CalculationResult calculate(AuditMetadata audit) {
-        Long companyId = audit.companyId();
-        Long bookId = audit.accountBookId();
-
-        Map<Long, BigDecimal> demand = new HashMap<>();
-        Map<Long, String> reasons = new HashMap<>();
-
-        List<Map<String, Object>> salesDemand = jdbcTemplate.queryForList("""
-                select l.product_id as productId,
-                       coalesce(sum(greatest(l.qty - coalesce(l.delivered_qty, 0), 0)), 0) as qty
-                from sal_order o
-                join sal_order_line l
+        Map<Key, List<Source>> demands = new TreeMap<>();
+        Map<Key, List<Supply>> supplies = new TreeMap<>();
+        List<Warning> warnings = new ArrayList<>();
+        for (Map<String, Object> row : query("""
+                select o.id as documentId, o.order_no as documentNo, l.id as lineId,
+                       o.warehouse_id as warehouseId, l.product_id as productId,
+                       greatest(l.qty - coalesce(l.delivered_qty, 0), 0) as qty
+                from sal_order o join sal_order_line l
                   on l.company_id = o.company_id and l.account_book_id = o.account_book_id and l.order_id = o.id
-                where o.company_id = ? and o.account_book_id = ?
-                  and o.deleted_flag = 0
-                  and o.status = 'APPROVED'
-                  and o.delivery_status in ('NOT_DELIVERED', 'PARTIAL')
-                group by l.product_id
-                having qty > 0
-                """, companyId, bookId);
-        for (Map<String, Object> row : salesDemand) {
-            Long pid = toLong(row.get("productId"));
-            BigDecimal qty = toBd(row.get("qty"));
-            add(demand, pid, qty);
-            reasons.merge(pid, "销售未发货", (a, b) -> a.contains(b) ? a : a + ";" + b);
+                where o.company_id = ? and o.account_book_id = ? and o.deleted_flag = 0
+                  and o.status = 'APPROVED' and o.delivery_status in ('NOT_DELIVERED', 'PARTIAL')
+                order by o.id, l.id
+                """, audit)) {
+            demand(demands, row, "SALES_ORDER");
         }
-
-        List<Map<String, Object>> safety = jdbcTemplate.queryForList("""
-                select r.product_id as productId,
-                       coalesce(max(r.min_qty), 0) as minQty
-                from inv_alert_rule r
-                where r.company_id = ? and r.account_book_id = ?
-                  and r.deleted_flag = 0 and r.enabled = 1
-                group by r.product_id
-                """, companyId, bookId);
-        for (Map<String, Object> row : safety) {
-            Long pid = toLong(row.get("productId"));
-            // Safety stock is the desired closing balance, not an already-netted shortage.
-            BigDecimal target = toBd(row.get("minQty"));
-            if (target.compareTo(BigDecimal.ZERO) > 0) {
-                add(demand, pid, target);
-                reasons.merge(pid, "安全库存", (a, b) -> a.contains(b) ? a : a + ";" + b);
+        for (Map<String, Object> row : query("""
+                select id as documentId, warehouse_id as warehouseId, product_id as productId, min_qty as qty
+                from inv_alert_rule
+                where company_id = ? and account_book_id = ? and deleted_flag = 0 and enabled = 1
+                order by warehouse_id, product_id, id
+                """, audit)) {
+            // Desired closing balance per warehouse/product; legacy duplicate rules use the largest target.
+            Key key = key(row);
+            BigDecimal qty = bd(row, "qty");
+            if (qty.signum() <= 0) continue;
+            List<Source> list = demands.computeIfAbsent(key, ignored -> new ArrayList<>());
+            Source previous = list.stream().filter(s -> "SAFETY_STOCK".equals(s.type())).findFirst().orElse(null);
+            if (previous == null || qty.compareTo(previous.qty()) > 0) {
+                list.remove(previous);
+                list.add(Source.direct("SAFETY_STOCK", id(row, "documentId"), null, null, qty));
             }
         }
-
-        Map<Long, BigDecimal> onHand = loadOnHand(companyId, bookId);
-        Map<Long, BigDecimal> openPo = loadOpenPurchase(companyId, bookId);
-        Map<Long, BigDecimal> openMo = loadOpenProduction(companyId, bookId);
-        Map<Long, Long> productBom = loadActiveBom(companyId, bookId);
-        Map<Long, List<BomComponent>> bomComponents = loadBomComponents(companyId, bookId, productBom);
-
-        Map<Long, BigDecimal> remainingOnHand = new HashMap<>(onHand);
-        Map<Long, BigDecimal> remainingSupply = new HashMap<>(openPo);
-        openMo.forEach((productId, qty) -> add(remainingSupply, productId, qty));
-        Map<Long, BigDecimal> purchaseDemand = new HashMap<>();
-        List<ComputedLine> productionLines = new ArrayList<>();
-        List<ComputedLine> purchaseLines = new ArrayList<>();
-
-        // Only direct demand for products with a BOM is manufactured in MRP-lite.
-        // Aggregate purchased goods and all expanded component demand before netting them.
-        for (Long productId : new TreeSet<>(demand.keySet())) {
-            BigDecimal d = demand.get(productId);
-            Long bomId = productBom.get(productId);
-            if (bomId == null) {
-                add(purchaseDemand, productId, d);
-                reasons.merge(productId, "无BOM建议采购", (a, b) -> a + ";" + b);
-                continue;
-            }
-            BigDecimal oh = remainingOnHand.getOrDefault(productId, BigDecimal.ZERO);
-            BigDecimal supply = remainingSupply.getOrDefault(productId, BigDecimal.ZERO);
-            BigDecimal net = ScalePrecision.quantity(d.subtract(oh).subtract(supply));
-
-            // A manufactured product may also be another product's component. Reserve the
-            // supply consumed by direct demand even when no production suggestion is needed.
-            BigDecimal usedStock = d.min(oh);
-            remainingOnHand.put(productId, oh.subtract(usedStock));
-            BigDecimal usedSupply = d.subtract(usedStock).min(supply);
-            remainingSupply.put(productId, supply.subtract(usedSupply));
-            if (net.signum() <= 0) {
-                continue;
-            }
-            productionLines.add(new ComputedLine(productId, TYPE_PRODUCTION, d, oh, supply, net,
-                    bomId, reasons.getOrDefault(productId, "需求") + ";有BOM建议生产"));
-            for (BomComponent component : bomComponents.getOrDefault(bomId, List.of())) {
-                BigDecimal need = ScalePrecision.quantity(component.qtyPer().multiply(net)
-                        .divide(ScalePrecision.quantity(component.baseQty()), 8, RoundingMode.HALF_UP)
-                        .multiply(BigDecimal.ONE.add(component.lossRate())));
-                add(purchaseDemand, component.materialProductId(), need);
-                String reason = "BOM展开:" + productId;
-                reasons.merge(component.materialProductId(), reason, (a, b) -> a + ";" + b);
-            }
+        for (Map<String, Object> row : query("""
+                select warehouse_id as warehouseId, product_id as productId, sum(qty_on_hand) as qty
+                from inv_balance where company_id = ? and account_book_id = ?
+                group by warehouse_id, product_id order by warehouse_id, product_id
+                """, audit)) {
+            // Open sales/material requirements already include reservations: do not subtract them twice.
+            supplies.computeIfAbsent(key(row), ignored -> new ArrayList<>())
+                    .add(new Supply("ON_HAND", null, null, null, bd(row, "qty")));
         }
-
-        for (Long productId : new TreeSet<>(purchaseDemand.keySet())) {
-            BigDecimal d = purchaseDemand.get(productId);
-            BigDecimal oh = remainingOnHand.getOrDefault(productId, BigDecimal.ZERO);
-            BigDecimal supply = remainingSupply.getOrDefault(productId, BigDecimal.ZERO);
-            BigDecimal net = ScalePrecision.quantity(d.subtract(oh).subtract(supply));
-            if (net.signum() > 0) {
-                purchaseLines.add(new ComputedLine(productId, TYPE_PURCHASE, d, oh, supply, net,
-                        null, reasons.getOrDefault(productId, "材料需求")));
-            }
-        }
-
-        return new CalculationResult(productionLines, purchaseLines);
-    }
-
-    private Map<Long, BigDecimal> loadOnHand(Long companyId, Long bookId) {
-        Map<Long, BigDecimal> map = new HashMap<>();
-        for (Map<String, Object> row : jdbcTemplate.queryForList("""
-                select product_id as productId, coalesce(sum(qty_on_hand),0) as qty
-                from inv_balance
-                where company_id = ? and account_book_id = ?
-                group by product_id
-                """, companyId, bookId)) {
-            map.put(toLong(row.get("productId")), toBd(row.get("qty")));
-        }
-        return map;
-    }
-
-    private Map<Long, BigDecimal> loadOpenPurchase(Long companyId, Long bookId) {
-        Map<Long, BigDecimal> map = new HashMap<>();
-        for (Map<String, Object> row : jdbcTemplate.queryForList("""
-                select l.product_id as productId,
-                       coalesce(sum(greatest(l.qty - coalesce(l.received_qty, 0), 0)), 0) as qty
-                from pur_order o
-                join pur_order_line l
+        for (Map<String, Object> row : query("""
+                select o.id as documentId, o.order_no as documentNo, l.id as lineId,
+                       o.planned_warehouse_id as warehouseId, l.product_id as productId, o.status,
+                       greatest(l.qty - coalesce(l.received_qty, 0), 0) as qty
+                from pur_order o join pur_order_line l
                   on l.company_id = o.company_id and l.account_book_id = o.account_book_id and l.order_id = o.id
-                where o.company_id = ? and o.account_book_id = ?
-                  and o.deleted_flag = 0
-                  and o.status in ('APPROVED', 'PARTIAL', 'SUBMITTED')
-                group by l.product_id
-                """, companyId, bookId)) {
-            map.put(toLong(row.get("productId")), toBd(row.get("qty")));
+                where o.company_id = ? and o.account_book_id = ? and o.deleted_flag = 0
+                  and (o.status in ('APPROVED', 'PARTIAL', 'SUBMITTED')
+                    or (o.status = 'DRAFT' and exists (
+                      select 1 from inv_mrp_run_line m where m.company_id = o.company_id
+                        and m.account_book_id = o.account_book_id and m.deleted_flag = 0
+                        and m.status = 'CONVERTED' and m.converted_biz_type = 'PURCHASE_ORDER' and m.converted_biz_id = o.id)))
+                order by o.id, l.id
+                """, audit)) {
+            BigDecimal qty = bd(row, "qty");
+            if (qty.signum() <= 0) continue;
+            if (id(row, "warehouseId") == null) {
+                warnings.add(new Warning("PURCHASE_WAREHOUSE_REQUIRED", id(row, "documentId"), str(row, "documentNo"),
+                        id(row, "productId"), qty, "采购订单未设置预计收货仓库，请补充后重新运行MRP"));
+            } else {
+                supply(supplies, row, "DRAFT".equals(str(row, "status")) ? "PLANNED_PURCHASE" : "PURCHASE_ORDER");
+            }
         }
-        return map;
-    }
-
-    private Map<Long, BigDecimal> loadOpenProduction(Long companyId, Long bookId) {
-        Map<Long, BigDecimal> map = new HashMap<>();
-        for (Map<String, Object> row : jdbcTemplate.queryForList("""
-                select product_id as productId,
-                       coalesce(sum(greatest(planned_qty - coalesce(completed_qty, 0), 0)), 0) as qty
-                from prd_order
-                where company_id = ? and account_book_id = ?
-                  and deleted_flag = 0
-                  and status in ('RELEASED', 'MATERIAL_ISSUED')
-                group by product_id
-                """, companyId, bookId)) {
-            map.put(toLong(row.get("productId")), toBd(row.get("qty")));
+        // EXISTS counts a document once even when multiple historical MRP links reference it.
+        for (Map<String, Object> row : query("""
+                select o.id as documentId, o.order_no as documentNo, o.finished_warehouse_id as warehouseId,
+                       o.product_id as productId, o.status,
+                       greatest(o.planned_qty - coalesce(o.completed_qty, 0), 0) as qty
+                from prd_order o
+                where o.company_id = ? and o.account_book_id = ? and o.deleted_flag = 0
+                  and (o.status in ('RELEASED', 'MATERIAL_ISSUED')
+                    or (o.status = 'DRAFT' and exists (
+                      select 1 from inv_mrp_run_line m where m.company_id = o.company_id
+                        and m.account_book_id = o.account_book_id and m.deleted_flag = 0
+                        and m.status = 'CONVERTED' and m.converted_biz_type = 'PRODUCTION_ORDER' and m.converted_biz_id = o.id)))
+                order by o.id
+                """, audit)) {
+            supply(supplies, row, "DRAFT".equals(str(row, "status")) ? "PLANNED_PRODUCTION" : "PRODUCTION_ORDER");
         }
-        return map;
-    }
-
-    private Map<Long, Long> loadActiveBom(Long companyId, Long bookId) {
-        Map<Long, Long> map = new HashMap<>();
-        for (Map<String, Object> row : jdbcTemplate.queryForList("""
-                select product_id as productId, id as bomId
-                from prd_bom
-                where company_id = ? and account_book_id = ?
-                  and deleted_flag = 0 and status = 'ACTIVE'
-                """, companyId, bookId)) {
-            map.put(toLong(row.get("productId")), toLong(row.get("bomId")));
+        for (Map<String, Object> row : query("""
+                select o.id as documentId, o.order_no as documentNo, l.id as lineId,
+                       o.material_warehouse_id as warehouseId, l.material_product_id as productId,
+                       greatest(l.required_qty - coalesce(l.issued_qty, 0), 0) as qty
+                from prd_order o join prd_order_material l
+                  on l.company_id = o.company_id and l.account_book_id = o.account_book_id and l.order_id = o.id
+                where o.company_id = ? and o.account_book_id = ? and o.deleted_flag = 0
+                  and (o.status in ('RELEASED', 'MATERIAL_ISSUED')
+                    or (o.status = 'DRAFT' and exists (
+                      select 1 from inv_mrp_run_line m where m.company_id = o.company_id
+                        and m.account_book_id = o.account_book_id and m.deleted_flag = 0
+                        and m.status = 'CONVERTED' and m.converted_biz_type = 'PRODUCTION_ORDER' and m.converted_biz_id = o.id)))
+                order by o.id, l.id
+                """, audit)) {
+            demand(demands, row, "PRODUCTION_MATERIAL");
         }
-        return map;
-    }
-
-    private Map<Long, List<BomComponent>> loadBomComponents(
-            Long companyId,
-            Long bookId,
-            Map<Long, Long> productBom
-    ) {
-        Map<Long, List<BomComponent>> map = new HashMap<>();
-        if (productBom.isEmpty()) {
-            return map;
+        Map<Long, Product> products = new HashMap<>();
+        for (Map<String, Object> row : query("""
+                select id, product_code as code, product_name as name, mrp_supply_type as supplyType,
+                       mrp_material_warehouse_id as materialWarehouseId
+                from md_product where company_id = ? and account_book_id = ? and deleted_flag = 0 and status = 'ACTIVE'
+                """, audit)) {
+            products.put(id(row, "id"), new Product(id(row, "id"), str(row, "code"), str(row, "name"),
+                    str(row, "supplyType"), id(row, "materialWarehouseId")));
         }
-        for (Map<String, Object> row : jdbcTemplate.queryForList("""
-                select l.bom_id as bomId, l.material_product_id as materialId, l.qty_per as qtyPer,
+        Map<Long, String> warehouses = new HashMap<>();
+        for (Map<String, Object> row : query("""
+                select id, warehouse_name as name from md_warehouse
+                where company_id = ? and account_book_id = ? and deleted_flag = 0 and status = 'ACTIVE'
+                """, audit)) {
+            warehouses.put(id(row, "id"), str(row, "name"));
+        }
+        Map<Long, List<Material>> materials = new HashMap<>();
+        for (Map<String, Object> row : query("""
+                select b.id as bomId, l.material_product_id as productId, l.qty_per as qtyPer,
                        b.base_qty as baseQty, l.loss_rate as lossRate
-                from prd_bom_line l
-                join prd_bom b on b.id = l.bom_id
+                from prd_bom b join prd_bom_line l on b.id = l.bom_id
                   and b.company_id = l.company_id and b.account_book_id = l.account_book_id
-                where l.company_id = ? and l.account_book_id = ?
-                """, companyId, bookId)) {
-            Long bomId = toLong(row.get("bomId"));
-            map.computeIfAbsent(bomId, key -> new ArrayList<>())
-                    .add(new BomComponent(toLong(row.get("materialId")), toBd(row.get("qtyPer")),
-                            toBd(row.get("baseQty")), toBd(row.get("lossRate"))));
+                where b.company_id = ? and b.account_book_id = ? and b.deleted_flag = 0 and b.status = 'ACTIVE'
+                order by b.id, l.line_no, l.id
+                """, audit)) {
+            materials.computeIfAbsent(id(row, "bomId"), ignored -> new ArrayList<>())
+                    .add(new Material(id(row, "productId"), bd(row, "qtyPer"), bd(row, "baseQty"), bd(row, "lossRate")));
         }
-        return map;
-    }
-
-    private void add(Map<Long, BigDecimal> map, Long key, BigDecimal qty) {
-        if (key == null || qty == null) {
-            return;
+        Map<Long, List<Bom>> boms = new HashMap<>();
+        for (Map<String, Object> row : query("""
+                select id, bom_no as bomNo, product_id as productId, version from prd_bom
+                where company_id = ? and account_book_id = ? and deleted_flag = 0 and status = 'ACTIVE'
+                order by id
+                """, audit)) {
+            boms.computeIfAbsent(id(row, "productId"), ignored -> new ArrayList<>()).add(new Bom(id(row, "id"),
+                    str(row, "bomNo"), id(row, "productId"), bd(row, "version").intValue(),
+                    materials.getOrDefault(id(row, "id"), List.of())));
         }
-        map.merge(key, qty, BigDecimal::add);
-    }
-
-    private Long toLong(Object value) {
-        if (value == null) {
-            return null;
+        MrpCalculationSnapshot snapshot = new MrpPlanEngine().calculate(new Input(products, warehouses, boms, demands, supplies, warnings));
+        List<ComputedLine> production = new ArrayList<>();
+        List<ComputedLine> purchase = new ArrayList<>();
+        for (Node node : snapshot.nodes()) {
+            if (node.netQty().signum() <= 0) continue;
+            ComputedLine line = new ComputedLine(node.productId(), node.supplyType(), node.demandQty(), node.onHandQty(),
+                    node.openSupplyQty(), node.netQty(), node.bomId(), "按仓汇总需求－现存量－在途/在制－已转计划供给", node);
+            ("PRODUCTION".equals(node.supplyType()) ? production : purchase).add(line);
         }
-        return ((Number) value).longValue();
+        return new CalculationResult(List.copyOf(production), List.copyOf(purchase), snapshot);
     }
 
-    private BigDecimal toBd(Object value) {
-        if (value == null) {
-            return BigDecimal.ZERO;
-        }
-        if (value instanceof BigDecimal bd) {
-            return bd;
-        }
-        return new BigDecimal(value.toString());
+    private List<Map<String, Object>> query(String sql, AuditMetadata audit) {
+        return jdbcTemplate.queryForList(sql, audit.companyId(), audit.accountBookId());
+    }
+    private Key key(Map<String, Object> row) { return new Key(id(row, "productId"), id(row, "warehouseId")); }
+    private void demand(Map<Key, List<Source>> demands, Map<String, Object> row, String type) {
+        BigDecimal qty = bd(row, "qty");
+        if (qty.signum() > 0) demands.computeIfAbsent(key(row), ignored -> new ArrayList<>()).add(
+                Source.direct(type, id(row, "documentId"), str(row, "documentNo"), id(row, "lineId"), qty));
+    }
+    private void supply(Map<Key, List<Supply>> supplies, Map<String, Object> row, String type) {
+        BigDecimal qty = bd(row, "qty");
+        if (qty.signum() > 0) supplies.computeIfAbsent(key(row), ignored -> new ArrayList<>()).add(
+                new Supply(type, id(row, "documentId"), str(row, "documentNo"), id(row, "lineId"), qty));
+    }
+    private Long id(Map<String, Object> row, String key) { return row.get(key) == null ? null : ((Number) row.get(key)).longValue(); }
+    private String str(Map<String, Object> row, String key) { return row.get(key) == null ? null : row.get(key).toString(); }
+    private BigDecimal bd(Map<String, Object> row, String key) {
+        return row.get(key) == null ? BigDecimal.ZERO : new BigDecimal(row.get(key).toString());
     }
 
-    public record CalculationResult(
-            List<ComputedLine> productionLines,
-            List<ComputedLine> purchaseLines
-    ) {
-    }
-
-    public record ComputedLine(
-            Long productId,
-            String suggestionType,
-            BigDecimal demandQty,
-            BigDecimal onHandQty,
-            BigDecimal openSupplyQty,
-            BigDecimal netQty,
-            Long bomId,
-            String reason
-    ) {
-    }
-
-    private record BomComponent(Long materialProductId, BigDecimal qtyPer, BigDecimal baseQty, BigDecimal lossRate) {
-    }
+    public record CalculationResult(List<ComputedLine> productionLines, List<ComputedLine> purchaseLines, MrpCalculationSnapshot snapshot) { }
+    public record ComputedLine(Long productId, String suggestionType, BigDecimal demandQty, BigDecimal onHandQty,
+                               BigDecimal openSupplyQty, BigDecimal netQty, Long bomId, String reason, Node trace) { }
 }

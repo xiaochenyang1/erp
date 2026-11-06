@@ -26,8 +26,36 @@ public record PurchaseOrderResponse(
         BigDecimal baseTotalAmount,
         BigDecimal baseTotalTaxAmount,
         String remark,
-        List<PurchaseOrderLineResponse> lines
+        List<PurchaseOrderLineResponse> lines,
+        Long plannedWarehouseId
 ) {
+    public PurchaseOrderResponse(
+        Long id,
+        String orderNo,
+        Long contractId,
+        Long supplierId,
+        String supplierName,
+        LocalDate orderDate,
+        LocalDate deliveryDate,
+        String status,
+        String approvalStatus,
+        String receiptStatus,
+        Long sourceInquiryId,
+        String sourceInquiryNo,
+        Long sourceQuoteId,
+        BigDecimal totalQuantity,
+        BigDecimal totalAmount,
+        BigDecimal totalTaxAmount,
+        String currencyCode,
+        BigDecimal exchangeRate,
+        BigDecimal baseTotalAmount,
+        BigDecimal baseTotalTaxAmount,
+        String remark,
+        List<PurchaseOrderLineResponse> lines
+    ) {
+        this(id, orderNo, contractId, supplierId, supplierName, orderDate, deliveryDate, status, approvalStatus, receiptStatus, sourceInquiryId, sourceInquiryNo, sourceQuoteId, totalQuantity, totalAmount, totalTaxAmount, currencyCode, exchangeRate, baseTotalAmount, baseTotalTaxAmount, remark, lines, null);
+    }
+
     public PurchaseOrderResponse(Long id, String orderNo, Long supplierId, String supplierName,
                                  LocalDate orderDate, LocalDate deliveryDate, String status,
                                  String approvalStatus, String receiptStatus, Long sourceInquiryId,

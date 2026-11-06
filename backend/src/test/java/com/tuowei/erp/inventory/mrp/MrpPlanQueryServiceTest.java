@@ -214,7 +214,9 @@ class MrpPlanQueryServiceTest {
                 jdbcTemplate,
                 auditMetadataFactory,
                 mrpRunMapper,
-                mrpRunLineMapper
+                mrpRunLineMapper,
+                new com.tuowei.erp.inventory.mrp.service.MrpSnapshotCodec(new com.fasterxml.jackson.databind.ObjectMapper()),
+                mock(com.tuowei.erp.inventory.mrp.service.MrpAccessPolicy.class)
         );
     }
 

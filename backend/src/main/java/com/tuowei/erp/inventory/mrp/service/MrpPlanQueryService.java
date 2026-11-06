@@ -40,21 +40,28 @@ public class MrpPlanQueryService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final MrpRunMapper mrpRunMapper;
     private final MrpRunLineMapper mrpRunLineMapper;
+    private final MrpSnapshotCodec snapshotCodec;
+    private final MrpAccessPolicy accessPolicy;
 
     public MrpPlanQueryService(
             JdbcTemplate jdbcTemplate,
             AuditMetadataFactory auditMetadataFactory,
             MrpRunMapper mrpRunMapper,
-            MrpRunLineMapper mrpRunLineMapper
+            MrpRunLineMapper mrpRunLineMapper,
+            MrpSnapshotCodec snapshotCodec,
+            MrpAccessPolicy accessPolicy
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.auditMetadataFactory = auditMetadataFactory;
         this.mrpRunMapper = mrpRunMapper;
         this.mrpRunLineMapper = mrpRunLineMapper;
+        this.snapshotCodec = snapshotCodec;
+        this.accessPolicy = accessPolicy;
     }
 
     @Transactional(readOnly = true)
     public PageResponse<MrpRunSummaryResponse> listRuns(MrpRunPageQuery query) {
+        accessPolicy.requireFullScope();
         AuditMetadata audit = auditMetadataFactory.current();
         MrpRunPageQuery safeQuery = query == null ? new MrpRunPageQuery() : query;
         long pageNo = PageQueryNormalizer.normalizePageNo(
@@ -112,12 +119,15 @@ public class MrpPlanQueryService {
                 run.getProductionCount() == null ? productionLines.size() : run.getProductionCount(),
                 run.getCreatedTime(),
                 purchaseLines,
-                productionLines
+                productionLines,
+                run.getAlgorithmVersion() == null ? 1 : run.getAlgorithmVersion(),
+                snapshotCodec.snapshot(run.getCalculationSnapshot())
         );
     }
 
     @Transactional(readOnly = true)
     public MrpRunEntity requireRun(Long id, AuditMetadata audit) {
+        accessPolicy.requireFullScope();
         MrpRunEntity run = mrpRunMapper.selectById(id);
         if (run == null
                 || run.getDeletedFlag() == null
@@ -131,6 +141,7 @@ public class MrpPlanQueryService {
 
     @Transactional(readOnly = true)
     public MrpRunLineEntity requireLine(Long runId, Long lineId, AuditMetadata audit) {
+        accessPolicy.requireFullScope();
         MrpRunLineEntity line = mrpRunLineMapper.selectById(lineId);
         if (line == null
                 || line.getDeletedFlag() == null
@@ -165,13 +176,14 @@ public class MrpPlanQueryService {
             Map<Long, String[]> names
     ) {
         String[] name = names.get(line.getProductId());
+        var trace = snapshotCodec.node(line.getCalculationTrace());
         return new MrpSuggestionLineResponse(
                 line.getId(),
                 line.getRunId(),
                 line.getLineNo(),
                 line.getProductId(),
-                name == null ? null : name[0],
-                name == null ? null : name[1],
+                trace != null ? trace.productCode() : name == null ? null : name[0],
+                trace != null ? trace.productName() : name == null ? null : name[1],
                 line.getSuggestionType(),
                 ScalePrecision.quantity(line.getDemandQty()),
                 ScalePrecision.quantity(line.getOnHandQty()),
@@ -183,7 +195,12 @@ public class MrpPlanQueryService {
                 line.getConvertedBizType(),
                 line.getConvertedBizId(),
                 line.getConvertedBizNo(),
-                line.getConvertedTime()
+                line.getConvertedTime(),
+                line.getWarehouseId(),
+                line.getMaterialWarehouseId(),
+                line.getBomVersion(),
+                line.getBomLevel(),
+                trace
         );
     }
 
