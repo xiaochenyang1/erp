@@ -8,8 +8,12 @@ import { hash, legacyRevision, readJson, revisionPattern, sha256Pattern, writeJs
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
+// Git pathspecs below are repository-relative. The shared process runner otherwise
+// defaults to backend/, where `backend/...` would select the wrong subtree.
+export const runLegacyGit = (args, repository = repo) => run('git', args, { cwd: repository })
+
 export async function prepareLegacyArtifact(outputDirectory) {
-  const git = async args => (await run('git', args)).stdout.trim()
+  const git = async args => (await runLegacyGit(args)).stdout.trim()
   const toolRevision = await git(['rev-parse', 'HEAD'])
   assert(revisionPattern.test(toolRevision))
   assert.equal(await git(['status', '--porcelain']), '', 'Commit recovery tooling before preparing historical evidence')
@@ -26,7 +30,7 @@ export async function prepareLegacyArtifact(outputDirectory) {
   const source = path.join(output, 'source')
   await mkdir(source)
   const archive = path.join(output, 'source.tar')
-  await run('git', ['archive', '--format=tar', `--output=${archive}`, legacyRevision, 'backend'])
+  await runLegacyGit(['archive', '--format=tar', `--output=${archive}`, legacyRevision, 'backend'])
   await run('tar', ['-xf', archive, '-C', source])
   await rm(archive)
   const build = await run('bash', ['./mvnw', '-B', '-DskipTests', 'package'], {
@@ -40,7 +44,7 @@ export async function prepareLegacyArtifact(outputDirectory) {
     'import sys,zipfile,pathlib; root=pathlib.Path(sys.argv[1]); z=zipfile.ZipFile(sys.argv[2]); files=list((root/"backend/src/main/resources/db/migration").glob("V*.sql")); packaged=[n for n in z.namelist() if n.startswith("BOOT-INF/classes/db/migration/V") and n.endswith(".sql")]; assert len(packaged)==len(files); assert all(z.read("BOOT-INF/classes/db/migration/"+f.name)==f.read_bytes() for f in files)',
     source, jar])
   for (const file of migrations) {
-    assert.equal(hash(await readFile(path.join(source, file))), hash((await run('git', ['show', `${legacyRevision}:${file}`])).stdout), 'Historical migration changed during build')
+    assert.equal(hash(await readFile(path.join(source, file))), hash((await runLegacyGit(['show', `${legacyRevision}:${file}`])).stdout), 'Historical migration changed during build')
   }
   await copyFile(jar, path.join(output, 'erp-server-v168.jar'))
   const metadata = { schemaVersion: 1, kind: 'erp-historical-fixture', sourceRevision: legacyRevision,

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { execFileSync } from 'node:child_process'
 import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { cleanupRecoveryEvidence, recoveryChecks, validateRecoveryReports } from './deployment-recovery.mjs'
 import { hash, legacyRevision, sealCheckpoint } from './recovery-checkpoint.mjs'
-import { verifyLegacyArtifact } from './deployment-recovery-legacy.mjs'
+import { runLegacyGit, verifyLegacyArtifact } from './deployment-recovery-legacy.mjs'
 
 const revision = 'a'.repeat(40), manifestSha256 = 'b'.repeat(64), jarSha256 = 'c'.repeat(64)
 const project = 'erp-preview-recovery-123456abcdef'
@@ -148,4 +149,25 @@ test('historical JAR verification rejects changed bytes and unrelated source or 
   await assert.rejects(verifyLegacyArtifact(directory, digest, revision), /JAR checksum mismatch/)
   save(file, { ...metadata, sourceRevision: revision })
   await assert.rejects(verifyLegacyArtifact(directory, hash(readFileSync(file)), revision))
+})
+
+test('historical Git inventory and archive use repository-relative paths from the repository root', async t => {
+  const root = mkdtempSync(path.join(tmpdir(), 'erp-history-path-test-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const repository = path.join(root, 'repository')
+  const relative = 'backend/src/main/resources/db/migration/V168__fixture.sql'
+  mkdirSync(path.dirname(path.join(repository, relative)), { recursive: true })
+  writeFileSync(path.join(repository, relative), 'SELECT 168;\n')
+  const git = args => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  git(['init', '-q']); git(['add', '.'])
+  git(['-c', 'user.name=Recovery Fixture', '-c', 'user.email=recovery@example.invalid', 'commit', '-qm', 'history'])
+  const revision = git(['rev-parse', 'HEAD'])
+  const inventory = await runLegacyGit(['ls-tree', '-r', '--name-only', revision, 'backend/src/main/resources/db/migration'], repository)
+  assert.equal(inventory.stdout.trim(), relative)
+  const archive = path.join(root, 'history.tar')
+  await runLegacyGit(['archive', '--format=tar', `--output=${archive}`, revision, 'backend'], repository)
+  const extracted = path.join(root, 'extracted')
+  mkdirSync(extracted)
+  execFileSync('tar', ['-xf', archive, '-C', extracted])
+  assert.equal(readFileSync(path.join(extracted, relative), 'utf8'), 'SELECT 168;\n')
 })
