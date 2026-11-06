@@ -376,7 +376,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
     })
     let laterCustomer, laterAttachment
     await check(3, async () => {
-      await compose(['start', '--wait', '--wait-timeout', '180', 'erp-server'])
+      await compose(['up', '-d', '--no-deps', '--no-recreate', '--wait', '--wait-timeout', '180', 'erp-server'])
       await ready(); await loginAdmin()
       laterCustomer = await api('POST', '/api/masterdata/customers', { customerCode: `${fixture.prefix}-AFTER`, customerName: '备份后客户',
         customerType: 'ENTERPRISE', settlementMethod: 'BANK', creditLimit: 0 })
@@ -477,7 +477,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       const newAttachment = await upload('after-recovery', fixture.draft.id)
       await download(newAttachment)
       await compose(['stop', '-t', '45', 'erp-server'])
-      await compose(['start', '--wait', '--wait-timeout', '180', 'erp-server'])
+      await compose(['up', '-d', '--no-deps', '--no-recreate', '--wait', '--wait-timeout', '180', 'erp-server'])
       await ready(); await loginAdmin()
       for (const attachment of [...beforeAttachments, newAttachment]) await download(attachment)
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' AND success=1;"), '1')
