@@ -4,6 +4,8 @@
 
 包内提供 MySQL、Redis、真实 prod 后端及非 root Nginx。仅 Web 端口默认绑定宿主机回环地址；数据库、Redis、后端保留在 Compose 内部。Nginx 提供业务深链接、同源 API 代理、静态缓存策略、20 MB 附件支持和后端重建后的 DNS 更新。服务数据与附件使用项目隔离的持久卷。
 
+PR 和主分支的自动验证入口为 [Deployment Verify](../../.github/workflows/deployment-verify.yml)。它完成构建前置检查，上传并重新下载部署包，再实际执行本文的隔离演练；触发范围、通过条件和制品目录见 [部署 CI 说明](DEPLOYMENT-CI-2026-11-06.md)。
+
 ## 生成和复验
 
 在干净、已提交的工具检出中执行。`--expected-revision` 是被测应用的完整提交；`--expected-artifacts-sha256` 是原候选 `artifact-sha256.json` 的独立摘要，应从可信交接记录获得。应用候选与工具提交可以不同，两者都会写入部署清单。

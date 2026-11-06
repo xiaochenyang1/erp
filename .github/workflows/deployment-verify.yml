@@ -1,0 +1,255 @@
+name: Deployment Verify
+
+on:
+  pull_request:
+    paths:
+      - backend/**
+      - frontend/**
+      - .gitattributes
+      - .gitignore
+      - .github/workflows/deployment-verify.yml
+  push:
+    branches: [main, master]
+    paths:
+      - backend/**
+      - frontend/**
+      - .gitattributes
+      - .gitignore
+      - .github/workflows/deployment-verify.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deployment:
+    name: Build, Deploy and Verify Candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: deployment_ci_root_password
+          MYSQL_DATABASE: erp_codex_test
+          MYSQL_USER: erp_test
+          MYSQL_PASSWORD: deployment_ci_test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pdeployment_ci_root_password --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      CANDIDATE_REVISION: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      ERP_TEST_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/erp_codex_test?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+      ERP_TEST_DATASOURCE_USERNAME: erp_test
+      ERP_TEST_DATASOURCE_PASSWORD: deployment_ci_test_password
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CANDIDATE_REVISION }}
+          persist-credentials: false
+
+      - name: Prepare isolated output directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment_root="$RUNNER_TEMP/erp-deployment-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$deployment_root/inputs"
+          echo "DEPLOYMENT_ROOT=$deployment_root" >> "$GITHUB_ENV"
+          docker version
+          docker compose version
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: |
+            backend/pom.xml
+            backend/.mvn/wrapper/maven-wrapper.properties
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --audit=false
+
+      - name: Test deployment tooling and failure handling
+        run: >-
+          node --test backend/scripts/deployment-ci.test.mjs
+          backend/scripts/deployment-bundle.test.mjs
+          backend/scripts/trial-business-acceptance.test.mjs
+          backend/scripts/ui-smoke-processes.test.mjs
+          backend/scripts/ui-smoke-cdp.test.mjs
+
+      - name: Build and test backend including Testcontainers
+        working-directory: backend
+        shell: pwsh
+        run: ./scripts/release-check.ps1 -IncludeTestcontainers -MavenRepoLocal "$HOME/.m2/repository" *> "$env:DEPLOYMENT_ROOT/backend-release.log"
+
+      - name: Verify backend release report
+        working-directory: backend
+        shell: pwsh
+        run: ./scripts/verify-release-check-report.ps1 -ReportDirectory target
+
+      - name: Check frontend and build release artifact
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          for task in type-check lint test check:contracts test:release; do
+            npm run "$task" 2>&1 | tee "$DEPLOYMENT_ROOT/frontend-${task//:/-}.log"
+          done
+          npm audit --package-lock-only --omit=dev --audit-level=high --registry=https://registry.npmjs.org \
+            2>&1 | tee "$DEPLOYMENT_ROOT/frontend-audit.log"
+          npm run release:build -- --output "$DEPLOYMENT_ROOT/inputs/frontend"
+          npm run release:verify -- --artifact "$DEPLOYMENT_ROOT/inputs/frontend" --expected-revision "$CANDIDATE_REVISION"
+
+      - name: Assemble candidate and deployment bundle
+        id: bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          node backend/scripts/deployment-ci.mjs prepare \
+            --frontend-artifact "$DEPLOYMENT_ROOT/inputs/frontend" \
+            --output "$DEPLOYMENT_ROOT/candidate" --expected-revision "$CANDIDATE_REVISION" \
+            > "$DEPLOYMENT_ROOT/candidate.json"
+          artifacts_sha256="$(jq -er .artifactIndexSha256 "$DEPLOYMENT_ROOT/candidate.json")"
+          node backend/scripts/deployment-bundle.mjs build \
+            --candidate "$DEPLOYMENT_ROOT/candidate" --output "$DEPLOYMENT_ROOT/bundle" \
+            --expected-revision "$CANDIDATE_REVISION" --expected-artifacts-sha256 "$artifacts_sha256" \
+            > "$DEPLOYMENT_ROOT/bundle.json"
+          manifest_sha256="$(jq -er .manifestSha256 "$DEPLOYMENT_ROOT/bundle.json")"
+          mkdir "$DEPLOYMENT_ROOT/upload"
+          tar -czf "$DEPLOYMENT_ROOT/upload/erp-deployment-bundle.tar.gz" -C "$DEPLOYMENT_ROOT/bundle" .
+          cp "$DEPLOYMENT_ROOT/bundle.json" "$DEPLOYMENT_ROOT/candidate/summary.json" \
+            "$DEPLOYMENT_ROOT/candidate/artifact-sha256.json" "$DEPLOYMENT_ROOT/candidate/source-sha256.json" \
+            "$DEPLOYMENT_ROOT/upload/"
+          archive_sha256="$(sha256sum "$DEPLOYMENT_ROOT/upload/erp-deployment-bundle.tar.gz" | cut -d ' ' -f 1)"
+          printf '%s  erp-deployment-bundle.tar.gz\n' "$archive_sha256" > "$DEPLOYMENT_ROOT/upload/SHA256SUMS"
+          echo "manifest_sha256=$manifest_sha256" >> "$GITHUB_OUTPUT"
+          echo "archive_sha256=$archive_sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Upload deployment candidate
+        id: upload-bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: erp-deployment-bundle-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.DEPLOYMENT_ROOT }}/upload/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Download candidate for the actual deployment
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.upload-bundle.outputs.artifact-id }}
+          path: ${{ env.DEPLOYMENT_ROOT }}/download
+          merge-multiple: true
+
+      - name: Verify downloaded bytes and extract bundle
+        shell: bash
+        env:
+          ARCHIVE_SHA256: ${{ steps.bundle.outputs.archive_sha256 }}
+          MANIFEST_SHA256: ${{ steps.bundle.outputs.manifest_sha256 }}
+        run: |
+          set -euo pipefail
+          printf '%s  %s\n' "$ARCHIVE_SHA256" "$DEPLOYMENT_ROOT/download/erp-deployment-bundle.tar.gz" | sha256sum --check --strict
+          mkdir "$DEPLOYMENT_ROOT/deployed-bundle"
+          tar -xzf "$DEPLOYMENT_ROOT/download/erp-deployment-bundle.tar.gz" -C "$DEPLOYMENT_ROOT/deployed-bundle"
+          node backend/scripts/deployment-bundle.mjs verify \
+            --bundle "$DEPLOYMENT_ROOT/deployed-bundle" --expected-manifest-sha256 "$MANIFEST_SHA256"
+
+      - name: Set up Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Configure Chrome sandbox
+        shell: bash
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          set -euo pipefail
+          sandbox_path="$(dirname -- "$CHROME_PATH")/chrome-sandbox"
+          test -f "$sandbox_path"
+          sudo chown root:root "$sandbox_path"
+          sudo chmod 4755 "$sandbox_path"
+          test "$(stat -c '%u:%g:%a' "$sandbox_path")" = '0:0:4755'
+
+      - name: Run fullstack production-profile deployment and business trial
+        id: smoke
+        timeout-minutes: 23
+        shell: bash
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+          MANIFEST_SHA256: ${{ steps.bundle.outputs.manifest_sha256 }}
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=120s 20m \
+            node backend/scripts/deployment-smoke.mjs --bundle "$DEPLOYMENT_ROOT/deployed-bundle" \
+            --expected-manifest-sha256 "$MANIFEST_SHA256" --evidence "$DEPLOYMENT_ROOT/runtime" \
+            2>&1 | tee "$DEPLOYMENT_ROOT/deployment-smoke.log"
+
+      - name: Ensure disposable Docker resources are removed
+        id: cleanup
+        if: ${{ always() && (steps.smoke.outcome == 'success' || steps.smoke.outcome == 'failure' || steps.smoke.outcome == 'cancelled') }}
+        timeout-minutes: 5
+        run: >-
+          node backend/scripts/deployment-ci.mjs cleanup
+          --evidence "$DEPLOYMENT_ROOT/runtime" --expected-revision "$CANDIDATE_REVISION"
+          > "$DEPLOYMENT_ROOT/cleanup-report.json"
+
+      - name: Verify deployment and business evidence
+        env:
+          MANIFEST_SHA256: ${{ steps.bundle.outputs.manifest_sha256 }}
+        run: >-
+          node backend/scripts/deployment-ci.mjs verify --bundle "$DEPLOYMENT_ROOT/deployed-bundle"
+          --expected-manifest-sha256 "$MANIFEST_SHA256" --evidence "$DEPLOYMENT_ROOT/runtime"
+          --expected-revision "$CANDIDATE_REVISION" > "$DEPLOYMENT_ROOT/verification.json"
+
+      - name: Collect backend diagnostics
+        if: ${{ always() && env.DEPLOYMENT_ROOT != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$DEPLOYMENT_ROOT/backend"
+          for name in release-check-report.json release-check-report.md; do
+            if [[ -f "backend/target/$name" ]]; then
+              cp "backend/target/$name" "$DEPLOYMENT_ROOT/backend/"
+            fi
+          done
+          if [[ -d backend/target/surefire-reports ]]; then
+            cp -R backend/target/surefire-reports "$DEPLOYMENT_ROOT/backend/"
+          fi
+
+      - name: Upload reports and diagnostics on success or failure
+        if: ${{ always() && env.DEPLOYMENT_ROOT != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: erp-deployment-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 90
+          path: |
+            ${{ env.DEPLOYMENT_ROOT }}/*.json
+            ${{ env.DEPLOYMENT_ROOT }}/*.log
+            ${{ env.DEPLOYMENT_ROOT }}/runtime/report.json
+            ${{ env.DEPLOYMENT_ROOT }}/runtime/docker.log
+            ${{ env.DEPLOYMENT_ROOT }}/runtime/compose-redacted.json
+            ${{ env.DEPLOYMENT_ROOT }}/runtime/browser*.png
+            ${{ env.DEPLOYMENT_ROOT }}/runtime/business-trial/report.json
+            ${{ env.DEPLOYMENT_ROOT }}/backend/**

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
-import { cp, mkdir, mkdtemp, readFile, writeFile, appendFile, realpath, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, writeFile, appendFile, realpath, rename, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -118,13 +118,17 @@ async function main() {
   const project = `erp-preview-deployment-${randomBytes(6).toString('hex')}`
   const holder = `${project}-ip-holder`
   const children = []
-  const report = { status: 'RUNNING', startedAt: new Date().toISOString(), ...verified,
+  const report = { schemaVersion: 1, kind: 'erp-deployment-smoke', status: 'RUNNING', startedAt: new Date().toISOString(), ...verified,
     runtimeToolRevision: revisionOutput.trim(), project, checks: [],
     scope: 'Local disposable fullstack prod deployment; synthetic data; not real preproduction or business signoff' }
   let cdpCleanup, token, attachmentId
   const onSignal = () => { interrupted = true }
   process.on('SIGINT', onSignal); process.on('SIGTERM', onSignal)
-  const persist = () => writeFile(path.join(evidence, 'report.json'), JSON.stringify(report, null, 2) + '\n')
+  const persist = async () => {
+    const temporary = path.join(evidence, 'report.json.tmp')
+    await writeFile(temporary, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 })
+    await rename(temporary, path.join(evidence, 'report.json'))
+  }
   const command = async (program, args, timeout = 300000) => {
     try {
       const result = await execute(program, args, { cwd: work, env: environment, timeout, maxBuffer: 16 * 1024 * 1024 })
@@ -266,8 +270,8 @@ async function main() {
       const holderId = (await command('docker', ['ps', '-aq', '--filter', `name=^${holder}$`])).trim()
       if (holderId) await command('docker', ['rm', '-f', holderId])
       if (existsSync(path.join(work, '.env'))) {
-        await compose(['logs', '--no-color', '--tail', '200'])
-        await compose(['down', '--volumes', '--remove-orphans', '--rmi', 'local', '--timeout', '30'])
+        try { await compose(['logs', '--no-color', '--tail', '200']) }
+        finally { await compose(['down', '--volumes', '--remove-orphans', '--rmi', 'local', '--timeout', '30']) }
       }
       const containers = (await command('docker', ['ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`])).trim()
       const volumes = (await command('docker', ['volume', 'ls', '-q', '--filter', `label=com.docker.compose.project=${project}`])).trim()
