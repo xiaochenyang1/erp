@@ -60,6 +60,8 @@ node backend/scripts/deployment-recovery.mjs verify \
   --expected-revision <本次完整提交>
 ```
 
+Linux 浏览器需要中文字体，才能生成可读的验收截图。部署和浏览器 CI 均安装 `fonts-noto-cjk` 并检查字体匹配；手动环境同样应确认中文字形可用。DOM 文字断言通过不能代替字体渲染检查。
+
 CI 在运行后始终补充清理，只按本次报告的严格项目名和提交删除容器、卷、网络、镜像标签及私有临时目录。任一步失败、报告缺项、快照不一致或清理失败都会使流水线失败。演练限时 15 分钟，收到 TERM 后额外保留 120 秒供退出。
 
 `erp-deployment-evidence-<run_id>-<attempt>` 新增：

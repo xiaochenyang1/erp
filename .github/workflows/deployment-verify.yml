@@ -185,6 +185,16 @@ jobs:
         with:
           chrome-version: stable
 
+      - name: Install Chinese fonts for browser screenshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          font_family="$(fc-match --format '%{family}' 'sans-serif:lang=zh-cn')"
+          [[ "$font_family" == *"Noto Sans CJK"* ]]
+          printf '%s\n' "$font_family"
+
       - name: Configure Chrome sandbox
         shell: bash
         env:
