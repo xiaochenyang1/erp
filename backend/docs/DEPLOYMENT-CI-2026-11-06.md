@@ -40,8 +40,10 @@
 
 ## 本次验证
 
-本地新增及相关脚本回归 45 项通过，覆盖制品改写、报告缺项、版本错配、部分清理失败及其他项目资源保留；测试使用临时 Git 仓库和模拟 Docker 响应。Actionlint 1.7.7 校验、13 段 Bash / PowerShell 工作流命令的语法检查及 `git diff --check` 均通过。
+本地新增及相关脚本回归覆盖制品改写、报告缺项、版本错配、PowerShell 大写摘要、部分清理失败及其他项目资源保留；测试使用临时 Git 仓库和模拟 Docker 响应。Actionlint 1.7.7 校验、13 段 Bash / PowerShell 工作流命令的语法检查及 `git diff --check` 均通过。
 
-当前本机没有 Docker；完整容器演练需由此次提交的 GitHub Actions 执行。本文件的本地测试结果不代表 Docker 已运行。
+首次 CI 的后端（含 Testcontainers）和前端前置检查通过，在候选组装时发现 PowerShell 报告输出大写 SHA-256，而 Node 输出小写。已将比较改为校验 64 位十六进制后统一大小写，仍然核对完整摘要，并补充回归场景。首次失败日志及证据保留在 [运行 42151050674](https://github.com/xiaochenyang1/erp/actions/runs/42151050674)。
+
+本机没有 Docker，完整容器演练由 GitHub Actions 执行，结果以对应提交的工作流和归档报告为准。本地脚本测试不能替代容器实跑结果。
 
 此工作流验证全新隔离部署。V168 → V169 历史库升级、数据库及附件备份恢复、目标环境 TLS/代理、真实岗位验收和业务签字仍是独立后续事项。

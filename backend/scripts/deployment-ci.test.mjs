@@ -139,6 +139,17 @@ test('changed backend bytes and missing or duplicate report entries are rejected
   assert.throws(() => prepareDeploymentCandidate(f.options), /artifact size mismatch/)
 })
 
+test('accepts PowerShell uppercase SHA-256 and writes canonical candidate digests', t => {
+  const f = fixture(t)
+  const report = load(f.reportFile)
+  for (const artifact of report.artifacts) artifact.sha256 = artifact.sha256.toUpperCase()
+  save(f.reportFile, report)
+  const candidate = prepareDeploymentCandidate(f.options)
+  const digests = load(path.join(candidate.candidateDirectory, 'artifact-sha256.json'))
+  assert(Object.values(digests).every(digest => /^[a-f0-9]{64}$/.test(digest)))
+  assert.equal(digests['erp-server-1.0.0.jar'], report.artifacts[0].sha256.toLowerCase())
+})
+
 test('frontend tampering and mixed revisions are rejected before candidate creation', t => {
   const f = fixture(t)
   const manifestFile = path.join(f.frontendArtifact, 'manifest.json')

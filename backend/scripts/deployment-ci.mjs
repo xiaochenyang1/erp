@@ -53,7 +53,9 @@ export function prepareDeploymentCandidate({ repository = defaultRepository, fro
     const matches = report.artifacts.filter(artifact => artifact.relativePath.replaceAll('\\', '/') === source)
     assert.equal(matches.length, 1, `Missing or duplicate backend artifact: ${source}`)
     assert.equal(matches[0].length, bytes.length, `Backend artifact size mismatch: ${source}`)
-    assert.equal(matches[0].sha256, hash(bytes), `Backend artifact checksum mismatch: ${source}`)
+    assert(/^[a-fA-F0-9]{64}$/.test(matches[0].sha256 || ''), `Invalid backend artifact checksum: ${source}`)
+    // PowerShell Get-FileHash emits uppercase hexadecimal; compare digest values.
+    assert.equal(matches[0].sha256.toLowerCase(), hash(bytes), `Backend artifact checksum mismatch: ${source}`)
     artifacts[destination] = hash(bytes)
   }
   const frontend = realpathSync(frontendArtifact)

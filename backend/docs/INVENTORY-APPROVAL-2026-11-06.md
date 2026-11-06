@@ -48,6 +48,6 @@
 
 本地原始证据保存在 [inventory-approval-evidence](../target/inventory-approval-evidence/)：`initial-ui-smoke-report.json` 保留首轮 28/28 页面和 37/39 工作流结果，`inventory-ui-smoke-report.json` 为定向复测，`final-ui-smoke-report.json` 为 39/39 工作流复测（2026-11-06 10:12，Asia/Shanghai）。各轮清理报告、诊断日志以及后端、前端和脚本测试日志一并保存。
 
-测试使用本次创建的独立 MySQL 9.7.1 实例和两个临时数据库；业务集成测试使用真实事务，迁移还执行了 H2 兼容回归。没有连接或改动本机原有业务数据库。默认后端测试排除 `testcontainers` 组；本机无 Docker，MySQL 8.4/Testcontainers 和完整容器部署演练仍须在 CI 或具备 Docker 的环境完成。
+上述本地测试使用本次创建的独立 MySQL 9.7.1 实例和两个临时数据库；业务集成测试使用真实事务，迁移还执行了 H2 兼容回归。没有连接或改动本机原有业务数据库。默认后端测试排除 `testcontainers` 组；本机无 Docker，MySQL 8.4/Testcontainers 和完整容器演练结果须结合相应提交的 [部署 CI](DEPLOYMENT-CI-2026-11-06.md) 报告核对。
 
 生产依赖修复对应 [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p)。本次结果用于开发验收，不替代真实岗位授权、业务签字和目标环境的升级、恢复及发布决定。
