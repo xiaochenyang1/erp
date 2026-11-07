@@ -72,7 +72,13 @@ public class ProductionOrderCommandService {
         order.setFinishedWarehouseId(request.finishedWarehouseId()); order.setPlannedQty(plannedQty);
         order.setCompletedQty(ScalePrecision.quantity(BigDecimal.ZERO)); order.setPlannedStartDate(request.plannedStartDate());
         order.setPlannedFinishDate(request.plannedFinishDate()); order.setStatus(ProductionOrderService.STATUS_DRAFT);
-        order.setIssuedAmount(ScalePrecision.amount(BigDecimal.ZERO)); order.setFinishedAmount(ScalePrecision.amount(BigDecimal.ZERO));
+        order.setIssuedAmount(ScalePrecision.amount(BigDecimal.ZERO));
+        order.setLaborAmount(ScalePrecision.amount(BigDecimal.ZERO));
+        order.setOverheadAmount(ScalePrecision.amount(BigDecimal.ZERO));
+        order.setFinishedAmount(ScalePrecision.amount(BigDecimal.ZERO));
+        order.setFinishedMaterialAmount(ScalePrecision.amount(BigDecimal.ZERO));
+        order.setFinishedLaborAmount(ScalePrecision.amount(BigDecimal.ZERO));
+        order.setFinishedOverheadAmount(ScalePrecision.amount(BigDecimal.ZERO));
         order.setDeletedFlag(0); order.setRemark(request.remark()); fillCreateAudit(order, audit, now);
         queryService.assertCanView(order);
         orderMapper.insert(order);

@@ -125,7 +125,12 @@ public class ProductionOrderQueryService {
                 order.getPlannedFinishDate(),
                 order.getStatus(),
                 order.getIssuedAmount(),
+                order.getLaborAmount(),
+                order.getOverheadAmount(),
                 order.getFinishedAmount(),
+                order.getFinishedMaterialAmount(),
+                order.getFinishedLaborAmount(),
+                order.getFinishedOverheadAmount(),
                 order.getRemark(),
                 selectMaterials(order).stream()
                         .map(material -> new ProductionOrderMaterialResponse(

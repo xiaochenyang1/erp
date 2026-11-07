@@ -17,7 +17,12 @@ public record ProductionOrderResponse(
         LocalDate plannedFinishDate,
         String status,
         BigDecimal issuedAmount,
+        BigDecimal laborAmount,
+        BigDecimal overheadAmount,
         BigDecimal finishedAmount,
+        BigDecimal finishedMaterialAmount,
+        BigDecimal finishedLaborAmount,
+        BigDecimal finishedOverheadAmount,
         String remark,
         List<ProductionOrderMaterialResponse> materials
 ) {

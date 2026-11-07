@@ -80,6 +80,19 @@ describe('finance and report page localization', () => {
     expect(readNestedValue(english, 'financeReportPages.traces.ticketStatus.processing')).toBe('In progress')
   })
 
+  it('shows input, completion, work-in-progress, and ledger columns for production costs', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/reports/index.vue'), 'utf8')
+
+    for (const field of [
+      'materialCost', 'laborCost', 'overheadCost', 'totalInputCost',
+      'finishedMaterialCost', 'finishedLaborCost', 'finishedOverheadCost', 'finishedGoodsCost',
+      'materialWorkInProgressCost', 'laborWorkInProgressCost', 'overheadWorkInProgressCost', 'workInProgressCost',
+      'productionCostLedgerAmount', 'reconciliationDifference'
+    ]) {
+      expect(source).toContain(`prop="${field}"`)
+    }
+  })
+
   it('leaves no hard-coded Chinese UI copy or static copy attributes in the migrated pages', () => {
     for (const path of componentPaths) {
       const source = stripComments(readFileSync(resolve(process.cwd(), path), 'utf8'))

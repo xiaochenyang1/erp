@@ -306,6 +306,11 @@ class ProductionOrderPostingServiceTest {
                 status,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 "posting test",
                 List.of()
         );

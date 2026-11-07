@@ -58,7 +58,11 @@ public class ReportExportService {
     );
     private static final List<String> PRODUCTION_COST_HEADERS = List.of(
             "orderNo", "productCode", "productName", "status", "plannedStartDate", "plannedFinishDate",
-            "plannedQty", "completedQty", "completionRate", "materialCost", "finishedGoodsCost", "workInProgressCost",
+            "plannedQty", "completedQty", "completionRate",
+            "materialCost", "laborCost", "overheadCost", "totalInputCost",
+            "finishedMaterialCost", "finishedLaborCost", "finishedOverheadCost", "finishedGoodsCost",
+            "materialWorkInProgressCost", "laborWorkInProgressCost", "overheadWorkInProgressCost",
+            "workInProgressCost", "productionCostLedgerAmount", "reconciliationDifference",
             "completionUnitCost", "costStatus"
     );
 
@@ -228,8 +232,12 @@ public class ReportExportService {
 
     private List<?> productionCostRow(ProductionCostReportResponse record) {
         return Arrays.asList(record.orderNo(), record.productCode(), record.productName(), record.status(), record.plannedStartDate(),
-                record.plannedFinishDate(), record.plannedQty(), record.completedQty(), record.completionRate(), record.materialCost(),
-                record.finishedGoodsCost(), record.workInProgressCost(), record.completionUnitCost(), record.costStatus());
+                record.plannedFinishDate(), record.plannedQty(), record.completedQty(), record.completionRate(),
+                record.materialCost(), record.laborCost(), record.overheadCost(), record.totalInputCost(),
+                record.finishedMaterialCost(), record.finishedLaborCost(), record.finishedOverheadCost(), record.finishedGoodsCost(),
+                record.materialWorkInProgressCost(), record.laborWorkInProgressCost(), record.overheadWorkInProgressCost(),
+                record.workInProgressCost(), record.productionCostLedgerAmount(), record.reconciliationDifference(),
+                record.completionUnitCost(), record.costStatus());
     }
 
     @FunctionalInterface

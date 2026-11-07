@@ -22,7 +22,7 @@ test('joint checkpoint binds database and attachments to source and target versi
   const options = fixture(t)
   const result = verifyCheckpoint(options)
   assert.equal(result.sourceSchema, '168')
-  assert.equal(result.targetSchema, '170')
+  assert.equal(result.targetSchema, '172')
   assert.equal(result.writersStopped, true)
   assert.equal(Object.keys(result.artifacts).length, 4)
 })

@@ -11,6 +11,8 @@ import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.production.completion.mapper.ProductionCompletionMapper;
 import com.tuowei.erp.production.completion.model.ProductionCompletionEntity;
+import com.tuowei.erp.production.cost.service.ProductionCostAllocation;
+import com.tuowei.erp.production.cost.service.ProductionCostAmounts;
 import com.tuowei.erp.production.operation.service.ProductionOperationService;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
 import com.tuowei.erp.production.order.model.ProductionOrderEntity;
@@ -96,10 +98,14 @@ public class ProductionCompletionCommandService {
         if (completionQty.compareTo(remainingCompletableQty) > 0) throw new IllegalArgumentException("生产完工数量超过已领料可完工数量");
         productionOperationService.assertReadyForCompletion(order, completionQty);
         qcInspectionGate.assertProductionInspected(order.getCompanyId(), order.getAccountBookId(), order.getId(), order.getProductId(), completionQty);
-        BigDecimal availableAmount = ScalePrecision.amount(
-                ScalePrecision.zeroDefault(order.getIssuedAmount()).subtract(ScalePrecision.zeroDefault(order.getFinishedAmount()))
+        ProductionCostAmounts completionCosts = ProductionCostAllocation.allocateCompletion(
+                available(order.getIssuedAmount(), order.getFinishedMaterialAmount()),
+                available(order.getLaborAmount(), order.getFinishedLaborAmount()),
+                available(order.getOverheadAmount(), order.getFinishedOverheadAmount()),
+                remainingCompletableQty,
+                completionQty
         );
-        BigDecimal completionAmount = completionAmount(availableAmount, remainingCompletableQty, completionQty);
+        BigDecimal completionAmount = completionCosts.total();
         LocalDateTime now = audit.now();
 
         ProductionCompletionEntity completion = new ProductionCompletionEntity();
@@ -110,6 +116,9 @@ public class ProductionCompletionCommandService {
         completion.setCompletionDate(completionDate);
         completion.setCompletedQty(completionQty);
         completion.setCompletedAmount(completionAmount);
+        completion.setMaterialCostAmount(completionCosts.material());
+        completion.setLaborCostAmount(completionCosts.labor());
+        completion.setOverheadCostAmount(completionCosts.overhead());
         completion.setLotNo(request == null ? null : request.lotNo());
         completion.setProductionDate(request == null ? null : request.productionDate());
         completion.setExpiryDate(request == null ? null : request.expiryDate());
@@ -128,7 +137,12 @@ public class ProductionCompletionCommandService {
         order.setStatus(newCompletedQty.compareTo(ScalePrecision.quantity(order.getPlannedQty())) >= 0
                 ? ProductionOrderService.STATUS_COMPLETED : ProductionOrderService.STATUS_MATERIAL_ISSUED);
         order.setCompletedQty(newCompletedQty);
-        order.setFinishedAmount(ScalePrecision.amount(ScalePrecision.zeroDefault(order.getFinishedAmount()).add(completionAmount)));
+        order.setFinishedMaterialAmount(add(order.getFinishedMaterialAmount(), completionCosts.material()));
+        order.setFinishedLaborAmount(add(order.getFinishedLaborAmount(), completionCosts.labor()));
+        order.setFinishedOverheadAmount(add(order.getFinishedOverheadAmount(), completionCosts.overhead()));
+        order.setFinishedAmount(ScalePrecision.amount(
+                order.getFinishedMaterialAmount().add(order.getFinishedLaborAmount()).add(order.getFinishedOverheadAmount())
+        ));
         order.setUpdatedBy(audit.userId());
         order.setUpdatedTime(now);
         if (orderMapper.updateById(order) != 1) throw new BusinessConflictException("生产工单已被其他操作修改，请重试");
@@ -149,10 +163,12 @@ public class ProductionCompletionCommandService {
         return maxQty;
     }
 
-    private BigDecimal completionAmount(BigDecimal availableAmount, BigDecimal remainingCompletableQty, BigDecimal completionQty) {
-        if (remainingCompletableQty.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("没有可结转的生产成本，不能完工");
-        if (completionQty.compareTo(remainingCompletableQty) == 0) return ScalePrecision.amount(availableAmount);
-        return ScalePrecision.amount(availableAmount.multiply(completionQty).divide(remainingCompletableQty, 8, RoundingMode.HALF_UP));
+    private BigDecimal available(BigDecimal input, BigDecimal finished) {
+        return ScalePrecision.amount(ScalePrecision.zeroDefault(input).subtract(ScalePrecision.zeroDefault(finished)));
+    }
+
+    private BigDecimal add(BigDecimal left, BigDecimal right) {
+        return ScalePrecision.amount(ScalePrecision.zeroDefault(left).add(ScalePrecision.zeroDefault(right)));
     }
 
     private void fillAudit(ProductionCompletionEntity entity, AuditMetadata audit, LocalDateTime now) {

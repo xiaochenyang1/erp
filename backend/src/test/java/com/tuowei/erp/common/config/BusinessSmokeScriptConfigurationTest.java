@@ -144,4 +144,24 @@ class BusinessSmokeScriptConfigurationTest {
                 .contains("process.platform === 'win32'")
                 .contains("'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'");
     }
+
+    @Test
+    void uiSmokeProductionWorkflowCoversLaborCostCollection() throws IOException {
+        String script = Files.readString(Path.of("scripts", "ui-smoke.mjs"), StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("const laborCostAmount = 25.5")
+                .contains("invokeButton(cdp, '成本归集', 'production cost collection button', orderRowExpression)")
+                .contains("dialogExpression('生产成本归集')")
+                .contains("'/costs'")
+                .contains("item.costType === 'LABOR'")
+                .contains("const laborCostEntry = await waitForPage(cdp, `")
+                .contains("const correctedLaborCostAmount = 30.5")
+                .contains("invokeButton(cdp, '更正', 'production cost correction button', laborCostRowExpression)")
+                .contains("dialogExpression('更正生产成本')")
+                .contains("reversal?.entryKind === 'REVERSAL'")
+                .contains("correction?.entryKind === 'CORRECTION'")
+                .contains("detail.laborAmount")
+                .contains("detail.finishedLaborAmount");
+    }
 }

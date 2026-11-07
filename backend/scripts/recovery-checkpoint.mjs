@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
-export const targetSchema = '170'
+export const targetSchema = '172'
 export const legacyRevision = '8766ef0ac966da8628bbdfc2b9bbb12c6e93ba17'
 export const recoveryProjectPattern = /^erp-preview-recovery-[a-f0-9]{12}$/
 export const hash = bytes => createHash('sha256').update(bytes).digest('hex')

@@ -10,6 +10,9 @@ import com.tuowei.erp.production.bom.web.ProductionBomLineRequest;
 import com.tuowei.erp.production.bom.web.ProductionBomResponse;
 import com.tuowei.erp.production.completion.service.ProductionCompletionReversalService;
 import com.tuowei.erp.production.completion.service.ProductionCompletionService;
+import com.tuowei.erp.production.cost.service.ProductionCostEntryService;
+import com.tuowei.erp.production.cost.web.ProductionCostEntryCorrectionRequest;
+import com.tuowei.erp.production.cost.web.ProductionCostEntryRequest;
 import com.tuowei.erp.production.issue.service.ProductionIssueService;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.production.order.web.ProductionCompletionRequest;
@@ -21,6 +24,8 @@ import com.tuowei.erp.production.order.web.ProductionIssueRequest;
 import com.tuowei.erp.production.order.web.ProductionReturnLineRequest;
 import com.tuowei.erp.production.order.web.ProductionReturnRequest;
 import com.tuowei.erp.production.returnmaterial.service.ProductionReturnService;
+import com.tuowei.erp.report.service.ProductionCostReportService;
+import com.tuowei.erp.report.web.ProductionCostReportQuery;
 import com.tuowei.erp.testsupport.TestSecurityContexts;
 import com.tuowei.erp.testsupport.WithErpUser;
 import org.assertj.core.api.Assertions;
@@ -70,6 +75,12 @@ class ProductionOrderServiceTest {
     private ProductionReturnService productionReturnService;
 
     @Autowired
+    private ProductionCostEntryService productionCostEntryService;
+
+    @Autowired
+    private ProductionCostReportService productionCostReportService;
+
+    @Autowired
     private InventoryFinanceReconciliationService reconciliationService;
 
     @Autowired
@@ -92,15 +103,16 @@ class ProductionOrderServiceTest {
                 delete from fin_voucher_entry
                 where voucher_id in (
                     select id from fin_voucher
-                    where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN')
+                    where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL')
                 )
                 """);
-        jdbcTemplate.update("delete from fin_voucher where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN')");
+        jdbcTemplate.update("delete from fin_voucher where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL')");
         jdbcTemplate.update("delete from inv_reservation_event where source_type = 'PRODUCTION_ORDER'");
         jdbcTemplate.update("delete from inv_reservation where source_type = 'PRODUCTION_ORDER'");
         jdbcTemplate.update("delete from inv_txn where biz_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL')");
         jdbcTemplate.update("delete from inv_txn where biz_type = 'PRODUCTION_RETURN'");
         jdbcTemplate.update("delete from prd_completion_reversal");
+        jdbcTemplate.update("delete from prd_cost_entry");
         jdbcTemplate.update("delete from prd_return_line");
         jdbcTemplate.update("delete from prd_return");
         jdbcTemplate.update("delete from prd_completion");
@@ -269,6 +281,97 @@ class ProductionOrderServiceTest {
                 .isEqualTo(reversalNo);
         Assertions.assertThat(reconciliationService.differences(892503L, null))
                 .noneMatch(difference -> "PRODUCTION_COMPLETION_REVERSAL".equals(difference.sourceType()));
+    }
+
+    @Test
+    @WithErpUser(authorities = {
+            "production:bom:manage", "production:order:create", "production:order:view",
+            "production:order:release", "production:order:issue", "production:order:complete",
+            "production:order:reverse-completion", "production:order:cost", "production:order:cost:reverse"
+    })
+    void allocatesLaborAndOverheadAcrossBatchesAndReconcilesReversalToTheLedger() {
+        seedMaterialBalance(MATERIAL_ONE_ID, "100.0000", "500.00");
+        seedMaterialBalance(MATERIAL_TWO_ID, "100.0000", "900.00");
+        ProductionOrderResponse created = productionOrderService.create(orderRequest(createBom().id()));
+        productionOrderService.release(created.id());
+        ProductionOrderResponse issued = productionIssueService.issue(created.id());
+
+        productionCostEntryService.post(created.id(), new ProductionCostEntryRequest(
+                "LABOR", null, LocalDate.of(2026, 5, 20), new BigDecimal("300.00"), "direct labor"
+        ));
+        productionCostEntryService.post(created.id(), new ProductionCostEntryRequest(
+                "OVERHEAD", null, LocalDate.of(2026, 5, 20), new BigDecimal("100.00"), "factory overhead"
+        ));
+
+        productionCompletionService.complete(created.id(), new ProductionCompletionRequest(
+                LocalDate.of(2026, 5, 21), new BigDecimal("4.0000"), "first cost batch"
+        ));
+        Map<String, Object> firstCompletion = jdbcTemplate.queryForMap("""
+                select material_cost_amount, labor_cost_amount, overhead_cost_amount, completed_amount
+                from prd_completion where order_id = ? order by completion_date, id limit 1
+                """, created.id());
+        Assertions.assertThat((BigDecimal) firstCompletion.get("LABOR_COST_AMOUNT")).isEqualByComparingTo("120.00");
+        Assertions.assertThat((BigDecimal) firstCompletion.get("OVERHEAD_COST_AMOUNT")).isEqualByComparingTo("40.00");
+        Assertions.assertThat((BigDecimal) firstCompletion.get("COMPLETED_AMOUNT")).isEqualByComparingTo(
+                ((BigDecimal) firstCompletion.get("MATERIAL_COST_AMOUNT")).add(new BigDecimal("160.00"))
+        );
+
+        ProductionOrderResponse completed = productionCompletionService.complete(created.id(), new ProductionCompletionRequest(
+                LocalDate.of(2026, 5, 22), new BigDecimal("6.0000"), "final cost batch"
+        ));
+        Assertions.assertThat(completed.status()).isEqualTo("COMPLETED");
+        Assertions.assertThat(completed.laborAmount()).isEqualByComparingTo("300.00");
+        Assertions.assertThat(completed.overheadAmount()).isEqualByComparingTo("100.00");
+        Assertions.assertThat(completed.finishedMaterialAmount()).isEqualByComparingTo(issued.issuedAmount());
+        Assertions.assertThat(completed.finishedLaborAmount()).isEqualByComparingTo("300.00");
+        Assertions.assertThat(completed.finishedOverheadAmount()).isEqualByComparingTo("100.00");
+        Assertions.assertThat(completed.finishedAmount()).isEqualByComparingTo(
+                completed.finishedMaterialAmount().add(new BigDecimal("400.00"))
+        );
+        Assertions.assertThat(financeEntryCountBySourceType("PRODUCTION_COST_ENTRY", "2211", "credit_amount", new BigDecimal("300.00")))
+                .isEqualTo(1);
+        Assertions.assertThat(financeEntryCountBySourceType("PRODUCTION_COST_ENTRY", "5101", "credit_amount", new BigDecimal("100.00")))
+                .isEqualTo(1);
+
+        var latePayroll = productionCostEntryService.post(created.id(), new ProductionCostEntryRequest(
+                "LABOR", null, LocalDate.of(2026, 5, 23), new BigDecimal("20.00"), "late payroll adjustment"
+        ));
+        productionCostEntryService.correct(created.id(), latePayroll.id(), new ProductionCostEntryCorrectionRequest(
+                "LABOR", null, LocalDate.of(2026, 5, 23), new BigDecimal("30.00"),
+                "payroll adjustment corrected", "corrected late payroll adjustment"
+        ));
+        ProductionCostReportQuery completedQuery = new ProductionCostReportQuery();
+        completedQuery.setKeyword(completed.orderNo());
+        var completedReport = productionCostReportService.list(completedQuery).records().get(0);
+        Assertions.assertThat(completedReport.costStatus()).isEqualTo("COST_VARIANCE");
+        Assertions.assertThat(completedReport.workInProgressCost()).isEqualByComparingTo("30.00");
+        Assertions.assertThat(completedReport.reconciliationDifference()).isEqualByComparingTo("0.00");
+        Assertions.assertThat(financeEntryCountBySourceType(
+                "PRODUCTION_COST_ENTRY_REVERSAL", "2211", "debit_amount", new BigDecimal("20.00")
+        )).isEqualTo(1);
+
+        ProductionOrderResponse reversed = productionCompletionReversalService.reverseCompletion(
+                created.id(),
+                new ProductionCompletionReversalRequest(
+                        LocalDate.of(2026, 5, 24), new BigDecimal("5.0000"), "half reversal"
+                )
+        );
+        Map<String, Object> reversal = jdbcTemplate.queryForMap("""
+                select labor_cost_amount, overhead_cost_amount, reversed_amount
+                from prd_completion_reversal where order_id = ? order by id desc limit 1
+                """, created.id());
+        Assertions.assertThat((BigDecimal) reversal.get("LABOR_COST_AMOUNT")).isEqualByComparingTo("150.00");
+        Assertions.assertThat((BigDecimal) reversal.get("OVERHEAD_COST_AMOUNT")).isEqualByComparingTo("50.00");
+        Assertions.assertThat(reversed.finishedLaborAmount()).isEqualByComparingTo("150.00");
+        Assertions.assertThat(reversed.finishedOverheadAmount()).isEqualByComparingTo("50.00");
+
+        var reversedReport = productionCostReportService.list(completedQuery).records().get(0);
+        Assertions.assertThat(reversedReport.laborWorkInProgressCost()).isEqualByComparingTo("180.00");
+        Assertions.assertThat(reversedReport.overheadWorkInProgressCost()).isEqualByComparingTo("50.00");
+        Assertions.assertThat(reversedReport.productionCostLedgerAmount())
+                .isEqualByComparingTo(reversedReport.workInProgressCost());
+        Assertions.assertThat(reversedReport.reconciliationDifference()).isEqualByComparingTo("0.00");
+        Assertions.assertThat(reversedReport.costStatus()).isEqualTo("WIP");
     }
 
     @Test
@@ -633,6 +736,22 @@ class ProductionOrderServiceTest {
                   and e.subject_code = ?
                   and %s = ?
                 """.formatted(amountColumn), Integer.class, sourceType, sourceNo, subjectCode, amount);
+    }
+
+    private Integer financeEntryCountBySourceType(
+            String sourceType,
+            String subjectCode,
+            String amountColumn,
+            BigDecimal amount
+    ) {
+        return jdbcTemplate.queryForObject("""
+                select count(*)
+                from fin_voucher_entry e
+                join fin_voucher v on v.id = e.voucher_id
+                where v.source_type = ?
+                  and e.subject_code = ?
+                  and %s = ?
+                """.formatted(amountColumn), Integer.class, sourceType, subjectCode, amount);
     }
 
     private Integer rowCount(String table) {

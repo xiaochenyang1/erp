@@ -13,9 +13,13 @@ vi.mock('@/utils/request', () => ({
 }))
 
 import {
+  correctProductionOrderCost,
+  getProductionOrderCosts,
   getWorkCenters,
   getRouting,
-  getRoutings
+  getRoutings,
+  postProductionOrderCost,
+  reverseProductionOrderCost
 } from '@/api/production'
 
 beforeEach(() => {
@@ -66,5 +70,69 @@ describe('production API 归一化', () => {
     })
     const page = await getRoutings({ pageNo: 1, pageSize: 20 })
     expect(page.records[0].operations).toEqual([])
+  })
+
+  it('生产成本归集 API 保留 Long 精度并归一化金额', async () => {
+    get.mockResolvedValue([{
+      id: '9007199254740993',
+      costNo: 'PCE202611070001',
+      orderId: '9007199254740995',
+      operationId: '9007199254740997',
+      costType: 'LABOR',
+      businessDate: '2026-11-07',
+      amount: '123.45',
+      status: 'REVERSED',
+      entryKind: 'ORIGINAL',
+      reversalEntryId: '9007199254740999'
+    }])
+    const entries = await getProductionOrderCosts('9007199254740995')
+    expect(entries[0]).toMatchObject({
+      id: '9007199254740993',
+      orderId: '9007199254740995',
+      operationId: '9007199254740997',
+      amount: 123.45,
+      reversalEntryId: '9007199254740999'
+    })
+
+    post.mockResolvedValue({
+      id: 1, costNo: 'PCE1', orderId: 2, costType: 'OVERHEAD',
+      businessDate: '2026-11-07', amount: 20, status: 'POSTED'
+    })
+    const posted = await postProductionOrderCost(2, {
+      costType: 'OVERHEAD', businessDate: '2026-11-07', amount: 20
+    })
+    expect(post).toHaveBeenCalledWith('/production/orders/2/costs', {
+      costType: 'OVERHEAD', businessDate: '2026-11-07', amount: 20
+    })
+    expect(posted.orderId).toBe('2')
+
+    post.mockResolvedValue({
+      id: 3, costNo: 'PCE3', orderId: 2, costType: 'OVERHEAD',
+      businessDate: '2026-11-08', amount: -20, status: 'POSTED', entryKind: 'REVERSAL',
+      reversalOfEntryId: 1
+    })
+    const reversed = await reverseProductionOrderCost(2, 1, {
+      businessDate: '2026-11-08', reason: 'duplicate entry'
+    })
+    expect(post).toHaveBeenCalledWith('/production/orders/2/costs/1/reverse', {
+      businessDate: '2026-11-08', reason: 'duplicate entry'
+    })
+    expect(reversed.reversalOfEntryId).toBe('1')
+    expect(reversed.amount).toBe(-20)
+
+    post.mockResolvedValue({
+      id: 4, costNo: 'PCE4', orderId: 2, costType: 'LABOR',
+      businessDate: '2026-11-08', amount: 25, status: 'POSTED', entryKind: 'CORRECTION',
+      correctionOfEntryId: 1
+    })
+    const corrected = await correctProductionOrderCost(2, 1, {
+      costType: 'LABOR', businessDate: '2026-11-08', amount: 25,
+      reason: 'wrong amount', remark: 'replacement'
+    })
+    expect(post).toHaveBeenCalledWith('/production/orders/2/costs/1/correct', {
+      costType: 'LABOR', businessDate: '2026-11-08', amount: 25,
+      reason: 'wrong amount', remark: 'replacement'
+    })
+    expect(corrected.correctionOfEntryId).toBe('1')
   })
 })

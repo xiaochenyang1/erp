@@ -144,7 +144,12 @@ export interface ProductionOrder {
   plannedStartDate?: string
   plannedFinishDate?: string
   issuedAmount?: number
+  laborAmount?: number
+  overheadAmount?: number
   finishedAmount?: number
+  finishedMaterialAmount?: number
+  finishedLaborAmount?: number
+  finishedOverheadAmount?: number
   warehouseName?: string
   planStartDate: string
   planEndDate: string
@@ -366,6 +371,13 @@ const normalizeProductionOrder = (order: ProductionOrder): ProductionOrder => ({
   planStartDate: order.planStartDate ?? order.plannedStartDate ?? '',
   planEndDate: order.planEndDate ?? order.plannedFinishDate ?? '',
   priority: order.priority ?? 'NORMAL',
+  issuedAmount: Number(order.issuedAmount ?? 0),
+  laborAmount: Number(order.laborAmount ?? 0),
+  overheadAmount: Number(order.overheadAmount ?? 0),
+  finishedAmount: Number(order.finishedAmount ?? 0),
+  finishedMaterialAmount: Number(order.finishedMaterialAmount ?? 0),
+  finishedLaborAmount: Number(order.finishedLaborAmount ?? 0),
+  finishedOverheadAmount: Number(order.finishedOverheadAmount ?? 0),
   materials: (order.materials || []).map(normalizeProductionOrderMaterial)
 })
 
@@ -651,4 +663,95 @@ export const reportProductionOperation = (
   return request
     .post<ProductionOrderOperation>(`/production/orders/${orderId}/operations/${operationId}/report`, data)
     .then(normalizeOperation)
+}
+
+// ==================== 生产成本归集 ====================
+
+export type ProductionCostType = 'LABOR' | 'OVERHEAD'
+export type ProductionCostEntryKind = 'ORIGINAL' | 'REVERSAL' | 'CORRECTION'
+
+export interface ProductionCostEntry {
+  id: string | number
+  costNo: string
+  orderId: string | number
+  operationId?: string | number
+  costType: ProductionCostType
+  businessDate: string
+  amount: number
+  status: string
+  entryKind: ProductionCostEntryKind
+  reversalOfEntryId?: string | number
+  reversalOfCostNo?: string
+  correctionOfEntryId?: string | number
+  correctionOfCostNo?: string
+  reversalEntryId?: string | number
+  reversalCostNo?: string
+  correctionEntryId?: string | number
+  correctionCostNo?: string
+  remark?: string
+  createdTime?: string
+}
+
+export interface ProductionCostEntryRequest {
+  costType: ProductionCostType
+  operationId?: string | number
+  businessDate: string
+  amount: number
+  remark?: string
+}
+
+export interface ProductionCostEntryReversalRequest {
+  businessDate: string
+  reason: string
+}
+
+export interface ProductionCostEntryCorrectionRequest extends ProductionCostEntryRequest {
+  reason: string
+}
+
+const normalizeCostEntry = (entry: ProductionCostEntry): ProductionCostEntry => ({
+  ...entry,
+  id: String(entry.id),
+  orderId: String(entry.orderId),
+  operationId: entry.operationId != null ? String(entry.operationId) : undefined,
+  reversalOfEntryId: entry.reversalOfEntryId != null ? String(entry.reversalOfEntryId) : undefined,
+  correctionOfEntryId: entry.correctionOfEntryId != null ? String(entry.correctionOfEntryId) : undefined,
+  reversalEntryId: entry.reversalEntryId != null ? String(entry.reversalEntryId) : undefined,
+  correctionEntryId: entry.correctionEntryId != null ? String(entry.correctionEntryId) : undefined,
+  amount: Number(entry.amount ?? 0)
+})
+
+export const getProductionOrderCosts = (orderId: string | number) => {
+  return request
+    .get<ProductionCostEntry[]>(`/production/orders/${orderId}/costs`)
+    .then((list) => (list || []).map(normalizeCostEntry))
+}
+
+export const postProductionOrderCost = (
+  orderId: string | number,
+  data: ProductionCostEntryRequest
+) => {
+  return request
+    .post<ProductionCostEntry>(`/production/orders/${orderId}/costs`, data)
+    .then(normalizeCostEntry)
+}
+
+export const reverseProductionOrderCost = (
+  orderId: string | number,
+  costEntryId: string | number,
+  data: ProductionCostEntryReversalRequest
+) => {
+  return request
+    .post<ProductionCostEntry>(`/production/orders/${orderId}/costs/${costEntryId}/reverse`, data)
+    .then(normalizeCostEntry)
+}
+
+export const correctProductionOrderCost = (
+  orderId: string | number,
+  costEntryId: string | number,
+  data: ProductionCostEntryCorrectionRequest
+) => {
+  return request
+    .post<ProductionCostEntry>(`/production/orders/${orderId}/costs/${costEntryId}/correct`, data)
+    .then(normalizeCostEntry)
 }

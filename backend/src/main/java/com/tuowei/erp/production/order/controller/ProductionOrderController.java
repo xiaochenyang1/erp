@@ -5,6 +5,11 @@ import com.tuowei.erp.common.web.ApiResponse;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.production.completion.service.ProductionCompletionReversalService;
 import com.tuowei.erp.production.completion.service.ProductionCompletionService;
+import com.tuowei.erp.production.cost.service.ProductionCostEntryService;
+import com.tuowei.erp.production.cost.web.ProductionCostEntryCorrectionRequest;
+import com.tuowei.erp.production.cost.web.ProductionCostEntryRequest;
+import com.tuowei.erp.production.cost.web.ProductionCostEntryResponse;
+import com.tuowei.erp.production.cost.web.ProductionCostEntryReversalRequest;
 import com.tuowei.erp.production.issue.service.ProductionIssueService;
 import com.tuowei.erp.production.order.web.ProductionCompletionReversalRequest;
 import com.tuowei.erp.production.order.web.ProductionCompletionRequest;
@@ -39,6 +44,7 @@ public class ProductionOrderController {
     private final ProductionCompletionReversalService productionCompletionReversalService;
     private final ProductionReturnService productionReturnService;
     private final ProductionOperationService productionOperationService;
+    private final ProductionCostEntryService productionCostEntryService;
 
     public ProductionOrderController(
             ProductionOrderService productionOrderService,
@@ -46,7 +52,8 @@ public class ProductionOrderController {
             ProductionCompletionService productionCompletionService,
             ProductionCompletionReversalService productionCompletionReversalService,
             ProductionReturnService productionReturnService,
-            ProductionOperationService productionOperationService
+            ProductionOperationService productionOperationService,
+            ProductionCostEntryService productionCostEntryService
     ) {
         this.productionOrderService = productionOrderService;
         this.productionIssueService = productionIssueService;
@@ -54,6 +61,7 @@ public class ProductionOrderController {
         this.productionCompletionReversalService = productionCompletionReversalService;
         this.productionReturnService = productionReturnService;
         this.productionOperationService = productionOperationService;
+        this.productionCostEntryService = productionCostEntryService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_CREATE)
@@ -118,6 +126,41 @@ public class ProductionOrderController {
             @Valid @RequestBody ProductionOperationReportRequest request
     ) {
         return ApiResponse.success(productionOperationService.report(id, operationId, request));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_VIEW)
+    @GetMapping("/{id}/costs")
+    public ApiResponse<java.util.List<ProductionCostEntryResponse>> costs(@PathVariable Long id) {
+        return ApiResponse.success(productionCostEntryService.list(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_COST)
+    @PostMapping("/{id}/costs")
+    public ApiResponse<ProductionCostEntryResponse> postCost(
+            @PathVariable Long id,
+            @Valid @RequestBody ProductionCostEntryRequest request
+    ) {
+        return ApiResponse.success(productionCostEntryService.post(id, request));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_COST_REVERSE)
+    @PostMapping("/{id}/costs/{costEntryId}/reverse")
+    public ApiResponse<ProductionCostEntryResponse> reverseCost(
+            @PathVariable Long id,
+            @PathVariable Long costEntryId,
+            @Valid @RequestBody ProductionCostEntryReversalRequest request
+    ) {
+        return ApiResponse.success(productionCostEntryService.reverse(id, costEntryId, request));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_COST_REVERSE)
+    @PostMapping("/{id}/costs/{costEntryId}/correct")
+    public ApiResponse<ProductionCostEntryResponse> correctCost(
+            @PathVariable Long id,
+            @PathVariable Long costEntryId,
+            @Valid @RequestBody ProductionCostEntryCorrectionRequest request
+    ) {
+        return ApiResponse.success(productionCostEntryService.correct(id, costEntryId, request));
     }
 
     @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_COMPLETE)

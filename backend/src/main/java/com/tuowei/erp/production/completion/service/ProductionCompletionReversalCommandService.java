@@ -10,6 +10,8 @@ import com.tuowei.erp.inventory.stock.service.InventoryPostingCommand;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
 import com.tuowei.erp.production.completion.mapper.ProductionCompletionReversalMapper;
 import com.tuowei.erp.production.completion.model.ProductionCompletionReversalEntity;
+import com.tuowei.erp.production.cost.service.ProductionCostAllocation;
+import com.tuowei.erp.production.cost.service.ProductionCostAmounts;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
 import com.tuowei.erp.production.order.model.ProductionOrderEntity;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
@@ -86,16 +88,28 @@ public class ProductionCompletionReversalCommandService {
                 order.getFinishedWarehouseId(), order.getProductId(), BIZ_TYPE, reversal.getReversalNo(),
                 reversal.getId(), reversedQty, BigDecimal.ZERO, actionRemark, reversalDate),
                 audit, "成品库存不足，不能生产完工冲回");
-        reversal.setReversedAmount(ScalePrecision.amount(reversedAmount));
+        ProductionCostAmounts reversalCosts = ProductionCostAllocation.splitReversal(
+                reversedAmount,
+                order.getFinishedMaterialAmount(),
+                order.getFinishedLaborAmount(),
+                order.getFinishedOverheadAmount()
+        );
+        reversal.setReversedAmount(reversalCosts.total());
+        reversal.setMaterialCostAmount(reversalCosts.material());
+        reversal.setLaborCostAmount(reversalCosts.labor());
+        reversal.setOverheadCostAmount(reversalCosts.overhead());
         reversal.setUpdatedBy(audit.userId());
         reversal.setUpdatedTime(now);
         if (reversalMapper.updateById(reversal) != 1) throw new BusinessConflictException("生产反完工单已被其他操作修改，请重试");
 
         BigDecimal newCompletedQty = ScalePrecision.quantity(completedQty.subtract(reversedQty));
-        BigDecimal newFinishedAmount = ScalePrecision.amount(ScalePrecision.zeroDefault(order.getFinishedAmount()).subtract(reversedAmount));
-        if (newFinishedAmount.compareTo(BigDecimal.ZERO) < 0) newFinishedAmount = ScalePrecision.amount(BigDecimal.ZERO);
         order.setCompletedQty(newCompletedQty);
-        order.setFinishedAmount(newFinishedAmount);
+        order.setFinishedMaterialAmount(subtract(order.getFinishedMaterialAmount(), reversalCosts.material()));
+        order.setFinishedLaborAmount(subtract(order.getFinishedLaborAmount(), reversalCosts.labor()));
+        order.setFinishedOverheadAmount(subtract(order.getFinishedOverheadAmount(), reversalCosts.overhead()));
+        order.setFinishedAmount(ScalePrecision.amount(
+                order.getFinishedMaterialAmount().add(order.getFinishedLaborAmount()).add(order.getFinishedOverheadAmount())
+        ));
         order.setStatus(ProductionOrderService.STATUS_MATERIAL_ISSUED);
         order.setUpdatedBy(audit.userId());
         order.setUpdatedTime(now);
@@ -108,5 +122,9 @@ public class ProductionCompletionReversalCommandService {
     private void fillAudit(ProductionCompletionReversalEntity entity, AuditMetadata audit, LocalDateTime now) {
         entity.setCreatedBy(audit.userId()); entity.setCreatedTime(now);
         entity.setUpdatedBy(audit.userId()); entity.setUpdatedTime(now); entity.setVersion(0);
+    }
+
+    private BigDecimal subtract(BigDecimal left, BigDecimal right) {
+        return ScalePrecision.amount(ScalePrecision.zeroDefault(left).subtract(ScalePrecision.zeroDefault(right)));
     }
 }

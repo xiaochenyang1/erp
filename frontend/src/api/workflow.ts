@@ -338,8 +338,19 @@ export interface ProductionCostReportRow {
   completedQty: number
   completionRate: number
   materialCost: number
+  laborCost: number
+  overheadCost: number
+  totalInputCost: number
+  finishedMaterialCost: number
+  finishedLaborCost: number
+  finishedOverheadCost: number
   finishedGoodsCost: number
+  materialWorkInProgressCost: number
+  laborWorkInProgressCost: number
+  overheadWorkInProgressCost: number
   workInProgressCost: number
+  productionCostLedgerAmount: number
+  reconciliationDifference: number
   completionUnitCost: number
   costStatus: string
 }
@@ -438,7 +449,25 @@ const normalizeInventoryValuationReportRow = (row: InventoryValuationReportRow):
 const normalizeProductionCostReportRow = (row: ProductionCostReportRow): ProductionCostReportRow => ({
   ...row,
   orderId: String(row.orderId),
-  productId: String(row.productId)
+  productId: String(row.productId),
+  plannedQty: Number(row.plannedQty ?? 0),
+  completedQty: Number(row.completedQty ?? 0),
+  completionRate: Number(row.completionRate ?? 0),
+  materialCost: Number(row.materialCost ?? 0),
+  laborCost: Number(row.laborCost ?? 0),
+  overheadCost: Number(row.overheadCost ?? 0),
+  totalInputCost: Number(row.totalInputCost ?? 0),
+  finishedMaterialCost: Number(row.finishedMaterialCost ?? 0),
+  finishedLaborCost: Number(row.finishedLaborCost ?? 0),
+  finishedOverheadCost: Number(row.finishedOverheadCost ?? 0),
+  finishedGoodsCost: Number(row.finishedGoodsCost ?? 0),
+  materialWorkInProgressCost: Number(row.materialWorkInProgressCost ?? 0),
+  laborWorkInProgressCost: Number(row.laborWorkInProgressCost ?? 0),
+  overheadWorkInProgressCost: Number(row.overheadWorkInProgressCost ?? 0),
+  workInProgressCost: Number(row.workInProgressCost ?? 0),
+  productionCostLedgerAmount: Number(row.productionCostLedgerAmount ?? 0),
+  reconciliationDifference: Number(row.reconciliationDifference ?? 0),
+  completionUnitCost: Number(row.completionUnitCost ?? 0)
 })
 
 export const exportPurchaseOrderReport = (params: ReportQuery) => {

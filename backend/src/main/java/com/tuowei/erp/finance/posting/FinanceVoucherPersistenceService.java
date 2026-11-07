@@ -467,8 +467,10 @@ public class FinanceVoucherPersistenceService {
             case "1123" -> new SubjectDefinition("1123", "预付账款", "ASSET", "DEBIT");
             case "2202" -> new SubjectDefinition("2202", "应付账款", "LIABILITY", "CREDIT");
             case "2203" -> new SubjectDefinition("2203", "预收账款", "LIABILITY", "CREDIT");
+            case "2211" -> new SubjectDefinition("2211", "应付职工薪酬", "LIABILITY", "CREDIT");
             case "222101" -> new SubjectDefinition("222101", "应交税费-进项税额", "LIABILITY", "DEBIT");
             case "5001" -> new SubjectDefinition("5001", "生产成本", "ASSET", "DEBIT");
+            case "5101" -> new SubjectDefinition("5101", "制造费用", "EXPENSE", "DEBIT");
             case "6001" -> new SubjectDefinition("6001", "主营业务收入", "REVENUE", "CREDIT");
             case "6061" -> new SubjectDefinition("6061", "财务费用-汇兑损益", "EXPENSE", "DEBIT");
             case "6401" -> new SubjectDefinition("6401", "销售退回", "REVENUE", "DEBIT");

@@ -87,6 +87,8 @@ describe('report presentation', () => {
       .toBe('financeReportPages.reports.costStatusValue.balanced')
     expect(presentation.costStatusLabel('COST_VARIANCE'))
       .toBe('financeReportPages.reports.costStatusValue.costVariance')
+    expect(presentation.costStatusLabel('UNRECONCILED'))
+      .toBe('financeReportPages.reports.costStatusValue.unreconciled')
     expect(presentation.costStatusLabel('WIP'))
       .toBe('financeReportPages.reports.costStatusValue.wip')
     expect(presentation.costStatusLabel('NOT_POSTED'))
@@ -96,6 +98,7 @@ describe('report presentation', () => {
 
     expect(presentation.costStatusType('BALANCED')).toBe('success')
     expect(presentation.costStatusType('COST_VARIANCE')).toBe('warning')
+    expect(presentation.costStatusType('UNRECONCILED')).toBe('danger')
     expect(presentation.costStatusType('WIP')).toBe('primary')
     expect(presentation.costStatusType('NOT_POSTED')).toBe('info')
     expect(presentation.costStatusType()).toBe('info')

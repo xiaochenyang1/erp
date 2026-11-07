@@ -81,6 +81,7 @@ const reportStatusMessageKeys: Record<string, string> = {
 const costStatusMessageKeys: Record<string, string> = {
   BALANCED: 'financeReportPages.reports.costStatusValue.balanced',
   COST_VARIANCE: 'financeReportPages.reports.costStatusValue.costVariance',
+  UNRECONCILED: 'financeReportPages.reports.costStatusValue.unreconciled',
   WIP: 'financeReportPages.reports.costStatusValue.wip',
   NOT_POSTED: 'financeReportPages.reports.costStatusValue.notPosted'
 }
@@ -114,7 +115,7 @@ export const sumReportAmount = (records: ReportRecord[]) =>
     if ('amount' in row) return sum + Number(row.amount || 0)
     if ('remainingAmount' in row) return sum + Number(row.remainingAmount || 0)
     if ('closingAmount' in row) return sum + Number(row.closingAmount || 0)
-    if ('materialCost' in row) return sum + Number(row.materialCost || 0)
+    if ('totalInputCost' in row) return sum + Number(row.totalInputCost || 0)
     return sum
   }, 0)
 
@@ -185,9 +186,10 @@ export const useReportPresentation = (
     return key ? t(key) : status
   }
 
-  const costStatusType = (status?: string): 'success' | 'warning' | 'info' | 'primary' => {
+  const costStatusType = (status?: string): 'success' | 'warning' | 'danger' | 'info' | 'primary' => {
     if (status === 'BALANCED') return 'success'
     if (status === 'COST_VARIANCE') return 'warning'
+    if (status === 'UNRECONCILED') return 'danger'
     if (status === 'WIP') return 'primary'
     return 'info'
   }

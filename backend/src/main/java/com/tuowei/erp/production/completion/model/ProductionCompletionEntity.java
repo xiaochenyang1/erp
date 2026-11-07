@@ -20,6 +20,9 @@ public class ProductionCompletionEntity {
     private LocalDate completionDate;
     private BigDecimal completedQty;
     private BigDecimal completedAmount;
+    private BigDecimal materialCostAmount;
+    private BigDecimal laborCostAmount;
+    private BigDecimal overheadCostAmount;
     private String lotNo;
     private LocalDate productionDate;
     private LocalDate expiryDate;
@@ -49,6 +52,12 @@ public class ProductionCompletionEntity {
     public void setCompletedQty(BigDecimal completedQty) { this.completedQty = completedQty; }
     public BigDecimal getCompletedAmount() { return completedAmount; }
     public void setCompletedAmount(BigDecimal completedAmount) { this.completedAmount = completedAmount; }
+    public BigDecimal getMaterialCostAmount() { return materialCostAmount; }
+    public void setMaterialCostAmount(BigDecimal materialCostAmount) { this.materialCostAmount = materialCostAmount; }
+    public BigDecimal getLaborCostAmount() { return laborCostAmount; }
+    public void setLaborCostAmount(BigDecimal laborCostAmount) { this.laborCostAmount = laborCostAmount; }
+    public BigDecimal getOverheadCostAmount() { return overheadCostAmount; }
+    public void setOverheadCostAmount(BigDecimal overheadCostAmount) { this.overheadCostAmount = overheadCostAmount; }
     public String getLotNo() { return lotNo; }
     public void setLotNo(String lotNo) { this.lotNo = lotNo; }
     public LocalDate getProductionDate() { return productionDate; }

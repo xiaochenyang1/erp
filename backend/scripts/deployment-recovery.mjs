@@ -31,7 +31,7 @@ export const recoveryChecks = [
   'Create post-checkpoint changes and remove an original attachment',
   'Reject damaged and mismatched backups before target writes',
   'Restore the exact V168 database and attachment snapshot into fresh volumes',
-  'Upgrade the restored database to V170 using the accepted candidate',
+  'Upgrade the restored database to V172 using the accepted candidate',
   'Preserve historical inventory and configuration during migration',
   'Read restored documents and attachments and exclude later source changes',
   'Apply V169 approval rules to historical drafts and counted stock checks',
@@ -160,7 +160,7 @@ export function validateRecoveryReports({ evidenceDirectory, expectedRevision, e
   const upgrade = report.checks[6]
   assert.equal(upgrade.from, '168'); assert.equal(upgrade.to, targetSchema); assert.equal(upgrade.appliedOnce, true)
   assert.equal(upgrade.jarSha256, expectedJarSha256)
-  assert.deepEqual(upgrade.appliedVersions, ['169', '170'])
+  assert.deepEqual(upgrade.appliedVersions, ['169', '170', '171', '172'])
   const reads = report.checks[8]
   for (const key of ['postedPreserved', 'draftPreserved', 'cancelledPreserved', 'adjustedLinkPreserved', 'countedPreserved',
     'unicodeCustomerPreserved', 'originalAttachmentsRestored', 'laterRecordsAbsent']) assert.equal(reads[key], true)
@@ -192,7 +192,7 @@ export function validateRecoveryReports({ evidenceDirectory, expectedRevision, e
   assert.deepEqual(retained.stock, { quantity: 12, amount: 120, reserved: 0 })
   assert.deepEqual(retained.stockAfterRestart, retained.stock)
   const upgradedDatabase = read('database-upgraded-before-rollback.json'), upgradedAttachments = read('attachments-upgraded-before-rollback.json')
-  assert.equal(upgradedDatabase.tableCount, checkpoint.databaseSnapshot.tableCount)
+  assert.equal(upgradedDatabase.tableCount, checkpoint.databaseSnapshot.tableCount + 1)
   assert(sha256Pattern.test(upgradedDatabase.dataSha256) && upgradedDatabase.rowCounts?.length > 100)
   assert.notEqual(upgradedDatabase.dataSha256, checkpoint.databaseSnapshot.dataSha256)
   assert.equal(upgradedAttachments.kind, attachments.kind)
@@ -232,7 +232,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
   const report = { schemaVersion: 1, kind: 'erp-upgrade-recovery', status: 'RUNNING', startedAt: new Date().toISOString(),
     ...verified, runtimeToolRevision: revision, sourceRevision: legacyRevision, sourceJarSha256: legacy.jarSha256,
     legacyManifestSha256: expectedLegacyManifestSha256, project, privateDirectory: path.basename(directory), checks: [],
-    scope: 'Isolated V168 to V170 upgrade, joint DB/attachment recovery and fullstack V168 rollback using synthetic history; not production data acceptance' }
+    scope: 'Isolated V168 to V172 upgrade, joint DB/attachment recovery and fullstack V168 rollback using synthetic history; not production data acceptance' }
   let interrupted = false, configured = false, config, configuration, base, adminToken, fixture, beforeAttachments,
     sourceAfterDatabase, sourceAfterAttachments, baseline, inventoryBefore, settingsBefore, checkpoint,
     upgradedDatabase, upgradedAttachments, upgradedAttachment
@@ -504,11 +504,15 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       assert.equal(await schema('mysql-restore'), targetSchema)
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' AND success=1;"), '1')
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='170' AND success=1;"), '1')
+      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='171' AND success=1;"), '1')
+      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='172' AND success=1;"), '1')
+      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='prd_cost_entry';"), '1')
+      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='prd_cost_entry' AND column_name IN ('reversal_of_entry_id','correction_of_entry_id');"), '2')
       assert.equal(await sql('mysql-restore', 'SELECT COUNT(*) FROM flyway_schema_history WHERE success=0;'), '0')
       assert.equal(await sql('mysql-restore', 'SELECT COUNT(*) FROM flyway_schema_history WHERE CAST(version AS UNSIGNED)<=168;'),
         await sql('mysql', 'SELECT COUNT(*) FROM flyway_schema_history WHERE CAST(version AS UNSIGNED)<=168;'))
       report.targetImages = (await compose(['images', '--format', 'json'])).stdout
-      return { from: '168', to: targetSchema, appliedOnce: true, appliedVersions: ['169', '170'], jarSha256 }
+      return { from: '168', to: targetSchema, appliedOnce: true, appliedVersions: ['169', '170', '171', '172'], jarSha256 }
     })
     await check(7, async () => {
       const inventoryAfter = await snapshot('mysql-restore', inventoryTables)
@@ -545,6 +549,8 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       for (const attachment of [...beforeAttachments, upgradedAttachment]) await download(attachment)
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' AND success=1;"), '1')
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='170' AND success=1;"), '1')
+      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='171' AND success=1;"), '1')
+      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='172' AND success=1;"), '1')
       assert.deepEqual(await snapshot('mysql'), sourceAfterDatabase)
       assert.deepEqual(await attachmentSnapshot('/source'), sourceAfterAttachments)
       return { sourceDatabaseUnchanged: true, sourceAttachmentsUnchanged: true, newAttachmentWritable: true, restartPassed: true }

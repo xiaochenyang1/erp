@@ -5948,6 +5948,88 @@ async function runProductionOrderWorkflow(cdp, auth) {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production issue'))}`)
     })
 
+    const laborCostAmount = 25.5
+    await invokeButton(cdp, '成本归集', 'production cost collection button', orderRowExpression)
+    const costDialog = dialogExpression('生产成本归集')
+    await waitForPage(cdp, `Boolean(${costDialog})`, 'production cost collection dialog')
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.el-input-number input')`,
+      String(laborCostAmount),
+      'production labor cost amount input'
+    )
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.cost-entry-form .el-form-item:nth-child(5) input')`,
+      'UI smoke 生产人工成本',
+      'production labor cost remark input'
+    )
+    await invokeButton(cdp, '确认归集', 'production cost collection confirm button', costDialog)
+    const laborCostEntry = await waitForPage(cdp, `
+      (async () => {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/production/orders/' + ${JSON.stringify(order.id)} + '/costs', {
+          headers: token ? { Authorization: 'Bearer ' + token } : {}
+        });
+        if (!response.ok) return false;
+        const payload = await response.json();
+        const entry = (payload?.data || []).find((item) => item.costType === 'LABOR'
+          && Number(item.amount) === ${laborCostAmount}
+          && item.remark === 'UI smoke 生产人工成本');
+        return entry && ${costDialog}?.innerText.includes('25.50') ? entry : false;
+      })()
+    `, 'production labor cost collected', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production cost collection'))}`)
+    })
+
+    const correctedLaborCostAmount = 30.5
+    const laborCostRowExpression = `
+      [...${costDialog}.querySelectorAll('.el-table__body-wrapper tbody tr')]
+        .find((item) => visible(item) && item.innerText.includes(${JSON.stringify(laborCostEntry.costNo)}))
+    `
+    await invokeButton(cdp, '更正', 'production cost correction button', laborCostRowExpression)
+    const correctionDialog = dialogExpression('更正生产成本')
+    await waitForPage(cdp, `Boolean(${correctionDialog})`, 'production cost correction dialog')
+    await setElementValue(
+      cdp,
+      `${correctionDialog}.querySelector('.el-input-number input')`,
+      String(correctedLaborCostAmount),
+      'corrected production labor cost amount input'
+    )
+    await setElementValue(
+      cdp,
+      `${correctionDialog}.querySelector('textarea')`,
+      'UI smoke 人工成本金额更正',
+      'production cost correction reason input'
+    )
+    await invokeButton(cdp, '确认更正', 'production cost correction confirm button', correctionDialog)
+    await waitForPage(cdp, `
+      (async () => {
+        if (${correctionDialog}) return false;
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/production/orders/' + ${JSON.stringify(order.id)} + '/costs', {
+          headers: token ? { Authorization: 'Bearer ' + token } : {}
+        });
+        if (!response.ok) return false;
+        const payload = await response.json();
+        const entries = payload?.data || [];
+        const original = entries.find((item) => String(item.id) === ${JSON.stringify(String(laborCostEntry.id))});
+        const reversal = entries.find((item) => String(item.reversalOfEntryId) === ${JSON.stringify(String(laborCostEntry.id))});
+        const correction = entries.find((item) => String(item.correctionOfEntryId) === ${JSON.stringify(String(laborCostEntry.id))});
+        return Boolean(original?.status === 'REVERSED'
+          && reversal?.entryKind === 'REVERSAL'
+          && Number(reversal.amount) === -${laborCostAmount}
+          && correction?.entryKind === 'CORRECTION'
+          && Number(correction.amount) === ${correctedLaborCostAmount}
+          && ${costDialog}?.innerText.includes('-25.50')
+          && ${costDialog}?.innerText.includes('30.50'));
+      })()
+    `, 'production labor cost corrected', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production cost correction'))}`)
+    })
+    await invokeButton(cdp, '关闭', 'production cost collection close button', costDialog)
+    await waitForPage(cdp, `!${costDialog}`, 'production cost collection dialog closed')
+
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '完工')`,
@@ -6072,6 +6154,8 @@ async function runProductionOrderWorkflow(cdp, auth) {
           && String(detail.materialWarehouseId) === ${JSON.stringify(String(fixture.materialWarehouse.id))}
           && String(detail.finishedWarehouseId) === ${JSON.stringify(String(fixture.finishedWarehouse.id))}
           && Number(detail.completedQty) === ${fixture.plannedQty}
+          && Number(detail.laborAmount) === ${correctedLaborCostAmount}
+          && Number(detail.finishedLaborAmount) === ${correctedLaborCostAmount}
           && String(material?.materialProductId) === ${JSON.stringify(String(fixture.materialProduct.id))}
           && Number(material.issuedQty) === ${fixture.requiredMaterialQty}
           && Number(materialBalance?.qtyOnHand) === 10
@@ -6094,6 +6178,8 @@ async function runProductionOrderWorkflow(cdp, auth) {
     bomNo: fixture.bom.bomNo,
     materialWarehouse: fixture.materialWarehouse.warehouseName,
     finishedWarehouse: fixture.finishedWarehouse.warehouseName,
+    originalLaborCostAmount: 25.5,
+    laborCostAmount: 30.5,
     passed: failures.length === 0,
     failures
   }

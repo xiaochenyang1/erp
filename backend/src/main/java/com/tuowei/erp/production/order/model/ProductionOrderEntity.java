@@ -26,7 +26,12 @@ public class ProductionOrderEntity {
     private LocalDate plannedFinishDate;
     private String status;
     private BigDecimal issuedAmount;
+    private BigDecimal laborAmount;
+    private BigDecimal overheadAmount;
     private BigDecimal finishedAmount;
+    private BigDecimal finishedMaterialAmount;
+    private BigDecimal finishedLaborAmount;
+    private BigDecimal finishedOverheadAmount;
     private Integer deletedFlag;
     private String remark;
     private Long createdBy;
@@ -64,8 +69,18 @@ public class ProductionOrderEntity {
     public void setStatus(String status) { this.status = status; }
     public BigDecimal getIssuedAmount() { return issuedAmount; }
     public void setIssuedAmount(BigDecimal issuedAmount) { this.issuedAmount = issuedAmount; }
+    public BigDecimal getLaborAmount() { return laborAmount; }
+    public void setLaborAmount(BigDecimal laborAmount) { this.laborAmount = laborAmount; }
+    public BigDecimal getOverheadAmount() { return overheadAmount; }
+    public void setOverheadAmount(BigDecimal overheadAmount) { this.overheadAmount = overheadAmount; }
     public BigDecimal getFinishedAmount() { return finishedAmount; }
     public void setFinishedAmount(BigDecimal finishedAmount) { this.finishedAmount = finishedAmount; }
+    public BigDecimal getFinishedMaterialAmount() { return finishedMaterialAmount; }
+    public void setFinishedMaterialAmount(BigDecimal finishedMaterialAmount) { this.finishedMaterialAmount = finishedMaterialAmount; }
+    public BigDecimal getFinishedLaborAmount() { return finishedLaborAmount; }
+    public void setFinishedLaborAmount(BigDecimal finishedLaborAmount) { this.finishedLaborAmount = finishedLaborAmount; }
+    public BigDecimal getFinishedOverheadAmount() { return finishedOverheadAmount; }
+    public void setFinishedOverheadAmount(BigDecimal finishedOverheadAmount) { this.finishedOverheadAmount = finishedOverheadAmount; }
     public Integer getDeletedFlag() { return deletedFlag; }
     public void setDeletedFlag(Integer deletedFlag) { this.deletedFlag = deletedFlag; }
     public String getRemark() { return remark; }

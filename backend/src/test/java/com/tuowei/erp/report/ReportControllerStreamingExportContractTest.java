@@ -6,6 +6,7 @@ import com.tuowei.erp.report.service.ReportQueryService;
 import com.tuowei.erp.report.web.FinanceSettlementReportQuery;
 import com.tuowei.erp.report.web.InventoryBalanceReportQuery;
 import com.tuowei.erp.report.web.InventoryTransactionReportQuery;
+import com.tuowei.erp.report.web.ProductionCostReportQuery;
 import com.tuowei.erp.report.web.PurchaseOrderReportQuery;
 import com.tuowei.erp.report.web.SalesOrderReportQuery;
 import org.junit.jupiter.api.Test;
@@ -56,7 +57,8 @@ class ReportControllerStreamingExportContractTest {
                 new ExportEndpoint("exportSalesOrders", SalesOrderReportQuery.class),
                 new ExportEndpoint("exportInventoryBalances", InventoryBalanceReportQuery.class),
                 new ExportEndpoint("exportInventoryTransactions", InventoryTransactionReportQuery.class),
-                new ExportEndpoint("exportFinanceSettlements", FinanceSettlementReportQuery.class)
+                new ExportEndpoint("exportFinanceSettlements", FinanceSettlementReportQuery.class),
+                new ExportEndpoint("exportProductionCosts", ProductionCostReportQuery.class)
         );
     }
 

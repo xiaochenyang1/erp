@@ -23,6 +23,7 @@ final class H2MigrationTestSupport {
     private static final String SCHEDULER_LEASE_MIGRATION = "V156__exception_rule_scheduler_lease.sql";
     private static final String INVENTORY_SCHEMA_MIGRATION = "V19__inventory_operation_schema.sql";
     private static final String INVENTORY_APPROVAL_MIGRATION = "V169__inventory_adjustment_approval.sql";
+    private static final String PRODUCTION_COST_REVERSAL_MIGRATION = "V172__production_cost_entry_reversal.sql";
 
     private H2MigrationTestSupport() {
     }
@@ -50,6 +51,9 @@ final class H2MigrationTestSupport {
                 } else if (migration.getFileName().toString().equals(INVENTORY_APPROVAL_MIGRATION)) {
                     Files.writeString(target, Files.readString(migration, StandardCharsets.UTF_8)
                             .replace("DROP CHECK", "DROP CONSTRAINT"), StandardCharsets.UTF_8);
+                } else if (migration.getFileName().toString().equals(PRODUCTION_COST_REVERSAL_MIGRATION)) {
+                    Files.writeString(target, h2CompatibleProductionCostReversalMigration(migration),
+                            StandardCharsets.UTF_8);
                 } else if (migration.getFileName().toString().equals(WORKFLOW_SCHEMA_MIGRATION)) {
                     Files.writeString(target, h2CompatibleWorkflowSchemaMigration(migration), StandardCharsets.UTF_8);
                 } else if (migration.getFileName().toString().equals(OQC_MIGRATION)) {
@@ -140,5 +144,16 @@ final class H2MigrationTestSupport {
         String sql = Files.readString(migration, StandardCharsets.UTF_8).replace("\r\n", "\n");
         sql = sql.replaceAll("(?m)\\) AS new\\s*(?=ON DUPLICATE KEY UPDATE)", ")");
         return sql.replaceAll("\\bnew\\.([A-Za-z_][A-Za-z0-9_]*)", "VALUES($1)");
+    }
+
+    private static String h2CompatibleProductionCostReversalMigration(Path migration) throws Exception {
+        String sql = Files.readString(migration, StandardCharsets.UTF_8).replace("\r\n", "\n");
+        sql = sql.replace(
+                "ALTER TABLE prd_cost_entry\n"
+                        + "    ADD COLUMN reversal_of_entry_id BIGINT NULL AFTER status,\n"
+                        + "    ADD COLUMN correction_of_entry_id BIGINT NULL AFTER reversal_of_entry_id;",
+                "ALTER TABLE prd_cost_entry ADD COLUMN reversal_of_entry_id BIGINT NULL;\n\n"
+                        + "ALTER TABLE prd_cost_entry ADD COLUMN correction_of_entry_id BIGINT NULL;");
+        return sql.replace("DROP CHECK", "DROP CONSTRAINT");
     }
 }

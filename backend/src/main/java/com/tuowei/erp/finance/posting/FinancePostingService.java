@@ -219,6 +219,56 @@ public class FinancePostingService {
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
+    public void recordProductionCostEntry(
+            ProductionOrderEntity order,
+            Long sourceId,
+            String sourceNo,
+            String costType,
+            BigDecimal amount,
+            LocalDate bizDate,
+            AuditMetadata audit
+    ) {
+        boolean labor = "LABOR".equals(costType);
+        recordProductionVoucher(
+                "PRODUCTION_COST_ENTRY",
+                sourceId,
+                sourceNo,
+                amount,
+                bizDate,
+                labor ? "生产人工成本归集凭证" : "生产制造费用归集凭证",
+                "5001",
+                labor ? "2211" : "5101",
+                labor ? "生产人工成本归集" : "生产制造费用分配",
+                audit
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordProductionCostEntryReversal(
+            ProductionOrderEntity order,
+            Long sourceId,
+            String sourceNo,
+            String costType,
+            BigDecimal amount,
+            LocalDate bizDate,
+            AuditMetadata audit
+    ) {
+        boolean labor = "LABOR".equals(costType);
+        recordProductionVoucher(
+                "PRODUCTION_COST_ENTRY_REVERSAL",
+                sourceId,
+                sourceNo,
+                amount,
+                bizDate,
+                labor ? "生产人工成本归集冲销凭证" : "生产制造费用归集冲销凭证",
+                labor ? "2211" : "5101",
+                "5001",
+                labor ? "生产人工成本归集冲销" : "生产制造费用归集冲销",
+                audit
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
     public void recordProductionCompletionReversal(
             ProductionOrderEntity order,
             Long sourceId,

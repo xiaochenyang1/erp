@@ -88,7 +88,7 @@
         </el-table-column>
         <el-table-column prop="planStartDate" :label="t('productionOrder.plannedStart')" width="120" />
         <el-table-column prop="planEndDate" :label="t('productionOrder.plannedEnd')" width="120" />
-        <el-table-column :label="t('productionOrder.actions')" width="520" align="center" fixed="right">
+        <el-table-column :label="t('productionOrder.actions')" width="600" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="View" @click="handleView(row)">{{ t('productionOrder.view') }}</el-button>
             <el-button v-if="canViewAttachments" type="primary" link @click="openAttachments(row.id, row.orderNo)">{{ t('documentAttachment.entry') }}</el-button>
@@ -128,6 +128,15 @@
               @click="openOperations(row)"
             >
               {{ t('productionOrder.operationReport') }}
+            </el-button>
+            <el-button
+              v-if="row.status !== 'DRAFT' && row.status !== 'CANCELLED'"
+              v-permission="'production:order:cost'"
+              type="primary"
+              link
+              @click="openCosts(row)"
+            >
+              {{ t('productionOrder.costCollection') }}
             </el-button>
             <el-button
               v-if="row.status === 'MATERIAL_ISSUED' || row.status === 'IN_PROGRESS'"
@@ -365,6 +374,13 @@
         <el-descriptions-item :label="t('productionOrder.plannedEnd')">{{ viewData.planEndDate }}</el-descriptions-item>
         <el-descriptions-item :label="t('productionOrder.actualStart')">{{ viewData.actualStartDate || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="t('productionOrder.actualEnd')">{{ viewData.actualEndDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.materialCost')">{{ formatCostAmount(viewData.issuedAmount) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.laborCost')">{{ formatCostAmount(viewData.laborAmount) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.overheadCost')">{{ formatCostAmount(viewData.overheadAmount) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.finishedCost')">{{ formatCostAmount(viewData.finishedAmount) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.finishedMaterialCost')">{{ formatCostAmount(viewData.finishedMaterialAmount) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.finishedLaborCost')">{{ formatCostAmount(viewData.finishedLaborAmount) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('productionOrder.finishedOverheadCost')">{{ formatCostAmount(viewData.finishedOverheadAmount) }}</el-descriptions-item>
         <el-descriptions-item :label="t('productionOrder.createdBy')">{{ viewData.createdBy }}</el-descriptions-item>
         <el-descriptions-item :label="t('productionOrder.createdAt')">{{ formatLocalizedDateTime(viewData.createdAt) }}</el-descriptions-item>
         <el-descriptions-item :label="t('productionOrder.remark')" :span="2">{{ viewData.remark || '-' }}</el-descriptions-item>
@@ -810,6 +826,181 @@
       </template>
     </el-dialog>
 
+    <el-dialog
+      v-model="costDialogVisible"
+      :title="t('productionOrder.costTitle', { orderNo: costOrderNo })"
+      width="1180px"
+      destroy-on-close
+    >
+      <el-alert
+        v-if="costOrderStatus === 'COMPLETED'"
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="t('productionOrder.completedCostWarning')"
+        style="margin-bottom: 12px"
+      />
+      <el-form :model="costForm" inline class="cost-entry-form">
+        <el-form-item :label="t('productionOrder.costType')" required>
+          <el-select v-model="costForm.costType" style="width: 150px">
+            <el-option :label="t('productionOrder.costTypeValue.labor')" value="LABOR" />
+            <el-option :label="t('productionOrder.costTypeValue.overhead')" value="OVERHEAD" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('productionOrder.operationName')">
+          <el-select v-model="costForm.operationId" clearable :placeholder="t('productionOrder.orderLevelCost')" style="width: 190px">
+            <el-option
+              v-for="operation in costOperations"
+              :key="operation.id"
+              :label="`${operation.operationCode} ${operation.operationName}`"
+              :value="operation.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('productionOrder.costDate')" required>
+          <el-date-picker v-model="costForm.businessDate" type="date" value-format="YYYY-MM-DD" style="width: 145px" />
+        </el-form-item>
+        <el-form-item :label="t('productionOrder.costAmount')" required>
+          <el-input-number v-model="costForm.amount" :min="0.01" :precision="2" :controls="false" style="width: 140px" />
+        </el-form-item>
+        <el-form-item :label="t('productionOrder.remark')">
+          <el-input v-model="costForm.remark" clearable style="width: 210px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="costSubmitLoading" @click="submitCost">
+            {{ t('productionOrder.confirmCost') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+      <el-table v-loading="costLoading" :data="costEntries" border stripe>
+        <el-table-column prop="costNo" :label="t('productionOrder.costNo')" width="170" />
+        <el-table-column prop="businessDate" :label="t('productionOrder.costDate')" width="120" />
+        <el-table-column :label="t('productionOrder.costEntryKindLabel')" width="105">
+          <template #default="{ row }">{{ entryKindLabel(row) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.costEntryStatusLabel')" width="95">
+          <template #default="{ row }">{{ entryStatusLabel(row.status) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.costType')" width="120">
+          <template #default="{ row }">{{ costTypeLabel(row.costType) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.operationName')" min-width="160">
+          <template #default="{ row }">{{ operationLabel(row.operationId) }}</template>
+        </el-table-column>
+        <el-table-column prop="amount" :label="t('productionOrder.costAmount')" width="130" align="right">
+          <template #default="{ row }">{{ formatCostAmount(row.amount) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.costRelation')" min-width="170" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.reversalOfCostNo || row.correctionOfCostNo || row.reversalCostNo || row.correctionCostNo || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="remark" :label="t('productionOrder.remark')" min-width="180" show-overflow-tooltip />
+        <el-table-column :label="t('productionOrder.actions')" width="120" fixed="right">
+          <template #default="{ row }">
+            <template v-if="canReverseCost(row)">
+              <el-button
+                v-permission="'production:order:cost:reverse'"
+                link
+                type="warning"
+                @click="openCorrectCost(row)"
+              >
+                {{ t('productionOrder.correctCost') }}
+              </el-button>
+              <el-button
+                v-permission="'production:order:cost:reverse'"
+                link
+                type="danger"
+                @click="openReverseCost(row)"
+              >
+                {{ t('productionOrder.reverseCost') }}
+              </el-button>
+            </template>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="costDialogVisible = false">{{ t('productionOrder.close') }}</el-button>
+        <el-button type="primary" :loading="costLoading" @click="loadCosts">{{ t('productionOrder.refresh') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="costActionDialogVisible"
+      :title="t(costActionMode === 'REVERSE' ? 'productionOrder.costReverseTitle' : 'productionOrder.costCorrectTitle', { costNo: costActionEntry?.costNo || '' })"
+      width="620px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-alert
+        :title="t('productionOrder.costActionNotice')"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 16px"
+      />
+      <el-form :model="costActionForm" label-width="110px">
+        <el-form-item :label="t('productionOrder.costDate')" required>
+          <el-date-picker
+            v-model="costActionForm.businessDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <template v-if="costActionMode === 'CORRECT'">
+          <el-form-item :label="t('productionOrder.costType')" required>
+            <el-select v-model="costActionForm.costType" style="width: 100%">
+              <el-option :label="t('productionOrder.costTypeValue.labor')" value="LABOR" />
+              <el-option :label="t('productionOrder.costTypeValue.overhead')" value="OVERHEAD" />
+            </el-select>
+          </el-form-item>
+          <el-form-item :label="t('productionOrder.operationName')">
+            <el-select
+              v-model="costActionForm.operationId"
+              clearable
+              :placeholder="t('productionOrder.orderLevelCost')"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="operation in costOperations"
+                :key="operation.id"
+                :label="`${operation.operationCode} ${operation.operationName}`"
+                :value="operation.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item :label="t('productionOrder.costAmount')" required>
+            <el-input-number
+              v-model="costActionForm.amount"
+              :min="0.01"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+          <el-form-item :label="t('productionOrder.remark')">
+            <el-input v-model="costActionForm.remark" maxlength="255" show-word-limit />
+          </el-form-item>
+        </template>
+        <el-form-item :label="t('productionOrder.costActionReason')" required>
+          <el-input
+            v-model="costActionForm.reason"
+            type="textarea"
+            :rows="3"
+            maxlength="255"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="costActionDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
+        <el-button type="primary" :loading="costActionLoading" @click="submitCostAction">
+          {{ t(costActionMode === 'REVERSE' ? 'productionOrder.confirmCostReverse' : 'productionOrder.confirmCostCorrection') }}
+        </el-button>
+      </template>
+    </el-dialog>
+
     <DocumentAttachmentDialog
       v-model="attachmentVisible"
       business-type="PRODUCTION_ORDER"
@@ -838,7 +1029,11 @@ import {
   returnProductionMaterials,
   cancelProductionOrder,
   getProductionOrderOperations,
-  reportProductionOperation
+  reportProductionOperation,
+  getProductionOrderCosts,
+  postProductionOrderCost,
+  reverseProductionOrderCost,
+  correctProductionOrderCost
 } from '@/api/production'
 import { getProducts, getProduct, getWarehouses, getLocations } from '@/api/masterdata'
 import { getBOMs } from '@/api/production'
@@ -852,6 +1047,7 @@ import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentE
 import { useProductionOrderPresentation } from '@/composables/useProductionOrderPresentation'
 import { useProductionOrderProductControls } from '@/composables/useProductionOrderProductControls'
 import { useProductionOrderOperations } from '@/composables/useProductionOrderOperations'
+import { useProductionOrderCosts } from '@/composables/useProductionOrderCosts'
 import { useProductionOrderCompletion } from '@/composables/useProductionOrderCompletion'
 import { useProductionOrderMaterials } from '@/composables/useProductionOrderMaterials'
 import { useProductionOrderForm } from '@/composables/useProductionOrderForm'
@@ -938,6 +1134,43 @@ const {
   onWarning: (message) => ElMessage.warning(message)
 })
 const {
+  canReverseCost,
+  costActionDialogVisible,
+  costActionEntry,
+  costActionForm,
+  costActionLoading,
+  costActionMode,
+  costDialogVisible,
+  costEntries,
+  costForm,
+  costLoading,
+  costOperations,
+  costOrderNo,
+  costOrderStatus,
+  costSubmitLoading,
+  costTypeLabel,
+  entryKindLabel,
+  entryStatusLabel,
+  loadCosts,
+  openCorrectCost,
+  openCosts,
+  openReverseCost,
+  operationLabel,
+  submitCost,
+  submitCostAction
+} = useProductionOrderCosts(t, {
+  loadCosts: getProductionOrderCosts,
+  postCost: postProductionOrderCost,
+  reverseCost: reverseProductionOrderCost,
+  correctCost: correctProductionOrderCost,
+  loadOperations: getProductionOrderOperations,
+  formatBusinessDate,
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => loadData()
+})
+const {
   canReverseCompletion,
   completeDialogVisible,
   completeForm,
@@ -1014,6 +1247,8 @@ const {
   onCompleted: () => loadData()
 })
 
+const formatCostAmount = (value?: number) => Number(value || 0).toFixed(2)
+
 onMounted(async () => {
   await loadOptions()
   bomOptions.value = allBomOptions.value
@@ -1038,6 +1273,10 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.cost-entry-form {
+  margin-bottom: 8px;
 }
 
 .serial-progress {

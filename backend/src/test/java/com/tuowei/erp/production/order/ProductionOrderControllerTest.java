@@ -63,14 +63,15 @@ class ProductionOrderControllerTest {
                 delete from fin_voucher_entry
                 where voucher_id in (
                     select id from fin_voucher
-                    where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN')
+                    where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL')
                 )
                 """);
-        jdbcTemplate.update("delete from fin_voucher where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN')");
+        jdbcTemplate.update("delete from fin_voucher where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL')");
         jdbcTemplate.update("delete from inv_reservation_event where source_type = 'PRODUCTION_ORDER'");
         jdbcTemplate.update("delete from inv_reservation where source_type = 'PRODUCTION_ORDER'");
         jdbcTemplate.update("delete from inv_txn where biz_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN')");
         jdbcTemplate.update("delete from prd_completion_reversal");
+        jdbcTemplate.update("delete from prd_cost_entry");
         jdbcTemplate.update("delete from prd_return_line");
         jdbcTemplate.update("delete from prd_return");
         jdbcTemplate.update("delete from prd_completion");
@@ -91,7 +92,8 @@ class ProductionOrderControllerTest {
     @WithErpUser(authorities = {
             "production:bom:manage", "production:bom:view",
             "production:order:create", "production:order:view", "production:order:release",
-            "production:order:issue", "production:order:complete"
+            "production:order:issue", "production:order:complete", "production:order:cost",
+            "production:order:cost:reverse"
     })
     void createsReleasesIssuesAndCompletesOrderThroughHttpApi() throws Exception {
         long bomId = idOf(mockMvc.perform(post("/api/production/boms")
@@ -136,13 +138,97 @@ class ProductionOrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("MATERIAL_ISSUED"));
 
+        long laborCostId = idOf(mockMvc.perform(post("/api/production/orders/{id}/costs", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "costType": "LABOR",
+                                  "businessDate": "2026-05-20",
+                                  "amount": 25.12,
+                                  "remark": "controller labor"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.costType").value("LABOR"))
+                .andExpect(jsonPath("$.data.amount").value(25.12))
+                .andReturn());
+
+        mockMvc.perform(post("/api/production/orders/{id}/costs", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "costType": "OVERHEAD",
+                                  "businessDate": "2026-05-20",
+                                  "amount": 10.00,
+                                  "remark": "controller overhead"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.costType").value("OVERHEAD"))
+                .andExpect(jsonPath("$.data.amount").value(10.00));
+
+        mockMvc.perform(post("/api/production/orders/{id}/costs/{costEntryId}/correct", orderId, laborCostId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "costType": "LABOR",
+                                  "businessDate": "2026-05-20",
+                                  "amount": 30.00,
+                                  "reason": "controller correction",
+                                  "remark": "corrected controller labor"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entryKind").value("CORRECTION"))
+                .andExpect(jsonPath("$.data.correctionOfEntryId").value(String.valueOf(laborCostId)))
+                .andExpect(jsonPath("$.data.amount").value(30.00));
+
+        mockMvc.perform(get("/api/production/orders/{id}/costs", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(4));
+
         mockMvc.perform(post("/api/production/orders/{id}/complete", orderId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.laborAmount").value(30.00))
+                .andExpect(jsonPath("$.data.overheadAmount").value(10.00))
+                .andExpect(jsonPath("$.data.finishedLaborAmount").value(30.00))
+                .andExpect(jsonPath("$.data.finishedOverheadAmount").value(10.00));
 
         mockMvc.perform(get("/api/production/orders/{id}", orderId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.finishedLaborAmount").value(30.00))
+                .andExpect(jsonPath("$.data.finishedOverheadAmount").value(10.00));
+
+        assertThat(rowCount("prd_cost_entry", orderId)).isEqualTo(4);
+        assertThat(rowCount("fin_voucher", "PRODUCTION_COST_ENTRY")).isEqualTo(3);
+        assertThat(rowCount("fin_voucher", "PRODUCTION_COST_ENTRY_REVERSAL")).isEqualTo(1);
+    }
+
+    @Test
+    @WithErpUser(authorities = {"production:order:view"})
+    void postCostRequiresCostPermission() throws Exception {
+        mockMvc.perform(post("/api/production/orders/{id}/costs", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "costType": "LABOR",
+                                  "businessDate": "2026-05-20",
+                                  "amount": 1.00
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/production/orders/{id}/costs/{costEntryId}/reverse", 1L, 2L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "businessDate": "2026-05-20",
+                                  "reason": "forbidden reversal"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
     }
 
     @Test
