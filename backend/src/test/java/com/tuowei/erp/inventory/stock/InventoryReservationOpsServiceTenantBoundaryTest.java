@@ -18,7 +18,9 @@ import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryReservationEventEntity;
 import com.tuowei.erp.inventory.stock.service.InventoryPostingService;
+import com.tuowei.erp.inventory.stock.service.InventoryReservationCheckService;
 import com.tuowei.erp.inventory.stock.service.InventoryReservationOpsService;
+import com.tuowei.erp.inventory.stock.service.InventoryReservationQueryService;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationCheckQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationCheckIssueResponse;
 import com.tuowei.erp.inventory.stock.web.InventoryReservationManualReleaseRequest;
@@ -381,18 +383,27 @@ class InventoryReservationOpsServiceTenantBoundaryTest {
 
     private InventoryReservationOpsService service() {
         return new InventoryReservationOpsService(
-                reservationMapper,
-                reservationEventMapper,
-                balanceMapper,
-                salesOrderMapper,
-                salesOrderLineMapper,
                 salesDeliveryMapper,
                 salesDeliveryLineMapper,
                 inventoryPostingService,
                 auditMetadataFactory,
                 currentUserContext,
-                dataScopeService,
-                systemLogService
+                systemLogService,
+                new InventoryReservationQueryService(
+                        reservationMapper,
+                        reservationEventMapper,
+                        balanceMapper,
+                        currentUserContext,
+                        dataScopeService
+                ),
+                new InventoryReservationCheckService(
+                        reservationMapper,
+                        balanceMapper,
+                        salesOrderMapper,
+                        salesOrderLineMapper,
+                        currentUserContext,
+                        dataScopeService
+                )
         );
     }
 

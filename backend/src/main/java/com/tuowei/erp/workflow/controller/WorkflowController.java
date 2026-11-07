@@ -99,7 +99,7 @@ public class WorkflowController {
             @Valid @RequestBody(required = false) WorkflowWithdrawRequest request
     ) {
         WorkflowWithdrawRequest safeRequest = request == null ? new WorkflowWithdrawRequest(null) : request;
-        workflowService.withdraw(businessType, businessId, safeRequest.comment());
+        workflowTaskActionService.withdraw(businessType, businessId, safeRequest.comment());
         return ApiResponse.success(null);
     }
 }

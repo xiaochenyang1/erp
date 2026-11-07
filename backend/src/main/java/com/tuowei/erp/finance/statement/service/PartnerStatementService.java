@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.service.BaseCurrencyService;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.payment.mapper.PaymentMapper;
@@ -39,6 +41,8 @@ public class PartnerStatementService {
     private final CustomerMapper customerMapper;
     private final SupplierMapper supplierMapper;
     private final AuditMetadataFactory auditMetadataFactory;
+    private final PartnerStatementSettlementService settlementService;
+    private final BaseCurrencyService baseCurrencyService;
 
     public PartnerStatementService(
             ReceivableMapper receivableMapper,
@@ -47,7 +51,9 @@ public class PartnerStatementService {
             PaymentMapper paymentMapper,
             CustomerMapper customerMapper,
             SupplierMapper supplierMapper,
-            AuditMetadataFactory auditMetadataFactory
+            AuditMetadataFactory auditMetadataFactory,
+            PartnerStatementSettlementService settlementService,
+            BaseCurrencyService baseCurrencyService
     ) {
         this.receivableMapper = receivableMapper;
         this.payableMapper = payableMapper;
@@ -56,6 +62,8 @@ public class PartnerStatementService {
         this.customerMapper = customerMapper;
         this.supplierMapper = supplierMapper;
         this.auditMetadataFactory = auditMetadataFactory;
+        this.settlementService = settlementService;
+        this.baseCurrencyService = baseCurrencyService;
     }
 
     @Transactional(readOnly = true)
@@ -77,70 +85,101 @@ public class PartnerStatementService {
     private PartnerStatementResponse customerStatement(Long customerId, LocalDate dateFrom, LocalDate dateTo) {
         AuditMetadata audit = auditMetadataFactory.current();
         CustomerEntity customer = customerMapper.selectById(customerId);
-        if (customer == null || !Objects.equals(customer.getCompanyId(), audit.companyId())) {
+        if (customer == null
+                || customer.getDeletedFlag() == null
+                || customer.getDeletedFlag() != 0
+                || !Objects.equals(customer.getCompanyId(), audit.companyId())
+                || !Objects.equals(customer.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("客户不存在");
         }
         List<RawLine> all = new ArrayList<>();
-        for (ReceivableEntity r : receivableMapper.selectList(new LambdaQueryWrapper<ReceivableEntity>()
+        List<ReceivableEntity> receivables = receivableMapper.selectList(new LambdaQueryWrapper<ReceivableEntity>()
                 .eq(ReceivableEntity::getCompanyId, audit.companyId())
                 .eq(ReceivableEntity::getAccountBookId, audit.accountBookId())
                 .eq(ReceivableEntity::getCustomerId, customerId)
                 .eq(ReceivableEntity::getDeletedFlag, 0)
-                .ne(ReceivableEntity::getStatus, "CANCELLED"))) {
+                .ne(ReceivableEntity::getStatus, "CANCELLED"));
+        for (ReceivableEntity r : receivables) {
             if (r.getBizDate() == null) continue;
             BigDecimal amt = signedAr(r);
             if (amt.compareTo(BigDecimal.ZERO) == 0) continue;
             all.add(new RawLine(r.getBizDate(), "RECEIVABLE", r.getReceivableNo(),
                     amt.signum() >= 0 ? "INCREASE" : "DECREASE", amt.abs(), r.getRemark()));
         }
-        for (ReceiptEntity r : receiptMapper.selectList(new LambdaQueryWrapper<ReceiptEntity>()
+        List<ReceiptEntity> receipts = receiptMapper.selectList(new LambdaQueryWrapper<ReceiptEntity>()
                 .eq(ReceiptEntity::getCompanyId, audit.companyId())
                 .eq(ReceiptEntity::getAccountBookId, audit.accountBookId())
                 .eq(ReceiptEntity::getCustomerId, customerId)
-                .eq(ReceiptEntity::getStatus, "POSTED"))) {
+                .eq(ReceiptEntity::getDeletedFlag, 0)
+                .eq(ReceiptEntity::getStatus, "POSTED")
+                .le(ReceiptEntity::getReceiptDate, dateTo));
+        var adjustments = settlementService.receipts(receipts, receivables, audit);
+        for (ReceiptEntity r : receipts) {
             if (r.getReceiptDate() == null) continue;
-            BigDecimal amt = ScalePrecision.amount(ScalePrecision.zeroDefault(r.getAmount()));
-            if (amt.compareTo(BigDecimal.ZERO) <= 0) continue;
-            all.add(new RawLine(r.getReceiptDate(), "RECEIPT", r.getReceiptNo(), "DECREASE", amt, r.getRemark()));
+            BigDecimal amt = CurrencyAmountSupport.baseAmountOrFallback(
+                    r.getBaseAmount(), r.getAmount(), r.getExchangeRate());
+            addSettlement(all, r.getReceiptDate(), "RECEIPT", r.getReceiptNo(), amt, r.getRemark(), adjustments.get(r.getId()));
         }
-        return build("CUSTOMER", customerId, customer.getCustomerName(), dateFrom, dateTo, all);
+        return build("CUSTOMER", customerId, customer.getCustomerName(), dateFrom, dateTo, all, audit);
     }
 
     private PartnerStatementResponse supplierStatement(Long supplierId, LocalDate dateFrom, LocalDate dateTo) {
         AuditMetadata audit = auditMetadataFactory.current();
         SupplierEntity supplier = supplierMapper.selectById(supplierId);
-        if (supplier == null || !Objects.equals(supplier.getCompanyId(), audit.companyId())) {
+        if (supplier == null
+                || supplier.getDeletedFlag() == null
+                || supplier.getDeletedFlag() != 0
+                || !Objects.equals(supplier.getCompanyId(), audit.companyId())
+                || !Objects.equals(supplier.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("供应商不存在");
         }
         List<RawLine> all = new ArrayList<>();
-        for (PayableEntity p : payableMapper.selectList(new LambdaQueryWrapper<PayableEntity>()
+        List<PayableEntity> payables = payableMapper.selectList(new LambdaQueryWrapper<PayableEntity>()
                 .eq(PayableEntity::getCompanyId, audit.companyId())
                 .eq(PayableEntity::getAccountBookId, audit.accountBookId())
                 .eq(PayableEntity::getSupplierId, supplierId)
                 .eq(PayableEntity::getDeletedFlag, 0)
-                .ne(PayableEntity::getStatus, "CANCELLED"))) {
+                .ne(PayableEntity::getStatus, "CANCELLED"));
+        for (PayableEntity p : payables) {
             if (p.getBizDate() == null) continue;
             BigDecimal amt = signedAp(p);
             if (amt.compareTo(BigDecimal.ZERO) == 0) continue;
             all.add(new RawLine(p.getBizDate(), "PAYABLE", p.getPayableNo(),
                     amt.signum() >= 0 ? "INCREASE" : "DECREASE", amt.abs(), p.getRemark()));
         }
-        for (PaymentEntity p : paymentMapper.selectList(new LambdaQueryWrapper<PaymentEntity>()
+        List<PaymentEntity> payments = paymentMapper.selectList(new LambdaQueryWrapper<PaymentEntity>()
                 .eq(PaymentEntity::getCompanyId, audit.companyId())
                 .eq(PaymentEntity::getAccountBookId, audit.accountBookId())
                 .eq(PaymentEntity::getSupplierId, supplierId)
-                .eq(PaymentEntity::getStatus, "POSTED"))) {
+                .eq(PaymentEntity::getDeletedFlag, 0)
+                .eq(PaymentEntity::getStatus, "POSTED")
+                .le(PaymentEntity::getPaymentDate, dateTo));
+        var adjustments = settlementService.payments(payments, payables, audit);
+        for (PaymentEntity p : payments) {
             if (p.getPaymentDate() == null) continue;
-            BigDecimal amt = ScalePrecision.amount(ScalePrecision.zeroDefault(p.getAmount()));
-            if (amt.compareTo(BigDecimal.ZERO) <= 0) continue;
-            all.add(new RawLine(p.getPaymentDate(), "PAYMENT", p.getPaymentNo(), "DECREASE", amt, p.getRemark()));
+            BigDecimal amt = CurrencyAmountSupport.baseAmountOrFallback(
+                    p.getBaseAmount(), p.getAmount(), p.getExchangeRate());
+            addSettlement(all, p.getPaymentDate(), "PAYMENT", p.getPaymentNo(), amt, p.getRemark(), adjustments.get(p.getId()));
         }
-        return build("SUPPLIER", supplierId, supplier.getSupplierName(), dateFrom, dateTo, all);
+        return build("SUPPLIER", supplierId, supplier.getSupplierName(), dateFrom, dateTo, all, audit);
+    }
+
+    private void addSettlement(List<RawLine> lines, LocalDate date, String type, String number, BigDecimal cash,
+                               String remark, PartnerStatementSettlementService.Adjustment adjustment) {
+        lines.add(new RawLine(date, type, number, "DECREASE", cash, remark));
+        addAdjustment(lines, date, number, "FX_ADJUSTMENT", adjustment.fxAmount());
+        addAdjustment(lines, date, number, "ROUNDING_ADJUSTMENT", adjustment.roundingAmount());
+    }
+
+    private void addAdjustment(List<RawLine> lines, LocalDate date, String number, String type, BigDecimal signed) {
+        if (signed.signum() != 0) {
+            lines.add(new RawLine(date, type, number, signed.signum() > 0 ? "INCREASE" : "DECREASE", signed.abs(), null));
+        }
     }
 
     private PartnerStatementResponse build(
             String partnerType, Long partnerId, String partnerName,
-            LocalDate dateFrom, LocalDate dateTo, List<RawLine> all
+            LocalDate dateFrom, LocalDate dateTo, List<RawLine> all, AuditMetadata audit
     ) {
         all.sort(Comparator.comparing(RawLine::date).thenComparing(RawLine::docNo, Comparator.nullsLast(String::compareTo)));
         BigDecimal opening = BigDecimal.ZERO;
@@ -174,18 +213,21 @@ public class PartnerStatementService {
         }
         return new PartnerStatementResponse(
                 partnerType, partnerId, partnerName, dateFrom, dateTo,
-                opening, ScalePrecision.amount(inc), ScalePrecision.amount(dec), running, periodLines
+                opening, ScalePrecision.amount(inc), ScalePrecision.amount(dec), running, periodLines,
+                baseCurrencyService.current(audit)
         );
     }
 
     private BigDecimal signedAr(ReceivableEntity r) {
-        BigDecimal original = ScalePrecision.zeroDefault(r.getOriginalAmount());
-        return "DECREASE".equalsIgnoreCase(String.valueOf(r.getDirection())) ? original.negate() : original;
+        BigDecimal base = CurrencyAmountSupport.baseAmountOrFallback(
+                r.getBaseOriginalAmount(), r.getOriginalAmount(), r.getExchangeRate());
+        return "DECREASE".equalsIgnoreCase(String.valueOf(r.getDirection())) ? base.negate() : base;
     }
 
     private BigDecimal signedAp(PayableEntity p) {
-        BigDecimal original = ScalePrecision.zeroDefault(p.getOriginalAmount());
-        return "DECREASE".equalsIgnoreCase(String.valueOf(p.getDirection())) ? original.negate() : original;
+        BigDecimal base = CurrencyAmountSupport.baseAmountOrFallback(
+                p.getBaseOriginalAmount(), p.getOriginalAmount(), p.getExchangeRate());
+        return "DECREASE".equalsIgnoreCase(String.valueOf(p.getDirection())) ? base.negate() : base;
     }
 
     private record RawLine(LocalDate date, String docType, String docNo, String direction, BigDecimal amount, String remark) {

@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 
+import { i18n, setI18nLocale } from '@/i18n'
 import BarcodeScanField from './BarcodeScanField.vue'
 
 const originalMediaDevices = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices')
 
 afterEach(() => {
+  setI18nLocale('zh-CN')
   vi.unstubAllGlobals()
   if (originalMediaDevices) {
     Object.defineProperty(navigator, 'mediaDevices', originalMediaDevices)
@@ -19,7 +21,7 @@ afterEach(() => {
 const mountField = () => mount(BarcodeScanField, {
   attachTo: document.body,
   global: {
-    plugins: [ElementPlus]
+    plugins: [ElementPlus, i18n]
   }
 })
 
@@ -67,9 +69,9 @@ describe('BarcodeScanField', () => {
     vi.stubGlobal('BarcodeDetector', undefined)
     const wrapper = mountField()
 
-    await wrapper.find('[aria-label="打开摄像头扫码"]').trigger('click')
+    await wrapper.find(`[aria-label="${i18n.global.t('barcodeScan.openCamera')}"]`).trigger('click')
 
-    expect(wrapper.text()).toContain('当前浏览器不支持摄像头识码')
+    expect(wrapper.text()).toContain(i18n.global.t('barcodeScan.unsupported'))
     expect(wrapper.find('input').attributes('disabled')).toBeUndefined()
     expect(wrapper.emitted('cameraState')).toEqual([['unsupported']])
   })
@@ -78,7 +80,7 @@ describe('BarcodeScanField', () => {
     const { getUserMedia } = installCamera(vi.fn().mockResolvedValueOnce([{ rawValue: 'CAMERA-6901' }]))
     const wrapper = mountField()
 
-    await wrapper.find('[aria-label="打开摄像头扫码"]').trigger('click')
+    await wrapper.find(`[aria-label="${i18n.global.t('barcodeScan.openCamera')}"]`).trigger('click')
     await flushPromises()
 
     expect(getUserMedia).toHaveBeenCalledOnce()
@@ -95,12 +97,23 @@ describe('BarcodeScanField', () => {
     const { stop, getUserMedia } = installCamera(() => new Promise(() => {}))
     const wrapper = mountField()
 
-    await wrapper.find('[aria-label="打开摄像头扫码"]').trigger('click')
+    await wrapper.find(`[aria-label="${i18n.global.t('barcodeScan.openCamera')}"]`).trigger('click')
     await flushPromises()
     expect(getUserMedia).toHaveBeenCalledOnce()
 
     wrapper.unmount()
 
     expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it('renders scanner guidance in the active locale', async () => {
+    setI18nLocale('en-US')
+    vi.stubGlobal('BarcodeDetector', undefined)
+    const wrapper = mountField()
+
+    expect(wrapper.find('input').attributes('placeholder')).toBe('Scan or enter a product barcode')
+    await wrapper.find('[aria-label="Open camera scanner"]').trigger('click')
+
+    expect(wrapper.text()).toContain('Camera barcode scanning is unavailable in this browser.')
   })
 })

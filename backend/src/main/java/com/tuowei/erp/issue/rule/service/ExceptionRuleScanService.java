@@ -2,6 +2,7 @@ package com.tuowei.erp.issue.rule.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -21,6 +22,7 @@ import com.tuowei.erp.issue.web.ExceptionTicketCreateRequest;
 import com.tuowei.erp.issue.web.ExceptionTicketResponse;
 import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,12 +85,12 @@ public class ExceptionRuleScanService {
         this.clock = clock;
     }
 
-    @Transactional(propagation = Propagation.REQUIRED)
+    @Transactional(propagation = Propagation.REQUIRED, noRollbackFor = DuplicateKeyException.class)
     public ExceptionRuleScanResultResponse scanRule(ExceptionRuleEntity rule, AuditMetadata audit) {
         return executeScan(rule, audit);
     }
 
-    @Transactional(propagation = Propagation.REQUIRED)
+    @Transactional(propagation = Propagation.REQUIRED, noRollbackFor = DuplicateKeyException.class)
     public List<ExceptionRuleScanResultResponse> scanRules(
             List<ExceptionRuleEntity> rules,
             AuditMetadata audit
@@ -96,11 +98,32 @@ public class ExceptionRuleScanService {
         return rules.stream().map(rule -> executeScan(rule, audit)).toList();
     }
 
-    @Transactional(propagation = Propagation.REQUIRED)
+    @Transactional(propagation = Propagation.REQUIRED, noRollbackFor = DuplicateKeyException.class)
     public List<ExceptionRuleScanResultResponse> scanDueRules() {
         LocalDateTime now = LocalDateTime.now(clock);
         return ruleMapper.selectDueRulesForScheduler(now).stream()
                 .map(rule -> executeScan(rule, schedulerAudit(rule, now)))
+                .toList();
+    }
+
+    /**
+     * Scans due rules for one scheduler scope.  The scheduler installs the
+     * matching principal before invoking this method; the explicit scope
+     * predicates remain important because TenantLine only contributes the
+     * company predicate and does not know about account books.
+     */
+    @Transactional(propagation = Propagation.REQUIRED, noRollbackFor = DuplicateKeyException.class)
+    public List<ExceptionRuleScanResultResponse> scanDueRulesForScope(
+            Long companyId,
+            Long accountBookId,
+            LocalDateTime now
+    ) {
+        if (companyId == null || accountBookId == null) {
+            return List.of();
+        }
+        LocalDateTime effectiveNow = now == null ? LocalDateTime.now(clock) : now;
+        return ruleMapper.selectDueRulesForSchedulerScope(effectiveNow, companyId, accountBookId).stream()
+                .map(rule -> executeScan(rule, schedulerAudit(rule, effectiveNow)))
                 .toList();
     }
 
@@ -111,9 +134,19 @@ public class ExceptionRuleScanService {
             int ticketCreatedCount = 0;
             int duplicateTicketCount = 0;
             for (ExceptionRuleFinding finding : findings) {
-                ExceptionTicketEntity activeTicket = findActiveTicket(audit, finding);
-                Long ticketId;
-                if (activeTicket == null) {
+                // Claim the unique hit row before looking for or creating a
+                // ticket.  A locking read alone cannot protect the no-row
+                // case; the unique insert makes the database arbitrate which
+                // concurrent scan owns this finding.
+                HitClaim claim = ensureHit(rule, finding, audit, scannedAt);
+                ExceptionRuleHitEntity hit = claim.hit();
+                ExceptionTicketEntity activeTicket = findLinkedActiveTicket(hit, audit);
+                Long ticketId = activeTicket == null ? null : activeTicket.getId();
+                if (ticketId == null) {
+                    activeTicket = findActiveTicket(audit, finding);
+                    ticketId = activeTicket == null ? null : activeTicket.getId();
+                }
+                if (ticketId == null) {
                     ExceptionTicketResponse ticket = ticketService.create(
                             toTicketRequest(rule, finding, audit, scannedAt),
                             audit
@@ -124,7 +157,7 @@ public class ExceptionRuleScanService {
                     ticketId = activeTicket.getId();
                     duplicateTicketCount++;
                 }
-                upsertHit(rule, finding, ticketId, audit, scannedAt);
+                attachTicketToHit(hit, ticketId, finding, audit, scannedAt, claim.inserted());
             }
             markScan(rule, SCAN_SUCCESS, findings.size(), ticketCreatedCount, null, audit, scannedAt);
             return new ExceptionRuleScanResultResponse(
@@ -201,8 +234,7 @@ public class ExceptionRuleScanService {
                         .in(ReceivableEntity::getStatus, List.of("UNSETTLED", "PARTIALLY_SETTLED"))
                         .le(ReceivableEntity::getBizDate, cutoff))
                 .stream()
-                .filter(item -> remaining(item.getOriginalAmount(), item.getSettledAmount())
-                        .compareTo(BigDecimal.ZERO) > 0)
+                .filter(item -> receivableRemaining(item).compareTo(BigDecimal.ZERO) > 0)
                 .map(item -> toReceivableFinding(item, thresholdDays, audit.now().toLocalDate()))
                 .toList();
     }
@@ -213,7 +245,7 @@ public class ExceptionRuleScanService {
             LocalDate today
     ) {
         long overdueDays = item.getBizDate() == null ? 0 : ChronoUnit.DAYS.between(item.getBizDate(), today);
-        BigDecimal remainingAmount = remaining(item.getOriginalAmount(), item.getSettledAmount());
+        BigDecimal remainingAmount = receivableRemaining(item);
         String sourceNo = firstText(item.getReceivableNo(), item.getSourceNo(), String.valueOf(item.getId()));
         return new ExceptionRuleFinding(
                 RULE_RECEIVABLE_OVERDUE,
@@ -238,15 +270,14 @@ public class ExceptionRuleScanService {
                         .in(PayableEntity::getStatus, List.of("UNSETTLED", "PARTIALLY_SETTLED"))
                         .le(PayableEntity::getBizDate, cutoff))
                 .stream()
-                .filter(item -> remaining(item.getOriginalAmount(), item.getSettledAmount())
-                        .compareTo(BigDecimal.ZERO) > 0)
+                .filter(item -> payableRemaining(item).compareTo(BigDecimal.ZERO) > 0)
                 .map(item -> toPayableFinding(item, thresholdDays, audit.now().toLocalDate()))
                 .toList();
     }
 
     private ExceptionRuleFinding toPayableFinding(PayableEntity item, int thresholdDays, LocalDate today) {
         long overdueDays = item.getBizDate() == null ? 0 : ChronoUnit.DAYS.between(item.getBizDate(), today);
-        BigDecimal remainingAmount = remaining(item.getOriginalAmount(), item.getSettledAmount());
+        BigDecimal remainingAmount = payableRemaining(item);
         String sourceNo = firstText(item.getPayableNo(), item.getSourceNo(), String.valueOf(item.getId()));
         return new ExceptionRuleFinding(
                 RULE_PAYABLE_OVERDUE,
@@ -291,39 +322,93 @@ public class ExceptionRuleScanService {
         );
     }
 
-    private void upsertHit(
+    private HitClaim ensureHit(
             ExceptionRuleEntity rule,
             ExceptionRuleFinding finding,
-            Long ticketId,
             AuditMetadata audit,
             LocalDateTime now
     ) {
-        ExceptionRuleHitEntity hit = hitMapper.selectOne(new LambdaQueryWrapper<ExceptionRuleHitEntity>()
+        // Fast path for a hit that already exists.  The insert below remains
+        // mandatory for the no-row case because a locking read cannot claim
+        // a record that does not yet exist.
+        ExceptionRuleHitEntity existing = findHitForUpdate(rule, finding, audit);
+        if (existing != null) {
+            return new HitClaim(existing, false);
+        }
+
+        ExceptionRuleHitEntity hit = new ExceptionRuleHitEntity();
+        hit.setCompanyId(audit.companyId());
+        hit.setAccountBookId(audit.accountBookId());
+        hit.setRuleId(rule.getId());
+        hit.setRuleCode(rule.getRuleCode());
+        hit.setRuleType(rule.getRuleType());
+        hit.setHitCount(1);
+        hit.setFirstHitTime(now);
+        hit.setDeletedFlag(0);
+        hit.setCreatedBy(audit.userId());
+        hit.setCreatedTime(now);
+        hit.setVersion(0);
+        fillHit(hit, finding, null, audit, now);
+        try {
+            hitMapper.insert(hit);
+            return new HitClaim(hit, true);
+        } catch (DuplicateKeyException ex) {
+            // The winner keeps the unique row locked until its transaction
+            // commits.  Re-read it with FOR UPDATE so this transaction waits
+            // for that decision and then uses the winner's ticket id.
+            ExceptionRuleHitEntity claimed = findHitForUpdate(rule, finding, audit);
+            if (claimed == null) {
+                throw ex;
+            }
+            return new HitClaim(claimed, false);
+        }
+    }
+
+    private ExceptionRuleHitEntity findHitForUpdate(
+            ExceptionRuleEntity rule,
+            ExceptionRuleFinding finding,
+            AuditMetadata audit
+    ) {
+        return hitMapper.selectOne(new LambdaQueryWrapper<ExceptionRuleHitEntity>()
                 .eq(ExceptionRuleHitEntity::getCompanyId, audit.companyId())
                 .eq(ExceptionRuleHitEntity::getAccountBookId, audit.accountBookId())
                 .eq(ExceptionRuleHitEntity::getRuleId, rule.getId())
-                .eq(ExceptionRuleHitEntity::getHitKey, finding.hitKey())
-                .eq(ExceptionRuleHitEntity::getDeletedFlag, 0));
-        if (hit == null) {
-            hit = new ExceptionRuleHitEntity();
-            hit.setCompanyId(audit.companyId());
-            hit.setAccountBookId(audit.accountBookId());
-            hit.setRuleId(rule.getId());
-            hit.setRuleCode(rule.getRuleCode());
-            hit.setRuleType(rule.getRuleType());
+                .eq(ExceptionRuleHitEntity::getHitKey, truncate(finding.hitKey(), 256))
+                .eq(ExceptionRuleHitEntity::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+    }
+
+    private void attachTicketToHit(
+            ExceptionRuleHitEntity hit,
+            Long ticketId,
+            ExceptionRuleFinding finding,
+            AuditMetadata audit,
+            LocalDateTime now,
+            boolean inserted
+    ) {
+        if (!inserted) {
+            hit.setHitCount((hit.getHitCount() == null ? 0 : hit.getHitCount()) + 1);
+        } else if (hit.getHitCount() == null || hit.getHitCount() < 1) {
             hit.setHitCount(1);
-            hit.setFirstHitTime(now);
-            hit.setDeletedFlag(0);
-            hit.setCreatedBy(audit.userId());
-            hit.setCreatedTime(now);
-            hit.setVersion(0);
-            fillHit(hit, finding, ticketId, audit, now);
-            hitMapper.insert(hit);
-            return;
         }
-        hit.setHitCount((hit.getHitCount() == null ? 0 : hit.getHitCount()) + 1);
         fillHit(hit, finding, ticketId, audit, now);
         hitMapper.updateById(hit);
+    }
+
+    private ExceptionTicketEntity findLinkedActiveTicket(
+            ExceptionRuleHitEntity hit,
+            AuditMetadata audit
+    ) {
+        if (hit == null || hit.getTicketId() == null) {
+            return null;
+        }
+        return ticketMapper.selectOne(new LambdaQueryWrapper<ExceptionTicketEntity>()
+                .eq(ExceptionTicketEntity::getId, hit.getTicketId())
+                .eq(ExceptionTicketEntity::getCompanyId, audit.companyId())
+                .eq(ExceptionTicketEntity::getAccountBookId, audit.accountBookId())
+                .eq(ExceptionTicketEntity::getDeletedFlag, 0)
+                .in(ExceptionTicketEntity::getStatus, ACTIVE_TICKET_STATUSES)
+                .last("FOR UPDATE"));
     }
 
     private void fillHit(
@@ -360,7 +445,7 @@ public class ExceptionRuleScanService {
         } else {
             wrapper.eq(ExceptionTicketEntity::getSourceNo, finding.sourceNo());
         }
-        return ticketMapper.selectOne(wrapper);
+        return ticketMapper.selectOne(wrapper.last("FOR UPDATE"));
     }
 
     private ExceptionTicketCreateRequest toTicketRequest(
@@ -429,8 +514,26 @@ public class ExceptionRuleScanService {
         return Math.max(1, value.intValue());
     }
 
-    private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) {
-        return zeroDefault(originalAmount).subtract(zeroDefault(settledAmount));
+    private BigDecimal receivableRemaining(ReceivableEntity item) {
+        return CurrencyAmountSupport.baseRemaining(
+                item.getOriginalAmount(),
+                item.getSettledAmount(),
+                item.getBaseOriginalAmount(),
+                item.getBaseSettledAmount(),
+                item.getExchangeRate(),
+                item.getPostedBaseSettledAmount()
+        );
+    }
+
+    private BigDecimal payableRemaining(PayableEntity item) {
+        return CurrencyAmountSupport.baseRemaining(
+                item.getOriginalAmount(),
+                item.getSettledAmount(),
+                item.getBaseOriginalAmount(),
+                item.getBaseSettledAmount(),
+                item.getExchangeRate(),
+                item.getPostedBaseSettledAmount()
+        );
     }
 
     private BigDecimal zeroDefault(BigDecimal value) {
@@ -455,5 +558,8 @@ public class ExceptionRuleScanService {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    private record HitClaim(ExceptionRuleHitEntity hit, boolean inserted) {
     }
 }

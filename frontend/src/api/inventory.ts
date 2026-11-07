@@ -104,9 +104,59 @@ export interface InventoryLotTrace {
   documentLabel?: string | null
 }
 
+export interface LotGenealogyCounterparty {
+  type: 'SUPPLIER' | 'CUSTOMER' | string
+  id: string
+  code?: string | null
+  name?: string | null
+  documentNo?: string | null
+}
+
+export interface LotGenealogyLink {
+  bizType: string
+  bizNo?: string | null
+  bizLabel?: string | null
+  documentRoute?: string | null
+  occurredTime?: string | null
+  qty?: number | string | null
+  warehouseId?: string | number | null
+  warehouseName?: string | null
+  counterparty?: LotGenealogyCounterparty | null
+  terminalReason?: string | null
+  node?: LotGenealogyNode | null
+}
+
+export interface LotGenealogyNode {
+  productId: string
+  productCode?: string | null
+  productName?: string | null
+  lotNo?: string | null
+  productionDate?: string | null
+  expiryDate?: string | null
+  depth: number
+  links: LotGenealogyLink[]
+}
+
+export interface GenealogyLimits {
+  maxDepth: number
+  perLevelNodeLimit: number
+  totalNodeLimit: number
+  truncated: boolean
+  truncationReasons: string[]
+  scopeLimited: boolean
+}
+
+export interface InventoryLotGenealogy {
+  root: LotGenealogyNode
+  upstream?: LotGenealogyNode | null
+  downstream?: LotGenealogyNode | null
+  limits: GenealogyLimits
+}
+
 export interface InventoryLotExpiryAlert {
   id: string
   warehouseId: string
+  locationId?: string
   productId: string
   lotNo: string
   productionDate?: string
@@ -156,6 +206,13 @@ export interface InventoryLotTraceQuery extends PageQuery {
   occurredTimeTo?: string
 }
 
+export interface InventoryLotGenealogyQuery {
+  productId: string | number
+  lotNo: string
+  direction?: 'UPSTREAM' | 'DOWNSTREAM' | 'BOTH'
+  maxDepth?: number
+}
+
 export interface InventoryLotExpiryAlertQuery extends PageQuery {
   warehouseId?: string | number
   productId?: string | number
@@ -190,6 +247,10 @@ export const getInventoryLotTrace = (params: InventoryLotTraceQuery) => {
     ...page,
     records: page.records.map(normalizeInventoryLotTrace)
   }))
+}
+
+export const getInventoryLotGenealogy = (params: InventoryLotGenealogyQuery) => {
+  return request.get<InventoryLotGenealogy>('/inventory/lots/genealogy', { params }).then(normalizeInventoryLotGenealogy)
 }
 
 export const getInventoryLotExpiryAlerts = (params: InventoryLotExpiryAlertQuery) => {
@@ -235,6 +296,39 @@ const normalizeInventoryLotTrace = (item: InventoryLotTrace): InventoryLotTrace 
   documentRoute: item.documentRoute || null,
   documentLabel: item.documentLabel || null
 })
+
+const normalizeInventoryLotGenealogy = (response: InventoryLotGenealogy): InventoryLotGenealogy => {
+  const normalizeNode = (node: LotGenealogyNode | null | undefined): LotGenealogyNode | null | undefined => {
+    if (!node) return node
+    return {
+      ...node,
+      productId: String(node.productId),
+      links: (node.links || []).map((link) => ({
+        ...link,
+        warehouseId: link.warehouseId != null ? String(link.warehouseId) : link.warehouseId,
+        qty: link.qty != null ? Number(link.qty) : link.qty,
+        counterparty: link.counterparty
+          ? { ...link.counterparty, id: String(link.counterparty.id) }
+          : null,
+        node: normalizeNode(link.node)
+      }))
+    }
+  }
+
+  return {
+    ...response,
+    root: normalizeNode(response.root) as LotGenealogyNode,
+    upstream: normalizeNode(response.upstream),
+    downstream: normalizeNode(response.downstream),
+    limits: {
+      ...response.limits,
+      maxDepth: Number(response.limits?.maxDepth ?? 5),
+      perLevelNodeLimit: Number(response.limits?.perLevelNodeLimit ?? 200),
+      totalNodeLimit: Number(response.limits?.totalNodeLimit ?? 500),
+      truncationReasons: response.limits?.truncationReasons || []
+    }
+  }
+}
 
 const normalizeInventoryLotExpiryAlert = (item: InventoryLotExpiryAlert): InventoryLotExpiryAlert => ({
   ...item,
@@ -467,7 +561,10 @@ export interface InventoryAdjustment {
   warehouseName: string
   adjustmentDate: string
   type: 'GAIN' | 'LOSS' | 'OTHER'
-  status: 'DRAFT' | 'POSTED' | 'COMPLETED' | 'CANCELLED'
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'POSTED' | 'COMPLETED' | 'CANCELLED'
+  sourceType?: string
+  sourceId?: string | number | null
+  sourceNo?: string
   items: InventoryAdjustmentItem[]
   lines?: InventoryAdjustmentLineResponse[]
   remark?: string
@@ -497,7 +594,7 @@ export interface InventoryAdjustmentItem {
   remark?: string
 }
 
-interface InventoryAdjustmentLineResponse {
+export interface InventoryAdjustmentLineResponse {
   id?: string | number
   productId: string | number
   productCode?: string
@@ -548,6 +645,39 @@ export const createInventoryAdjustment = (data: InventoryAdjustmentCreateRequest
   return request.post<InventoryAdjustment>('/inventory/adjustments', toAdjustmentPayload(data)).then(normalizeInventoryAdjustment)
 }
 
+export const updateInventoryAdjustment = (id: string | number, data: InventoryAdjustmentCreateRequest) =>
+  request.put<InventoryAdjustment>(`/inventory/adjustments/${id}`, toAdjustmentPayload(data)).then(normalizeInventoryAdjustment)
+
+export const submitInventoryAdjustment = (id: string | number) =>
+  request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/submit`).then(normalizeInventoryAdjustment)
+
+export const approveInventoryAdjustment = (id: string | number) =>
+  request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/approve`).then(normalizeInventoryAdjustment)
+
+export const rejectInventoryAdjustment = (id: string | number, comment: string) =>
+  request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/reject`, { comment }).then(normalizeInventoryAdjustment)
+
+export const withdrawInventoryAdjustment = (id: string | number) =>
+  request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/withdraw`).then(normalizeInventoryAdjustment)
+
+export interface InventoryAdjustmentApprovalInfo {
+  instanceId?: string | number | null
+  status: string
+  submitUserId?: string | number | null
+  submitTime?: string | null
+  completedTime?: string | null
+  records: Array<{
+    id: string | number
+    action: string
+    operatorUserId: string | number
+    comment?: string | null
+    actionTime: string
+  }>
+}
+
+export const getInventoryAdjustmentApprovalInfo = (id: string | number) =>
+  request.get<InventoryAdjustmentApprovalInfo>(`/inventory/adjustments/${id}/approval-info`)
+
 export const completeInventoryAdjustment = (id: string | number) => {
   return request.post<InventoryAdjustment>(`/inventory/adjustments/${id}/post`).then(normalizeInventoryAdjustment)
 }
@@ -582,6 +712,8 @@ const normalizeInventoryAdjustment = (adjustment: InventoryAdjustment): Inventor
     ...adjustment,
     id: adjustment.id,
     warehouseId: String(adjustment.warehouseId),
+    createdAt: adjustment.createdAt || (adjustment as InventoryAdjustment & { createdTime?: string }).createdTime || '',
+    updatedAt: adjustment.updatedAt || (adjustment as InventoryAdjustment & { updatedTime?: string }).updatedTime || '',
     status: adjustment.status === 'POSTED' ? 'COMPLETED' : adjustment.status,
     type: adjustmentType(items, adjustment.type),
     items
@@ -614,7 +746,7 @@ export interface InventoryCheck {
   warehouseId: string | number
   warehouseName?: string
   checkDate: string
-  status: 'COUNTED' | 'ADJUSTED' | 'CANCELLED'
+  status: 'COUNTED' | 'ADJUSTMENT_PENDING' | 'ADJUSTED' | 'CANCELLED'
   items: InventoryCheckItem[]
   lines?: InventoryCheckLineResponse[]
   generatedAdjustmentId?: string | number
@@ -810,7 +942,7 @@ export interface InventoryTransferItem {
   remark?: string
 }
 
-interface InventoryTransferLineResponse {
+export interface InventoryTransferLineResponse {
   id?: string | number
   lineNo?: number
   productId: string | number
@@ -1215,116 +1347,9 @@ const paginateInventoryAlerts = (
   }
 }
 
-// ==================== 轻量 MRP ====================
-
-export interface MrpSuggestionLine {
-  productId: string | number
-  productCode?: string
-  productName?: string
-  suggestionType: string
-  demandQty: number
-  onHandQty: number
-  openSupplyQty: number
-  netQty: number
-  bomId?: string | number | null
-  reason?: string
-}
-
-export interface MrpSuggestionLine {
-  id?: string | number
-  runId?: string | number
-  lineNo?: number
-  productId: string | number
-  productCode?: string
-  productName?: string
-  suggestionType: string
-  demandQty: number
-  onHandQty: number
-  openSupplyQty: number
-  netQty: number
-  bomId?: string | number | null
-  reason?: string
-  status?: string
-  convertedBizType?: string | null
-  convertedBizId?: string | number | null
-  convertedBizNo?: string | null
-  convertedTime?: string | null
-}
-
-export interface MrpRunResult {
-  id?: string | number
-  runNo?: string
-  asOfDate: string
-  status?: string
-  purchaseCount: number
-  productionCount: number
-  createdTime?: string
-  purchaseLines: MrpSuggestionLine[]
-  productionLines: MrpSuggestionLine[]
-}
-
-export interface MrpRunSummary {
-  id: string | number
-  runNo: string
-  asOfDate: string
-  status: string
-  purchaseCount: number
-  productionCount: number
-  createdTime?: string
-}
-
-const normalizeMrpLine = (line: MrpSuggestionLine): MrpSuggestionLine => ({
-  ...line,
-  id: line.id != null ? String(line.id) : line.id,
-  runId: line.runId != null ? String(line.runId) : line.runId,
-  productId: String(line.productId),
-  bomId: line.bomId != null ? String(line.bomId) : line.bomId,
-  demandQty: Number(line.demandQty ?? 0),
-  onHandQty: Number(line.onHandQty ?? 0),
-  openSupplyQty: Number(line.openSupplyQty ?? 0),
-  netQty: Number(line.netQty ?? 0),
-  convertedBizId: line.convertedBizId != null ? String(line.convertedBizId) : line.convertedBizId
-})
-
-const normalizeMrpRun = (r: MrpRunResult): MrpRunResult => ({
-  ...r,
-  id: r.id != null ? String(r.id) : r.id,
-  purchaseCount: Number(r.purchaseCount ?? 0),
-  productionCount: Number(r.productionCount ?? 0),
-  purchaseLines: (r.purchaseLines || []).map(normalizeMrpLine),
-  productionLines: (r.productionLines || []).map(normalizeMrpLine)
-})
-
-export const runMrpPlan = () => {
-  return request.post<MrpRunResult>('/inventory/mrp/run').then(normalizeMrpRun)
-}
-
-export const getMrpRuns = (params?: { pageNo?: number; pageSize?: number; status?: string }) => {
-  return request.get<PageResponse<MrpRunSummary>>('/inventory/mrp/runs', { params }).then((page) => ({
-    ...page,
-    records: (page.records || []).map((item) => ({
-      ...item,
-      id: String(item.id),
-      purchaseCount: Number(item.purchaseCount ?? 0),
-      productionCount: Number(item.productionCount ?? 0)
-    }))
-  }))
-}
-
-export const getMrpRun = (id: string | number) => {
-  return request.get<MrpRunResult>(`/inventory/mrp/runs/${id}`).then(normalizeMrpRun)
-}
-
-export const convertMrpLine = (
-  runId: string | number,
-  lineId: string | number,
-  data?: { supplierId?: string | number; finishedWarehouseId?: string | number; materialWarehouseId?: string | number }
-) => {
-  return request
-    .post<MrpSuggestionLine>(`/inventory/mrp/runs/${runId}/lines/${lineId}/convert`, data || {})
-    .then(normalizeMrpLine)
-}
-
+// ==================== MRP ====================
+export { runMrpPlan, getMrpRun, getMrpRuns, convertMrpLine } from './mrp'
+export type { MrpSuggestionLine, MrpRunResult, MrpRunSummary, MrpNodeTrace, MrpSource, MrpWarning } from './mrp'
 
 export interface InventorySerial {
   id: string | number

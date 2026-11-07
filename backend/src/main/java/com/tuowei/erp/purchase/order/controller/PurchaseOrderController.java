@@ -75,6 +75,15 @@ public class PurchaseOrderController {
         return ApiResponse.success(purchaseOrderService.submit(id, safeRequest));
     }
 
+    @PreAuthorize(PermissionCodes.HAS_PURCHASE_ORDER_UPDATE)
+    @PutMapping("/{id}/planned-warehouse")
+    @OperationLog(module = "purchase", operation = "assign-warehouse", message = "设置预计收货仓库", bizNo = "#result.data.orderNo")
+    public ApiResponse<PurchaseOrderResponse> assignPlannedWarehouse(
+            @PathVariable Long id,
+            @Valid @RequestBody com.tuowei.erp.purchase.order.web.PurchaseOrderWarehouseRequest request) {
+        return ApiResponse.success(purchaseOrderService.assignPlannedWarehouse(id, request.plannedWarehouseId()));
+    }
+
     @PreAuthorize(PermissionCodes.HAS_PURCHASE_ORDER_APPROVE)
     @PostMapping("/{id}/approve")
     @OperationLog(module = "purchase", operation = "approve", message = "审核通过采购订单", bizNo = "#result.data.orderNo")

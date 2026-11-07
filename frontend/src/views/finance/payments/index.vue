@@ -156,6 +156,8 @@
         <el-form-item :label="$t('financeReportPages.payments.receiptAmount')" prop="amount">
           <el-input-number v-model="receiptForm.amount" :min="0.01" :precision="2" :controls="false" style="width: 100%" @change="rebalanceReceiptAllocations" />
         </el-form-item>
+        <el-form-item :label="$t('financeReportPages.payments.currency')" prop="currencyCode"><el-select v-model="receiptForm.currencyCode" style="width: 100%"><el-option v-for="item in currencies" :key="item.currencyCode" :label="`${item.currencyCode} - ${item.currencyName}`" :value="item.currencyCode" /></el-select></el-form-item>
+        <el-form-item :label="$t('financeReportPages.payments.exchangeRate')" prop="exchangeRate"><el-input-number v-model="receiptForm.exchangeRate" :min="0.000001" :precision="6" :controls="false" style="width: 100%" /></el-form-item>
         <el-form-item :label="$t('financeReportPages.payments.allocationDetails')">
           <div style="width: 100%">
             <div class="alloc-toolbar">
@@ -229,6 +231,8 @@
         <el-form-item :label="$t('financeReportPages.payments.paymentAmount')" prop="amount">
           <el-input-number v-model="paymentForm.amount" :min="0.01" :precision="2" :controls="false" style="width: 100%" @change="rebalancePaymentAllocations" />
         </el-form-item>
+        <el-form-item :label="$t('financeReportPages.payments.currency')" prop="currencyCode"><el-select v-model="paymentForm.currencyCode" style="width: 100%"><el-option v-for="item in currencies" :key="item.currencyCode" :label="`${item.currencyCode} - ${item.currencyName}`" :value="item.currencyCode" /></el-select></el-form-item>
+        <el-form-item :label="$t('financeReportPages.payments.exchangeRate')" prop="exchangeRate"><el-input-number v-model="paymentForm.exchangeRate" :min="0.000001" :precision="6" :controls="false" style="width: 100%" /></el-form-item>
         <el-form-item :label="$t('financeReportPages.payments.allocationDetails')">
           <div style="width: 100%">
             <div class="alloc-toolbar">
@@ -319,12 +323,16 @@ import {
   getReceipt,
   getReceivables,
   getReceipts,
+  getCurrencies,
+  getBaseCurrency,
+  getExchangeRates,
   type Payable,
   type Payment,
   type PaymentQuery,
   type Receipt,
   type ReceiptQuery,
-  type Receivable
+  type Receivable,
+  type Currency
 } from '@/api/finance'
 import { getCustomers, getSuppliers, type Customer, type Supplier } from '@/api/masterdata'
 import { printPayment, printReceipt } from '@/utils/bizPrint'
@@ -338,6 +346,8 @@ const activeTab = ref('receipts')
 
 const customers = ref<Customer[]>([])
 const suppliers = ref<Supplier[]>([])
+const currencies = ref<Currency[]>([])
+const baseCurrency = ref('CNY')
 
 const receiptFormRef = ref<FormInstance>()
 const paymentFormRef = ref<FormInstance>()
@@ -554,6 +564,34 @@ const loadSuppliers = async () => {
   suppliers.value = response.records
 }
 
+const loadCurrencies = async () => {
+  currencies.value = (await getCurrencies()).filter((item) => item.status === 'ENABLED')
+  baseCurrency.value = await getBaseCurrency()
+  receiptForm.currencyCode = baseCurrency.value
+  paymentForm.currencyCode = baseCurrency.value
+}
+
+const syncRate = async (currencyCode: string, date: string, target: { exchangeRate: number }) => {
+  const code = String(currencyCode || '').trim().toUpperCase()
+  if (!code || code === 'CNY') {
+    target.exchangeRate = 1
+    return
+  }
+  const rates = await getExchangeRates({ from: code, to: baseCurrency.value })
+  const effective = rates
+    .filter((item) => item.status === 'ENABLED' && item.effectiveFrom <= date && (!item.effectiveTo || item.effectiveTo >= date))
+    .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]
+  if (effective) target.exchangeRate = effective.rate
+  else ElMessage.warning(t('financeReportPages.payments.message.exchangeRateNotFound'))
+}
+
+watch(() => [receiptForm.currencyCode, receiptForm.documentDate], ([currency, date]) => {
+  if (currency && date) syncRate(currency, date, receiptForm).catch(() => ElMessage.warning(t('financeReportPages.payments.message.exchangeRateNotFound')))
+})
+watch(() => [paymentForm.currencyCode, paymentForm.documentDate], ([currency, date]) => {
+  if (currency && date) syncRate(currency, date, paymentForm).catch(() => ElMessage.warning(t('financeReportPages.payments.message.exchangeRateNotFound')))
+})
+
 watch(activeTab, (newTab) => {
   if (newTab === 'receipts') {
     loadReceipts()
@@ -566,6 +604,7 @@ onMounted(() => {
   loadReceipts()
   loadCustomers().catch(() => ElMessage.error(t('financeReportPages.payments.message.customersLoadFailed')))
   loadSuppliers().catch(() => ElMessage.error(t('financeReportPages.payments.message.suppliersLoadFailed')))
+  loadCurrencies().catch(() => ElMessage.error(t('financeReportPages.payments.message.suppliersLoadFailed')))
 })
 </script>
 

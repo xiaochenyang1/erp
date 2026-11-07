@@ -712,6 +712,50 @@ function Assert-ReleaseEvidenceArtifactsIndexPreprodAcceptanceGateVerificationMa
     Assert-ReleaseEvidenceArtifactsIndexPreprodAcceptanceGateVerificationMarkdownValue -Field "Status" -ActualValue (Get-ReleaseEvidenceArtifactsIndexMarkdownTableValue -Markdown $gateVerificationMarkdown -Field "Status") -ExpectedValue ([string](Get-ReleaseEvidenceArtifactsIndexObjectProperty -Object $gateVerificationJson -Name "status"))
 }
 
+function Assert-ReleaseEvidenceArtifactsIndexEvidenceIndexCandidateCommit {
+    param(
+        [object]$Index,
+        [string]$IndexDirectory
+    )
+
+    $evidenceIndexPath = Join-Path $IndexDirectory "evidence-index.json"
+    if (-not (Test-Path -LiteralPath $evidenceIndexPath -PathType Leaf)) {
+        Add-ReleaseEvidenceArtifactsIndexCheck "Evidence index candidate binding" "PASSED" "evidence-index.json is absent; candidate consistency check was skipped for a legacy evidence directory."
+        return
+    }
+
+    try {
+        $evidenceIndex = Get-Content -LiteralPath $evidenceIndexPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        Add-ReleaseEvidenceArtifactsIndexCheck "Evidence index candidate binding" "FAILED" "Cannot parse evidence-index.json: $(($_ | Out-String).Trim())"
+        return
+    }
+
+    $evidenceReleaseCheck = Get-ReleaseEvidenceArtifactsIndexObjectProperty -Object $evidenceIndex -Name "releaseCheck"
+    if ($null -eq $evidenceReleaseCheck) {
+        Add-ReleaseEvidenceArtifactsIndexCheck "Evidence index candidate binding" "PASSED" "evidence-index.json has no releaseCheck binding; legacy candidate check was skipped."
+        return
+    }
+
+    $artifactsReleaseCheck = Get-ReleaseEvidenceArtifactsIndexObjectProperty -Object $Index -Name "releaseCheck"
+    $evidenceCandidate = Get-ReleaseEvidenceArtifactsIndexObjectProperty -Object $evidenceReleaseCheck -Name "releaseCandidateCommit"
+    $artifactsCandidate = Get-ReleaseEvidenceArtifactsIndexObjectProperty -Object $artifactsReleaseCheck -Name "releaseCandidateCommit"
+    if ([string]::IsNullOrWhiteSpace([string]$evidenceCandidate) -or [string]::IsNullOrWhiteSpace([string]$artifactsCandidate)) {
+        Add-ReleaseEvidenceArtifactsIndexCheck "Evidence index candidate binding" "FAILED" "Evidence index and artifacts index must both declare releaseCheck.releaseCandidateCommit."
+        return
+    }
+
+    $evidenceCandidate = ([string]$evidenceCandidate).Trim()
+    $artifactsCandidate = ([string]$artifactsCandidate).Trim()
+    if ($evidenceCandidate.Equals($artifactsCandidate, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Add-ReleaseEvidenceArtifactsIndexCheck "Evidence index candidate binding" "PASSED" "Evidence index candidate matches artifacts index candidate $artifactsCandidate."
+    }
+    else {
+        Add-ReleaseEvidenceArtifactsIndexCheck "Evidence index candidate binding" "FAILED" "Evidence index candidate $evidenceCandidate does not match artifacts index candidate $artifactsCandidate."
+    }
+}
+
 function Assert-ReleaseEvidenceArtifactsIndexJsonSemantics {
     param(
         [object]$Index,
@@ -726,6 +770,7 @@ function Assert-ReleaseEvidenceArtifactsIndexJsonSemantics {
     $bundleStatus = [string](Get-ReleaseEvidenceArtifactsIndexObjectProperty -Object $Index -Name "bundleStatus")
     $verificationStatus = [string](Get-ReleaseEvidenceArtifactsIndexObjectProperty -Object $Index -Name "verificationStatus")
 
+    Assert-ReleaseEvidenceArtifactsIndexEvidenceIndexCandidateCommit -Index $Index -IndexDirectory $IndexDirectory
     Assert-ReleaseEvidenceArtifactsIndexArtifactJsonProperty -Artifacts $Artifacts -Role "summaryJson" -IndexDirectory $IndexDirectory -PropertyName "bundleStatus" -ExpectedValue $bundleStatus
     Assert-ReleaseEvidenceArtifactsIndexSummaryJsonSemantics -Index $Index -Artifacts $Artifacts -IndexDirectory $IndexDirectory
     Assert-ReleaseEvidenceArtifactsIndexBundleSha256SidecarSemantics -Artifacts $Artifacts -IndexDirectory $IndexDirectory

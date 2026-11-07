@@ -19,6 +19,7 @@
 
     <properties>
         <java.version>17</java.version>
+        <flyway.version>11.20.3</flyway.version>
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <springdoc.version>2.8.17</springdoc.version>
         <cyclonedx-maven-plugin.version>2.9.1</cyclonedx-maven-plugin.version>

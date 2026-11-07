@@ -13,6 +13,8 @@ import com.tuowei.erp.system.dict.mapper.DictItemMapper;
 import com.tuowei.erp.system.dict.mapper.DictTypeMapper;
 import com.tuowei.erp.system.dict.model.DictTypeEntity;
 import com.tuowei.erp.system.dict.service.SystemDictService;
+import com.tuowei.erp.system.dict.service.SystemDictCommandService;
+import com.tuowei.erp.system.dict.service.SystemDictQueryService;
 import com.tuowei.erp.system.dict.web.DictTypeResponse;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -54,12 +56,16 @@ class SystemDictServiceQueryDefaultsTest {
             page.setRecords(List.of(type()));
             return page;
         });
-        SystemDictService service = new SystemDictService(
+        DictItemMapper itemMapper = mock(DictItemMapper.class);
+        SystemDictQueryService queryService = new SystemDictQueryService(
                 typeMapper,
-                mock(DictItemMapper.class),
-                auditFactory(),
+                itemMapper,
                 new NoopCacheService(),
                 new ObjectMapper()
+        );
+        SystemDictService service = new SystemDictService(
+                queryService,
+                new SystemDictCommandService(typeMapper, itemMapper, auditFactory(), queryService)
         );
 
         PageResponse<DictTypeResponse> response = service.listTypes(null);

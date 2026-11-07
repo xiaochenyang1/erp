@@ -20,7 +20,12 @@ const invoice = (overrides: Partial<FinanceInvoice> = {}): FinanceInvoice => ({
 
 const createList = (overrides: Partial<Parameters<typeof useFinanceInvoiceList>[1]> = {}) =>
   useFinanceInvoiceList(t, {
-    getFinanceInvoices: vi.fn(async () => ({ records: [invoice()], total: 1 })),
+    getFinanceInvoices: vi.fn(async () => ({
+      records: [invoice()],
+      total: 1,
+      pageNo: 1,
+      pageSize: 20
+    })),
     getFinanceInvoice: vi.fn(async () => invoice({ amount: 200 })),
     postFinanceInvoice: vi.fn(async () => ({})),
     cancelFinanceInvoice: vi.fn(async () => ({})),
@@ -33,7 +38,12 @@ const createList = (overrides: Partial<Parameters<typeof useFinanceInvoiceList>[
 
 describe('finance invoice list', () => {
   it('loads, pages, queries date range and resets filters', async () => {
-    const getFinanceInvoices = vi.fn(async () => ({ records: [invoice()], total: 3 }))
+    const getFinanceInvoices = vi.fn(async () => ({
+      records: [invoice()],
+      total: 3,
+      pageNo: 1,
+      pageSize: 20
+    }))
     const list = createList({ getFinanceInvoices })
 
     expect(await list.loadData()).toBe(true)

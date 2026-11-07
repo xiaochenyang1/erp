@@ -3,9 +3,8 @@
     <el-card class="search-card" shadow="never">
       <el-form :model="queryParams" inline>
         <el-form-item :label="$t('financeReportPages.vouchers.sourceType')">
-          <el-select v-model="queryParams.sourceType" :placeholder="$t('financeReportPages.vouchers.sourcePlaceholder')" clearable style="width: 150px">
-            <el-option :label="$t('financeReportPages.vouchers.sourceValue.expense')" value="EXPENSE" />
-            <el-option :label="$t('financeReportPages.vouchers.sourceValue.expenseReversal')" value="EXPENSE_REVERSAL" />
+          <el-select v-model="queryParams.sourceType" :placeholder="$t('financeReportPages.vouchers.sourcePlaceholder')" clearable style="width: 180px">
+            <el-option v-for="option in sourceTypeOptions()" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('financeReportPages.common.status')">
@@ -127,6 +126,7 @@ const {
   formatDate,
   formatMoney,
   sourceTypeLabel,
+  sourceTypeOptions,
   sourceTypeTag,
   statusLabel,
   statusType,

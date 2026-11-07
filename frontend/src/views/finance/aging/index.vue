@@ -29,7 +29,57 @@
         <div class="value">{{ formatMoney(summary?.payableTotal) }}</div>
         <div class="sub">{{ t('financeAging.outstandingOnly') }}</div>
       </div>
+      <div class="summary-card base">
+        <div class="label">{{ t('financeAging.baseCurrency') }}</div>
+        <div class="value">{{ summary?.baseCurrencyCode || '-' }}</div>
+        <div class="sub">{{ t('financeAging.baseCurrencyCaliber') }}</div>
+      </div>
     </div>
+
+    <el-row v-if="hasCurrencyExposure" :gutter="16" class="exposure-row">
+      <el-col :span="12">
+        <el-card shadow="never" class="table-card">
+          <template #header>
+            <div class="card-header">
+              <span>{{ t('financeAging.receivableExposure') }}</span>
+            </div>
+          </template>
+          <el-table v-loading="loading" :data="summary?.receivableCurrencyExposures || []" border stripe>
+            <el-table-column prop="currencyCode" :label="t('financeAging.currency')" width="100" />
+            <el-table-column prop="count" :label="t('financeAging.count')" width="90" align="right">
+              <template #default="{ row }">{{ formatNumber(row.count) }}</template>
+            </el-table-column>
+            <el-table-column prop="originalAmount" :label="t('financeAging.originalExposure')" min-width="140" align="right">
+              <template #default="{ row }">{{ formatNumber(row.originalAmount) }}</template>
+            </el-table-column>
+            <el-table-column prop="baseAmount" :label="t('financeAging.baseExposure')" min-width="140" align="right">
+              <template #default="{ row }">{{ formatMoney(row.baseAmount) }}</template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="never" class="table-card">
+          <template #header>
+            <div class="card-header">
+              <span>{{ t('financeAging.payableExposure') }}</span>
+            </div>
+          </template>
+          <el-table v-loading="loading" :data="summary?.payableCurrencyExposures || []" border stripe>
+            <el-table-column prop="currencyCode" :label="t('financeAging.currency')" width="100" />
+            <el-table-column prop="count" :label="t('financeAging.count')" width="90" align="right">
+              <template #default="{ row }">{{ formatNumber(row.count) }}</template>
+            </el-table-column>
+            <el-table-column prop="originalAmount" :label="t('financeAging.originalExposure')" min-width="140" align="right">
+              <template #default="{ row }">{{ formatNumber(row.originalAmount) }}</template>
+            </el-table-column>
+            <el-table-column prop="baseAmount" :label="t('financeAging.baseExposure')" min-width="140" align="right">
+              <template #default="{ row }">{{ formatMoney(row.baseAmount) }}</template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+    </el-row>
 
     <el-row :gutter="16">
       <el-col :span="12">
@@ -95,8 +145,12 @@
             <el-table-column prop="agingDays" :label="t('financeAging.agingDays')" width="90" align="right">
               <template #default="{ row }">{{ formatNumber(row.agingDays) }}</template>
             </el-table-column>
-            <el-table-column prop="remainingAmount" :label="t('financeAging.outstandingAmount')" width="140" align="right">
-              <template #default="{ row }">{{ formatMoney(row.remainingAmount) }}</template>
+            <el-table-column prop="currencyCode" :label="t('financeAging.currency')" width="90" />
+            <el-table-column prop="remainingAmount" :label="t('financeAging.outstandingAmount')" width="130" align="right">
+              <template #default="{ row }">{{ formatNumber(row.remainingAmount) }}</template>
+            </el-table-column>
+            <el-table-column prop="baseRemainingAmount" :label="t('financeAging.baseOutstandingAmount')" width="150" align="right">
+              <template #default="{ row }">{{ formatMoney(row.baseRemainingAmount) }}</template>
             </el-table-column>
           </el-table>
         </el-card>
@@ -121,8 +175,12 @@
             <el-table-column prop="agingDays" :label="t('financeAging.agingDays')" width="90" align="right">
               <template #default="{ row }">{{ formatNumber(row.agingDays) }}</template>
             </el-table-column>
-            <el-table-column prop="remainingAmount" :label="t('financeAging.outstandingAmount')" width="140" align="right">
-              <template #default="{ row }">{{ formatMoney(row.remainingAmount) }}</template>
+            <el-table-column prop="currencyCode" :label="t('financeAging.currency')" width="90" />
+            <el-table-column prop="remainingAmount" :label="t('financeAging.outstandingAmount')" width="130" align="right">
+              <template #default="{ row }">{{ formatNumber(row.remainingAmount) }}</template>
+            </el-table-column>
+            <el-table-column prop="baseRemainingAmount" :label="t('financeAging.baseOutstandingAmount')" width="150" align="right">
+              <template #default="{ row }">{{ formatMoney(row.baseRemainingAmount) }}</template>
             </el-table-column>
           </el-table>
         </el-card>
@@ -132,7 +190,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -151,6 +209,17 @@ const loading = ref(false)
 const summary = ref<FinanceAgingSummary>()
 const today = formatBusinessDate()
 const asOfDate = ref(today)
+
+// Only show the currency breakdown when a non-base currency is actually outstanding,
+// so single-currency books keep their original layout.
+const hasCurrencyExposure = computed(() => {
+  const exposures = [
+    ...(summary.value?.receivableCurrencyExposures || []),
+    ...(summary.value?.payableCurrencyExposures || [])
+  ]
+  const base = summary.value?.baseCurrencyCode || 'CNY'
+  return exposures.some((item) => item.currencyCode !== base)
+})
 
 const formatMoney = (value?: number) => formatLocalizedCurrency(Number(value ?? 0))
 const formatNumber = (value?: number) => formatLocalizedNumber(Number(value ?? 0))
@@ -198,7 +267,7 @@ onMounted(loadData)
 }
 .summary-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 .summary-card {
@@ -215,6 +284,10 @@ onMounted(loadData)
 .summary-card.ap {
   border-color: #fde68a;
   background: linear-gradient(135deg, #fffbeb 0%, #ffffff 75%);
+}
+.summary-card.base {
+  border-color: #c7d2fe;
+  background: linear-gradient(135deg, #eef2ff 0%, #ffffff 75%);
 }
 .summary-card .label {
   font-size: 13px;

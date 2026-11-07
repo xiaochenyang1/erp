@@ -35,6 +35,15 @@ public class SalesDeliveryEntity {
 
     private BigDecimal totalTaxAmount;
 
+    /** Currency snapshot copied from the sales order at document creation/posting. */
+    private String currencyCode;
+
+    private BigDecimal exchangeRate;
+
+    private BigDecimal baseTotalAmount;
+
+    private BigDecimal baseTotalTaxAmount;
+
     private Integer deletedFlag;
 
     private String carrierName;
@@ -42,6 +51,12 @@ public class SalesDeliveryEntity {
     private String trackingNo;
 
     private String logisticsStatus;
+
+    private String deliveredBy;
+
+    private LocalDateTime deliveredTime;
+
+    private Long deliveryProofAttachmentId;
 
     private String remark;
 
@@ -144,6 +159,38 @@ public class SalesDeliveryEntity {
         this.totalTaxAmount = totalTaxAmount;
     }
 
+    public String getCurrencyCode() {
+        return currencyCode;
+    }
+
+    public void setCurrencyCode(String currencyCode) {
+        this.currencyCode = currencyCode;
+    }
+
+    public BigDecimal getExchangeRate() {
+        return exchangeRate;
+    }
+
+    public void setExchangeRate(BigDecimal exchangeRate) {
+        this.exchangeRate = exchangeRate;
+    }
+
+    public BigDecimal getBaseTotalAmount() {
+        return baseTotalAmount;
+    }
+
+    public void setBaseTotalAmount(BigDecimal baseTotalAmount) {
+        this.baseTotalAmount = baseTotalAmount;
+    }
+
+    public BigDecimal getBaseTotalTaxAmount() {
+        return baseTotalTaxAmount;
+    }
+
+    public void setBaseTotalTaxAmount(BigDecimal baseTotalTaxAmount) {
+        this.baseTotalTaxAmount = baseTotalTaxAmount;
+    }
+
     public Integer getDeletedFlag() {
         return deletedFlag;
     }
@@ -175,6 +222,13 @@ public class SalesDeliveryEntity {
     public void setLogisticsStatus(String logisticsStatus) {
         this.logisticsStatus = logisticsStatus;
     }
+
+    public String getDeliveredBy() { return deliveredBy; }
+    public void setDeliveredBy(String deliveredBy) { this.deliveredBy = deliveredBy; }
+    public LocalDateTime getDeliveredTime() { return deliveredTime; }
+    public void setDeliveredTime(LocalDateTime deliveredTime) { this.deliveredTime = deliveredTime; }
+    public Long getDeliveryProofAttachmentId() { return deliveryProofAttachmentId; }
+    public void setDeliveryProofAttachmentId(Long deliveryProofAttachmentId) { this.deliveryProofAttachmentId = deliveryProofAttachmentId; }
 
     public String getRemark() {
         return remark;

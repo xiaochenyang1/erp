@@ -15,6 +15,7 @@ import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
 import com.tuowei.erp.purchase.order.service.PurchaseOrderReceiptStatusService;
 import com.tuowei.erp.purchase.receipt.model.PurchaseReceiptEntity;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptNumberService;
+import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptCommandService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptPostingService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptQueryService;
 import com.tuowei.erp.purchase.receipt.service.PurchaseReceiptService;
@@ -22,6 +23,7 @@ import com.tuowei.erp.purchase.receipt.web.PurchaseReceiptPageQuery;
 import com.tuowei.erp.qc.inspection.service.QcInspectionGate;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,9 +38,12 @@ class PurchaseReceiptServiceDecompositionTest {
 
     @Test
     void facadeKeepsReadSideSecurityBehindQueryService() {
-        assertThat(constructorDependencies(PurchaseReceiptService.class))
-                .hasSize(8)
-                .contains(PurchaseReceiptQueryService.class, PurchaseReceiptPostingService.class)
+        assertThat(autowiredConstructorDependencies(PurchaseReceiptService.class))
+                .containsExactlyInAnyOrder(
+                        PurchaseReceiptQueryService.class,
+                        PurchaseReceiptCommandService.class,
+                        PurchaseReceiptPostingService.class
+                )
                 .doesNotContain(
                         CurrentUserContext.class,
                         DataScopeService.class,
@@ -55,6 +60,18 @@ class PurchaseReceiptServiceDecompositionTest {
                         AccountPeriodGuard.class,
                         QcInspectionGate.class
                 );
+        assertThat(constructorDependencies(PurchaseReceiptCommandService.class))
+                .contains(
+                        com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptMapper.class,
+                        com.tuowei.erp.purchase.receipt.mapper.PurchaseReceiptLineMapper.class,
+                        WarehouseMapper.class,
+                        com.tuowei.erp.purchase.order.service.PurchaseOrderLookupService.class,
+                        PurchaseReceiptNumberService.class,
+                        com.tuowei.erp.common.security.AuditMetadataFactory.class,
+                        PurchaseReceiptQueryService.class
+                )
+                .doesNotContain(PurchaseReceiptService.class, PurchaseReceiptPostingService.class,
+                        CurrentUserContext.class, DataScopeService.class, ScopedUserResolver.class, UserMapper.class);
         assertThat(constructorDependencies(PurchaseReceiptQueryService.class))
                 .contains(
                         CurrentUserContext.class,
@@ -104,6 +121,13 @@ class PurchaseReceiptServiceDecompositionTest {
 
     private Set<Class<?>> constructorDependencies(Class<?> type) {
         return Arrays.stream(type.getDeclaredConstructors())
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
+                .collect(Collectors.toSet());
+    }
+
+    private Set<Class<?>> autowiredConstructorDependencies(Class<?> type) {
+        return Arrays.stream(type.getDeclaredConstructors())
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
                 .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
                 .collect(Collectors.toSet());
     }

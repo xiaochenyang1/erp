@@ -34,6 +34,7 @@
             style="width: 150px"
           >
             <el-option :label="$t('inventoryChecks.status.counted')" value="COUNTED" />
+            <el-option :label="$t('inventoryChecks.status.adjustmentPending')" value="ADJUSTMENT_PENDING" />
             <el-option :label="$t('inventoryChecks.status.adjusted')" value="ADJUSTED" />
             <el-option :label="$t('inventoryChecks.status.cancelled')" value="CANCELLED" />
           </el-select>
@@ -79,6 +80,17 @@
         stripe
       >
         <el-table-column prop="checkNo" :label="$t('inventoryChecks.checkNo')" width="180" />
+        <el-table-column :label="$t('inventoryChecks.generatedAdjustment')" width="185">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.generatedAdjustmentNo && userStore.hasPermission('inventory:adjustment:view')"
+              link
+              type="primary"
+              @click="router.push({ name: 'InventoryAdjustments', query: { adjustmentNo: row.generatedAdjustmentNo } })"
+            >{{ row.generatedAdjustmentNo }}</el-button>
+            <span v-else>{{ row.generatedAdjustmentNo || '-' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="warehouseName" :label="$t('inventoryChecks.warehouse')" width="150" />
         <el-table-column prop="checkDate" :label="$t('inventoryChecks.checkDate')" width="120" />
         <el-table-column prop="status" :label="$t('inventoryChecks.statusLabel')" width="100">
@@ -89,10 +101,13 @@
         <el-table-column prop="remark" :label="$t('inventoryChecks.remark')" show-overflow-tooltip />
         <el-table-column prop="createdBy" :label="$t('inventoryChecks.createdBy')" width="120" />
         <el-table-column prop="createdAt" :label="$t('inventoryChecks.createdTime')" width="160" />
-        <el-table-column :label="$t('inventoryChecks.actions')" width="300" fixed="right">
+        <el-table-column :label="$t('inventoryChecks.actions')" width="360" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">
               {{ $t('inventoryChecks.action.view') }}
+            </el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.checkNo)">
+              {{ $t('documentAttachment.entry') }}
             </el-button>
             <el-button link type="primary" @click="handlePrint(row)">
               {{ $t('inventoryChecks.action.print') }}
@@ -360,11 +375,21 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="INVENTORY_CHECK"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -380,13 +405,29 @@ import {
 import { getLocations, getProducts, getWarehouses } from '@/api/masterdata'
 import { printInventoryCheck } from '@/utils/bizPrint'
 import { serialCaptureProgress } from '@/utils/productLines'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useInventoryCheckList } from '@/composables/useInventoryCheckList'
 import { useInventoryCheckFormPresentation } from '@/composables/useInventoryCheckPresentation'
 import { useInventoryCheckForm } from '@/composables/useInventoryCheckForm'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
+const router = useRouter()
+const route = useRoute()
 
 const formRef = ref<FormInstance>()
+
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const {
   dateRange,
@@ -483,7 +524,20 @@ const submitForm = async () => {
   })
 }
 
+const applyRouteFilter = () => {
+  const value = route.query.checkNo || route.query.keyword
+  queryParams.checkNo = (Array.isArray(value) ? value[0] : value) || ''
+  queryParams.pageNo = 1
+}
+
+watch(() => route.fullPath, () => {
+  if (route.name !== 'InventoryChecks') return
+  applyRouteFilter()
+  loadData()
+})
+
 onMounted(async () => {
+  applyRouteFilter()
   await loadOptions()
   await loadData()
 })

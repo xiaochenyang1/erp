@@ -5,6 +5,7 @@ import com.tuowei.erp.common.web.ApiResponse;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.common.web.SafeFilename;
 import com.tuowei.erp.inventory.stock.service.InventoryStockQueryService;
+import com.tuowei.erp.inventory.stock.service.InventoryLotGenealogyService;
 import com.tuowei.erp.inventory.stock.web.InventoryBalancePageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryBalanceResponse;
 import com.tuowei.erp.inventory.stock.web.InventoryLotBalancePageQuery;
@@ -13,6 +14,8 @@ import com.tuowei.erp.inventory.stock.web.InventoryLotExpiryAlertQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotExpiryAlertResponse;
 import com.tuowei.erp.inventory.stock.web.InventoryLotTraceQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryLotTraceResponse;
+import com.tuowei.erp.inventory.stock.web.InventoryLotGenealogyQuery;
+import com.tuowei.erp.inventory.stock.web.InventoryLotGenealogyResponse;
 import com.tuowei.erp.inventory.stock.web.InventoryTransactionPageQuery;
 import com.tuowei.erp.inventory.stock.web.InventoryTransactionResponse;
 import org.springframework.http.ContentDisposition;
@@ -33,9 +36,14 @@ import java.nio.charset.StandardCharsets;
 public class InventoryStockQueryController {
 
     private final InventoryStockQueryService inventoryStockQueryService;
+    private final InventoryLotGenealogyService inventoryLotGenealogyService;
 
-    public InventoryStockQueryController(InventoryStockQueryService inventoryStockQueryService) {
+    public InventoryStockQueryController(
+            InventoryStockQueryService inventoryStockQueryService,
+            InventoryLotGenealogyService inventoryLotGenealogyService
+    ) {
         this.inventoryStockQueryService = inventoryStockQueryService;
+        this.inventoryLotGenealogyService = inventoryLotGenealogyService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_INVENTORY_STOCK_VIEW)
@@ -72,6 +80,12 @@ public class InventoryStockQueryController {
     @GetMapping("/lots/trace")
     public ApiResponse<PageResponse<InventoryLotTraceResponse>> traceLot(InventoryLotTraceQuery query) {
         return ApiResponse.success(inventoryStockQueryService.traceLot(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_INVENTORY_LOT_GENEALOGY)
+    @GetMapping("/lots/genealogy")
+    public ApiResponse<InventoryLotGenealogyResponse> genealogy(InventoryLotGenealogyQuery query) {
+        return ApiResponse.success(inventoryLotGenealogyService.genealogy(query));
     }
 
     @PreAuthorize(PermissionCodes.HAS_INVENTORY_STOCK_VIEW)

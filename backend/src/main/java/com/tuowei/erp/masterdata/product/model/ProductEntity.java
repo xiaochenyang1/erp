@@ -282,4 +282,12 @@ public class ProductEntity {
     public void setVersion(Integer version) {
         this.version = version;
     }
+
+    private String mrpSupplyType;
+    public String getMrpSupplyType() { return mrpSupplyType; }
+    public void setMrpSupplyType(String value) { this.mrpSupplyType = value; }
+    @com.baomidou.mybatisplus.annotation.TableField(updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.ALWAYS)
+    private Long mrpMaterialWarehouseId;
+    public Long getMrpMaterialWarehouseId() { return mrpMaterialWarehouseId; }
+    public void setMrpMaterialWarehouseId(Long value) { this.mrpMaterialWarehouseId = value; }
 }

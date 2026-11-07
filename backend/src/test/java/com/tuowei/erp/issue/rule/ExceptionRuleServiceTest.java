@@ -377,6 +377,12 @@ class ExceptionRuleServiceTest {
 
         assertThat(annotation).isNotNull();
         assertThat(annotation.tenantLine()).isEqualTo("true");
+
+        InterceptorIgnore scopedAnnotation = ExceptionRuleMapper.class
+                .getMethod("selectDueRulesForSchedulerScope", LocalDateTime.class, Long.class, Long.class)
+                .getAnnotation(InterceptorIgnore.class);
+        assertThat(scopedAnnotation).isNotNull();
+        assertThat(scopedAnnotation.tenantLine()).isEqualTo("true");
     }
 
     @Test

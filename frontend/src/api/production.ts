@@ -177,10 +177,9 @@ export interface ProductionOrderMaterial {
 
 // 生产订单查询参数
 export interface ProductionOrderQuery extends PageQuery {
-  orderNo?: string
+  keyword?: string
   productId?: string | number
   status?: string
-  priority?: string
   planStartDate?: string
   planEndDate?: string
 }

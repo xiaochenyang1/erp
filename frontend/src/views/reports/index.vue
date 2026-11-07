@@ -13,7 +13,7 @@
           />
         </el-form-item>
         <el-form-item :label="$t('financeReportPages.common.keyword')">
-          <el-input v-model="queryForm.keyword" :placeholder="$t('financeReportPages.reports.keywordPlaceholder')" clearable style="width: 180px" />
+          <el-input v-model="queryForm.keyword" :placeholder="$t(activeKey === 'fxGainLoss' ? 'financeReportPages.reports.currencyFilterPlaceholder' : 'financeReportPages.reports.keywordPlaceholder')" clearable style="width: 180px" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
@@ -33,7 +33,7 @@
         <strong>{{ activeState.total }}</strong>
       </el-card>
       <el-card shadow="never" class="summary-item">
-        <span>{{ $t('financeReportPages.reports.amountTotal') }}</span>
+        <span>{{ $t(activeKey === 'fxGainLoss' ? 'financeReportPages.reports.netGainLossTotal' : 'financeReportPages.reports.amountTotal') }}</span>
         <strong>{{ formatMoney(summaryAmount) }}</strong>
       </el-card>
       <el-card shadow="never" class="summary-item">
@@ -51,6 +51,9 @@
           :name="item.key"
         />
       </el-tabs>
+      <el-alert v-if="activeKey === 'fxGainLoss'" type="info" :closable="false"
+        :title="$t('financeReportPages.reports.fxPostingHint')"
+        :description="$t('financeReportPages.reports.roundingTotal', { amount: formatMoney(roundingTotal) })" />
 
       <el-table v-if="activeKey === 'purchase' || activeKey === 'sales'" v-loading="activeState.loading" :data="activeState.records" border stripe>
         <el-table-column prop="bizNo" :label="$t('financeReportPages.reports.documentNo')" min-width="170" />
@@ -75,6 +78,14 @@
         </el-table-column>
         <el-table-column prop="totalTaxAmount" :label="$t('financeReportPages.reports.taxAmount')" width="140" align="right">
           <template #default="{ row }">{{ formatMoney(row.totalTaxAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="currencyCode" :label="$t('financeReportPages.reports.currency')" width="90" />
+        <el-table-column prop="exchangeRate" :label="$t('financeReportPages.reports.exchangeRate')" width="110" align="right" />
+        <el-table-column prop="baseTotalAmount" :label="$t('financeReportPages.reports.baseAmount')" width="150" align="right">
+          <template #default="{ row }">{{ formatMoney(row.baseTotalAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="baseTotalTaxAmount" :label="$t('financeReportPages.reports.baseTaxAmount')" width="150" align="right">
+          <template #default="{ row }">{{ formatMoney(row.baseTotalTaxAmount) }}</template>
         </el-table-column>
       </el-table>
 
@@ -120,6 +131,71 @@
         <el-table-column prop="occurredTime" :label="$t('financeReportPages.reports.occurredTime')" min-width="180" />
       </el-table>
 
+      <el-table v-else-if="activeKey === 'inventoryValuation'" v-loading="activeState.loading" :data="activeState.records" border stripe>
+        <el-table-column prop="warehouseCode" :label="$t('financeReportPages.reports.warehouse')" min-width="150"><template #default="{ row }">{{ row.warehouseCode }} · {{ row.warehouseName }}</template></el-table-column>
+        <el-table-column prop="productCode" :label="$t('financeReportPages.reports.product')" min-width="170"><template #default="{ row }">{{ row.productCode }} · {{ row.productName }}</template></el-table-column>
+        <el-table-column prop="openingQty" :label="$t('financeReportPages.reports.openingQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.openingQty) }}</template></el-table-column>
+        <el-table-column prop="inboundQty" :label="$t('financeReportPages.reports.inboundQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.inboundQty) }}</template></el-table-column>
+        <el-table-column prop="outboundQty" :label="$t('financeReportPages.reports.outboundQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.outboundQty) }}</template></el-table-column>
+        <el-table-column prop="closingQty" :label="$t('financeReportPages.reports.closingQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.closingQty) }}</template></el-table-column>
+        <el-table-column prop="closingAmount" :label="$t('financeReportPages.reports.closingAmount')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.closingAmount) }}</template></el-table-column>
+        <el-table-column prop="averageUnitCost" :label="$t('financeReportPages.reports.averageUnitCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.averageUnitCost) }}</template></el-table-column>
+      </el-table>
+
+      <el-table v-else-if="activeKey === 'productionCost'" v-loading="activeState.loading" :data="activeState.records" border stripe>
+        <el-table-column prop="orderNo" :label="$t('financeReportPages.reports.orderNo')" min-width="150" />
+        <el-table-column prop="productCode" :label="$t('financeReportPages.reports.product')" min-width="170"><template #default="{ row }">{{ row.productCode }} · {{ row.productName }}</template></el-table-column>
+        <el-table-column prop="status" :label="$t('financeReportPages.reports.documentStatus')" width="120"><template #default="{ row }">{{ reportStatusLabel(row.status) }}</template></el-table-column>
+        <el-table-column prop="plannedQty" :label="$t('financeReportPages.reports.plannedQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.plannedQty) }}</template></el-table-column>
+        <el-table-column prop="completedQty" :label="$t('financeReportPages.reports.completedQty')" width="120" align="right"><template #default="{ row }">{{ formatNumber(row.completedQty) }}</template></el-table-column>
+        <el-table-column prop="materialCost" :label="$t('financeReportPages.reports.materialCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.materialCost) }}</template></el-table-column>
+        <el-table-column prop="finishedGoodsCost" :label="$t('financeReportPages.reports.finishedGoodsCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.finishedGoodsCost) }}</template></el-table-column>
+        <el-table-column prop="workInProgressCost" :label="$t('financeReportPages.reports.wipCost')" width="140" align="right"><template #default="{ row }">{{ formatMoney(row.workInProgressCost) }}</template></el-table-column>
+        <el-table-column prop="costStatus" :label="$t('financeReportPages.reports.costStatus')" width="130"><template #default="{ row }"><el-tag :type="costStatusType(row.costStatus)">{{ costStatusLabel(row.costStatus) }}</el-tag></template></el-table-column>
+      </el-table>
+
+      <el-table v-else-if="activeKey === 'fxGainLoss'" v-loading="activeState.loading" :data="activeState.records" border stripe>
+        <el-table-column prop="direction" :label="$t('financeReportPages.reports.direction')" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.direction === 'RECEIVABLE' ? 'success' : 'warning'">{{ reportDirectionLabel(row.direction) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="settlementNo" :label="$t('financeReportPages.reports.settlementNo')" min-width="160" />
+        <el-table-column prop="settlementDate" :label="$t('financeReportPages.reports.settlementDate')" width="120" />
+        <el-table-column prop="partnerId" :label="$t('financeReportPages.reports.partnerId')" width="110" />
+        <el-table-column prop="subledgerNo" :label="$t('financeReportPages.reports.subledgerNo')" min-width="170" />
+        <el-table-column prop="currencyCode" :label="$t('financeReportPages.reports.currency')" width="90" />
+        <el-table-column prop="allocatedAmount" :label="$t('financeReportPages.reports.allocatedOriginalAmount')" width="140" align="right">
+          <template #default="{ row }">{{ formatNumber(row.allocatedAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="bookingRate" :label="$t('financeReportPages.reports.bookingRate')" width="120" align="right">
+          <template #default="{ row }">{{ formatExchangeRate(row.bookingRate) }}</template>
+        </el-table-column>
+        <el-table-column prop="settlementRate" :label="$t('financeReportPages.reports.settlementRate')" width="120" align="right">
+          <template #default="{ row }">{{ formatExchangeRate(row.settlementRate) }}</template>
+        </el-table-column>
+        <el-table-column prop="baseAllocatedAmount" :label="$t('financeReportPages.reports.baseAllocatedAmount')" width="150" align="right">
+          <template #default="{ row }">{{ formatMoney(row.baseAllocatedAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="baseSettledAmount" :label="$t('financeReportPages.reports.baseSettledAmount')" width="150" align="right">
+          <template #default="{ row }">{{ formatMoney(row.baseSettledAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="fxGainLossAmount" :label="$t('financeReportPages.reports.fxGainLossAmount')" width="150" align="right">
+          <template #default="{ row }">
+            <span :class="row.fxGainLossAmount >= 0 ? 'fx-positive' : 'fx-negative'">{{ formatMoney(row.fxGainLossAmount) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="roundingAmount" :label="$t('financeReportPages.reports.roundingAmount')" width="140" align="right">
+          <template #default="{ row }">{{ formatMoney(row.roundingAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="totalGainLossAmount" :label="$t('financeReportPages.reports.totalGainLossAmount')" width="150" align="right">
+          <template #default="{ row }">{{ formatMoney(row.totalGainLossAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="postingSnapshot" :label="$t('financeReportPages.reports.amountBasis')" width="150">
+          <template #default="{ row }">{{ $t(row.postingSnapshot ? 'financeReportPages.reports.postedAmounts' : 'financeReportPages.reports.legacyAmounts') }}</template>
+        </el-table-column>
+      </el-table>
+
       <el-table v-else v-loading="activeState.loading" :data="activeState.records" border stripe>
         <el-table-column prop="direction" :label="$t('financeReportPages.reports.direction')" width="110">
           <template #default="{ row }">
@@ -136,13 +212,17 @@
         </el-table-column>
         <el-table-column prop="sourceNo" :label="$t('financeReportPages.reports.sourceNo')" min-width="160" />
         <el-table-column prop="originalAmount" :label="$t('financeReportPages.reports.originalAmount')" width="140" align="right">
-          <template #default="{ row }">{{ formatMoney(row.originalAmount) }}</template>
+          <template #default="{ row }">{{ formatNumber(row.originalAmount) }}</template>
         </el-table-column>
         <el-table-column prop="settledAmount" :label="$t('financeReportPages.reports.settledAmount')" width="140" align="right">
-          <template #default="{ row }">{{ formatMoney(row.settledAmount) }}</template>
+          <template #default="{ row }">{{ formatNumber(row.settledAmount) }}</template>
         </el-table-column>
         <el-table-column prop="remainingAmount" :label="$t('financeReportPages.reports.remainingAmount')" width="140" align="right">
-          <template #default="{ row }">{{ formatMoney(row.remainingAmount) }}</template>
+          <template #default="{ row }">{{ formatNumber(row.remainingAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="currencyCode" :label="$t('financeReportPages.reports.currency')" width="90" />
+        <el-table-column prop="baseRemainingAmount" :label="$t('financeReportPages.reports.baseRemainingAmount')" width="150" align="right">
+          <template #default="{ row }">{{ formatMoney(row.baseRemainingAmount) }}</template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('financeReportPages.common.status')" width="120">
           <template #default="{ row }">{{ reportStatusLabel(row.status) }}</template>
@@ -163,7 +243,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -171,20 +251,28 @@ import { Download, Refresh, Search } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
 import {
   exportFinanceSettlementReport,
+  exportFxGainLossReport,
   exportInventoryBalanceReport,
   exportInventoryTransactionReport,
+  exportInventoryValuationReport,
+  exportProductionCostReport,
   exportPurchaseOrderReport,
   exportSalesOrderReport,
   getFinanceSettlementReport,
+  getFxGainLossReport,
+  getInventoryValuationReport,
+  getProductionCostReport,
   getInventoryBalanceReport,
   getInventoryTransactionReport,
   getPurchaseOrderReport,
   getSalesOrderReport
 } from '@/api/workflow'
 import { useReportList } from '@/composables/useReportList'
+import { getBaseCurrency } from '@/api/finance'
 import { useReportPresentation } from '@/composables/useReportPresentation'
 
 const { t } = useI18n()
+const baseCurrency = ref('')
 const route = useRoute()
 const {
   activeKey,
@@ -204,17 +292,26 @@ const {
   getInventoryBalanceReport,
   getInventoryTransactionReport,
   getFinanceSettlementReport,
+  getFxGainLossReport,
+  getInventoryValuationReport,
+  getProductionCostReport,
   exportPurchaseOrderReport,
   exportSalesOrderReport,
   exportInventoryBalanceReport,
   exportInventoryTransactionReport,
   exportFinanceSettlementReport,
+  exportFxGainLossReport,
+  exportInventoryValuationReport,
+  exportProductionCostReport,
   downloadBlob,
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message)
 })
 const {
   activeReport,
+  costStatusLabel,
+  costStatusType,
+  formatExchangeRate,
   formatMoney,
   formatNumber,
   isReportKey,
@@ -223,10 +320,12 @@ const {
   reportDirectionLabel,
   reportStatusLabel,
   reportTabs,
-  summaryAmount
-} = useReportPresentation(t, activeKey, activeState)
+  summaryAmount,
+  roundingTotal
+} = useReportPresentation(t, activeKey, activeState, baseCurrency)
 
 onMounted(() => {
+  void getBaseCurrency().then(code => { baseCurrency.value = code }).catch(() => ElMessage.error(t('documentCurrency.loadFailed')))
   if (isReportKey(route.query.tab)) {
     activeKey.value = route.query.tab
   }
@@ -241,6 +340,14 @@ onMounted(() => {
 <style scoped lang="scss">
 .reports-container {
   padding: 20px;
+
+  .fx-positive {
+    color: var(--el-color-success);
+  }
+
+  .fx-negative {
+    color: var(--el-color-danger);
+  }
 
   .filter-card,
   .table-card {

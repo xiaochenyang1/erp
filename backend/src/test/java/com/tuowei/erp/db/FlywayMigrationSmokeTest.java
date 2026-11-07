@@ -96,6 +96,66 @@ class FlywayMigrationSmokeTest {
     }
 
     @Test
+    void seedsReceiptPaymentAdvanceSubjectsWithoutReusingHistoricalSeedIds() {
+        // V153 补种预付/预收科目;首版误用 910008/910009(V40 的 6402、V41 的 5001),
+        // upsert 不改 subject_code 却改名改类型 → 成本科目被静默改写(V99/V100 教训),故断言两侧同时成立。
+        Long advanceSubjects = jdbcTemplate.queryForObject("""
+                select count(*)
+                from fin_account_subject
+                where company_id = 1
+                  and account_book_id = 1
+                  and status = 'ACTIVE'
+                  and deleted_flag = 0
+                  and ((subject_code = '1123' and subject_name = '预付账款'
+                        and subject_type = 'ASSET' and balance_direction = 'DEBIT')
+                    or (subject_code = '2203' and subject_name = '预收账款'
+                        and subject_type = 'LIABILITY' and balance_direction = 'CREDIT'))
+                """, Long.class);
+        Assertions.assertThat(advanceSubjects).isEqualTo(2L);
+
+        Long collidedSeedIds = jdbcTemplate.queryForObject("""
+                select count(*)
+                from fin_account_subject
+                where (id = 910008 and subject_code = '6402')
+                   or (id = 910009 and subject_code = '5001')
+                """, Long.class);
+        Assertions.assertThat(collidedSeedIds).isEqualTo(2L);
+    }
+
+    @Test
+    void createsBudgetManagementTablesFieldsAndPermissions() {
+        Long budgetTables = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) in ('fin_budget', 'fin_budget_line')
+                """, Long.class);
+        Assertions.assertThat(budgetTables).isEqualTo(2L);
+
+        Long expenseBudgetColumns = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.columns
+                where lower(table_schema) = 'public'
+                  and lower(table_name) = 'fin_expense'
+                  and lower(column_name) in ('dept_id', 'budget_line_id', 'budget_state', 'budget_overrun_flag')
+                """, Long.class);
+        Assertions.assertThat(expenseBudgetColumns).isEqualTo(4L);
+
+        Long budgetPermissionCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_menu
+                where permission in ('finance:budget:view', 'finance:budget:manage', 'finance:budget:approve')
+                  and status = 'ACTIVE' and deleted_flag = 0
+                """, Long.class);
+        Assertions.assertThat(budgetPermissionCount).isEqualTo(3L);
+
+        Long adminBindingCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_role_menu rm
+                join sys_menu m on m.id = rm.menu_id
+                where rm.role_id = 3002
+                  and m.permission in ('finance:budget:view', 'finance:budget:manage', 'finance:budget:approve')
+                """, Long.class);
+        Assertions.assertThat(adminBindingCount).isEqualTo(3L);
+    }
+
+    @Test
     void createsProductionBatchExecutionTablesSequencesAndPermission() {
         Long tableCount = jdbcTemplate.queryForObject("""
                 select count(*)
@@ -276,22 +336,22 @@ class FlywayMigrationSmokeTest {
 
         jdbcTemplate.update("""
                 insert into inv_lot_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id, lot_no)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no)
                 values
-                    (900001, 910001, 920001, 930001, 940001, 'LOT-A')
+                    (900001, 910001, 920001, 930001, 935001, 940001, 'LOT-A')
                 """);
         Assertions.assertThatThrownBy(() -> jdbcTemplate.update("""
                 insert into inv_lot_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id, lot_no)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no)
                 values
-                    (900002, 910001, 920001, 930001, 940001, 'LOT-A')
+                    (900002, 910001, 920001, 930001, 935001, 940001, 'LOT-A')
                 """)).isInstanceOf(Exception.class);
 
         jdbcTemplate.update("""
                 insert into inv_lot_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id, lot_no)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id, lot_no)
                 values
-                    (900003, 910001, 920002, 930001, 940001, 'LOT-A')
+                    (900003, 910001, 920002, 930001, 935001, 940001, 'LOT-A')
                 """);
 
         jdbcTemplate.update("""
@@ -317,8 +377,8 @@ class FlywayMigrationSmokeTest {
 
     @Test
     void scopesInventoryStockAndReservationIndexesByCompanyAndAccountBook() {
-        assertIndexColumns("inv_balance", "uk_inv_balance_company_book_warehouse_product",
-                "company_id", "account_book_id", "warehouse_id", "product_id");
+        assertIndexColumns("inv_balance", "uk_inv_balance_company_book_warehouse_location_product",
+                "company_id", "account_book_id", "warehouse_id", "location_id", "product_id");
         assertIndexColumns("inv_balance", "idx_inv_balance_company_book_product",
                 "company_id", "account_book_id", "product_id");
         assertIndexColumns("inv_txn", "idx_inv_txn_company_book_biz_no",
@@ -351,21 +411,21 @@ class FlywayMigrationSmokeTest {
 
         jdbcTemplate.update("""
                 insert into inv_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id)
                 values
-                    (993001, 993001, 1, 993101, 993201)
+                    (993001, 993001, 1, 993101, 993151, 993201)
                 """);
         jdbcTemplate.update("""
                 insert into inv_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id)
                 values
-                    (993002, 993001, 2, 993101, 993201)
+                    (993002, 993001, 2, 993101, 993151, 993201)
                 """);
         Assertions.assertThatThrownBy(() -> jdbcTemplate.update("""
                 insert into inv_balance
-                    (id, company_id, account_book_id, warehouse_id, product_id)
+                    (id, company_id, account_book_id, warehouse_id, location_id, product_id)
                 values
-                    (993003, 993001, 1, 993101, 993201)
+                    (993003, 993001, 1, 993101, 993151, 993201)
                 """)).isInstanceOf(Exception.class);
 
         jdbcTemplate.update("""
@@ -1045,6 +1105,140 @@ class FlywayMigrationSmokeTest {
                      'POST', '/api/smoke/idempotency', 'HASH-A', 'PROCESSING',
                      timestamp '2026-06-01 10:00:00')
                 """)).isInstanceOf(Exception.class);
+    }
+
+    @Test
+    void createsAutomationNotificationDeduplicationAndExceptionTicketSequence() {
+        assertColumnsExist("sys_notification", "dedup_key");
+        assertIndexColumns("sys_notification", "uk_sys_notification_company_book_dedup",
+                "company_id", "account_book_id", "dedup_key");
+
+        var sequenceRule = jdbcTemplate.queryForMap("""
+                select prefix, date_pattern, seq_length, status
+                from sys_sequence_rule
+                where company_id = 1
+                  and account_book_id = 1
+                  and biz_type = 'EXCEPTION_TICKET'
+                """);
+        Assertions.assertThat(sequenceRule)
+                .containsEntry("prefix", "ET-")
+                .containsEntry("date_pattern", "yyyyMMdd-")
+                .containsEntry("seq_length", 4)
+                .containsEntry("status", "ACTIVE");
+
+        insertNotification(996001L, 996001L, 1L, null);
+        insertNotification(996002L, 996001L, 1L, null);
+        insertNotification(996003L, 996001L, 1L, "CONTRACT:996001:EXPIRY");
+        insertNotification(996004L, 996001L, 2L, "CONTRACT:996001:EXPIRY");
+
+        Assertions.assertThatThrownBy(() ->
+                insertNotification(996005L, 996001L, 1L, "CONTRACT:996001:EXPIRY"))
+                .isInstanceOf(Exception.class);
+    }
+
+    @Test
+    void createsProcessWideExceptionRuleSchedulerLease() {
+        Long tableCount = jdbcTemplate.queryForObject("""
+                select count(*)
+                from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) = 'sys_scheduler_lease'
+                """, Long.class);
+        Assertions.assertThat(tableCount).isEqualTo(1L);
+
+        assertColumnsExist("sys_scheduler_lease", "lease_key", "owner_token", "expires_at", "version");
+        assertIndexColumns("sys_scheduler_lease", "idx_sys_scheduler_lease_expires_at", "expires_at");
+
+        var lease = jdbcTemplate.queryForMap("""
+                select lease_key, owner_token, expires_at
+                from sys_scheduler_lease
+                where lease_key = 'EXCEPTION_RULE_AUTOMATION'
+                """);
+        Assertions.assertThat(lease)
+                .containsEntry("lease_key", "EXCEPTION_RULE_AUTOMATION")
+                .containsEntry("owner_token", "");
+        Assertions.assertThat(lease.get("expires_at")).isNull();
+
+        int firstAcquire = jdbcTemplate.update("""
+                update sys_scheduler_lease
+                set owner_token = ?, expires_at = timestamp '2099-01-01 00:00:00'
+                where lease_key = ?
+                  and (expires_at is null or expires_at <= timestamp '2026-01-01 00:00:00' or owner_token = ?)
+                """, "owner-a", "EXCEPTION_RULE_AUTOMATION", "owner-a");
+        Assertions.assertThat(firstAcquire).isEqualTo(1);
+
+        int staleRelease = jdbcTemplate.update("""
+                update sys_scheduler_lease
+                set owner_token = '', expires_at = timestamp '2026-01-01 00:00:00'
+                where lease_key = ? and owner_token = ?
+                """, "EXCEPTION_RULE_AUTOMATION", "owner-old");
+        Assertions.assertThat(staleRelease).isZero();
+    }
+
+    @Test
+    void createsFxRevaluationTableAndReusesGenerationAfterCancel() {
+        assertColumnsExist("fin_fx_revaluation",
+                "period_id", "status", "open_original_total", "ar_adjustment", "ap_adjustment",
+                "revaluation_date", "reversal_date", "generation", "basis_hash", "basis_json");
+        assertIndexColumns("fin_fx_revaluation", "uk_fin_fx_revaluation_generation",
+                "company_id", "account_book_id", "period_id", "generation");
+
+        jdbcTemplate.update("""
+                insert into fin_fx_revaluation
+                    (id, company_id, account_book_id, period_id, status,
+                     open_original_total, ar_adjustment, ap_adjustment,
+                     revaluation_date, reversal_date, generation)
+                values
+                    (996101, 996101, 1, 996201, 'POSTED',
+                     100.00, 20.00, 0.00,
+                     date '2026-06-30', date '2026-07-01', 0)
+                """);
+        jdbcTemplate.update("""
+                insert into fin_fx_revaluation
+                    (id, company_id, account_book_id, period_id, status,
+                     open_original_total, ar_adjustment, ap_adjustment,
+                     revaluation_date, reversal_date, generation)
+                values
+                    (996102, 996101, 1, 996202, 'POSTED',
+                     50.00, 0.00, -5.00,
+                     date '2026-07-31', date '2026-08-01', 0)
+                """);
+        Assertions.assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into fin_fx_revaluation
+                    (id, company_id, account_book_id, period_id, status,
+                     open_original_total, ar_adjustment, ap_adjustment,
+                     revaluation_date, reversal_date, generation)
+                values
+                    (996103, 996101, 1, 996201, 'POSTED',
+                     100.00, 20.00, 0.00,
+                     date '2026-06-30', date '2026-07-01', 0)
+                """)).isInstanceOf(Exception.class);
+
+        jdbcTemplate.update("""
+                update fin_fx_revaluation
+                set status = 'CANCELLED', generation = id
+                where id = 996101
+                """);
+        jdbcTemplate.update("""
+                insert into fin_fx_revaluation
+                    (id, company_id, account_book_id, period_id, status,
+                     open_original_total, ar_adjustment, ap_adjustment,
+                     revaluation_date, reversal_date, generation)
+                values
+                    (996104, 996101, 1, 996201, 'POSTED',
+                     80.00, 10.00, 0.00,
+                     date '2026-06-30', date '2026-07-01', 0)
+                """);
+    }
+
+    private void insertNotification(long id, long companyId, long accountBookId, String dedupKey) {
+        jdbcTemplate.update("""
+                insert into sys_notification
+                    (id, company_id, account_book_id, category, notification_type, title,
+                     content, dedup_key, status, deleted_flag, created_by, updated_by, version)
+                values (?, ?, ?, 'BUSINESS', 'MIGRATION_SMOKE', 'migration smoke',
+                        'automation deduplication guard', ?, 'ACTIVE', 0, 0, 0, 0)
+                """, id, companyId, accountBookId, dedupKey);
     }
 
     private void assertColumnsExist(String tableName, String... columnNames) {

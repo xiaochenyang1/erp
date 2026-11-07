@@ -1,0 +1,68 @@
+# Combine with docker-compose.yml (or docker-compose.prebuilt.yml).
+# Required secret file paths are described in docs/monitoring/README.md.
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "127.0.0.1:${ERP_PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert-rules.yml:/etc/prometheus/rules/alert-rules.yml:ro
+      - erp-prometheus-data:/prometheus
+    secrets:
+      - source: erp_metrics_token
+        target: /etc/prometheus/secrets/erp-metrics-token
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "127.0.0.1:${ERP_ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - erp-alertmanager-data:/alertmanager
+    secrets:
+      - source: erp_warning_webhook
+        target: /etc/alertmanager/secrets/erp-default-webhook-url
+      - source: erp_critical_webhook
+        target: /etc/alertmanager/secrets/erp-critical-webhook-url
+
+  grafana:
+    image: grafana/grafana:13.2.4
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${ERP_GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/erp_grafana_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${ERP_GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docs/monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/erp-business-health.json:ro
+      - erp-grafana-data:/var/lib/grafana
+    secrets:
+      - erp_grafana_password
+
+secrets:
+  erp_metrics_token:
+    file: ${ERP_MONITORING_TOKEN_FILE:?Set ERP_MONITORING_TOKEN_FILE to a JWT file}
+  erp_warning_webhook:
+    file: ${ERP_MONITORING_WARNING_WEBHOOK_FILE:?Set ERP_MONITORING_WARNING_WEBHOOK_FILE}
+  erp_critical_webhook:
+    file: ${ERP_MONITORING_CRITICAL_WEBHOOK_FILE:?Set ERP_MONITORING_CRITICAL_WEBHOOK_FILE}
+  erp_grafana_password:
+    file: ${ERP_GRAFANA_PASSWORD_FILE:?Set ERP_GRAFANA_PASSWORD_FILE}
+
+volumes:
+  erp-prometheus-data:
+  erp-alertmanager-data:
+  erp-grafana-data:

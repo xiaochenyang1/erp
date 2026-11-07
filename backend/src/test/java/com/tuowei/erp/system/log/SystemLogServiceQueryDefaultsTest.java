@@ -14,6 +14,7 @@ import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.AuditLogEntity;
 import com.tuowei.erp.system.log.model.LoginLogEntity;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
+import com.tuowei.erp.system.log.service.SystemLogQueryService;
 import com.tuowei.erp.system.log.service.SystemLogService;
 import com.tuowei.erp.system.log.web.AuditLogResponse;
 import com.tuowei.erp.system.log.web.LoginLogResponse;
@@ -68,7 +69,11 @@ class SystemLogServiceQueryDefaultsTest {
             page.setRecords(List.of(loginLog()));
             return page;
         });
-        SystemLogService service = service(loginLogMapper, mock(OperationLogMapper.class), mock(AuditLogMapper.class));
+        SystemLogQueryService service = queryService(
+                loginLogMapper,
+                mock(OperationLogMapper.class),
+                mock(AuditLogMapper.class)
+        );
 
         PageResponse<LoginLogResponse> response = service.listLoginLogs(null);
 
@@ -93,7 +98,11 @@ class SystemLogServiceQueryDefaultsTest {
             page.setRecords(List.of(operationLog()));
             return page;
         });
-        SystemLogService service = service(mock(LoginLogMapper.class), operationLogMapper, mock(AuditLogMapper.class));
+        SystemLogQueryService service = queryService(
+                mock(LoginLogMapper.class),
+                operationLogMapper,
+                mock(AuditLogMapper.class)
+        );
 
         PageResponse<OperationLogResponse> response = service.listOperationLogs(null);
 
@@ -118,7 +127,11 @@ class SystemLogServiceQueryDefaultsTest {
             page.setRecords(List.of(auditLog()));
             return page;
         });
-        SystemLogService service = service(mock(LoginLogMapper.class), mock(OperationLogMapper.class), auditLogMapper);
+        SystemLogQueryService service = queryService(
+                mock(LoginLogMapper.class),
+                mock(OperationLogMapper.class),
+                auditLogMapper
+        );
 
         PageResponse<AuditLogResponse> response = service.listAuditLogs(null);
 
@@ -139,7 +152,11 @@ class SystemLogServiceQueryDefaultsTest {
         LoginLogMapper loginLogMapper = mock(LoginLogMapper.class);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("User-Agent", "ERP\r\nClient\t/1.0");
-        SystemLogService service = service(loginLogMapper, mock(OperationLogMapper.class), mock(AuditLogMapper.class));
+        SystemLogService service = writeService(
+                loginLogMapper,
+                mock(OperationLogMapper.class),
+                mock(AuditLogMapper.class)
+        );
 
         service.recordLoginSuccess(PRINCIPAL.userId(), PRINCIPAL.username(), "登录成功", request);
 
@@ -148,7 +165,7 @@ class SystemLogServiceQueryDefaultsTest {
         assertThat(entityCaptor.getValue().getUserAgent()).isEqualTo("ERP Client /1.0");
     }
 
-    private static SystemLogService service(
+    private static SystemLogService writeService(
             LoginLogMapper loginLogMapper,
             OperationLogMapper operationLogMapper,
             AuditLogMapper auditLogMapper
@@ -162,7 +179,23 @@ class SystemLogServiceQueryDefaultsTest {
                 currentUserContext,
                 mock(UserMapper.class),
                 mock(ClientIpResolver.class),
-                Clock.fixed(Instant.parse("2026-01-02T03:04:05Z"), ZoneOffset.UTC)
+                Clock.fixed(Instant.parse("2026-01-02T03:04:05Z"), ZoneOffset.UTC),
+                new SystemLogQueryService(loginLogMapper, operationLogMapper, auditLogMapper, currentUserContext)
+        );
+    }
+
+    private static SystemLogQueryService queryService(
+            LoginLogMapper loginLogMapper,
+            OperationLogMapper operationLogMapper,
+            AuditLogMapper auditLogMapper
+    ) {
+        CurrentUserContext currentUserContext = mock(CurrentUserContext.class);
+        when(currentUserContext.requirePrincipal()).thenReturn(PRINCIPAL);
+        return new SystemLogQueryService(
+                loginLogMapper,
+                operationLogMapper,
+                auditLogMapper,
+                currentUserContext
         );
     }
 

@@ -11,8 +11,10 @@ import com.tuowei.erp.system.notification.mapper.NotificationMapper;
 import com.tuowei.erp.system.notification.mapper.NotificationRecipientMapper;
 import com.tuowei.erp.system.notification.model.NotificationEntity;
 import com.tuowei.erp.system.notification.model.NotificationRecipientEntity;
+import com.tuowei.erp.system.notification.service.NotificationCommandService;
+import com.tuowei.erp.system.notification.service.NotificationQueryService;
 import com.tuowei.erp.system.notification.service.NotificationService;
-import com.tuowei.erp.system.notification.service.NotificationWebhookPublisher;
+import com.tuowei.erp.system.notification.web.NotificationPageQuery;
 import com.tuowei.erp.system.notification.web.NotificationResponse;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -21,11 +23,13 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
@@ -55,11 +59,15 @@ class NotificationServiceQueryDefaultsTest {
             return page;
         });
         when(notificationMapper.selectList(any())).thenReturn(List.of(notification()));
-        NotificationService service = new NotificationService(
+        AuditMetadataFactory auditMetadataFactory = auditFactory();
+        NotificationQueryService queryService = new NotificationQueryService(
                 notificationMapper,
                 recipientMapper,
-                auditFactory(),
-                mock(NotificationWebhookPublisher.class)
+                auditMetadataFactory
+        );
+        NotificationService service = new NotificationService(
+                queryService,
+                mock(NotificationCommandService.class)
         );
 
         PageResponse<NotificationResponse> response = service.listMine(null);
@@ -80,6 +88,62 @@ class NotificationServiceQueryDefaultsTest {
                 .contains("status");
     }
 
+    @Test
+    void queryServiceNormalizesFiltersAndCapsPageSize() {
+        NotificationRecipientMapper recipientMapper = mock(NotificationRecipientMapper.class);
+        NotificationMapper notificationMapper = mock(NotificationMapper.class);
+        when(recipientMapper.selectPage(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+        NotificationPageQuery query = new NotificationPageQuery();
+        query.setPageNo(0);
+        query.setPageSize(500);
+        query.setUnreadOnly(true);
+        query.setCategory(" todo'legacy ");
+        query.setNotificationType(" workflow_approval_pending ");
+
+        PageResponse<NotificationResponse> response = queryService(notificationMapper, recipientMapper).listMine(query);
+
+        assertThat(response.pageNo()).isEqualTo(1);
+        assertThat(response.pageSize()).isEqualTo(200);
+        assertThat(response.records()).isEmpty();
+
+        ArgumentCaptor<Page<NotificationRecipientEntity>> pageCaptor = ArgumentCaptor.forClass(Page.class);
+        ArgumentCaptor<LambdaQueryWrapper<NotificationRecipientEntity>> wrapperCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(recipientMapper).selectPage(pageCaptor.capture(), wrapperCaptor.capture());
+        assertThat(pageCaptor.getValue().getCurrent()).isEqualTo(1);
+        assertThat(pageCaptor.getValue().getSize()).isEqualTo(200);
+        assertThat(wrapperCaptor.getValue().getSqlSegment().toUpperCase(Locale.ROOT))
+                .contains("READ_FLAG", "CATEGORY = 'TODO''LEGACY'", "NOTIFICATION_TYPE = 'WORKFLOW_APPROVAL_PENDING'")
+                .contains("COMPANY_ID = " + AUDIT.companyId())
+                .contains("ACCOUNT_BOOK_ID = " + AUDIT.accountBookId());
+        verifyNoInteractions(notificationMapper);
+    }
+
+    @Test
+    void queryServiceCountsOnlyUnreadActiveNotificationsForCurrentUserAndBook() {
+        NotificationRecipientMapper recipientMapper = mock(NotificationRecipientMapper.class);
+        NotificationMapper notificationMapper = mock(NotificationMapper.class);
+        when(recipientMapper.selectCount(any())).thenReturn(4L);
+
+        long unreadCount = queryService(notificationMapper, recipientMapper).countUnreadMine();
+
+        assertThat(unreadCount).isEqualTo(4L);
+        ArgumentCaptor<LambdaQueryWrapper<NotificationRecipientEntity>> wrapperCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(recipientMapper).selectCount(wrapperCaptor.capture());
+        assertThat(wrapperCaptor.getValue().getSqlSegment().toUpperCase(Locale.ROOT))
+                .contains("COMPANY_ID", "RECIPIENT_USER_ID", "READ_FLAG", "NOTIFICATION_ID IN")
+                .contains("ACCOUNT_BOOK_ID = " + AUDIT.accountBookId());
+        verifyNoInteractions(notificationMapper);
+    }
+
+    private static NotificationQueryService queryService(
+            NotificationMapper notificationMapper,
+            NotificationRecipientMapper recipientMapper
+    ) {
+        return new NotificationQueryService(notificationMapper, recipientMapper, auditFactory());
+    }
+
     private static AuditMetadataFactory auditFactory() {
         AuditMetadataFactory factory = mock(AuditMetadataFactory.class);
         when(factory.current()).thenReturn(AUDIT);
@@ -90,6 +154,7 @@ class NotificationServiceQueryDefaultsTest {
         NotificationRecipientEntity entity = new NotificationRecipientEntity();
         entity.setId(11L);
         entity.setCompanyId(AUDIT.companyId());
+        entity.setAccountBookId(AUDIT.accountBookId());
         entity.setNotificationId(21L);
         entity.setRecipientUserId(AUDIT.userId());
         entity.setReadFlag(0);

@@ -8,8 +8,10 @@ export const useWorkflowRecordPresentation = (t: Translate) => {
   const businessTypeLabel = (type?: string) => {
     const map: Record<string, string> = {
       PURCHASE_ORDER: t('workflowRecord.businessTypes.purchaseOrder'),
+      PURCHASE_REQUISITION: t('workflowRecord.businessTypes.purchaseRequisition'),
       SALES_ORDER: t('workflowRecord.businessTypes.salesOrder'),
-      EXPENSE: t('workflowRecord.businessTypes.expense')
+      EXPENSE: t('workflowRecord.businessTypes.expense'),
+      INVENTORY_ADJUSTMENT: t('workflowRecord.businessTypes.inventoryAdjustment')
     }
     return type ? map[type] || type : '-'
   }

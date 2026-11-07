@@ -1,17 +1,13 @@
 import type { OperationsDashboardTodo } from '@/api/dashboard'
 import { formatLocalizedCurrency, formatLocalizedDateTime, formatLocalizedNumber } from '@/utils/locale'
+import type { DisplayPreferences } from '@/utils/locale'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
 type TagType = 'danger' | 'warning' | 'info' | 'success' | 'primary'
-type DisplayPreferences = {
-  locale?: string
-  timeZone?: string
-}
-
 /** Labels, formatters and todo visual helpers for the operations dashboard. */
 export const useDashboardPresentation = (
   t: Translate,
-  getPreferences: () => DisplayPreferences = () => ({})
+  getPreferences: () => DisplayPreferences = () => ({ locale: 'zh-CN', timeZone: 'Asia/Shanghai' })
 ) => {
   const formatNumber = (num?: number) =>
     formatLocalizedNumber(Number(num || 0), {}, getPreferences())

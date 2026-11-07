@@ -6,7 +6,9 @@ import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.JwtTokenService;
 import com.tuowei.erp.common.security.SecurityPrincipalCache;
 import com.tuowei.erp.common.web.ClientIpResolver;
+import com.tuowei.erp.system.auth.service.AuthAccountService;
 import com.tuowei.erp.system.auth.service.AuthService;
+import com.tuowei.erp.system.auth.service.AuthSessionService;
 import com.tuowei.erp.system.auth.service.LoginRateLimiter;
 import com.tuowei.erp.system.auth.service.RefreshTokenService;
 import com.tuowei.erp.system.auth.web.UpdateProfileRequest;
@@ -61,23 +63,27 @@ class AuthServiceUpdateProfileTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(
+        AuthSessionService sessionService = new AuthSessionService(
                 authenticationManager,
                 jwtTokenService,
                 refreshTokenService,
                 systemLogService,
                 loginRateLimiter,
                 null,
+                clientIpResolver
+        );
+        AuthAccountService accountService = new AuthAccountService(
                 currentUserContext,
                 userMapper,
                 userRoleMapper,
                 roleMapper,
                 passwordEncoder,
                 Clock.fixed(Instant.parse("2026-07-17T02:00:00Z"), ZoneOffset.UTC),
-                clientIpResolver,
                 principalCache,
+                refreshTokenService,
                 menuService
         );
+        authService = new AuthService(sessionService, accountService);
     }
 
     @Test

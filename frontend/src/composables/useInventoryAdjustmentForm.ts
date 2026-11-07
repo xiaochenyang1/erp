@@ -41,6 +41,7 @@ export const useInventoryAdjustmentForm = (
   options: {
     getAdjustment: (id: string | number) => Promise<InventoryAdjustment>
     createAdjustment: (data: InventoryAdjustmentCreateRequest) => Promise<unknown>
+    updateAdjustment: (id: string | number, data: InventoryAdjustmentCreateRequest) => Promise<unknown>
     findProduct: (productId: string | number) => Product | undefined
     onError?: Notify
     onSuccess?: Notify
@@ -52,6 +53,7 @@ export const useInventoryAdjustmentForm = (
   const dialogTitle = ref('')
   const submitLoading = ref(false)
   const isView = ref(false)
+  const editingId = ref<string | number | null>(null)
 
   const formData = reactive<InventoryAdjustmentFormData>({
     warehouseId: 0,
@@ -67,6 +69,7 @@ export const useInventoryAdjustmentForm = (
     hydrateProductLineLabels(items, async (productId) => options.findProduct(productId) || {})
 
   const resetForm = () => {
+    editingId.value = null
     formData.warehouseId = 0
     formData.adjustmentDate = formatBusinessDate()
     formData.type = 'GAIN'
@@ -86,6 +89,24 @@ export const useInventoryAdjustmentForm = (
     isView.value = true
     try {
       const detail = await options.getAdjustment(row.id)
+      Object.assign(formData, detail)
+      formData.items = await hydrateItems(formData.items || [])
+      dialogVisible.value = true
+    } catch {
+      options.onError?.(t('inventoryAdjustments.message.detailLoadFailed'))
+    }
+  }
+
+  const handleEdit = async (row: InventoryAdjustment) => {
+    try {
+      const detail = await options.getAdjustment(row.id)
+      if (detail.sourceId || !['DRAFT', 'REJECTED'].includes(detail.status)) {
+        options.onWarning?.(t('inventoryAdjustments.message.editNotAllowed'))
+        return
+      }
+      editingId.value = detail.id
+      isView.value = false
+      dialogTitle.value = t('inventoryAdjustments.dialog.edit')
       Object.assign(formData, detail)
       formData.items = await hydrateItems(formData.items || [])
       dialogVisible.value = true
@@ -144,11 +165,13 @@ export const useInventoryAdjustmentForm = (
   }
 
   const handleSubmit = async () => {
+    if (isView.value) return false
     if (!(await validateForm())) return false
 
     submitLoading.value = true
     try {
-      await options.createAdjustment(formData)
+      if (editingId.value != null) await options.updateAdjustment(editingId.value, formData)
+      else await options.createAdjustment(formData)
       options.onSuccess?.(t('inventoryAdjustments.message.success'))
       dialogVisible.value = false
       await options.onSubmitted?.()
@@ -168,6 +191,7 @@ export const useInventoryAdjustmentForm = (
     handleAddItem,
     handleCreate,
     handleDeleteItem,
+    handleEdit,
     handleProductChange,
     handleSubmit,
     handleView,

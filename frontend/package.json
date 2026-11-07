@@ -11,6 +11,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "release:build": "node scripts/release-artifact.mjs build",
+    "release:verify": "node scripts/release-artifact.mjs verify",
+    "test:release": "node --test scripts/release-artifact.test.mjs",
     "type-check": "vue-tsc --noEmit --skipLibCheck",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -24,13 +27,13 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
-    "axios": "^1.18.1",
+    "axios": "^1.20.0",
     "echarts": "^6.1.0",
     "element-plus": "^2.8.0",
     "nprogress": "^0.2.0",
     "pinia": "^2.1.7",
-    "vue": "^3.4.21",
-    "vue-i18n": "^11.1.12",
+    "vue": "^3.5.44",
+    "vue-i18n": "^11.4.16",
     "vue-router": "^4.3.0"
   },
   "devDependencies": {

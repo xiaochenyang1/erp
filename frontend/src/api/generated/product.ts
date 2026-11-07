@@ -135,6 +135,7 @@ export interface components {
             conversionFactor?: number;
             inspectionRequired?: boolean;
             lotControlled?: boolean;
+            mrpPolicy?: components["schemas"]["ProductMrpPolicy"];
             productCode: string;
             productName: string;
             productType: string;
@@ -145,6 +146,10 @@ export interface components {
             specification?: string;
             taxRate: number;
             unitName: string;
+        };
+        ProductMrpPolicy: {
+            materialWarehouseId?: string;
+            supplyType: string;
         };
         ProductPageQuery: {
             categoryName?: string;
@@ -163,6 +168,7 @@ export interface components {
             id?: string;
             inspectionRequired?: boolean;
             lotControlled?: boolean;
+            mrpPolicy?: components["schemas"]["ProductMrpPolicy"];
             productCode?: string;
             productName?: string;
             productType?: string;
@@ -182,6 +188,7 @@ export interface components {
             conversionFactor?: number;
             inspectionRequired?: boolean;
             lotControlled?: boolean;
+            mrpPolicy?: components["schemas"]["ProductMrpPolicy"];
             productName: string;
             purchasePrice: number;
             remark?: string;

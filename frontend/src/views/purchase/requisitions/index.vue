@@ -42,9 +42,10 @@
           <template #default="{ row }">{{ row.convertedOrderNo || '-' }}</template>
         </el-table-column>
         <el-table-column prop="remark" :label="t('purchaseRequisition.remark')" min-width="140" show-overflow-tooltip />
-        <el-table-column :label="t('purchaseRequisition.actions')" width="400" fixed="right">
+        <el-table-column :label="t('purchaseRequisition.actions')" width="460" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">{{ t('purchaseRequisition.view') }}</el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.requisitionNo)">{{ t('documentAttachment.entry') }}</el-button>
             <el-button link type="primary" @click="handlePrint(row)">{{ t('purchaseRequisition.print') }}</el-button>
             <el-button
               v-if="['DRAFT', 'REJECTED'].includes(row.status)"
@@ -217,6 +218,15 @@
         <el-button @click="detailVisible = false">{{ t('purchaseRequisition.close') }}</el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="PURCHASE_REQUISITION"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -238,11 +248,25 @@ import {
 } from '@/api/purchase'
 import { getProducts, getSuppliers } from '@/api/masterdata'
 import { printPurchaseRequisition } from '@/utils/bizPrint'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { usePurchaseRequisitionPresentation } from '@/composables/usePurchaseRequisitionPresentation'
 import { usePurchaseRequisitionList } from '@/composables/usePurchaseRequisitionList'
 import { usePurchaseRequisitionForm } from '@/composables/usePurchaseRequisitionForm'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
+
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const notify = {
   onError: (message: string) => ElMessage.error(message),

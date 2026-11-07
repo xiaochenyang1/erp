@@ -21,6 +21,7 @@ import com.tuowei.erp.finance.payment.web.PaymentCancelRequest;
 import com.tuowei.erp.finance.payment.web.PaymentCreateRequest;
 import com.tuowei.erp.finance.payment.web.PaymentPageQuery;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
+import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptAllocationMapper;
 import com.tuowei.erp.finance.receipt.mapper.ReceiptMapper;
 import com.tuowei.erp.finance.receipt.model.ReceiptAllocationEntity;
@@ -76,6 +77,7 @@ class FinanceSettlementTenantBoundaryTest {
     private final ReceiptNumberService receiptNumberService = mock(ReceiptNumberService.class);
     private final AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
     private final AccountPeriodGuard accountPeriodGuard = mock(AccountPeriodGuard.class);
+    private final FinancePostingService financePostingService = mock(FinancePostingService.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -532,7 +534,8 @@ class FinanceSettlementTenantBoundaryTest {
                 payableMapper,
                 paymentNumberService,
                 auditMetadataFactory,
-                accountPeriodGuard
+                accountPeriodGuard,
+                financePostingService
         );
     }
 
@@ -543,7 +546,8 @@ class FinanceSettlementTenantBoundaryTest {
                 receivableMapper,
                 receiptNumberService,
                 auditMetadataFactory,
-                accountPeriodGuard
+                accountPeriodGuard,
+                financePostingService
         );
     }
 

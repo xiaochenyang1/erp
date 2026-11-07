@@ -180,6 +180,67 @@ function Get-ReleaseEvidenceBundleObjectProperty {
     return $property.Value
 }
 
+function Assert-ReleaseEvidenceBundleCandidateCommit {
+    param([string]$ExtractRoot)
+
+    $indexPath = Resolve-ReleaseEvidenceBundleExtractedPath -ExtractRoot $ExtractRoot -RelativePath "evidence-index.json"
+    if ([string]::IsNullOrWhiteSpace($indexPath) -or -not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
+        # Older bundles predate candidate binding and do not carry an evidence index.
+        Add-ReleaseEvidenceBundleVerificationCheck "Evidence index candidate binding" "PASSED" "evidence-index.json is absent; candidate binding check was skipped for a legacy bundle."
+        return
+    }
+
+    try {
+        $index = Get-Content -LiteralPath $indexPath -Raw | ConvertFrom-Json
+        Add-ReleaseEvidenceBundleVerificationCheck "Evidence index candidate binding" "PASSED" "Parsed bundled evidence-index.json."
+    }
+    catch {
+        Add-ReleaseEvidenceBundleVerificationCheck "Evidence index candidate binding" "FAILED" "Cannot parse bundled evidence-index.json: $(($_ | Out-String).Trim())"
+        return
+    }
+
+    $releaseCheck = Get-ReleaseEvidenceBundleObjectProperty -Object $index -Name "releaseCheck"
+    if ($null -eq $releaseCheck) {
+        Add-ReleaseEvidenceBundleVerificationCheck "Evidence index candidate binding" "PASSED" "Bundled evidence index has no releaseCheck binding; legacy candidate check was skipped."
+        return
+    }
+
+    $indexCandidate = Get-ReleaseEvidenceBundleObjectProperty -Object $releaseCheck -Name "releaseCandidateCommit"
+    if ([string]::IsNullOrWhiteSpace([string]$indexCandidate)) {
+        Add-ReleaseEvidenceBundleVerificationCheck "Evidence index releaseCandidateCommit" "FAILED" "Bundled evidence index releaseCheck.releaseCandidateCommit is missing or blank."
+        return
+    }
+    $indexCandidate = ([string]$indexCandidate).Trim()
+
+    $reportPath = Resolve-ReleaseEvidenceBundleExtractedPath -ExtractRoot $ExtractRoot -RelativePath "release-check/release-check-report.json"
+    if ([string]::IsNullOrWhiteSpace($reportPath) -or -not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+        Add-ReleaseEvidenceBundleVerificationCheck "Evidence index releaseCandidateCommit" "FAILED" "Cannot compare bundled candidate: release-check/release-check-report.json is missing."
+        return
+    }
+
+    try {
+        $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        Add-ReleaseEvidenceBundleVerificationCheck "Evidence index releaseCandidateCommit" "FAILED" "Cannot parse bundled release-check report for candidate binding: $(($_ | Out-String).Trim())"
+        return
+    }
+
+    $reportCandidate = Get-ReleaseEvidenceBundleObjectProperty -Object $report -Name "releaseCandidateCommit"
+    if ([string]::IsNullOrWhiteSpace([string]$reportCandidate)) {
+        Add-ReleaseEvidenceBundleVerificationCheck "Release-check releaseCandidateCommit" "FAILED" "Bundled release-check report releaseCandidateCommit is missing or blank."
+        return
+    }
+    $reportCandidate = ([string]$reportCandidate).Trim()
+
+    if ($indexCandidate.Equals($reportCandidate, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Add-ReleaseEvidenceBundleVerificationCheck "releaseCandidateCommit consistency" "PASSED" "Bundled evidence index candidate matches bundled release-check report candidate $reportCandidate."
+    }
+    else {
+        Add-ReleaseEvidenceBundleVerificationCheck "releaseCandidateCommit consistency" "FAILED" "Bundled evidence index candidate $indexCandidate does not match bundled release-check report candidate $reportCandidate."
+    }
+}
+
 function Get-ReleaseEvidenceBundleMarkdownTableValue {
     param(
         [string]$Markdown,
@@ -802,6 +863,7 @@ try {
         $manifest = Assert-ReleaseEvidenceBundleManifest -ExtractRoot $extractInfo.Path
         Assert-ReleaseEvidenceBundleSourceFiles -ExtractRoot $extractInfo.Path -Manifest $manifest
         Assert-ReleaseEvidenceBundleRequiredEvidence -ExtractRoot $extractInfo.Path -Manifest $manifest
+        Assert-ReleaseEvidenceBundleCandidateCommit -ExtractRoot $extractInfo.Path
         Assert-ReleaseEvidenceBundleSummaryJson -ResolvedBundlePath $resolvedBundlePath -ExtractRoot $extractInfo.Path -Manifest $manifest -ExpectedBundleSha256 $bundleSha256
         Assert-ReleaseEvidenceBundleSummaryMarkdown -ResolvedBundlePath $resolvedBundlePath -ResolvedSha256Path $resolvedSha256Path -ExtractRoot $extractInfo.Path -Manifest $manifest -ExpectedBundleSha256 $bundleSha256
     }

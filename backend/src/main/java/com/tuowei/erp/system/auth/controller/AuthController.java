@@ -1,7 +1,6 @@
 package com.tuowei.erp.system.auth.controller;
 
 import com.tuowei.erp.common.audit.AuditLog;
-import com.tuowei.erp.common.ratelimit.RateLimit;
 import com.tuowei.erp.common.web.ApiResponse;
 import com.tuowei.erp.system.auth.service.AuthService;
 import com.tuowei.erp.system.auth.web.ChangePasswordRequest;
@@ -36,7 +35,6 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    @RateLimit(limit = 5, window = 60)
     @AuditLog(module = "认证", operation = AuditLog.OperationType.LOGIN,
               description = "用户登录: #{#request.username()}", logResult = false)
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {

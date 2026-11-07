@@ -80,6 +80,80 @@ class SalesCreditEvaluatorTest {
     }
 
     @Test
+    void rejectsForeignCurrencyOrderAgainstBaseCurrencyCreditLimit() {
+        CustomerEntity customer = customer(new BigDecimal("5000"));
+        stubEmptyReceivables();
+        stubNoOtherApprovedOrders();
+        SalesOrderEntity order = currentOrder(new BigDecimal("1000"), BigDecimal.ZERO);
+        order.setCurrencyCode("USD");
+        order.setExchangeRate(new BigDecimal("7"));
+
+        var preview = evaluator().preview(customer, order);
+
+        assertThat(preview.orderAmount()).isEqualByComparingTo("7000.00");
+        assertThat(preview.projectedExposure()).isEqualByComparingTo("7000.00");
+        assertThat(preview.projectedAvailableCredit()).isEqualByComparingTo("-2000.00");
+        assertThat(preview.exceeded()).isTrue();
+        assertThatThrownBy(() -> evaluator().assertWithinCreditLimit(customer, order))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("7000.00")
+                .hasMessageContaining("5000.00");
+    }
+
+    @Test
+    void convertsUnsavedForeignCurrencyOrderBeforePreviewingCredit() {
+        CustomerEntity customer = customer(new BigDecimal("5000"));
+        stubEmptyReceivables();
+        stubNoOtherApprovedOrders();
+
+        var preview = evaluator().preview(customer, new BigDecimal("1000"), "USD", new BigDecimal("7"));
+
+        assertThat(preview.orderAmount()).isEqualByComparingTo("7000.00");
+        assertThat(preview.projectedExposure()).isEqualByComparingTo("7000.00");
+        assertThat(preview.exceeded()).isTrue();
+    }
+
+    @Test
+    void currentOrderUsesPersistedBaseAmountsIncludingTax() {
+        CustomerEntity customer = customer(new BigDecimal("8000"));
+        stubEmptyReceivables();
+        stubNoOtherApprovedOrders();
+        SalesOrderEntity order = currentOrder(new BigDecimal("1000"), new BigDecimal("130"));
+        order.setCurrencyCode("USD");
+        order.setExchangeRate(new BigDecimal("7.2"));
+        order.setBaseTotalAmount(new BigDecimal("7000.000000"));
+        order.setBaseTotalTaxAmount(new BigDecimal("910.000000"));
+
+        var preview = evaluator().preview(customer, order);
+
+        assertThat(preview.orderAmount()).isEqualByComparingTo("7910.00");
+        assertThat(preview.projectedAvailableCredit()).isEqualByComparingTo("90.00");
+        assertThat(preview.exceeded()).isFalse();
+    }
+
+    @Test
+    void savedAndUnsavedCreditPreviewsRoundTaxInclusiveBaseAmountOnlyOnce() {
+        CustomerEntity customer = customer(new BigDecimal("0.05"));
+        stubEmptyReceivables();
+        stubNoOtherApprovedOrders();
+        SalesOrderEntity order = currentOrder(new BigDecimal("0.01"), new BigDecimal("0.01"));
+        order.setCurrencyCode("USD");
+        order.setExchangeRate(new BigDecimal("2.5"));
+        var unsaved = evaluator().preview(customer, new BigDecimal("0.02"), "USD", new BigDecimal("2.5"));
+
+        var legacy = evaluator().preview(customer, order);
+        order.setBaseTotalAmount(new BigDecimal("0.025000"));
+        order.setBaseTotalTaxAmount(new BigDecimal("0.025000"));
+        var saved = evaluator().preview(customer, order);
+
+        assertThat(unsaved.orderAmount()).isEqualByComparingTo("0.05");
+        assertThat(legacy.orderAmount()).isEqualByComparingTo(unsaved.orderAmount());
+        assertThat(saved.orderAmount()).isEqualByComparingTo(unsaved.orderAmount());
+        assertThat(legacy.exceeded()).isFalse();
+        assertThat(saved.exceeded()).isFalse();
+    }
+
+    @Test
     void accumulatesOutstandingReceivableWithCurrentOrder() {
         CustomerEntity customer = customer(new BigDecimal("1000"));
         // 未结应收 600 (originalAmount 800 - settledAmount 200)
@@ -110,6 +184,43 @@ class SalesCreditEvaluatorTest {
     }
 
     @Test
+    void foreignReceivableAndReturnUseRemainingBaseBalancesWithOppositeSigns() {
+        ReceivableEntity invoice = receivable("INCREASE", new BigDecimal("1000"), new BigDecimal("200"));
+        invoice.setCurrencyCode("USD");
+        invoice.setExchangeRate(new BigDecimal("7"));
+        invoice.setBaseOriginalAmount(new BigDecimal("7000"));
+        invoice.setBaseSettledAmount(new BigDecimal("1400"));
+        ReceivableEntity returned = receivable("DECREASE", new BigDecimal("300"), new BigDecimal("50"));
+        returned.setCurrencyCode("USD");
+        returned.setExchangeRate(new BigDecimal("7"));
+        returned.setBaseOriginalAmount(new BigDecimal("2100"));
+        returned.setBaseSettledAmount(new BigDecimal("350"));
+        when(receivableMapper.selectList(any())).thenReturn(List.of(invoice, returned));
+        stubNoOtherApprovedOrders();
+
+        var preview = evaluator().preview(customer(new BigDecimal("5000")), new BigDecimal("1000"));
+
+        assertThat(preview.outstandingReceivable()).isEqualByComparingTo("3850.00");
+        assertThat(preview.currentExposure()).isEqualByComparingTo("3850.00");
+        assertThat(preview.projectedExposure()).isEqualByComparingTo("4850.00");
+        assertThat(preview.exceeded()).isFalse();
+    }
+
+    @Test
+    void foreignReceivableWithoutBaseSnapshotsFallsBackToItsDocumentRate() {
+        ReceivableEntity invoice = receivable("INCREASE", new BigDecimal("1000"), new BigDecimal("200"));
+        invoice.setCurrencyCode("USD");
+        invoice.setExchangeRate(new BigDecimal("7"));
+        when(receivableMapper.selectList(any())).thenReturn(List.of(invoice));
+        stubNoOtherApprovedOrders();
+
+        var exposure = evaluator().evaluate(customer(new BigDecimal("5000")));
+
+        assertThat(exposure.outstandingReceivable()).isEqualByComparingTo("5600.00");
+        assertThat(exposure.totalExposure()).isEqualByComparingTo("5600.00");
+    }
+
+    @Test
     void includesUndeliveredAmountOfOtherApprovedOrders() {
         CustomerEntity customer = customer(new BigDecimal("1000"));
         stubEmptyReceivables();
@@ -121,6 +232,22 @@ class SalesCreditEvaluatorTest {
         assertThatThrownBy(() -> evaluator().assertWithinCreditLimit(customer, currentOrder(new BigDecimal("400"), BigDecimal.ZERO)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("信用额度不足");
+    }
+
+    @Test
+    void undeliveredForeignOrderContributesItsTaxInclusiveBaseAmount() {
+        stubEmptyReceivables();
+        SalesOrderEntity other = approvedOrder(5002L, "NOT_DELIVERED", new BigDecimal("1000"), new BigDecimal("130"));
+        other.setCurrencyCode("USD");
+        other.setExchangeRate(new BigDecimal("7"));
+        other.setBaseTotalAmount(new BigDecimal("7000"));
+        other.setBaseTotalTaxAmount(new BigDecimal("910"));
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of(other));
+
+        var exposure = evaluator().evaluate(customer(new BigDecimal("8000")));
+
+        assertThat(exposure.openOrderExposure()).isEqualByComparingTo("7910.00");
+        assertThat(exposure.totalExposure()).isEqualByComparingTo("7910.00");
     }
 
     @Test
@@ -155,6 +282,26 @@ class SalesCreditEvaluatorTest {
         assertThatThrownBy(() -> evaluator().assertWithinCreditLimit(customer, currentOrder(new BigDecimal("550"), BigDecimal.ZERO)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("信用额度不足");
+    }
+
+    @Test
+    void partiallyDeliveredForeignOrderConvertsOnlyItsUnshippedPortion() {
+        stubEmptyReceivables();
+        SalesOrderEntity partial = approvedOrder(5003L, "PARTIAL_DELIVERED", new BigDecimal("1000"), new BigDecimal("130"));
+        partial.setCurrencyCode("USD");
+        partial.setExchangeRate(new BigDecimal("7"));
+        SalesOrderEntity delivered = approvedOrder(5004L, "FULL_DELIVERED", new BigDecimal("1000"), new BigDecimal("130"));
+        delivered.setCurrencyCode("USD");
+        delivered.setExchangeRate(new BigDecimal("7"));
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of(partial, delivered));
+        when(salesOrderLineMapper.selectList(any())).thenReturn(List.of(
+                orderLine(new BigDecimal("10"), new BigDecimal("4"), new BigDecimal("1000"), new BigDecimal("130"))));
+
+        var preview = evaluator().preview(customer(new BigDecimal("5000")), new BigDecimal("300"));
+
+        assertThat(preview.openOrderExposure()).isEqualByComparingTo("4746.00");
+        assertThat(preview.projectedExposure()).isEqualByComparingTo("5046.00");
+        assertThat(preview.exceeded()).isTrue();
     }
 
     @Test

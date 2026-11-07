@@ -87,7 +87,17 @@ export const useInventoryStockPresentation = (
   })
   const severityLabel = (value?: string) => translatedLabel(value, {
     ERROR: t('inventoryStocks.severityValue.error'),
+    WARN: t('inventoryStocks.severityValue.warning'),
     WARNING: t('inventoryStocks.severityValue.warning')
+  })
+  /** Keep in sync with the backend InventoryReservationCheckService issue codes. */
+  const issueTypeLabel = (value?: string) => translatedLabel(value, {
+    RESERVATION_BALANCE_MISSING: t('inventoryStocks.issueTypeValue.reservationBalanceMissing'),
+    BALANCE_RESERVED_MISMATCH: t('inventoryStocks.issueTypeValue.balanceReservedMismatch'),
+    BALANCE_AVAILABLE_NEGATIVE: t('inventoryStocks.issueTypeValue.balanceAvailableNegative'),
+    RESERVATION_QUANTITY_INVALID: t('inventoryStocks.issueTypeValue.reservationQuantityInvalid'),
+    RESERVATION_SOURCE_MISSING: t('inventoryStocks.issueTypeValue.reservationSourceMissing'),
+    RESERVATION_SOURCE_STATUS_INVALID: t('inventoryStocks.issueTypeValue.reservationSourceStatusInvalid')
   })
 
   return {
@@ -97,6 +107,7 @@ export const useInventoryStockPresentation = (
     formatMoney,
     formatNumber,
     formatOptionalNumber,
+    issueTypeLabel,
     locationName,
     productName,
     reservationEventLabel,

@@ -54,9 +54,10 @@
         <el-table-column prop="totalQty" :label="t('qcInspection.inspectedQuantity')" width="110" align="right" />
         <el-table-column prop="qualifiedQty" :label="t('qcInspection.qualifiedQuantity')" width="110" align="right" />
         <el-table-column prop="unqualifiedQty" :label="t('qcInspection.unqualifiedQuantity')" width="110" align="right" />
-        <el-table-column :label="t('qcInspection.actions')" width="400" fixed="right">
+        <el-table-column :label="t('qcInspection.actions')" width="460" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">{{ t('qcInspection.detail') }}</el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.inspectionNo)">{{ t('documentAttachment.entry') }}</el-button>
             <el-button link type="primary" @click="handlePrint(row)">{{ t('qcInspection.print') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -265,6 +266,15 @@
         <el-table-column prop="defectReason" :label="t('qcInspection.defectReason')" min-width="140" />
       </el-table>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="QC_INSPECTION"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -287,12 +297,26 @@ import { getPurchaseReceipts } from '@/api/purchase'
 import { getSalesDeliveries } from '@/api/sales'
 import { downloadBlob } from '@/utils/download'
 import { printQcInspection } from '@/utils/bizPrint'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useQcInspectionPresentation } from '@/composables/useQcInspectionPresentation'
 import { useQcInspectionList } from '@/composables/useQcInspectionList'
 import { useQcInspectionCreate } from '@/composables/useQcInspectionCreate'
 import { useQcInspectionEdit } from '@/composables/useQcInspectionEdit'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
+
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const {
   inspectionTypeText,

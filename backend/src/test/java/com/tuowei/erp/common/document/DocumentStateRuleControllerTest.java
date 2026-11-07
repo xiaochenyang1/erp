@@ -36,7 +36,17 @@ class DocumentStateRuleControllerTest {
                 .andExpect(jsonPath("$.code").value("0"))
                 .andExpect(jsonPath("$.data[?(@.documentType == 'PURCHASE_ORDER' && @.action == 'UNAPPROVE')].permission")
                         .value("purchase:order:unapprove"))
+                .andExpect(jsonPath("$.data[?(@.documentType == 'PURCHASE_ORDER' && @.action == 'SUBMIT')].targetApprovalStatus")
+                        .value("IN_APPROVAL"))
+                .andExpect(jsonPath("$.data[?(@.documentType == 'PURCHASE_ORDER' && @.action == 'REJECT')].targetStatus")
+                        .value("REJECTED"))
+                .andExpect(jsonPath("$.data[?(@.documentType == 'PURCHASE_ORDER' && @.action == 'CANCEL')].targetApprovalStatus")
+                        .value("CANCELLED"))
+                .andExpect(jsonPath("$.data[?(@.documentType == 'PURCHASE_ORDER' && @.action == 'CLOSE')].executionStatusField")
+                        .value("receiptStatus"))
                 .andExpect(jsonPath("$.data[?(@.documentType == 'SALES_ORDER' && @.action == 'UNAPPROVE')].permission")
-                        .value("sales:order:unapprove"));
+                        .value("sales:order:unapprove"))
+                .andExpect(jsonPath("$.data[?(@.documentType == 'SALES_ORDER' && @.action == 'SUBMIT')].targetApprovalStatus")
+                        .value("IN_APPROVAL"));
     }
 }

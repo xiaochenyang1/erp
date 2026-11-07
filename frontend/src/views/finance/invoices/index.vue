@@ -52,11 +52,13 @@
           <template #default="{ row }">{{ typeLabel(row.invoiceType) }}</template>
         </el-table-column>
         <el-table-column prop="partnerName" :label="$t('financeReportPages.invoices.partner')" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="currencyCode" :label="$t('documentCurrency.currency')" width="100" />
+        <el-table-column prop="exchangeRate" :label="$t('documentCurrency.rate')" width="120" />
         <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="140" align="right">
-          <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+          <template #default="{ row }">{{ formatAmount(row.amount, row.currencyCode) }}</template>
         </el-table-column>
         <el-table-column prop="taxAmount" :label="$t('financeReportPages.invoices.taxAmount')" width="140" align="right">
-          <template #default="{ row }">{{ formatAmount(row.taxAmount) }}</template>
+          <template #default="{ row }">{{ formatAmount(row.taxAmount, row.currencyCode) }}</template>
         </el-table-column>
         <el-table-column prop="invoiceDate" :label="$t('financeReportPages.invoices.invoiceDate')" width="130">
           <template #default="{ row }">{{ formatDate(row.invoiceDate) }}</template>
@@ -67,9 +69,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="320" align="center" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="380" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handlePrint(row)">{{ $t('financeReportPages.common.print') }}</el-button>
+            <el-button v-if="canViewAttachments" type="primary" link @click="openAttachments(row.id, row.invoiceNo)">{{ $t('documentAttachment.entry') }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               v-permission="'finance:invoice:manage'"
@@ -118,6 +121,7 @@
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="640px" @close="onDialogClose">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
+        <DocumentCurrencyFields ref="currencyFields" v-model:currency-code="formData.currencyCode" v-model:exchange-rate="formData.exchangeRate" :business-date="formData.invoiceDate" :active="dialogVisible" />
         <el-form-item :label="$t('financeReportPages.invoices.invoiceType')" prop="invoiceType">
           <el-select v-model="formData.invoiceType" :placeholder="$t('financeReportPages.common.selectPlaceholder')" style="width: 100%">
             <el-option :label="$t('financeReportPages.invoices.typeValue.input')" value="INPUT" />
@@ -130,6 +134,7 @@
         <el-form-item :label="$t('financeReportPages.invoices.invoiceDate')" prop="invoiceDate">
           <el-date-picker
             v-model="formData.invoiceDate"
+            @change="currencyFields?.refreshRate()"
             type="date"
             :placeholder="$t('financeReportPages.invoices.selectDate')"
             value-format="YYYY-MM-DD"
@@ -157,6 +162,15 @@
         <el-button type="primary" :loading="submitLoading" @click="handleSave">{{ $t('financeReportPages.common.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="FIN_INVOICE"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
@@ -174,12 +188,28 @@ import {
   postFinanceInvoice,
   updateFinanceInvoice
 } from '@/api/finance'
+import DocumentCurrencyFields from '@/components/DocumentCurrencyFields.vue'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useFinanceInvoiceForm } from '@/composables/useFinanceInvoiceForm'
 import { useFinanceInvoiceList } from '@/composables/useFinanceInvoiceList'
 import { useFinanceInvoicePresentation } from '@/composables/useFinanceInvoicePresentation'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
 const formRef = ref<FormInstance>()
+const currencyFields = ref<InstanceType<typeof DocumentCurrencyFields>>()
+
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
 
 const {
   formatAmount,
@@ -229,7 +259,7 @@ const {
   updateFinanceInvoice,
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message),
-  onSubmitted: () => loadData()
+  onSubmitted: async () => { await loadData() }
 })
 
 const formRules = computed<FormRules>(() => ({

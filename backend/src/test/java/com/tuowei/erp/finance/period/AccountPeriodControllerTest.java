@@ -50,6 +50,8 @@ class AccountPeriodControllerTest {
 
     @AfterEach
     void cleanup() {
+        deleteIfExists("fin_period_close_snapshot_item", "snapshot_id in (select id from fin_period_close_snapshot where period_id between 863000 and 863999)");
+        deleteIfExists("fin_period_close_snapshot", "period_id between 863000 and 863999");
         deleteIfExists("fin_bank_statement", "id between 863000 and 863999");
         deleteIfExists("fin_fund_account", "id between 863000 and 863999");
         jdbcTemplate.update("delete from fin_voucher_entry where voucher_id between 863000 and 863999 or id between 863000 and 863999");
@@ -113,6 +115,14 @@ class AccountPeriodControllerTest {
         AccountPeriodResponse closed = accountPeriodService.close(863201L);
         Assertions.assertThat(closed.status()).isEqualTo("CLOSED");
         Assertions.assertThat(closed.closedBy()).isEqualTo(863001L);
+        Assertions.assertThat(accountPeriodService.closeSnapshots(863201L))
+                .extracting("actionType")
+                .containsExactly("CLOSE", "LOCK", "LOCK");
+        Assertions.assertThat(accountPeriodService.closeSnapshots(863201L))
+                .allSatisfy(snapshot -> {
+                    Assertions.assertThat(snapshot.passed()).isTrue();
+                    Assertions.assertThat(snapshot.items()).isNotEmpty();
+                });
     }
 
     @Test
@@ -296,8 +306,8 @@ class AccountPeriodControllerTest {
                 select count(*) > 0
                 from information_schema.tables
                 where table_schema = database()
-                  and table_name = ?
-                """, Boolean.class, tableName.toUpperCase());
+                  and lower(table_name) = lower(?)
+                """, Boolean.class, tableName);
         if (Boolean.TRUE.equals(exists)) {
             jdbcTemplate.update("delete from " + tableName + " where " + condition);
         }

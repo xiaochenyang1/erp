@@ -54,6 +54,7 @@ export const useProductForm = (
     serialControlled: false,
     lotControlled: false,
     shelfLifeControlled: false,
+    mrpPolicy: { supplyType: 'AUTO', materialWarehouseId: null },
     remark: ''
   })
 
@@ -116,6 +117,7 @@ export const useProductForm = (
       serialControlled: false,
       lotControlled: false,
       shelfLifeControlled: false,
+      mrpPolicy: { supplyType: 'AUTO', materialWarehouseId: null },
       remark: ''
     })
     dialogVisible.value = true
@@ -141,6 +143,7 @@ export const useProductForm = (
       serialControlled: !!row.serialControlled,
       lotControlled: !!row.lotControlled,
       shelfLifeControlled: !!row.shelfLifeControlled,
+      mrpPolicy: { supplyType: row.mrpPolicy?.supplyType || 'AUTO', materialWarehouseId: row.mrpPolicy?.materialWarehouseId || null },
       remark: row.remark || ''
     })
     dialogVisible.value = true

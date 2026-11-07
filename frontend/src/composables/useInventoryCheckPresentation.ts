@@ -8,12 +8,14 @@ type TagType = 'success' | 'info' | 'warning' | 'danger'
 
 const STATUS_KEYS: Record<string, string> = {
   COUNTED: 'inventoryChecks.status.counted',
+  ADJUSTMENT_PENDING: 'inventoryChecks.status.adjustmentPending',
   ADJUSTED: 'inventoryChecks.status.adjusted',
   CANCELLED: 'inventoryChecks.status.cancelled'
 }
 
 const STATUS_TAG_TYPES: Record<string, TagType> = {
   COUNTED: 'warning',
+  ADJUSTMENT_PENDING: 'warning',
   ADJUSTED: 'success',
   CANCELLED: 'danger'
 }

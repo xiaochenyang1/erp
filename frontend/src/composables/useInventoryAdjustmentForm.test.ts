@@ -51,6 +51,7 @@ const createForm = (overrides: Partial<Parameters<typeof useInventoryAdjustmentF
       items: [{ productId: 'p2', quantity: 5, lotNo: 'L1' }]
     } as InventoryAdjustment)),
     createAdjustment: vi.fn(async () => ({})),
+    updateAdjustment: vi.fn(async () => ({})),
     findProduct: (productId) => products.find((item) => String(item.id) === String(productId)),
     onSuccess: vi.fn(),
     onError: vi.fn(),
@@ -205,5 +206,45 @@ describe('inventory adjustment form', () => {
     expect(form.dialogVisible.value).toBe(true)
     expect(form.submitLoading.value).toBe(false)
     expect(onError).toHaveBeenCalledWith('inventoryAdjustments.message.failed')
+  })
+
+  it.each(['DRAFT', 'REJECTED'] as const)('updates the existing %s without creating another document', async status => {
+    const updateAdjustment = vi.fn(async () => ({}))
+    const createAdjustment = vi.fn(async () => ({}))
+    const form = createForm({
+      getAdjustment: vi.fn(async () => ({ id: 'a1', status, items: [{ productId: 'p1', quantity: 2 }] } as InventoryAdjustment)),
+      updateAdjustment, createAdjustment
+    })
+    await form.handleEdit({ id: 'a1' } as InventoryAdjustment)
+    form.formData.items[0].quantity = 7
+    expect(await form.handleSubmit()).toBe(true)
+    expect(updateAdjustment).toHaveBeenCalledWith('a1', expect.objectContaining({ items: [expect.objectContaining({ quantity: 7 })] }))
+    expect(createAdjustment).not.toHaveBeenCalled()
+    form.handleCreate()
+    form.formData.items = [{ productId: 'p1', quantity: 1 } as any]
+    expect(await form.handleSubmit()).toBe(true)
+    expect(createAdjustment).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    { status: 'DRAFT', sourceId: 'c1' },
+    { status: 'SUBMITTED' },
+    { status: 'APPROVED' }
+  ])('checks the current server state before editing $status', async detail => {
+    const onWarning = vi.fn()
+    const form = createForm({ getAdjustment: vi.fn(async () => ({ id: 'a1', ...detail } as InventoryAdjustment)), onWarning })
+    await form.handleEdit({ id: 'a1', status: 'DRAFT' } as InventoryAdjustment)
+    expect(form.dialogVisible.value).toBe(false)
+    expect(onWarning).toHaveBeenCalledWith('inventoryAdjustments.message.editNotAllowed')
+  })
+
+  it('prevents saving from view mode', async () => {
+    const createAdjustment = vi.fn(async () => ({}))
+    const updateAdjustment = vi.fn(async () => ({}))
+    const form = createForm({ createAdjustment, updateAdjustment })
+    await form.handleView({ id: 'a1' } as InventoryAdjustment)
+    expect(await form.handleSubmit()).toBe(false)
+    expect(createAdjustment).not.toHaveBeenCalled()
+    expect(updateAdjustment).not.toHaveBeenCalled()
   })
 })

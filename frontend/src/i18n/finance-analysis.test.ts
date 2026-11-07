@@ -23,7 +23,8 @@ const requiredKeys = {
     'search', 'print', 'partnerTypeValue', 'periodValue', 'openingValue', 'increaseValue',
     'decreaseValue', 'closingValue', 'date', 'docType', 'docNo', 'direction', 'amount',
     'balance', 'remark', 'document.receivable', 'document.receipt', 'document.payable',
-    'document.payment', 'directionValue.increase', 'directionValue.decrease',
+    'document.payment', 'document.fxAdjustment', 'document.roundingAdjustment', 'currencyNotice',
+    'directionValue.increase', 'directionValue.decrease',
     'message.selectPartnerAndRange', 'message.loadFailed', 'message.optionsLoadFailed',
     'message.printLoadFailed'
   ]
@@ -82,6 +83,9 @@ describe('finance analysis localization', () => {
     expect(i18n.global.t('financeAging.bucketLabel.d90Plus')).toBe('Over 90 days')
     expect(i18n.global.t('financeGrossMargin.marginRate')).toBe('Gross margin rate')
     expect(i18n.global.t('financeStatement.document.payment')).toBe('Payment')
+    expect(i18n.global.t('financeStatement.document.fxAdjustment')).toBe('FX adjustment')
+    expect(i18n.global.t('financeStatement.document.roundingAdjustment')).toBe('Rounding adjustment')
+    expect(i18n.global.t('financeStatement.currencyNotice', { currency: 'EUR' })).toContain('EUR')
     expect(i18n.global.t('financeStatement.message.optionsLoadFailed')).toBe('Failed to load partners')
   })
 

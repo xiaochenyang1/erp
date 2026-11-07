@@ -10,6 +10,8 @@ import com.tuowei.erp.system.dict.mapper.DictTypeMapper;
 import com.tuowei.erp.system.dict.model.DictItemEntity;
 import com.tuowei.erp.system.dict.model.DictTypeEntity;
 import com.tuowei.erp.system.dict.service.SystemDictService;
+import com.tuowei.erp.system.dict.service.SystemDictCommandService;
+import com.tuowei.erp.system.dict.service.SystemDictQueryService;
 import com.tuowei.erp.system.dict.web.DictItemCreateRequest;
 import com.tuowei.erp.system.dict.web.DictItemResponse;
 import org.junit.jupiter.api.Test;
@@ -89,7 +91,7 @@ class SystemDictServiceCacheTest {
         DictItemMapper itemMapper = mock(DictItemMapper.class);
         RecordingCacheService cacheService = new RecordingCacheService();
         when(typeMapper.selectOne(any())).thenReturn(type("status"));
-        SystemDictService service = new SystemDictService(typeMapper, itemMapper, auditFactory(), cacheService, new ObjectMapper());
+        SystemDictService service = service(typeMapper, itemMapper, cacheService, auditFactory());
 
         service.createItem(new DictItemCreateRequest(" status ", "已启用", "ACTIVE", 1, null));
 
@@ -101,7 +103,22 @@ class SystemDictServiceCacheTest {
     }
 
     private static SystemDictService service(DictItemMapper itemMapper, CacheService cacheService, AuditMetadataFactory auditFactory) {
-        return new SystemDictService(mock(DictTypeMapper.class), itemMapper, auditFactory, cacheService, new ObjectMapper());
+        return service(mock(DictTypeMapper.class), itemMapper, cacheService, auditFactory);
+    }
+
+    private static SystemDictService service(
+            DictTypeMapper typeMapper,
+            DictItemMapper itemMapper,
+            CacheService cacheService,
+            AuditMetadataFactory auditFactory
+    ) {
+        SystemDictQueryService queryService = new SystemDictQueryService(
+                typeMapper, itemMapper, cacheService, new ObjectMapper()
+        );
+        SystemDictCommandService commandService = new SystemDictCommandService(
+                typeMapper, itemMapper, auditFactory, queryService
+        );
+        return new SystemDictService(queryService, commandService);
     }
 
     private static AuditMetadataFactory auditFactory() {

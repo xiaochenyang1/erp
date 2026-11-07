@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Warehouse } from '@/api/masterdata'
@@ -14,13 +14,34 @@ const texts = computed(() => ({
   delete: 'Delete',
   enable: 'Enable',
   cancel: 'Cancel',
+  confirm: 'OK',
   deleteSuccess: 'deleted',
   deleteFailed: 'delete failed',
   enableSuccess: 'enabled',
   enableFailed: 'enable failed',
   exportSuccess: 'exported',
   exportFailed: 'export failed',
-  exportFilename: 'warehouses'
+  exportFilename: 'warehouses',
+  selectedExportFilename: 'warehouses-{count}',
+  batchEnable: 'Batch enable',
+  batchDisable: 'Batch disable',
+  exportSelected: 'Export selected',
+  batchEnableTitle: 'Batch enable',
+  batchDisableTitle: 'Batch disable',
+  batchEnableConfirm: 'Enable {count}?',
+  batchDisableConfirm: 'Disable {count}?',
+  batchEnableSuccess: 'enabled {count}',
+  batchDisableSuccess: 'disabled {count}',
+  batchEnablePartial: 'enabled {success}, failed {failedCount}: {failed}',
+  batchDisablePartial: 'disabled {success}, failed {failedCount}: {failed}',
+  warehouseCode: 'Code',
+  warehouseName: 'Name',
+  department: 'Department',
+  address: 'Address',
+  manager: 'Manager',
+  status: 'Status',
+  active: 'Active',
+  inactive: 'Inactive'
 }))
 
 describe('warehouse list', () => {
@@ -59,8 +80,11 @@ describe('warehouse list', () => {
       } as any)),
       confirm: vi.fn(async () => true),
       interpolate: (template, params) => template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? '')),
+      joinNames: (items: string[]) => items.join(', '),
+      locale: ref('en-US'),
       onSuccess: vi.fn(),
       onError: vi.fn(),
+      onWarning: vi.fn(),
       ...overrides
     })
 
@@ -120,5 +144,21 @@ describe('warehouse list', () => {
     await list.handleExport()
     expect(exportWarehouses).toHaveBeenCalled()
     expect(onSuccess).toHaveBeenCalledWith('exported')
+  })
+
+  it('runs batch enable and export-selected actions', async () => {
+    const enableWarehouse = vi.fn(async () => ({}))
+    const onSuccess = vi.fn()
+    const list = createList({ enableWarehouse, onSuccess })
+
+    list.selectedRows.value = [
+      { id: '1', name: 'Main', code: 'W001' } as Warehouse,
+      { id: '2', name: 'North', code: 'W002' } as Warehouse
+    ]
+
+    await list.handleBatchEnable()
+    expect(enableWarehouse).toHaveBeenCalledWith('1')
+    expect(enableWarehouse).toHaveBeenCalledWith('2')
+    expect(onSuccess).toHaveBeenCalledWith('enabled 2')
   })
 })

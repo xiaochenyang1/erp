@@ -3,17 +3,23 @@
  * Usage: node scripts/fq-signoff-all.cjs
  */
 const { spawnSync } = require('child_process')
+const assert = require('node:assert/strict')
 const fs = require('fs')
 const path = require('path')
 
-const BASE = process.env.BASE_URL || 'http://127.0.0.1:8080'
+const { loadConfig, evidenceContext } = require('./fq-signoff-config.cjs')
+const CONFIG = loadConfig()
+const CONTEXT = evidenceContext(CONFIG, path.resolve(__dirname, '..'))
+const BASE = CONFIG.baseUrl
 const ROOT = path.resolve(__dirname, '..')
+const OUT_DIR = CONFIG.outDir
 
 function runNode(script) {
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', script)], {
     cwd: ROOT,
     encoding: 'utf8',
     env: process.env,
+    timeout: 300_000,
   })
   if (r.stdout) process.stdout.write(r.stdout)
   if (r.stderr) process.stderr.write(r.stderr)
@@ -24,7 +30,7 @@ async function login() {
   const r = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'admin', password: 'LocalAdmin123' }),
+    body: JSON.stringify(CONFIG.admin),
   })
   const j = await r.json()
   if (String(j.code) !== '0') throw new Error(j.message || 'login failed')
@@ -47,15 +53,21 @@ function ok(res) {
 }
 
 async function main() {
+  if (CONFIG.environment !== 'local-runtime' && fs.existsSync(OUT_DIR) && fs.readdirSync(OUT_DIR).length) {
+    throw new Error('Use a new empty ERP_FQ_EVIDENCE_DIRECTORY for preproduction evidence')
+  }
   console.log('[fq-all] 1/3 run forward API check')
   runNode('fq-signoff-api-check.cjs')
   console.log('[fq-all] 2/3 run human-item negative checks')
   runNode('fq-signoff-human-items.cjs')
 
-  const reportPath = path.join(ROOT, 'target/fq-signoff-api-check/report.json')
-  const humanPath = path.join(ROOT, 'target/fq-signoff-api-check/human-items-report.json')
+  const reportPath = path.join(OUT_DIR, 'report.json')
+  const humanPath = path.join(OUT_DIR, 'human-items-report.json')
   const forward = JSON.parse(fs.readFileSync(reportPath, 'utf8'))
   const human = JSON.parse(fs.readFileSync(humanPath, 'utf8'))
+
+  assert.deepEqual(forward.context, CONTEXT, 'Forward report target/candidate does not match this run')
+  assert.deepEqual(human.context, CONTEXT, 'Negative report target/candidate does not match this run')
 
   // treat human-items as resolving F10/F11/Q4/Q5
   const humanPass = human.summary.failed === 0
@@ -63,29 +75,28 @@ async function main() {
   const technicalPass = humanPass && forwardHardFail
 
   const summary = {
+    context: CONTEXT,
     generatedAt: new Date().toISOString(),
     technicalPass,
     forward: forward.summary,
     human: human.summary,
-    finalForm: 'docs/FQ-SIGNOFF-FINAL-2026-07-16.md',
+    finalForm: 'docs/P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-10-16.md',
   }
   fs.writeFileSync(
-    path.join(ROOT, 'target/fq-signoff-api-check/all-summary.json'),
+    path.join(OUT_DIR, 'all-summary.json'),
     JSON.stringify(summary, null, 2),
   )
 
   console.log('[fq-all] 3/3 register readiness technical item')
   const token = await login()
-  const commit = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' })
-    .stdout.trim()
 
   const runRes = await api(token, 'POST', '/api/system/readiness/runs', {
-    releaseCommit: commit || 'local',
+    releaseCommit: CONTEXT.candidateRevision,
     releaseVersion: 'fq-technical-precheck',
-    environment: 'local-runtime',
-    databaseInstance: 'erp_codex_runtime',
-    redisInstance: 'none-local',
-    dockerProfile: 'skipped',
+    environment: CONTEXT.environment,
+    databaseInstance: CONTEXT.databaseInstance,
+    redisInstance: CONTEXT.redisInstance,
+    dockerProfile: CONTEXT.dockerProfile,
     generateDefaultItems: false,
     recordPreflightEvidence: false,
     remark: 'F/Q technical precheck auto registration (not business GO)',
@@ -108,8 +119,8 @@ async function main() {
     `technicalPass=${technicalPass}`,
     `forward autoPass=${forward.summary.autoPass} autoFail=${forward.summary.autoFail} needsHuman=${forward.summary.needsHuman}`,
     `human passed=${human.summary.passed}/${human.summary.total}`,
-    `reports: target/fq-signoff-api-check/report.json + human-items-report.json`,
-    `sign form: docs/FQ-SIGNOFF-FINAL-2026-07-16.md`,
+    `reports: ${path.relative(ROOT, OUT_DIR)}/report.json + human-items-report.json`,
+    `sign form: docs/P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-10-16.md`,
   ].join('\n')
 
   const evRes = await api(token, 'POST', `/api/system/readiness/items/${itemId}/evidence`, {
@@ -137,14 +148,18 @@ async function main() {
     readinessRunId: String(runId),
     readinessRunNo: runNo,
     readinessItemId: String(itemId),
-    note: 'Item marked PASSED technically; overall release decision left to humans after FQ-SIGNOFF-FINAL signatures.',
+    note: 'Technical result only; overall release decision requires the current finance/QC signoff package.',
   }
-  fs.writeFileSync(path.join(ROOT, 'target/fq-signoff-api-check/all-summary.json'), JSON.stringify(out, null, 2))
+  fs.writeFileSync(path.join(OUT_DIR, 'all-summary.json'), JSON.stringify(out, null, 2))
   console.log(JSON.stringify(out, null, 2))
   if (!technicalPass) process.exit(1)
 }
 
-main().catch((e) => {
-  console.error(e)
-  process.exit(1)
-})
+if (process.argv.includes('--config-check')) {
+  console.log(JSON.stringify({ context: CONTEXT, evidenceDirectory: OUT_DIR, networkRequests: 0 }, null, 2))
+} else {
+  main().catch((e) => {
+    console.error(e)
+    process.exit(1)
+  })
+}

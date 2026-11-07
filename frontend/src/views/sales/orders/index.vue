@@ -73,15 +73,16 @@
           <template #default="{ row }">{{ deliveryText(row.deliveryStatus) }}</template>
         </el-table-column>
         <el-table-column prop="remark" :label="t('salesOrder.remark')" min-width="160" show-overflow-tooltip />
-        <el-table-column :label="t('salesOrder.actions')" width="310" fixed="right" align="center">
+        <el-table-column :label="t('salesOrder.actions')" width="370" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" :icon="View" @click="handleView(row)">{{ t('salesOrder.view') }}</el-button>
+            <el-button v-if="canViewAttachments" link type="primary" @click="openAttachments(row.id, row.orderNo)">{{ t('documentAttachment.entry') }}</el-button>
             <el-button link type="primary" @click="handlePrint(row)">{{ t('salesOrder.print') }}</el-button>
-            <el-button v-permission="'sales:order:create'" link type="primary" @click="handleCopy(row)">{{ t('salesOrder.copy') }}</el-button>
+            <el-button v-if="!row.contractId" v-permission="'sales:order:create'" link type="primary" @click="handleCopy(row)">{{ t('salesOrder.copy') }}</el-button>
             <el-button v-if="canEdit(row)" v-permission="'sales:order:update'" link type="primary" :icon="Edit" @click="handleEdit(row)">{{ t('salesOrder.edit') }}</el-button>
             <el-button v-if="canSubmit(row)" v-permission="'sales:order:submit'" link type="success" @click="handleSubmitOrder(row)">{{ t('salesOrder.submit') }}</el-button>
             <el-button v-if="canApprove(row)" v-permission="'sales:order:approve'" link type="success" @click="handleApprove(row)">{{ t('salesOrder.approve') }}</el-button>
-            <el-button v-if="canApprove(row)" v-permission="'sales:order:reject'" link type="warning" @click="handleReject(row)">{{ t('salesOrder.reject') }}</el-button>
+            <el-button v-if="canReject(row)" v-permission="'sales:order:reject'" link type="warning" @click="handleReject(row)">{{ t('salesOrder.reject') }}</el-button>
             <el-button v-if="canUnapprove(row)" v-permission="'sales:order:unapprove'" link type="warning" @click="handleUnapprove(row)">{{ t('salesOrder.unapprove') }}</el-button>
             <el-button v-if="canCancel(row)" v-permission="'sales:order:cancel'" link type="danger" @click="handleCancel(row)">{{ t('salesOrder.cancel') }}</el-button>
           </template>
@@ -103,13 +104,28 @@
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="16">
           <el-col :span="8">
+            <el-form-item :label="t('salesOrder.contract')">
+              <el-select
+                :model-value="formData.contractId"
+                :placeholder="t('salesOrder.selectContract')"
+                clearable
+                filterable
+                style="width: 100%"
+                :disabled="isView || Boolean(formData.id && formData.contractId)"
+                @change="selectSalesContract"
+              >
+                <el-option v-for="contract in salesContracts" :key="contract.id" :label="`${contract.contractNo} - ${contract.contractName}`" :value="contract.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
             <el-form-item :label="t('salesOrder.customer')" prop="customerId">
               <el-select
                 v-model="formData.customerId"
                 :placeholder="t('salesOrder.selectCustomer')"
                 filterable
                 style="width: 100%"
-                :disabled="isView"
+                :disabled="isView || contractBound"
                 @change="onCustomerOrDateChange"
               >
                 <el-option v-for="customer in customers" :key="customer.id" :label="customer.name" :value="customer.id" />
@@ -131,7 +147,7 @@
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
                 :disabled="isView"
-                @change="onCustomerOrDateChange"
+                @change="onOrderDateChange"
               />
             </el-form-item>
           </el-col>
@@ -141,6 +157,16 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <DocumentCurrencyFields
+          v-if="dialogVisible"
+          :key="formData.id ?? 'new'"
+          ref="currencyFieldsRef"
+          v-model:currency-code="formData.currencyCode"
+          v-model:exchange-rate="formData.exchangeRate"
+          :business-date="formData.orderDate"
+          :active="dialogVisible"
+          :disabled="isView"
+        />
 
         <el-form-item :label="t('salesOrder.remark')">
           <el-input v-model="formData.remark" type="textarea" :rows="2" :placeholder="t('salesOrder.remarkPlaceholder')" :disabled="isView" />
@@ -151,6 +177,7 @@
             <div>
               <div class="credit-preview-title">{{ t('salesOrder.creditPreview') }}</div>
               <div class="credit-preview-subtitle">{{ t('salesOrder.creditFormula') }}</div>
+              <div class="credit-preview-subtitle">{{ t('documentCurrency.baseAmounts') }}</div>
             </div>
             <el-tag v-if="creditPreview" :type="creditPreview.exceeded ? 'danger' : 'success'">
               {{ creditPreview.unlimited ? t('salesOrder.unlimitedCustomer') : creditPreview.exceeded ? t('salesOrder.exceededAfterSubmit') : t('salesOrder.sufficientCredit') }}
@@ -218,13 +245,15 @@
 
         <div class="line-toolbar">
           <span>{{ t('salesOrder.details') }}</span>
-          <el-button v-if="!isView" type="primary" :icon="Plus" @click="addLine">{{ t('salesOrder.addLine') }}</el-button>
+          <el-button v-if="!isView && !contractBound" type="primary" :icon="Plus" @click="addLine">{{ t('salesOrder.addLine') }}</el-button>
         </div>
+
+        <el-alert v-if="contractBound" class="contract-order-notice" type="info" :closable="false" show-icon :title="t('salesOrder.contractOrderNotice')" />
 
         <el-table :data="formData.items" border>
           <el-table-column :label="t('salesOrder.product')" min-width="240">
             <template #default="{ row }">
-              <el-select v-model="row.productId" :placeholder="t('salesOrder.selectProduct')" filterable style="width: 100%" :disabled="isView" @change="onProductChange(row)">
+              <el-select v-model="row.productId" :placeholder="t('salesOrder.selectProduct')" filterable style="width: 100%" :disabled="isView || contractBound" @change="onProductChange(row)">
                 <el-option
                   v-for="product in products"
                   :key="product.id"
@@ -236,18 +265,18 @@
           </el-table-column>
                     <el-table-column :label="t('salesOrder.auxQty')" width="130">
             <template #default="{ row, $index }">
-              <el-input-number v-model="row.auxQty" :min="0" :precision="4" :controls="false" :disabled="!row.auxUnitName" style="width: 100%" @change="handleAuxQtyChange($index)" />
+              <el-input-number v-model="row.auxQty" :min="0" :precision="4" :controls="false" :disabled="contractBound || !row.auxUnitName" style="width: 100%" @change="handleAuxQtyChange($index)" />
               <div v-if="row.auxUnitName" class="price-hint">{{ row.auxUnitName }} × {{ row.conversionFactor }}</div>
             </template>
           </el-table-column>
           <el-table-column :label="t('salesOrder.quantity')" width="150">
             <template #default="{ row }">
-              <el-input-number v-model="row.quantity" :min="0" :precision="2" :disabled="isView" style="width: 100%" />
+              <el-input-number v-model="row.quantity" :min="0" :precision="2" :disabled="isView || contractBound" style="width: 100%" />
             </template>
           </el-table-column>
           <el-table-column :label="t('salesOrder.unitPrice')" width="150">
             <template #default="{ row }">
-              <el-input-number v-model="row.price" :min="0" :precision="2" :disabled="isView" style="width: 100%" />
+              <el-input-number v-model="row.price" :min="0" :precision="2" :disabled="isView || contractBound" style="width: 100%" />
               <div v-if="row.minPrice != null" class="price-hint">
                 {{ t('salesOrder.minimumPrice', { amount: formatMoney(row.minPrice) }) }}
                 <span v-if="row.priceLevel">· {{ row.priceLevel === 'CUSTOMER' ? t('salesOrder.customerPrice') : t('salesOrder.generalPrice') }}</span>
@@ -256,18 +285,23 @@
           </el-table-column>
           <el-table-column :label="t('salesOrder.taxRate')" width="130">
             <template #default="{ row }">
-              <el-input-number v-model="row.taxRate" :min="0" :max="1" :step="0.01" :precision="4" :disabled="isView" style="width: 100%" />
+              <el-input-number v-model="row.taxRate" :min="0" :max="1" :step="0.01" :precision="4" :disabled="isView || contractBound" style="width: 100%" />
             </template>
           </el-table-column>
           <el-table-column :label="t('salesOrder.amount')" width="130" align="right">
             <template #default="{ row }">{{ formatMoney(lineAmount(row)) }}</template>
           </el-table-column>
-          <el-table-column :label="t('salesOrder.remark')" min-width="150">
+          <el-table-column v-if="contractBound" :label="t('salesOrder.contractExecution')" width="190">
             <template #default="{ row }">
-              <el-input v-model="row.remark" :placeholder="t('salesOrder.remark')" :disabled="isView" />
+              {{ t('salesOrder.contractExecutionValue', { committed: formatNumber(row.committedQuantity), fulfilled: formatNumber(row.fulfilledQuantity), total: formatNumber(row.contractQuantity) }) }}
             </template>
           </el-table-column>
-          <el-table-column v-if="!isView" :label="t('salesOrder.actions')" width="90" align="center">
+          <el-table-column :label="t('salesOrder.remark')" min-width="150">
+            <template #default="{ row }">
+              <el-input v-model="row.remark" :placeholder="t('salesOrder.remark')" :disabled="isView || contractBound" />
+            </template>
+          </el-table-column>
+          <el-table-column v-if="!isView && !contractBound" :label="t('salesOrder.actions')" width="90" align="center">
             <template #default="{ $index }">
               <el-button link type="danger" :icon="Delete" @click="removeLine($index)">{{ t('salesOrder.delete') }}</el-button>
             </template>
@@ -279,14 +313,24 @@
         <el-button v-if="!isView" type="primary" :loading="submitLoading" @click="handleSave">{{ t('salesOrder.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="SALES_ORDER"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Edit, Plus, Refresh, Search, View } from '@element-plus/icons-vue'
 import {
   getSalesOrders,
   getSalesOrder,
@@ -300,15 +344,32 @@ import {
   cancelSalesOrder,
   resolveSalesPrice
 } from '@/api/sales'
+import { getContract, getContracts, type ContractRecord } from '@/api/contracts'
 import { getCustomers, getProducts, getWarehouses } from '@/api/masterdata'
 import { printSalesOrder } from '@/utils/bizPrint'
 import { formatBusinessDate } from '@/utils/locale'
+import DocumentCurrencyFields from '@/components/DocumentCurrencyFields.vue'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useSalesOrderPresentation } from '@/composables/useSalesOrderPresentation'
 import { useSalesOrderList } from '@/composables/useSalesOrderList'
 import { useSalesOrderForm } from '@/composables/useSalesOrderForm'
+import { useUserStore } from '@/store/modules/user'
 
 const route = useRoute()
 const { t } = useI18n()
+const userStore = useUserStore()
+const currencyFieldsRef = ref<InstanceType<typeof DocumentCurrencyFields>>()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
+const salesContracts = ref<ContractRecord[]>([])
 const readQueryString = (key: string) => {
   const value = route.query[key]
   return Array.isArray(value) ? value[0] || '' : typeof value === 'string' ? value : ''
@@ -344,7 +405,7 @@ const {
   getWarehouses,
   getProducts,
   printOrder: printSalesOrder,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   prompt: (message, title, opts) => ElMessageBox.prompt(message, title, opts) as any,
   initialKeyword: readQueryString('keyword'),
   onError: (message) => ElMessage.error(message),
@@ -357,6 +418,7 @@ const {
   canApprove,
   canCancel,
   canEdit,
+  canReject,
   canSubmit,
   canUnapprove,
   deliveryText,
@@ -386,6 +448,7 @@ const {
   onCustomerOrDateChange,
   onProductChange,
   removeLine,
+  resetForm,
   submitLoading
 } = useSalesOrderForm(t, {
   products,
@@ -403,9 +466,49 @@ const {
   onCompleted: () => loadData()
 })
 
+const contractBound = computed(() => Boolean(formData.contractId))
+
+const onOrderDateChange = async () => {
+  await currencyFieldsRef.value?.refreshRate()
+  if (formData.exchangeRate != null) await onCustomerOrDateChange()
+}
+
+const loadSalesContracts = async () => {
+  const page = await getContracts({ pageNo: 1, pageSize: 200, contractType: 'SALES', status: 'ACTIVE' })
+  salesContracts.value = page.records
+}
+
+const selectSalesContract = async (contractId?: string | number) => {
+  if (!contractId) {
+    formData.contractId = undefined
+    formData.items.forEach((item) => { item.contractLineId = undefined })
+    return
+  }
+  const contract = await getContract(contractId)
+  formData.contractId = contract.id
+  formData.customerId = contract.customerId || ''
+  formData.items = contract.lines.map((line) => ({
+    contractLineId: line.id,
+    productId: line.productId,
+    productCode: line.productCode,
+    productName: line.productName,
+    quantity: Number(line.quantity || 0),
+    contractQuantity: Number(line.quantity || 0),
+    committedQuantity: Number(line.committedQuantity || 0),
+    fulfilledQuantity: Number(line.fulfilledQuantity || 0),
+    price: Number(line.unitPrice || 0),
+    taxRate: 0,
+    amount: Number(line.amount || 0),
+    remark: line.remark || '',
+    minPrice: null,
+    priceLevel: 'CONTRACT'
+  }))
+}
+
 onMounted(async () => {
   try {
     await loadOptions()
+    await loadSalesContracts()
   } catch (error) {
     console.error(t('salesOrder.message.optionsLoadFailed'), error)
   }

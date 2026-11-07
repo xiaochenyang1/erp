@@ -25,7 +25,9 @@ const createList = (overrides: Partial<Parameters<typeof useWorkflowTaskList>[1]
   useWorkflowTaskList(t, {
     getWorkflowTasks: vi.fn(async () => ({
       records: [task()],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 20
     })),
     getWorkflowTask: vi.fn(async () => task({ title: 'Detail SO1' })),
     approveWorkflowTask: vi.fn(async () => ({})),
@@ -37,7 +39,9 @@ const createList = (overrides: Partial<Parameters<typeof useWorkflowTaskList>[1]
         { id: 'u1', username: 'alice' },
         { id: 'u2', username: 'bob' }
       ],
-      total: 2
+      total: 2,
+      pageNo: 1,
+      pageSize: 200
     })),
     onError: vi.fn(),
     onSuccess: vi.fn(),
@@ -64,7 +68,12 @@ describe('workflow task list', () => {
       overdueOnly: undefined
     })
 
-    const getWorkflowTasks = vi.fn(async () => ({ records: [task()], total: 3 }))
+    const getWorkflowTasks = vi.fn(async () => ({
+      records: [task()],
+      total: 3,
+      pageNo: 1,
+      pageSize: 20
+    }))
     const list = createList({ getWorkflowTasks })
     expect(await list.loadData()).toBe(true)
     expect(list.tableData.value).toHaveLength(1)

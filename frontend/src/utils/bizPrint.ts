@@ -1,4 +1,5 @@
 import { printHtml, buildDocPrintHtml, money, qty, escapeHtml } from '@/utils/printDoc'
+import { formatLocalizedCurrency } from '@/utils/locale'
 
 type LineLike = {
   productCode?: string
@@ -509,6 +510,8 @@ export function printFinanceInvoice(doc: any) {
     docNo: doc.invoiceNo,
     fields: [
       ['发票类型', doc.invoiceType || '-'],
+      ['单据币种', doc.currencyCode || '-'],
+      ['汇率', doc.exchangeRate == null ? '-' : String(doc.exchangeRate)],
       ['往来单位', doc.partnerName || '-'],
       ['发票日期', doc.invoiceDate || '-'],
       ['状态', doc.status || '-'],
@@ -628,6 +631,9 @@ export function printVoucher(doc: any) {
 
 export function printPartnerStatement(doc: any) {
   const lines = doc.lines || []
+  const statementMoney = (value: unknown) => formatLocalizedCurrency(Number(value ?? 0), {
+    currency: doc.baseCurrencyCode || 'CNY'
+  })
   const html = buildDocPrintHtml({
     title: '往来对账单',
     docNo: doc.partnerName || doc.partnerId || 'statement',
@@ -635,10 +641,12 @@ export function printPartnerStatement(doc: any) {
       ['往来单位', doc.partnerName || doc.partnerId || '-'],
       ['往来类型', doc.partnerTypeLabel || doc.partnerType || '-'],
       ['期间', `${doc.dateFrom || '-'} ~ ${doc.dateTo || '-'}`],
-      ['期初', money(doc.openingBalance)],
-      ['增加', money(doc.totalIncrease)],
-      ['减少', money(doc.totalDecrease)],
-      ['期末', money(doc.closingBalance)]
+      ['本位币', doc.baseCurrencyCode || 'CNY'],
+      ['金额口径', doc.currencyNotice || '金额按账套本位币列示。汇兑和尾差调整不代表额外收付款。'],
+      ['期初', statementMoney(doc.openingBalance)],
+      ['增加', statementMoney(doc.totalIncrease)],
+      ['减少', statementMoney(doc.totalDecrease)],
+      ['期末', statementMoney(doc.closingBalance)]
     ],
     columns: ['日期', '单据类型', '单号', '方向', '金额', '余额', '备注'],
     rows: lines.map((line: any) => [
@@ -646,13 +654,13 @@ export function printPartnerStatement(doc: any) {
       escapeHtml(line.docTypeLabel || line.docType || ''),
       escapeHtml(line.docNo || ''),
       escapeHtml(line.directionLabel || line.direction || ''),
-      money(line.amount),
-      money(line.balance),
+      statementMoney(line.amount),
+      statementMoney(line.balance),
       escapeHtml(line.remark || '')
     ]),
     totals: [
-      ['期初', money(doc.openingBalance)],
-      ['期末', money(doc.closingBalance)]
+      ['期初', statementMoney(doc.openingBalance)],
+      ['期末', statementMoney(doc.closingBalance)]
     ]
   })
   printHtml(`往来对账单 ${doc.partnerName || doc.partnerId || ''}`, html)

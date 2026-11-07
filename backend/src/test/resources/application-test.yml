@@ -49,6 +49,14 @@ erp:
       enabled: false
       fixed-delay-ms: 60000
       initial-delay-ms: 60000
+  contract-alert:
+    scheduler:
+      enabled: false
+      fixed-delay-ms: 3600000
+      initial-delay-ms: 120000
+      expiration-warning-days: 30
+      low-execution-rate: 0.5
+      system-user-id: 0
   security:
     public-api-docs-enabled: true
     jwt:

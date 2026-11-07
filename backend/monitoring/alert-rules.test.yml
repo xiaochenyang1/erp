@@ -1,0 +1,78 @@
+rule_files:
+  - /etc/prometheus/rules/alert-rules.yml
+evaluation_interval: 1m
+tests:
+  - name: scrape failure fires and recovers
+    interval: 1m
+    input_series:
+      - series: 'up{job="erp-server",instance="erp-server:8080",service="erp-server"}'
+        values: '1 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ServiceDown
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: ServiceDown
+        exp_alerts:
+          - exp_labels:
+              job: erp-server
+              instance: erp-server:8080
+              service: erp-server
+              severity: critical
+              component: application
+            exp_annotations:
+              summary: ERP service is unavailable
+              description: Prometheus cannot scrape the ERP service for more than one minute.
+      - eval_time: 3m
+        alertname: ServiceDown
+        exp_alerts: []
+
+  - name: closed accounting period fires critical then recovers
+    interval: 1m
+    input_series:
+      - series: 'erp_business_health_check_count{job="erp-server",instance="erp-server:8080",check="OPEN_PERIOD_COUNT"}'
+        values: '0+0x6 1+0x2'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ErpNoOpenAccountingPeriod
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: ErpNoOpenAccountingPeriod
+        exp_alerts:
+          - exp_labels:
+              job: erp-server
+              instance: erp-server:8080
+              check: OPEN_PERIOD_COUNT
+              severity: critical
+              component: finance
+            exp_annotations:
+              summary: ERP has no open accounting period
+              description: The current account book has no OPEN accounting period.
+      - eval_time: 7m
+        alertname: ErpNoOpenAccountingPeriod
+        exp_alerts: []
+
+  - name: import failure waits ten minutes then recovers
+    interval: 1m
+    input_series:
+      - series: 'erp_business_health_check_count{job="erp-server",instance="erp-server:8080",check="IMPORT_FAILED_RECENT"}'
+        values: '1+0x11 0+0x2'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ErpRecentImportFailures
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: ErpRecentImportFailures
+        exp_alerts:
+          - exp_labels:
+              job: erp-server
+              instance: erp-server:8080
+              check: IMPORT_FAILED_RECENT
+              severity: warning
+              component: import
+            exp_annotations:
+              summary: ERP import jobs failed in the last 24 hours
+              description: Recent failed import jobs need operator review.
+      - eval_time: 12m
+        alertname: ErpRecentImportFailures
+        exp_alerts: []

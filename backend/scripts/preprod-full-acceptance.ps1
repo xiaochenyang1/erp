@@ -668,6 +668,90 @@ function Get-EvidenceIndexFallbackPackages {
     return @($packages)
 }
 
+function Get-EvidenceIndexObjectProperty {
+    param(
+        [object]$Object,
+        [string]$Name
+    )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties |
+        Where-Object { $_.Name -ieq $Name } |
+        Select-Object -First 1
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
+function Get-EvidenceIndexReleaseCheckMetadata {
+    $reportDirectory = Join-Path $RepoRoot "target"
+    $reportPath = Join-Path $reportDirectory "release-check-report.json"
+    $currentHeadCommit = $null
+
+    Push-Location $RepoRoot
+    try {
+        $commitOutput = & git rev-parse --short HEAD 2>$null
+        if ($LASTEXITCODE -eq 0 -and $null -ne $commitOutput) {
+            $currentHeadCommit = ([string]$commitOutput).Trim()
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    $status = "NOT_FOUND"
+    $allowDirtyWorktree = $null
+    $releaseCandidateCommit = $currentHeadCommit
+    $candidateSource = "git-head"
+    $reportExists = Test-Path -LiteralPath $reportPath -PathType Leaf
+    $reportReadError = $null
+
+    if ($reportExists) {
+        try {
+            $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+            $reportedStatus = Get-EvidenceIndexObjectProperty -Object $report -Name "status"
+            if (-not [string]::IsNullOrWhiteSpace([string]$reportedStatus)) {
+                $status = ([string]$reportedStatus).Trim()
+            }
+            else {
+                $status = "UNKNOWN"
+            }
+
+            $reportedCandidate = Get-EvidenceIndexObjectProperty -Object $report -Name "releaseCandidateCommit"
+            if (-not [string]::IsNullOrWhiteSpace([string]$reportedCandidate)) {
+                $releaseCandidateCommit = ([string]$reportedCandidate).Trim()
+                $candidateSource = "release-check-report"
+            }
+            $allowDirtyWorktree = Get-EvidenceIndexObjectProperty -Object $report -Name "allowDirtyWorktree"
+        }
+        catch {
+            $status = "UNREADABLE"
+            $reportReadError = (($_ | Out-String).Trim())
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$releaseCandidateCommit)) {
+        $releaseCandidateCommit = "UNKNOWN"
+        $candidateSource = "unresolved"
+    }
+
+    return [pscustomobject]@{
+        Status = $status
+        ReleaseCandidateCommit = $releaseCandidateCommit
+        AllowDirtyWorktree = $allowDirtyWorktree
+        ReportPath = $reportPath
+        ReportExists = $reportExists
+        ReportReadError = $reportReadError
+        CandidateSource = $candidateSource
+        CurrentHeadCommit = $currentHeadCommit
+    }
+}
+
 function Save-EvidenceIndexManifest {
     $evidenceIndexPath = Join-Path $EvidenceDirectory "evidence-index.json"
     if (-not (Test-Path -LiteralPath $EvidenceDirectory -PathType Container)) {
@@ -694,6 +778,7 @@ function Save-EvidenceIndexManifest {
     }
 
     $fallbackPackages = Get-EvidenceIndexFallbackPackages
+    $releaseCheck = Get-EvidenceIndexReleaseCheckMetadata
     $index = [ordered]@{
         schemaVersion = 1
         generatedAt = Get-Date -Format "o"
@@ -703,6 +788,16 @@ function Save-EvidenceIndexManifest {
         summaryPath = $OutputPath
         ReadinessRunId = $ReadinessRunId
         goNoGoVerdict = $goNoGoVerdict
+        releaseCheck = [ordered]@{
+            status = $releaseCheck.Status
+            releaseCandidateCommit = $releaseCheck.ReleaseCandidateCommit
+            allowDirtyWorktree = $releaseCheck.AllowDirtyWorktree
+            reportPath = $releaseCheck.ReportPath
+            reportExists = $releaseCheck.ReportExists
+            reportReadError = $releaseCheck.ReportReadError
+            candidateSource = $releaseCheck.CandidateSource
+            currentHeadCommit = $releaseCheck.CurrentHeadCommit
+        }
         failureTriageSection = "Failure triage index"
         goNoGoSection = "Go / No-Go"
         replayDirectoryCommand = ".\scripts\replay-readiness-evidence.ps1 -ManifestDirectory $(Format-CommandPart $EvidenceDirectory) -ValidateOnly"
@@ -726,6 +821,8 @@ function Save-EvidenceIndexManifest {
         Path = $evidenceIndexPath
         ReportCount = $reports.Count
         FallbackPackageCount = $fallbackPackages.Count
+        ReleaseCandidateCommit = $releaseCheck.ReleaseCandidateCommit
+        ReleaseCheckReportPath = $releaseCheck.ReportPath
     }
 }
 
@@ -737,6 +834,10 @@ Evidence index file: $($index.Path)
 Indexed report count: $($index.ReportCount)
 
 Fallback package count: $($index.FallbackPackageCount)
+
+Release candidate commit: $($index.ReleaseCandidateCommit)
+
+Release-check report: $($index.ReleaseCheckReportPath)
 
 Validate fallback packages:
 

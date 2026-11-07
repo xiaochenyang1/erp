@@ -6,6 +6,8 @@ import com.tuowei.erp.production.routing.mapper.ProductionRoutingMapper;
 import com.tuowei.erp.production.routing.mapper.ProductionRoutingOperationMapper;
 import com.tuowei.erp.production.workcenter.mapper.ProductionWorkCenterMapper;
 import com.tuowei.erp.production.workcenter.model.ProductionWorkCenterEntity;
+import com.tuowei.erp.production.workcenter.service.ProductionWorkCenterCommandService;
+import com.tuowei.erp.production.workcenter.service.ProductionWorkCenterQueryService;
 import com.tuowei.erp.production.workcenter.service.ProductionWorkCenterService;
 import com.tuowei.erp.production.workcenter.web.ProductionWorkCenterCreateRequest;
 import com.tuowei.erp.production.workcenter.web.ProductionWorkCenterResponse;
@@ -137,12 +139,16 @@ class ProductionWorkCenterServiceTest {
                     return productionWorkCenterMapper.updateById(entity);
                 });
 
-        ProductionWorkCenterService service = new ProductionWorkCenterService(
+        ProductionWorkCenterQueryService queryService =
+                new ProductionWorkCenterQueryService(staleAwareMapper, auditMetadataFactory);
+        ProductionWorkCenterCommandService commandService = new ProductionWorkCenterCommandService(
                 staleAwareMapper,
                 productionRoutingMapper,
                 productionRoutingOperationMapper,
-                auditMetadataFactory
+                auditMetadataFactory,
+                queryService
         );
+        ProductionWorkCenterService service = new ProductionWorkCenterService(queryService, commandService);
 
         Assertions.assertThatThrownBy(() -> service.update(
                         created.id(),

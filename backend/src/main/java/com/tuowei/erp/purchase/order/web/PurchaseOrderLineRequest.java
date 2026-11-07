@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 public record PurchaseOrderLineRequest(
+        Long contractLineId,
         @NotNull(message = "productId不能为空") Long productId,
         @NotNull(message = "qty不能为空")
         @DecimalMin(value = "0.0001", message = "qty必须大于0") BigDecimal qty,
@@ -19,6 +20,11 @@ public record PurchaseOrderLineRequest(
         String remark
 ) {
     public PurchaseOrderLineRequest(Long productId, BigDecimal qty, BigDecimal price, BigDecimal taxRate, String remark) {
-        this(productId, qty, null, null, null, price, taxRate, remark);
+        this(null, productId, qty, null, null, null, price, taxRate, remark);
+    }
+
+    public PurchaseOrderLineRequest(Long productId, BigDecimal qty, BigDecimal auxQty, String auxUnitName,
+                                    BigDecimal conversionFactor, BigDecimal price, BigDecimal taxRate, String remark) {
+        this(null, productId, qty, auxQty, auxUnitName, conversionFactor, price, taxRate, remark);
     }
 }

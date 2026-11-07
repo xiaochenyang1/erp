@@ -1,8 +1,7 @@
-# 后端快速启动脚本 (Windows)
-# 默认联调库：erp_codex_runtime（勿用历史脏库 erp）
-
 @echo off
 chcp 65001 >nul
+REM 后端快速启动脚本 (Windows)
+REM 默认联调库：erp_codex_runtime（勿用历史脏库 erp）
 echo.
 echo ════════════════════════════════════════════════════════════════
 echo    ERP 后端启动（local profile → erp_codex_runtime）
@@ -38,11 +37,21 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [4/5] 确保干净联调库 erp_codex_runtime 存在...
-echo CREATE DATABASE IF NOT EXISTS erp_codex_runtime CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; | mysql -u root -p12345678
-if %errorlevel% neq 0 (
-    echo ⚠️  自动建库失败，请手工创建 erp_codex_runtime 后重试
+REM 凭据从环境变量读取，未设置时交互输入，切勿把口令写进脚本
+if not defined DB_ROOT_USER set "DB_ROOT_USER=root"
+if not defined DB_ROOT_PASSWORD set /p "DB_ROOT_PASSWORD=请输入 MySQL %DB_ROOT_USER% 密码（直接回车则跳过自动建库）: "
+if defined DB_ROOT_PASSWORD (
+    REM 通过 MYSQL_PWD 传递，避免口令出现在命令行/进程列表中
+    set "MYSQL_PWD=%DB_ROOT_PASSWORD%"
+    echo CREATE DATABASE IF NOT EXISTS erp_codex_runtime CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; | mysql -u %DB_ROOT_USER%
+    if errorlevel 1 (
+        echo ⚠️  自动建库失败，请手工创建 erp_codex_runtime 后重试
+    ) else (
+        echo ✅ 数据库 erp_codex_runtime 就绪
+    )
+    set "MYSQL_PWD="
 ) else (
-    echo ✅ 数据库 erp_codex_runtime 就绪
+    echo ℹ️  未提供密码，跳过自动建库，请手工确保 erp_codex_runtime 存在
 )
 
 echo.

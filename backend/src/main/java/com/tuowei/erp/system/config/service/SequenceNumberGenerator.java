@@ -41,9 +41,19 @@ public class SequenceNumberGenerator {
     }
 
     public String nextNumber(String bizType, String bizLabel, LocalDate bizDate) {
+        return nextNumber(bizType, bizLabel, bizDate, auditMetadataFactory.current());
+    }
+
+    /**
+     * Allocates a number for an explicitly supplied tenant context.  Scheduled
+     * jobs and other non-request callers cannot rely on the thread-local audit
+     * factory, so keeping the context as an argument prevents a number from
+     * being allocated in a different company or account book.
+     */
+    public String nextNumber(String bizType, String bizLabel, LocalDate bizDate, AuditMetadata audit) {
         for (int attempt = 0; attempt < MAX_TRANSACTION_RETRY_ATTEMPTS; attempt++) {
             try {
-                return transactionTemplate.execute(status -> nextNumberInTransaction(bizType, bizLabel, bizDate));
+                return transactionTemplate.execute(status -> nextNumberInTransaction(bizType, bizLabel, bizDate, audit));
             } catch (TransientDataAccessException ex) {
                 if (attempt == MAX_TRANSACTION_RETRY_ATTEMPTS - 1) {
                     throw new IllegalStateException(bizLabel + "编号生成冲突，请重试", ex);
@@ -53,8 +63,7 @@ public class SequenceNumberGenerator {
         throw new IllegalStateException(bizLabel + "编号生成冲突，请重试");
     }
 
-    private String nextNumberInTransaction(String bizType, String bizLabel, LocalDate bizDate) {
-        AuditMetadata audit = auditMetadataFactory.current();
+    private String nextNumberInTransaction(String bizType, String bizLabel, LocalDate bizDate, AuditMetadata audit) {
         SequenceRuleEntity rule = requireActiveRule(bizType, bizLabel, audit);
         String periodKey = bizDate.format(DateTimeFormatter.ofPattern(rule.getDatePattern()));
 

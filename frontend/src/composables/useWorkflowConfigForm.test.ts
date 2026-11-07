@@ -42,11 +42,15 @@ const createForm = (overrides: Partial<Parameters<typeof useWorkflowConfigForm>[
     })),
     getUsers: vi.fn(async () => ({
       records: [{ id: 'u1', username: 'alice' } as any],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
     })),
     getRoles: vi.fn(async () => ({
       records: [{ id: 'r1', name: 'Admin', code: 'ADMIN' } as any],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 200
     })),
     onError: vi.fn(),
     onSuccess: vi.fn(),

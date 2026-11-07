@@ -35,6 +35,7 @@ class ProductionOrderControllerTest {
     private static final long MATERIAL_PRODUCT_ID = 893002L;
     private static final long MATERIAL_WAREHOUSE_ID = 893101L;
     private static final long FINISHED_WAREHOUSE_ID = 893102L;
+    private static final long LOCATION_ID_OFFSET = 500000000000000000L;
 
     @Autowired
     private MockMvc mockMvc;
@@ -80,6 +81,7 @@ class ProductionOrderControllerTest {
         jdbcTemplate.update("delete from prd_order");
         jdbcTemplate.update("delete from prd_bom_line");
         jdbcTemplate.update("delete from prd_bom");
+        jdbcTemplate.update("delete from md_location where warehouse_id between 893100 and 893199");
         jdbcTemplate.update("delete from md_warehouse where id between 893100 and 893199");
         jdbcTemplate.update("delete from md_product where id between 893000 and 893999");
         jdbcTemplate.update("delete from fin_account_period where id between 893500 and 893599");
@@ -607,15 +609,22 @@ class ProductionOrderControllerTest {
                  address, status, deleted_flag, remark, created_by, updated_by, version)
                 values (?, 1, 1, ?, ?, 1, 1, '生产测试地址', 'ACTIVE', 0, '生产测试', 893001, 893001, 0)
                 """, id, code, name);
+        jdbcTemplate.update("""
+                insert into md_location
+                (id, company_id, account_book_id, warehouse_id, location_code, location_name,
+                 is_default, status, deleted_flag, remark, created_by, updated_by, version)
+                values (?, 1, 1, ?, 'MAIN', '默认库位', 1, 'ACTIVE', 0,
+                        '生产测试默认库位', 893001, 893001, 0)
+                """, id + LOCATION_ID_OFFSET, id);
     }
 
     private void seedMaterialBalance() {
         jdbcTemplate.update("""
                 insert into inv_balance
-                (id, company_id, account_book_id, warehouse_id, product_id, qty_on_hand, qty_reserved,
+                (id, company_id, account_book_id, warehouse_id, location_id, product_id, qty_on_hand, qty_reserved,
                  amount_on_hand, created_by, updated_by, version)
-                values (893201, 1, 1, 893101, 893002, 100.0000, 0.0000, 500.00, 893001, 893001, 0)
-                """);
+                values (893201, 1, 1, 893101, ?, 893002, 100.0000, 0.0000, 500.00, 893001, 893001, 0)
+                """, MATERIAL_WAREHOUSE_ID + LOCATION_ID_OFFSET);
     }
 
     private void seedPeriod(long id, int year, String periodMonth, String status) {

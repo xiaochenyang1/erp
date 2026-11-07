@@ -51,6 +51,19 @@ class ReleaseCheckScriptConfigurationTest {
     }
 
     @Test
+    void releaseCheckUsesPlatformNeutralPathsForVerifierAndArtifacts() throws IOException {
+        String script = Files.readString(Path.of("scripts", "release-check.ps1"), StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("Join-Path $RepositoryRoot \"scripts/verify-release-check-report.ps1\"")
+                .contains("\"target/erp-server-1.0.0.jar\"")
+                .contains("\"target/classes/META-INF/sbom/application.cdx.json\"")
+                .contains("\"target/bom.json\"")
+                .doesNotContain("Join-Path $RepositoryRoot \"scripts\\verify-release-check-report.ps1\"")
+                .doesNotContain("\"target\\erp-server-1.0.0.jar\"");
+    }
+
+    @Test
     void releaseCheckParsesReleasePowerShellScriptsBeforeMavenGate() throws IOException {
         String script = Files.readString(Path.of("scripts", "release-check.ps1"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);

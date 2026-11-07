@@ -1,5 +1,7 @@
 # B1 数据范围验收矩阵（2026-07-17）
 
+> 本文保留 2026-07-17 的 12/12 历史基线。2026-08-25 运营加固后的当前矩阵见 `docs/data-scope-operations-matrix.md`，真实双账号 API smoke 已在 `erp_codex_runtime` 通过 31/31。
+
 **脚本**: `node scripts/data-scope-api-smoke.cjs`  
 **报告**: `target/data-scope-api-smoke/report-*.json`  
 **本轮结果**: **12/12 PASS**

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type {
   AccountPeriod,
   AccountPeriodCloseCheck,
+  AccountPeriodCloseSnapshot,
   InventoryFinanceDifference,
   InventoryFinanceDifferenceDetail,
   InventoryFinanceReconciliation
@@ -27,9 +28,12 @@ export const useFinancePeriodActions = (
     getPeriods: (year?: number) => Promise<AccountPeriod[]>
     generatePeriods: (year: number) => Promise<AccountPeriod[]>
     checkClose: (id: string | number) => Promise<AccountPeriodCloseCheck>
+    getCloseSnapshots: (id: string | number) => Promise<AccountPeriodCloseSnapshot[]>
     lockPeriod: (id: string | number) => Promise<unknown>
     closePeriod: (id: string | number) => Promise<unknown>
     unlockPeriod: (id: string | number) => Promise<unknown>
+    revaluePeriod?: (id: string | number) => Promise<unknown>
+    cancelRevaluePeriod?: (id: string | number) => Promise<unknown>
     getReconciliation: (id: string | number) => Promise<InventoryFinanceReconciliation>
     getDifferences: (
       id: string | number,
@@ -62,6 +66,7 @@ export const useFinancePeriodActions = (
   const wizardStep = ref(0)
   const wizardPeriod = ref<AccountPeriod>()
   const wizardCheck = ref<AccountPeriodCloseCheck>()
+  const wizardSnapshots = ref<AccountPeriodCloseSnapshot[]>([])
 
   const reconciliationVisible = ref(false)
   const reconciliationLoading = ref(false)
@@ -127,6 +132,7 @@ export const useFinancePeriodActions = (
     wizardPeriod.value = row
     wizardStep.value = 0
     wizardCheck.value = undefined
+    wizardSnapshots.value = []
     wizardVisible.value = true
   }
 
@@ -135,6 +141,11 @@ export const useFinancePeriodActions = (
     wizardLoading.value = true
     try {
       wizardCheck.value = await options.checkClose(wizardPeriod.value.id)
+      try {
+        wizardSnapshots.value = await options.getCloseSnapshots(wizardPeriod.value.id)
+      } catch {
+        options.onError?.(t('financeReportPages.periods.message.evidenceLoadFailed'))
+      }
     } catch {
       options.onError?.(t('financeReportPages.periods.message.checkFailed'))
     } finally {
@@ -209,8 +220,44 @@ export const useFinancePeriodActions = (
     }
   }
 
+  const handleRevalue = async (row: AccountPeriod) => {
+    if (!options.revaluePeriod) return
+    try {
+      await options.confirm(
+        t('financeReportPages.periods.message.confirmRevalue', { period: row.periodMonth }),
+        t('financeReportPages.periods.revalue'),
+        { type: 'warning' }
+      )
+      await options.revaluePeriod(row.id)
+      options.onSuccess?.(t('financeReportPages.periods.message.revalued'))
+      await loadData()
+    } catch (error) {
+      if (error !== 'cancel') {
+        options.onError?.(t('financeReportPages.periods.message.revalueFailed'))
+      }
+    }
+  }
+
+  const handleCancelRevalue = async (row: AccountPeriod) => {
+    if (!options.cancelRevaluePeriod) return
+    try {
+      await options.confirm(
+        t('financeReportPages.periods.message.confirmCancelRevalue', { period: row.periodMonth }),
+        t('financeReportPages.periods.cancelRevalue'),
+        { type: 'warning' }
+      )
+      await options.cancelRevaluePeriod(row.id)
+      options.onSuccess?.(t('financeReportPages.periods.message.revalueCancelled'))
+      await loadData()
+    } catch (error) {
+      if (error !== 'cancel') {
+        options.onError?.(t('financeReportPages.periods.message.cancelRevalueFailed'))
+      }
+    }
+  }
+
   const handleClose = async (row: AccountPeriod) => {
-    // Surface close-check risk before posting: backend close() itself is not re-validating.
+    // The backend re-checks as well; the UI blocks explicitly so users do not mistake a failed check for an override path.
     let check: AccountPeriodCloseCheck | undefined
     try {
       check = await options.checkClose(row.id)
@@ -223,23 +270,8 @@ export const useFinancePeriodActions = (
       activePeriod.value = row
       closeCheckResult.value = check
       closeCheckVisible.value = true
-      try {
-        await options.confirm(
-          t('financeReportPages.periods.message.riskyCloseConfirm', {
-            count: check.issues.length,
-            period: row.periodMonth
-          }),
-          t('financeReportPages.periods.message.riskyCloseTitle'),
-          {
-            type: 'error',
-            confirmButtonText: t('financeReportPages.periods.message.closeAnyway'),
-            cancelButtonText: t('financeReportPages.common.cancel'),
-            confirmButtonClass: 'el-button--danger'
-          }
-        )
-      } catch {
-        return
-      }
+      options.onWarning?.(t('financeReportPages.periods.message.checkBlocksClose'))
+      return
     } else {
       try {
         await options.confirm(
@@ -394,6 +426,8 @@ export const useFinancePeriodActions = (
     handleClose,
     handleGenerate,
     handleLock,
+    handleRevalue,
+    handleCancelRevalue,
     handleReset,
     handleUnlock,
     loadData,
@@ -414,6 +448,7 @@ export const useFinancePeriodActions = (
     wizardActionSubtitle,
     wizardActionTitle,
     wizardCheck,
+    wizardSnapshots,
     wizardClose,
     wizardLoading,
     wizardLock,

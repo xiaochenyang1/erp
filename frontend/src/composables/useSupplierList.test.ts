@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Supplier } from '@/api/masterdata'
@@ -13,13 +13,36 @@ const texts = computed(() => ({
   delete: 'Delete',
   enable: 'Enable',
   cancel: 'Cancel',
+  confirm: 'OK',
   deleteSuccess: 'deleted',
   deleteFailed: 'delete failed',
   enableSuccess: 'enabled',
   enableFailed: 'enable failed',
   exportSuccess: 'exported',
   exportFailed: 'export failed',
-  exportFilename: 'suppliers'
+  exportFilename: 'suppliers',
+  selectedExportFilename: 'suppliers-{count}',
+  batchEnable: 'Batch enable',
+  batchDisable: 'Batch disable',
+  exportSelected: 'Export selected',
+  batchEnableTitle: 'Batch enable',
+  batchDisableTitle: 'Batch disable',
+  batchEnableConfirm: 'Enable {count}?',
+  batchDisableConfirm: 'Disable {count}?',
+  batchEnableSuccess: 'enabled {count}',
+  batchDisableSuccess: 'disabled {count}',
+  batchEnablePartial: 'enabled {success}, failed {failedCount}: {failed}',
+  batchDisablePartial: 'disabled {success}, failed {failedCount}: {failed}',
+  supplierCode: 'Code',
+  supplierName: 'Name',
+  contact: 'Contact',
+  phone: 'Phone',
+  email: 'Email',
+  settlementMethod: 'Settlement',
+  creditPeriod: 'Credit period',
+  status: 'Status',
+  active: 'Active',
+  inactive: 'Inactive'
 }))
 
 describe('supplier list', () => {
@@ -53,8 +76,11 @@ describe('supplier list', () => {
       exportSuppliers: vi.fn(async () => new Blob(['csv'])),
       confirm: vi.fn(async () => true),
       interpolate: (template, params) => template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? '')),
+      joinNames: (items: string[]) => items.join(', '),
+      locale: ref('en-US'),
       onSuccess: vi.fn(),
       onError: vi.fn(),
+      onWarning: vi.fn(),
       ...overrides
     })
 
@@ -112,5 +138,21 @@ describe('supplier list', () => {
     await list.handleExport()
     expect(exportSuppliers).toHaveBeenCalled()
     expect(onSuccess).toHaveBeenCalledWith('exported')
+  })
+
+  it('runs batch enable and export-selected actions', async () => {
+    const enableSupplier = vi.fn(async () => ({}))
+    const onSuccess = vi.fn()
+    const list = createList({ enableSupplier, onSuccess })
+
+    list.selectedRows.value = [
+      { id: '1', name: 'Vendor', code: 'S001' } as Supplier,
+      { id: '2', name: 'Acme Co', code: 'S002' } as Supplier
+    ]
+
+    await list.handleBatchEnable()
+    expect(enableSupplier).toHaveBeenCalledWith('1')
+    expect(enableSupplier).toHaveBeenCalledWith('2')
+    expect(onSuccess).toHaveBeenCalledWith('enabled 2')
   })
 })

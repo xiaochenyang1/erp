@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Product } from '@/api/masterdata'
@@ -88,6 +88,95 @@ describe('purchase order form', () => {
     expect(form.form.items[0].quantity).toBe(2)
   })
 
+  it('preserves the currency and exchange rate when editing and saving an order', async () => {
+    const updateOrder = vi.fn(async () => ({}))
+    const form = createForm({ updateOrder })
+    const source = {
+      id: 'po-usd',
+      supplierId: 's-1',
+      orderDate: '2026-07-20',
+      currencyCode: 'USD',
+      exchangeRate: 7,
+      items: [{ productId: 'p-1', quantity: 2, price: 10, amount: 20 }]
+    } as PurchaseOrder
+    form.formRef.value = {
+      validate: (cb: (valid: boolean) => void | Promise<void>) => cb(true)
+    } as any
+
+    form.handleEdit(source)
+    form.form.remark = 'Updated remark'
+    await form.handleSubmitForm()
+
+    expect(updateOrder).toHaveBeenCalledWith('po-usd', expect.objectContaining({
+      currencyCode: 'USD',
+      exchangeRate: 7,
+      remark: 'Updated remark'
+    }))
+    expect(source.currencyCode).toBe('USD')
+    expect(source.exchangeRate).toBe(7)
+  })
+
+  it('preserves the source currency and rate when copying and saving a new order', async () => {
+    const createOrder = vi.fn(async () => ({}))
+    const form = createForm({
+      createOrder,
+      getOrder: vi.fn(async () => ({
+        id: 'po-usd',
+        orderNo: 'PO-USD',
+        supplierId: 's-1',
+        currencyCode: 'USD',
+        exchangeRate: 7,
+        items: [{ productId: 'p-1', quantity: 2, price: 10, amount: 20 }]
+      } as PurchaseOrder))
+    })
+    form.formRef.value = {
+      validate: (cb: (valid: boolean) => void | Promise<void>) => cb(true),
+      resetFields: vi.fn()
+    } as any
+
+    await form.handleCopy({ id: 'po-usd' } as PurchaseOrder)
+    await form.handleSubmitForm()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      currencyCode: 'USD',
+      exchangeRate: 7,
+      orderDate: '2026-07-26'
+    }))
+    expect(form.editId.value).toBeUndefined()
+
+    form.handleAdd()
+    expect(form.form.currencyCode).toBeUndefined()
+    expect(form.form.exchangeRate).toBeUndefined()
+  })
+
+  it('clears a previous order currency before opening a new order, including form reset defaults', () => {
+    const form = createForm()
+    expect(form.form.currencyCode).toBeUndefined()
+    expect(form.form.exchangeRate).toBeUndefined()
+
+    form.handleEdit({
+      id: 'po-usd',
+      supplierId: 's-1',
+      orderDate: '2026-07-20',
+      currencyCode: 'USD',
+      exchangeRate: 7,
+      items: []
+    } as PurchaseOrder)
+    form.formRef.value = {
+      resetFields: vi.fn(() => {
+        // Element Plus restores the values from the first mounted dialog.
+        form.form.currencyCode = 'USD'
+        form.form.exchangeRate = 7
+      })
+    } as any
+
+    form.handleAdd()
+
+    expect(form.form.currencyCode).toBeUndefined()
+    expect(form.form.exchangeRate).toBeUndefined()
+    expect(form.editId.value).toBeUndefined()
+  })
+
   it('fills product price and applies resolved purchase price', async () => {
     const resolvePrice = vi.fn(async () => ({
       matched: true,
@@ -113,6 +202,30 @@ describe('purchase order form', () => {
       supplierId: 's-1',
       bizDate: '2026-07-26'
     })
+  })
+
+  it('converts base-currency purchase prices and updates only the limit when the rate changes', async () => {
+    const form = createForm({ resolvePrice: vi.fn(async () => ({ matched: true, listPrice: 100, maxPrice: 120 })) })
+    form.form.currencyCode = 'USD'
+    form.form.exchangeRate = 2
+    form.handleAddItem()
+    form.form.items[0].productId = 'p-1'
+    await form.handleProductChange(0)
+    expect(form.form.items[0].price).toBe(50)
+    expect((form.form.items[0] as any).maxPrice).toBe(60)
+    form.form.exchangeRate = 4
+    await nextTick()
+    expect(form.form.items[0].price).toBe(50)
+    expect((form.form.items[0] as any).maxPrice).toBe(30)
+  })
+
+  it('converts the product master price when there is no purchase price list', async () => {
+    const form = createForm({ resolvePrice: vi.fn(async () => ({ matched: false })) })
+    form.form.exchangeRate = 2
+    form.handleAddItem()
+    form.form.items[0].productId = 'p-1'
+    await form.handleProductChange(0)
+    expect(form.form.items[0].price).toBe(6)
   })
 
   it('converts aux quantity and submits create payload', async () => {

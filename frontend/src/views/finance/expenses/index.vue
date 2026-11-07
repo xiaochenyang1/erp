@@ -69,9 +69,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" :label="$t('financeReportPages.common.remark')" min-width="160" show-overflow-tooltip />
-        <el-table-column :label="$t('financeReportPages.common.actions')" width="430" align="center" fixed="right">
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="490" align="center" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'finance:expense:manage'" type="primary" link :icon="View" @click="handleView(row)">{{ $t('financeReportPages.common.view') }}</el-button>
+            <el-button v-if="canViewAttachments" type="primary" link @click="openAttachments(row.id, row.expenseNo)">{{ $t('documentAttachment.entry') }}</el-button>
             <el-button v-permission="'finance:expense:manage'" type="primary" link @click="handlePrint(row)">{{ $t('financeReportPages.common.print') }}</el-button>
             <el-button
               v-permission="'finance:expense:manage'"
@@ -180,6 +181,11 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item :label="$t('financeReportPages.expenses.department')">
+          <el-select v-model="formData.deptId" clearable filterable :placeholder="$t('financeReportPages.expenses.selectDepartment')" style="width: 100%">
+            <el-option v-for="dept in departmentOptions" :key="dept.id" :label="deptLabel(dept)" :value="String(dept.id)" />
+          </el-select>
+        </el-form-item>
         <el-form-item :label="$t('financeReportPages.expenses.paymentSubject')" prop="paymentSubjectId">
           <el-select v-model="formData.paymentSubjectId" :placeholder="$t('financeReportPages.expenses.selectPaymentSubject')" filterable style="width: 100%">
             <el-option
@@ -202,6 +208,15 @@
         <el-form-item :label="$t('financeReportPages.expenses.expenseAmount')" prop="amount">
           <el-input-number v-model="formData.amount" :min="0.01" :precision="2" :controls="false" style="width: 100%" />
         </el-form-item>
+        <el-alert
+          v-if="budgetPreview"
+          :type="budgetPreview.overrun ? 'warning' : 'success'"
+          :title="budgetPreview.overrun ? $t('financeReportPages.expenses.budgetOverrun') : $t('financeReportPages.expenses.budgetAvailable')"
+          :description="$t('financeReportPages.expenses.budgetPreview', { available: formatAmount(budgetPreview.availableAmount), projected: formatAmount(budgetPreview.projectedAvailableAmount) })"
+          :closable="false"
+          show-icon
+          class="budget-preview"
+        />
         <el-form-item :label="$t('financeReportPages.common.remark')" prop="remark">
           <el-input v-model="formData.remark" type="textarea" :rows="3" :placeholder="$t('financeReportPages.expenses.remarkPlaceholder')" />
         </el-form-item>
@@ -218,6 +233,8 @@
         <el-descriptions-item :label="$t('financeReportPages.expenses.expenseDate')">{{ viewData.expenseDate }}</el-descriptions-item>
         <el-descriptions-item :label="$t('financeReportPages.expenses.expenseSubject')">{{ subjectName(viewData.subjectId) }}</el-descriptions-item>
         <el-descriptions-item :label="$t('financeReportPages.expenses.paymentSubject')">{{ subjectName(viewData.paymentSubjectId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.department')">{{ deptName(viewData.deptId) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('financeReportPages.expenses.budgetState')">{{ viewData.budgetState || 'NONE' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('financeReportPages.expenses.expenseAmount')">{{ formatAmount(viewData.amount) }}</el-descriptions-item>
         <el-descriptions-item :label="$t('financeReportPages.common.status')">
           <el-tag :type="getStatusType(viewData.status)">
@@ -335,11 +352,20 @@
         <el-button type="danger" :loading="submitLoading" @click="handleConfirmReject">{{ $t('financeReportPages.expenses.confirmReject') }}</el-button>
       </template>
     </el-dialog>
+
+    <DocumentAttachmentDialog
+      v-model="attachmentVisible"
+      business-type="EXPENSE"
+      :business-id="attachmentBusinessId"
+      :business-no="attachmentBusinessNo"
+      :can-upload="canUploadAttachments"
+      :can-delete="canDeleteAttachments"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { printExpense } from '@/utils/bizPrint'
@@ -364,19 +390,40 @@ import {
   getExpense,
   getExpenseReconciliation,
   getExpenses,
+  getBudgetExecution,
   postExpense,
   rejectExpense,
   reverseExpense,
   submitExpense,
   updateExpense
 } from '@/api/finance'
+import { getDeptTree, type Dept } from '@/api/system'
+import DocumentAttachmentDialog from '@/components/attachment/DocumentAttachmentDialog.vue'
+import { useDocumentAttachmentEntry } from '@/composables/useDocumentAttachmentEntry'
 import { useExpensePresentation } from '@/composables/useExpensePresentation'
 import { useExpenseList } from '@/composables/useExpenseList'
 import { useExpenseForm } from '@/composables/useExpenseForm'
+import { useUserStore } from '@/store/modules/user'
 
 const { t } = useI18n()
 
+const userStore = useUserStore()
+const {
+  attachmentBusinessId,
+  attachmentBusinessNo,
+  attachmentVisible,
+  canDeleteAttachments,
+  canUploadAttachments,
+  canViewAttachments,
+  openAttachments
+} = useDocumentAttachmentEntry((permission) => userStore.hasPermission(permission))
+
 const formRef = ref<FormInstance>()
+const departmentOptions = ref<Dept[]>([])
+const budgetPreview = ref<Awaited<ReturnType<typeof getBudgetExecution>>>()
+const flattenDepartments = (items: Dept[]): Dept[] => items.flatMap((item) => [item, ...flattenDepartments(item.children || [])])
+const deptLabel = (dept: Dept) => `${dept.code || dept.deptCode || ''} ${dept.name || dept.deptName || ''}`.trim()
+const deptName = (id?: string | number) => departmentOptions.value.find((item) => String(item.id) === String(id))?.name || '-'
 
 const notify = {
   onError: (message: string) => ElMessage.error(message),
@@ -487,7 +534,24 @@ const handleDialogClose = () => {
   resetForm()
 }
 
-onMounted(() => {
+let previewSequence = 0
+watch(() => [formData.expenseDate, formData.deptId, formData.subjectId, formData.amount], async () => {
+  const sequence = ++previewSequence
+  if (!formData.expenseDate || !formData.subjectId || !formData.amount) {
+    budgetPreview.value = undefined
+    return
+  }
+  const [year, month] = formData.expenseDate.split('-').map(Number)
+  try {
+    const result = await getBudgetExecution({ budgetYear: year, periodMonth: month, deptId: formData.deptId || undefined, subjectId: formData.subjectId, amount: formData.amount })
+    if (sequence === previewSequence) budgetPreview.value = result
+  } catch {
+    if (sequence === previewSequence) budgetPreview.value = undefined
+  }
+}, { immediate: false })
+
+onMounted(async () => {
+  try { departmentOptions.value = flattenDepartments(await getDeptTree()) } catch { departmentOptions.value = [] }
   loadSubjects()
   loadData()
 })

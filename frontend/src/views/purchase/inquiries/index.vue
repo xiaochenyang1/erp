@@ -350,6 +350,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import {
   getPurchaseInquiries,
   getPurchaseInquiry,
@@ -403,7 +404,7 @@ const {
   getProducts,
   getSuppliers,
   printInquiry: printPurchaseInquiry,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message)
 })
@@ -453,7 +454,6 @@ const {
   selectInquiryLines,
   selectQuotes,
   selectVisible,
-  selectedQuoteId,
   submitting: quoteSubmitting
 } = usePurchaseInquiryQuotes(t, {
   loadOptions,
