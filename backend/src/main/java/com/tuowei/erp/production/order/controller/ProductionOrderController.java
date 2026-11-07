@@ -6,10 +6,14 @@ import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.production.completion.service.ProductionCompletionReversalService;
 import com.tuowei.erp.production.completion.service.ProductionCompletionService;
 import com.tuowei.erp.production.cost.service.ProductionCostEntryService;
+import com.tuowei.erp.production.cost.service.ProductionCostCloseService;
+import com.tuowei.erp.production.cost.web.ProductionCostCloseRequest;
+import com.tuowei.erp.production.cost.web.ProductionCostCloseResponse;
 import com.tuowei.erp.production.cost.web.ProductionCostEntryCorrectionRequest;
 import com.tuowei.erp.production.cost.web.ProductionCostEntryRequest;
 import com.tuowei.erp.production.cost.web.ProductionCostEntryResponse;
 import com.tuowei.erp.production.cost.web.ProductionCostEntryReversalRequest;
+import com.tuowei.erp.production.cost.web.ProductionCostReopenRequest;
 import com.tuowei.erp.production.issue.service.ProductionIssueService;
 import com.tuowei.erp.production.order.web.ProductionCompletionReversalRequest;
 import com.tuowei.erp.production.order.web.ProductionCompletionRequest;
@@ -45,6 +49,7 @@ public class ProductionOrderController {
     private final ProductionReturnService productionReturnService;
     private final ProductionOperationService productionOperationService;
     private final ProductionCostEntryService productionCostEntryService;
+    private final ProductionCostCloseService productionCostCloseService;
 
     public ProductionOrderController(
             ProductionOrderService productionOrderService,
@@ -53,7 +58,8 @@ public class ProductionOrderController {
             ProductionCompletionReversalService productionCompletionReversalService,
             ProductionReturnService productionReturnService,
             ProductionOperationService productionOperationService,
-            ProductionCostEntryService productionCostEntryService
+            ProductionCostEntryService productionCostEntryService,
+            ProductionCostCloseService productionCostCloseService
     ) {
         this.productionOrderService = productionOrderService;
         this.productionIssueService = productionIssueService;
@@ -62,6 +68,7 @@ public class ProductionOrderController {
         this.productionReturnService = productionReturnService;
         this.productionOperationService = productionOperationService;
         this.productionCostEntryService = productionCostEntryService;
+        this.productionCostCloseService = productionCostCloseService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_CREATE)
@@ -161,6 +168,30 @@ public class ProductionOrderController {
             @Valid @RequestBody ProductionCostEntryCorrectionRequest request
     ) {
         return ApiResponse.success(productionCostEntryService.correct(id, costEntryId, request));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_VIEW)
+    @GetMapping("/{id}/cost-closes")
+    public ApiResponse<java.util.List<ProductionCostCloseResponse>> costCloses(@PathVariable Long id) {
+        return ApiResponse.success(productionCostCloseService.list(id));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_COST_CLOSE)
+    @PostMapping("/{id}/cost-close")
+    public ApiResponse<ProductionCostCloseResponse> closeCost(
+            @PathVariable Long id,
+            @Valid @RequestBody ProductionCostCloseRequest request
+    ) {
+        return ApiResponse.success(productionCostCloseService.close(id, request));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_COST_REOPEN)
+    @PostMapping("/{id}/cost-reopen")
+    public ApiResponse<ProductionCostCloseResponse> reopenCost(
+            @PathVariable Long id,
+            @Valid @RequestBody ProductionCostReopenRequest request
+    ) {
+        return ApiResponse.success(productionCostCloseService.reopen(id, request));
     }
 
     @PreAuthorize(PermissionCodes.HAS_PRODUCTION_ORDER_COMPLETE)

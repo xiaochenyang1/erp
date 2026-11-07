@@ -840,7 +840,29 @@
         :title="t('productionOrder.completedCostWarning')"
         style="margin-bottom: 12px"
       />
-      <el-form :model="costForm" inline class="cost-entry-form">
+      <div class="cost-close-toolbar">
+        <el-tag :type="costCloseStatus === 'CLOSED' ? 'success' : 'warning'">
+          {{ t(`productionOrder.costCloseStatus.${costCloseStatus.toLowerCase()}`) }}
+        </el-tag>
+        <span>{{ t('productionOrder.unsettledCostVariance') }}：{{ formatCostAmount(costUnsettledVariance) }}</span>
+        <el-button
+          v-if="canCloseCost"
+          v-permission="'production:order:cost:close'"
+          type="primary"
+          @click="openCostCloseAction('CLOSE')"
+        >
+          {{ t('productionOrder.costClose') }}
+        </el-button>
+        <el-button
+          v-if="canReopenCost"
+          v-permission="'production:order:cost:reopen'"
+          type="warning"
+          @click="openCostCloseAction('REOPEN')"
+        >
+          {{ t('productionOrder.costReopen') }}
+        </el-button>
+      </div>
+      <el-form v-if="costCloseStatus !== 'CLOSED'" :model="costForm" inline class="cost-entry-form">
         <el-form-item :label="t('productionOrder.costType')" required>
           <el-select v-model="costForm.costType" style="width: 150px">
             <el-option :label="t('productionOrder.costTypeValue.labor')" value="LABOR" />
@@ -919,9 +941,61 @@
           </template>
         </el-table-column>
       </el-table>
+      <h4 class="cost-close-history-title">{{ t('productionOrder.costCloseHistory') }}</h4>
+      <el-table :data="costCloseEntries" border stripe>
+        <el-table-column prop="closeNo" :label="t('productionOrder.costCloseNo')" width="180" />
+        <el-table-column prop="businessDate" :label="t('productionOrder.costDate')" width="120" />
+        <el-table-column :label="t('productionOrder.costEntryKindLabel')" width="110">
+          <template #default="{ row }">{{ closeEntryKindLabel(row) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.costEntryStatusLabel')" width="100">
+          <template #default="{ row }">{{ entryStatusLabel(row.status) }}</template>
+        </el-table-column>
+        <el-table-column prop="amount" :label="t('productionOrder.costVariance')" width="140" align="right">
+          <template #default="{ row }">{{ formatCostAmount(row.amount) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.costRelation')" width="180">
+          <template #default="{ row }">{{ row.reversalOfCloseNo || row.reversalCloseNo || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="reason" :label="t('productionOrder.costActionReason')" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="remark" :label="t('productionOrder.remark')" min-width="180" show-overflow-tooltip />
+      </el-table>
       <template #footer>
         <el-button @click="costDialogVisible = false">{{ t('productionOrder.close') }}</el-button>
         <el-button type="primary" :loading="costLoading" @click="loadCosts">{{ t('productionOrder.refresh') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="costCloseActionDialogVisible"
+      :title="t(costCloseActionMode === 'CLOSE' ? 'productionOrder.costCloseTitle' : 'productionOrder.costReopenTitle', { orderNo: costOrderNo })"
+      width="560px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-alert
+        :title="t(costCloseActionMode === 'CLOSE' ? 'productionOrder.costCloseNotice' : 'productionOrder.costReopenNotice')"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 16px"
+      />
+      <el-form :model="costCloseActionForm" label-width="110px">
+        <el-form-item :label="t('productionOrder.costDate')" required>
+          <el-date-picker v-model="costCloseActionForm.businessDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item v-if="costCloseActionMode === 'CLOSE'" :label="t('productionOrder.remark')">
+          <el-input v-model="costCloseActionForm.remark" maxlength="255" show-word-limit />
+        </el-form-item>
+        <el-form-item v-else :label="t('productionOrder.costActionReason')" required>
+          <el-input v-model="costCloseActionForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="costCloseActionDialogVisible = false">{{ t('productionOrder.cancel') }}</el-button>
+        <el-button type="primary" :loading="costCloseActionLoading" @click="submitCostCloseAction">
+          {{ t(costCloseActionMode === 'CLOSE' ? 'productionOrder.confirmCostClose' : 'productionOrder.confirmCostReopen') }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -1033,7 +1107,10 @@ import {
   getProductionOrderCosts,
   postProductionOrderCost,
   reverseProductionOrderCost,
-  correctProductionOrderCost
+  correctProductionOrderCost,
+  getProductionOrderCostCloses,
+  closeProductionOrderCost,
+  reopenProductionOrderCost
 } from '@/api/production'
 import { getProducts, getProduct, getWarehouses, getLocations } from '@/api/masterdata'
 import { getBOMs } from '@/api/production'
@@ -1135,11 +1212,20 @@ const {
 })
 const {
   canReverseCost,
+  canCloseCost,
+  canReopenCost,
+  closeEntryKindLabel,
   costActionDialogVisible,
   costActionEntry,
   costActionForm,
   costActionLoading,
   costActionMode,
+  costCloseActionDialogVisible,
+  costCloseActionForm,
+  costCloseActionLoading,
+  costCloseActionMode,
+  costCloseEntries,
+  costCloseStatus,
   costDialogVisible,
   costEntries,
   costForm,
@@ -1148,21 +1234,28 @@ const {
   costOrderNo,
   costOrderStatus,
   costSubmitLoading,
+  costUnsettledVariance,
   costTypeLabel,
   entryKindLabel,
   entryStatusLabel,
   loadCosts,
   openCorrectCost,
+  openCostCloseAction,
   openCosts,
   openReverseCost,
   operationLabel,
   submitCost,
-  submitCostAction
+  submitCostAction,
+  submitCostCloseAction
 } = useProductionOrderCosts(t, {
   loadCosts: getProductionOrderCosts,
   postCost: postProductionOrderCost,
   reverseCost: reverseProductionOrderCost,
   correctCost: correctProductionOrderCost,
+  loadCostCloses: getProductionOrderCostCloses,
+  loadOrder: getProductionOrder,
+  closeCost: closeProductionOrderCost,
+  reopenCost: reopenProductionOrderCost,
   loadOperations: getProductionOrderOperations,
   formatBusinessDate,
   onError: (message) => ElMessage.error(message),
@@ -1277,6 +1370,17 @@ onMounted(async () => {
 
 .cost-entry-form {
   margin-bottom: 8px;
+}
+
+.cost-close-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cost-close-history-title {
+  margin: 18px 0 10px;
 }
 
 .serial-progress {

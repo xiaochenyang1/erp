@@ -114,6 +114,7 @@ public class MybatisPlusConfig {
             "prd_completion",
             "prd_completion_reversal",
             "prd_cost_entry",
+            "prd_cost_close",
             "prd_return",
             "prd_return_line",
             "wf_approval_instance",

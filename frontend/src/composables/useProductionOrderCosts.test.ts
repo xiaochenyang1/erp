@@ -26,6 +26,9 @@ describe('production order costs', () => {
       postCost: vi.fn(),
       reverseCost: vi.fn(),
       correctCost: vi.fn(),
+      loadCostCloses: vi.fn(async () => []),
+      closeCost: vi.fn(),
+      reopenCost: vi.fn(),
       formatBusinessDate: () => '2026-11-07'
     })
 
@@ -42,6 +45,8 @@ describe('production order costs', () => {
     const loadCosts = vi.fn(async () => [])
     const loadOperations = vi.fn(async () => [])
     const postCost = vi.fn(async () => ({}))
+    const refreshedOrder = { ...order, laborAmount: 88.5 } as ProductionOrder
+    const loadOrder = vi.fn(async () => refreshedOrder)
     const onSuccess = vi.fn()
     const costs = useProductionOrderCosts(t, {
       loadCosts,
@@ -49,6 +54,10 @@ describe('production order costs', () => {
       postCost,
       reverseCost: vi.fn(),
       correctCost: vi.fn(),
+      loadCostCloses: vi.fn(async () => []),
+      loadOrder,
+      closeCost: vi.fn(),
+      reopenCost: vi.fn(),
       formatBusinessDate: () => '2026-11-07',
       onSuccess
     })
@@ -68,6 +77,8 @@ describe('production order costs', () => {
     })
     expect(onSuccess).toHaveBeenCalledWith('productionOrder.message.costPosted')
     expect(loadCosts).toHaveBeenCalledTimes(2)
+    expect(loadOrder).toHaveBeenCalledWith('order-1')
+    expect(costs.costOrder.value).toEqual(refreshedOrder)
   })
 
   it('rejects a zero amount locally', async () => {
@@ -79,6 +90,9 @@ describe('production order costs', () => {
       postCost,
       reverseCost: vi.fn(),
       correctCost: vi.fn(),
+      loadCostCloses: vi.fn(async () => []),
+      closeCost: vi.fn(),
+      reopenCost: vi.fn(),
       formatBusinessDate: () => '2026-11-07',
       onWarning
     })
@@ -88,6 +102,39 @@ describe('production order costs', () => {
 
     expect(postCost).not.toHaveBeenCalled()
     expect(onWarning).toHaveBeenCalledWith('productionOrder.validation.costAmount')
+  })
+
+  it('refreshes the displayed variance after posting a late completed-order cost', async () => {
+    const completedOrder = {
+      ...order,
+      status: 'COMPLETED',
+      issuedAmount: 50,
+      laborAmount: 30,
+      finishedMaterialAmount: 50,
+      finishedLaborAmount: 30,
+      settledVarianceAmount: 0,
+      costCloseStatus: 'OPEN'
+    } as ProductionOrder
+    const refreshedOrder = { ...completedOrder, laborAmount: 35 } as ProductionOrder
+    const costs = useProductionOrderCosts(t, {
+      loadCosts: vi.fn(async () => []),
+      loadOperations: vi.fn(async () => []),
+      postCost: vi.fn(async () => ({})),
+      reverseCost: vi.fn(),
+      correctCost: vi.fn(),
+      loadCostCloses: vi.fn(async () => []),
+      loadOrder: vi.fn(async () => refreshedOrder),
+      closeCost: vi.fn(),
+      reopenCost: vi.fn(),
+      formatBusinessDate: () => '2026-11-07'
+    })
+    await costs.openCosts(completedOrder)
+    expect(costs.costUnsettledVariance.value).toBe(0)
+    costs.costForm.amount = 5
+
+    await costs.submitCost()
+
+    expect(costs.costUnsettledVariance.value).toBe(5)
   })
 
   it('reverses a posted cost and refreshes the audit chain', async () => {
@@ -100,6 +147,9 @@ describe('production order costs', () => {
       postCost: vi.fn(),
       reverseCost,
       correctCost: vi.fn(),
+      loadCostCloses: vi.fn(async () => []),
+      closeCost: vi.fn(),
+      reopenCost: vi.fn(),
       formatBusinessDate: () => '2026-11-08',
       onSuccess
     })
@@ -128,6 +178,9 @@ describe('production order costs', () => {
       postCost: vi.fn(),
       reverseCost: vi.fn(),
       correctCost,
+      loadCostCloses: vi.fn(async () => []),
+      closeCost: vi.fn(),
+      reopenCost: vi.fn(),
       formatBusinessDate: () => '2026-11-08'
     })
     await costs.openCosts(order)
@@ -151,5 +204,61 @@ describe('production order costs', () => {
       reason: 'wrong category',
       remark: 'old amount'
     })
+  })
+
+  it('closes and reopens a completed order while refreshing the audit chain', async () => {
+    const completedOrder = {
+      ...order,
+      status: 'COMPLETED',
+      issuedAmount: 50,
+      laborAmount: 30,
+      finishedMaterialAmount: 50,
+      finishedLaborAmount: 25,
+      settledVarianceAmount: 0,
+      costCloseStatus: 'OPEN'
+    } as ProductionOrder
+    const closeCost = vi.fn(async () => ({
+      id: 'close-1', closeNo: 'PCC1', orderId: 'order-1', businessDate: '2026-11-08',
+      amount: 5, status: 'POSTED', entryKind: 'CLOSE' as const
+    }))
+    const reopenCost = vi.fn(async () => ({
+      id: 'close-2', closeNo: 'PCC2', orderId: 'order-1', businessDate: '2026-11-09',
+      amount: -5, status: 'POSTED', entryKind: 'REVERSAL' as const, reversalOfCloseId: 'close-1'
+    }))
+    const loadCostCloses = vi.fn(async () => [])
+    const costs = useProductionOrderCosts(t, {
+      loadCosts: vi.fn(async () => []),
+      loadOperations: vi.fn(async () => []),
+      postCost: vi.fn(),
+      reverseCost: vi.fn(),
+      correctCost: vi.fn(),
+      loadCostCloses,
+      closeCost,
+      reopenCost,
+      formatBusinessDate: () => '2026-11-08'
+    })
+    await costs.openCosts(completedOrder)
+    expect(costs.costUnsettledVariance.value).toBe(5)
+
+    costs.openCostCloseAction('CLOSE')
+    await costs.submitCostCloseAction()
+
+    expect(closeCost).toHaveBeenCalledWith('order-1', {
+      businessDate: '2026-11-08', remark: undefined
+    })
+    expect(costs.costCloseStatus.value).toBe('CLOSED')
+    expect(costs.costUnsettledVariance.value).toBe(0)
+
+    costs.openCostCloseAction('REOPEN')
+    costs.costCloseActionForm.businessDate = '2026-11-09'
+    costs.costCloseActionForm.reason = 'late payroll correction'
+    await costs.submitCostCloseAction()
+
+    expect(reopenCost).toHaveBeenCalledWith('order-1', {
+      businessDate: '2026-11-09', reason: 'late payroll correction'
+    })
+    expect(costs.costCloseStatus.value).toBe('OPEN')
+    expect(costs.costUnsettledVariance.value).toBe(5)
+    expect(loadCostCloses).toHaveBeenCalledTimes(3)
   })
 })

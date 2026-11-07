@@ -16,6 +16,8 @@ public interface ProductionPermissionCodes {
     String PRODUCTION_ORDER_REPORT = "production:order:report";
     String PRODUCTION_ORDER_COST = "production:order:cost";
     String PRODUCTION_ORDER_COST_REVERSE = "production:order:cost:reverse";
+    String PRODUCTION_ORDER_COST_CLOSE = "production:order:cost:close";
+    String PRODUCTION_ORDER_COST_REOPEN = "production:order:cost:reopen";
     String PRODUCTION_WORK_CENTER_VIEW = "production:work-center:view";
     String PRODUCTION_WORK_CENTER_CREATE = "production:work-center:create";
     String PRODUCTION_WORK_CENTER_UPDATE = "production:work-center:update";
@@ -41,6 +43,8 @@ public interface ProductionPermissionCodes {
     String HAS_PRODUCTION_ORDER_REPORT = "hasAuthority('" + PRODUCTION_ORDER_REPORT + "')";
     String HAS_PRODUCTION_ORDER_COST = "hasAuthority('" + PRODUCTION_ORDER_COST + "')";
     String HAS_PRODUCTION_ORDER_COST_REVERSE = "hasAuthority('" + PRODUCTION_ORDER_COST_REVERSE + "')";
+    String HAS_PRODUCTION_ORDER_COST_CLOSE = "hasAuthority('" + PRODUCTION_ORDER_COST_CLOSE + "')";
+    String HAS_PRODUCTION_ORDER_COST_REOPEN = "hasAuthority('" + PRODUCTION_ORDER_COST_REOPEN + "')";
     String HAS_PRODUCTION_WORK_CENTER_VIEW = "hasAuthority('" + PRODUCTION_WORK_CENTER_VIEW + "')";
     String HAS_PRODUCTION_WORK_CENTER_CREATE = "hasAuthority('" + PRODUCTION_WORK_CENTER_CREATE + "')";
     String HAS_PRODUCTION_WORK_CENTER_UPDATE = "hasAuthority('" + PRODUCTION_WORK_CENTER_UPDATE + "')";

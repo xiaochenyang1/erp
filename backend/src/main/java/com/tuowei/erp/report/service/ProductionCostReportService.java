@@ -122,18 +122,21 @@ public class ProductionCostReportService {
         BigDecimal materialWip = amount(materialCost.subtract(finishedMaterialCost));
         BigDecimal laborWip = amount(laborCost.subtract(finishedLaborCost));
         BigDecimal overheadWip = amount(overheadCost.subtract(finishedOverheadCost));
-        BigDecimal wip = amount(materialWip.add(laborWip).add(overheadWip));
+        BigDecimal costVariance = amount(materialWip.add(laborWip).add(overheadWip));
+        BigDecimal settledVariance = amount(zero(order.settledVarianceAmount()));
+        BigDecimal wip = amount(costVariance.subtract(settledVariance));
         BigDecimal ledgerWip = ledgerAmount == null ? wip : amount(ledgerAmount);
         BigDecimal reconciliationDifference = amount(wip.subtract(ledgerWip));
         BigDecimal rate = planned.signum() == 0 ? BigDecimal.ZERO : completed.divide(planned, 4, RoundingMode.HALF_UP);
         BigDecimal unitCost = completed.signum() == 0 ? BigDecimal.ZERO : finishedCost.divide(completed, 4, RoundingMode.HALF_UP);
-        String costStatus = costStatus(order.status(), wip, reconciliationDifference);
+        String costStatus = costStatus(order.status(), order.costCloseStatus(), wip, reconciliationDifference);
         return new ProductionCostReportResponse(
                 order.id(), order.orderNo(), order.productId(), product == null ? null : product.getProductCode(),
                 product == null ? null : product.getProductName(), order.status(), order.plannedStartDate(),
                 order.plannedFinishDate(), planned, completed, rate,
                 materialCost, laborCost, overheadCost, totalInputCost,
                 finishedMaterialCost, finishedLaborCost, finishedOverheadCost, finishedCost,
+                costVariance, settledVariance, order.costCloseStatus(), order.costClosedDate(),
                 materialWip, laborWip, overheadWip, wip,
                 ledgerWip, reconciliationDifference, unitCost, costStatus
         );
@@ -150,8 +153,9 @@ public class ProductionCostReportService {
         return amounts;
     }
 
-    private String costStatus(String orderStatus, BigDecimal wip, BigDecimal difference) {
+    private String costStatus(String orderStatus, String closeStatus, BigDecimal wip, BigDecimal difference) {
         if (difference.signum() != 0) return "UNRECONCILED";
+        if ("CLOSED".equals(closeStatus)) return "CLOSED";
         return switch (orderStatus) {
             case "COMPLETED" -> wip.signum() == 0 ? "BALANCED" : "COST_VARIANCE";
             case "MATERIAL_ISSUED", "RELEASED", "IN_PROGRESS" -> "WIP";

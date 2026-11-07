@@ -59,6 +59,7 @@ public class ProductionCompletionReversalCommandService {
     public ProductionOrderResponse reverseCompletion(Long orderId, ProductionCompletionReversalRequest request) {
         AuditMetadata audit = auditMetadataFactory.current();
         ProductionOrderEntity order = productionOrderService.requireOrder(orderId);
+        productionOrderService.requireCostOpen(order, "生产完工冲回");
         BigDecimal completedQty = ScalePrecision.quantity(ScalePrecision.zeroDefault(order.getCompletedQty()));
         if (completedQty.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("生产工单没有可冲回的完工数量");
         LocalDate reversalDate = request != null && request.reversalDate() != null

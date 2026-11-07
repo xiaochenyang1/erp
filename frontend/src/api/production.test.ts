@@ -13,12 +13,15 @@ vi.mock('@/utils/request', () => ({
 }))
 
 import {
+  closeProductionOrderCost,
   correctProductionOrderCost,
+  getProductionOrderCostCloses,
   getProductionOrderCosts,
   getWorkCenters,
   getRouting,
   getRoutings,
   postProductionOrderCost,
+  reopenProductionOrderCost,
   reverseProductionOrderCost
 } from '@/api/production'
 
@@ -134,5 +137,37 @@ describe('production API 归一化', () => {
       reason: 'wrong amount', remark: 'replacement'
     })
     expect(corrected.correctionOfEntryId).toBe('1')
+  })
+
+  it('normalizes and posts production cost close audit records', async () => {
+    get.mockResolvedValue([{
+      id: '9007199254740993', closeNo: 'PCC1', orderId: '9007199254740995',
+      businessDate: '2026-11-08', amount: '5.25', status: 'POSTED', entryKind: 'CLOSE'
+    }])
+    const records = await getProductionOrderCostCloses('9007199254740995')
+    expect(records[0]).toMatchObject({
+      id: '9007199254740993', orderId: '9007199254740995', amount: 5.25
+    })
+
+    post.mockResolvedValue({
+      id: 5, closeNo: 'PCC2', orderId: 2, businessDate: '2026-11-08',
+      amount: 10, status: 'POSTED', entryKind: 'CLOSE'
+    })
+    await closeProductionOrderCost(2, { businessDate: '2026-11-08', remark: 'month close' })
+    expect(post).toHaveBeenCalledWith('/production/orders/2/cost-close', {
+      businessDate: '2026-11-08', remark: 'month close'
+    })
+
+    post.mockResolvedValue({
+      id: 6, closeNo: 'PCC3', orderId: 2, businessDate: '2026-11-09',
+      amount: -10, status: 'POSTED', entryKind: 'REVERSAL', reversalOfCloseId: 5
+    })
+    const reopened = await reopenProductionOrderCost(2, {
+      businessDate: '2026-11-09', reason: 'late payroll'
+    })
+    expect(post).toHaveBeenCalledWith('/production/orders/2/cost-reopen', {
+      businessDate: '2026-11-09', reason: 'late payroll'
+    })
+    expect(reopened.reversalOfCloseId).toBe('5')
   })
 })

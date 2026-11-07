@@ -63,14 +63,15 @@ class ProductionOrderControllerTest {
                 delete from fin_voucher_entry
                 where voucher_id in (
                     select id from fin_voucher
-                    where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL')
+                    where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL', 'PRODUCTION_COST_CLOSE', 'PRODUCTION_COST_CLOSE_REVERSAL')
                 )
                 """);
-        jdbcTemplate.update("delete from fin_voucher where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL')");
+        jdbcTemplate.update("delete from fin_voucher where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL', 'PRODUCTION_COST_CLOSE', 'PRODUCTION_COST_CLOSE_REVERSAL')");
         jdbcTemplate.update("delete from inv_reservation_event where source_type = 'PRODUCTION_ORDER'");
         jdbcTemplate.update("delete from inv_reservation where source_type = 'PRODUCTION_ORDER'");
         jdbcTemplate.update("delete from inv_txn where biz_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN')");
         jdbcTemplate.update("delete from prd_completion_reversal");
+        jdbcTemplate.update("delete from prd_cost_close");
         jdbcTemplate.update("delete from prd_cost_entry");
         jdbcTemplate.update("delete from prd_return_line");
         jdbcTemplate.update("delete from prd_return");
@@ -229,6 +230,197 @@ class ProductionOrderControllerTest {
                                 }
                                 """))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithErpUser(authorities = {"production:order:view"})
+    void costCloseActionsRequireDedicatedPermissions() throws Exception {
+        mockMvc.perform(post("/api/production/orders/{id}/cost-close", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "businessDate": "2026-05-22",
+                                  "remark": "permission check"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/production/orders/{id}/cost-reopen", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "businessDate": "2026-05-23",
+                                  "reason": "permission check"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithErpUser(authorities = {
+            "production:bom:manage", "production:bom:view",
+            "production:order:create", "production:order:view", "production:order:release",
+            "production:order:issue", "production:order:complete", "production:order:reverse-completion",
+            "production:order:cost", "production:order:cost:reverse",
+            "production:order:cost:close", "production:order:cost:reopen"
+    })
+    void closesAndReopensCompletedOrderCostThroughHttpApi() throws Exception {
+        long orderId = createReleasedOrder("2026-05-20", "2026-05-21");
+
+        mockMvc.perform(post("/api/production/orders/{id}/issue", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "issueDate": "2026-05-20",
+                                  "remark": "issue before cost close"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("MATERIAL_ISSUED"));
+
+        mockMvc.perform(post("/api/production/orders/{id}/complete", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "completionDate": "2026-05-21",
+                                  "remark": "complete before cost close"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.costCloseStatus").value("OPEN"));
+
+        long lateCostId = idOf(mockMvc.perform(post("/api/production/orders/{id}/costs", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "costType": "LABOR",
+                                  "businessDate": "2026-05-22",
+                                  "amount": 5.00,
+                                  "remark": "late labor before cost close"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        mockMvc.perform(post("/api/production/orders/{id}/cost-close", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "businessDate": "2026-05-22",
+                                  "remark": "controller cost close"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entryKind").value("CLOSE"))
+                .andExpect(jsonPath("$.data.status").value("POSTED"))
+                .andExpect(jsonPath("$.data.amount").value(5.00));
+
+        mockMvc.perform(get("/api/production/orders/{id}", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.costCloseStatus").value("CLOSED"))
+                .andExpect(jsonPath("$.data.settledVarianceAmount").value(5.00))
+                .andExpect(jsonPath("$.data.costClosedDate").value("2026-05-22"));
+
+        mockMvc.perform(get("/api/production/orders/{id}/cost-closes", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].entryKind").value("CLOSE"));
+
+        assertThat(financeEntryCountBySourceType(
+                "PRODUCTION_COST_CLOSE", "5102", "debit_amount", new BigDecimal("5.00")
+        )).isEqualTo(1);
+        assertThat(financeEntryCountBySourceType(
+                "PRODUCTION_COST_CLOSE", "5001", "credit_amount", new BigDecimal("5.00")
+        )).isEqualTo(1);
+
+        mockMvc.perform(post("/api/production/orders/{id}/costs", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "costType": "OVERHEAD",
+                                  "businessDate": "2026-05-22",
+                                  "amount": 1.00
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(containsString("已成本关单")));
+
+        mockMvc.perform(post("/api/production/orders/{id}/costs/{costEntryId}/reverse", orderId, lateCostId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "businessDate": "2026-05-22",
+                                  "reason": "blocked after close"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(containsString("已成本关单")));
+
+        mockMvc.perform(post("/api/production/orders/{id}/reverse-completion", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reversalDate": "2026-05-22",
+                                  "remark": "blocked after close"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(containsString("已成本关单")));
+
+        mockMvc.perform(post("/api/production/orders/{id}/cost-reopen", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "businessDate": "2026-05-23",
+                                  "reason": "late adjustment required"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entryKind").value("REVERSAL"))
+                .andExpect(jsonPath("$.data.amount").value(-5.00))
+                .andExpect(jsonPath("$.data.reason").value("late adjustment required"));
+
+        mockMvc.perform(get("/api/production/orders/{id}", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.costCloseStatus").value("OPEN"))
+                .andExpect(jsonPath("$.data.settledVarianceAmount").value(0.00))
+                .andExpect(jsonPath("$.data.costCloseEntryId").doesNotExist());
+        assertThat(jdbcTemplate.queryForObject("""
+                select count(*)
+                from prd_order
+                where id = ?
+                  and cost_close_entry_id is null
+                  and cost_closed_date is null
+                  and cost_closed_by is null
+                  and cost_closed_time is null
+                """, Integer.class, orderId)).isEqualTo(1);
+
+        mockMvc.perform(get("/api/production/orders/{id}/cost-closes", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].entryKind").value("REVERSAL"))
+                .andExpect(jsonPath("$.data[1].status").value("REVERSED"));
+
+        assertThat(financeEntryCountBySourceType(
+                "PRODUCTION_COST_CLOSE_REVERSAL", "5001", "debit_amount", new BigDecimal("5.00")
+        )).isEqualTo(1);
+        assertThat(financeEntryCountBySourceType(
+                "PRODUCTION_COST_CLOSE_REVERSAL", "5102", "credit_amount", new BigDecimal("5.00")
+        )).isEqualTo(1);
+
+        mockMvc.perform(post("/api/production/orders/{id}/costs", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "costType": "OVERHEAD",
+                                  "businessDate": "2026-05-23",
+                                  "amount": 1.00,
+                                  "remark": "allowed after reopen"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.amount").value(1.00));
     }
 
     @Test
@@ -657,6 +849,22 @@ class ProductionOrderControllerTest {
                 bizType,
                 direction
         );
+    }
+
+    private Integer financeEntryCountBySourceType(
+            String sourceType,
+            String subjectCode,
+            String amountColumn,
+            BigDecimal amount
+    ) {
+        return jdbcTemplate.queryForObject("""
+                select count(*)
+                from fin_voucher_entry entry
+                join fin_voucher voucher on voucher.id = entry.voucher_id
+                where voucher.source_type = ?
+                  and entry.subject_code = ?
+                  and entry.%s = ?
+                """.formatted(amountColumn), Integer.class, sourceType, subjectCode, amount);
     }
 
     private BigDecimal onHandQty(long warehouseId, long productId) {

@@ -260,6 +260,9 @@ class FinancePostingServiceTest {
         service.recordProductionCostEntry(order, 614L, "PCE-614", "OVERHEAD", new BigDecimal("9.999"), bizDate, AUDIT);
         service.recordProductionCostEntryReversal(order, 615L, "PCE-615", "LABOR", new BigDecimal("8.888"), bizDate, AUDIT);
         service.recordProductionCostEntryReversal(order, 616L, "PCE-616", "OVERHEAD", new BigDecimal("9.999"), bizDate, AUDIT);
+        service.recordProductionCostClose(order, 617L, "PCC-617", new BigDecimal("5.555"), bizDate, AUDIT);
+        service.recordProductionCostClose(order, 618L, "PCC-618", new BigDecimal("-4.444"), bizDate, AUDIT);
+        service.recordProductionCostCloseReversal(order, 619L, "PCC-619", new BigDecimal("-5.555"), bizDate, AUDIT);
 
         verify(voucherPostingService).recordTwoSidedVoucher(
                 "PRODUCTION_ISSUE", 605L, "PI-605", bizDate, new BigDecimal("10.13"),
@@ -293,6 +296,18 @@ class FinancePostingServiceTest {
                 "PRODUCTION_COST_ENTRY_REVERSAL", 616L, "PCE-616", bizDate, new BigDecimal("10.00"),
                 "生产制造费用归集冲销凭证", "5101", "5001", "生产制造费用归集冲销", AUDIT
         );
+        verify(voucherPostingService).recordTwoSidedVoucher(
+                "PRODUCTION_COST_CLOSE", 617L, "PCC-617", bizDate, new BigDecimal("5.56"),
+                "生产成本关单差异结转凭证", "5102", "5001", "生产成本关单差异结转", AUDIT
+        );
+        verify(voucherPostingService).recordTwoSidedVoucher(
+                "PRODUCTION_COST_CLOSE", 618L, "PCC-618", bizDate, new BigDecimal("4.44"),
+                "生产成本关单差异结转凭证", "5001", "5102", "生产成本关单差异结转", AUDIT
+        );
+        verify(voucherPostingService).recordTwoSidedVoucher(
+                "PRODUCTION_COST_CLOSE_REVERSAL", 619L, "PCC-619", bizDate, new BigDecimal("5.56"),
+                "生产成本反关单凭证", "5001", "5102", "生产成本反关单冲回差异", AUDIT
+        );
     }
 
     @Test
@@ -305,6 +320,8 @@ class FinancePostingServiceTest {
         service.recordProductionReturn(order, 612L, "PRM-612", BigDecimal.ZERO, LocalDate.now(), AUDIT);
         service.recordProductionCostEntry(order, 615L, "PCE-615", "LABOR", BigDecimal.ZERO, LocalDate.now(), AUDIT);
         service.recordProductionCostEntryReversal(order, 616L, "PCE-616", "LABOR", BigDecimal.ZERO, LocalDate.now(), AUDIT);
+        service.recordProductionCostClose(order, 617L, "PCC-617", BigDecimal.ZERO, LocalDate.now(), AUDIT);
+        service.recordProductionCostCloseReversal(order, 618L, "PCC-618", BigDecimal.ZERO, LocalDate.now(), AUDIT);
 
         verify(voucherPostingService, never()).recordTwoSidedVoucher(
                 org.mockito.ArgumentMatchers.any(),

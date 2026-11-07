@@ -345,6 +345,10 @@ export interface ProductionCostReportRow {
   finishedLaborCost: number
   finishedOverheadCost: number
   finishedGoodsCost: number
+  costVarianceAmount: number
+  settledCostVarianceAmount: number
+  costCloseStatus: string
+  costClosedDate?: string
   materialWorkInProgressCost: number
   laborWorkInProgressCost: number
   overheadWorkInProgressCost: number
@@ -461,6 +465,9 @@ const normalizeProductionCostReportRow = (row: ProductionCostReportRow): Product
   finishedLaborCost: Number(row.finishedLaborCost ?? 0),
   finishedOverheadCost: Number(row.finishedOverheadCost ?? 0),
   finishedGoodsCost: Number(row.finishedGoodsCost ?? 0),
+  costVarianceAmount: Number(row.costVarianceAmount ?? 0),
+  settledCostVarianceAmount: Number(row.settledCostVarianceAmount ?? 0),
+  costCloseStatus: row.costCloseStatus || 'OPEN',
   materialWorkInProgressCost: Number(row.materialWorkInProgressCost ?? 0),
   laborWorkInProgressCost: Number(row.laborWorkInProgressCost ?? 0),
   overheadWorkInProgressCost: Number(row.overheadWorkInProgressCost ?? 0),

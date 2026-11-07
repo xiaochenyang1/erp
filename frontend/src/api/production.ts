@@ -150,6 +150,10 @@ export interface ProductionOrder {
   finishedMaterialAmount?: number
   finishedLaborAmount?: number
   finishedOverheadAmount?: number
+  costCloseStatus?: 'OPEN' | 'CLOSED'
+  settledVarianceAmount?: number
+  costCloseEntryId?: string
+  costClosedDate?: string
   warehouseName?: string
   planStartDate: string
   planEndDate: string
@@ -378,6 +382,9 @@ const normalizeProductionOrder = (order: ProductionOrder): ProductionOrder => ({
   finishedMaterialAmount: Number(order.finishedMaterialAmount ?? 0),
   finishedLaborAmount: Number(order.finishedLaborAmount ?? 0),
   finishedOverheadAmount: Number(order.finishedOverheadAmount ?? 0),
+  costCloseStatus: order.costCloseStatus ?? 'OPEN',
+  settledVarianceAmount: Number(order.settledVarianceAmount ?? 0),
+  costCloseEntryId: order.costCloseEntryId != null ? String(order.costCloseEntryId) : undefined,
   materials: (order.materials || []).map(normalizeProductionOrderMaterial)
 })
 
@@ -709,6 +716,35 @@ export interface ProductionCostEntryCorrectionRequest extends ProductionCostEntr
   reason: string
 }
 
+export type ProductionCostCloseEntryKind = 'CLOSE' | 'REVERSAL'
+
+export interface ProductionCostCloseEntry {
+  id: string | number
+  closeNo: string
+  orderId: string | number
+  businessDate: string
+  amount: number
+  status: string
+  entryKind: ProductionCostCloseEntryKind
+  reversalOfCloseId?: string | number
+  reversalOfCloseNo?: string
+  reversalEntryId?: string | number
+  reversalCloseNo?: string
+  reason?: string
+  remark?: string
+  createdTime?: string
+}
+
+export interface ProductionCostCloseRequest {
+  businessDate: string
+  remark?: string
+}
+
+export interface ProductionCostReopenRequest {
+  businessDate: string
+  reason: string
+}
+
 const normalizeCostEntry = (entry: ProductionCostEntry): ProductionCostEntry => ({
   ...entry,
   id: String(entry.id),
@@ -754,4 +790,37 @@ export const correctProductionOrderCost = (
   return request
     .post<ProductionCostEntry>(`/production/orders/${orderId}/costs/${costEntryId}/correct`, data)
     .then(normalizeCostEntry)
+}
+
+const normalizeCostCloseEntry = (entry: ProductionCostCloseEntry): ProductionCostCloseEntry => ({
+  ...entry,
+  id: String(entry.id),
+  orderId: String(entry.orderId),
+  reversalOfCloseId: entry.reversalOfCloseId != null ? String(entry.reversalOfCloseId) : undefined,
+  reversalEntryId: entry.reversalEntryId != null ? String(entry.reversalEntryId) : undefined,
+  amount: Number(entry.amount ?? 0)
+})
+
+export const getProductionOrderCostCloses = (orderId: string | number) => {
+  return request
+    .get<ProductionCostCloseEntry[]>(`/production/orders/${orderId}/cost-closes`)
+    .then((list) => (list || []).map(normalizeCostCloseEntry))
+}
+
+export const closeProductionOrderCost = (
+  orderId: string | number,
+  data: ProductionCostCloseRequest
+) => {
+  return request
+    .post<ProductionCostCloseEntry>(`/production/orders/${orderId}/cost-close`, data)
+    .then(normalizeCostCloseEntry)
+}
+
+export const reopenProductionOrderCost = (
+  orderId: string | number,
+  data: ProductionCostReopenRequest
+) => {
+  return request
+    .post<ProductionCostCloseEntry>(`/production/orders/${orderId}/cost-reopen`, data)
+    .then(normalizeCostCloseEntry)
 }

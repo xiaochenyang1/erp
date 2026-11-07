@@ -80,6 +80,7 @@ const reportStatusMessageKeys: Record<string, string> = {
 /** Derived by ProductionCostReportService from the order status and WIP balance. */
 const costStatusMessageKeys: Record<string, string> = {
   BALANCED: 'financeReportPages.reports.costStatusValue.balanced',
+  CLOSED: 'financeReportPages.reports.costStatusValue.closed',
   COST_VARIANCE: 'financeReportPages.reports.costStatusValue.costVariance',
   UNRECONCILED: 'financeReportPages.reports.costStatusValue.unreconciled',
   WIP: 'financeReportPages.reports.costStatusValue.wip',
@@ -187,7 +188,7 @@ export const useReportPresentation = (
   }
 
   const costStatusType = (status?: string): 'success' | 'warning' | 'danger' | 'info' | 'primary' => {
-    if (status === 'BALANCED') return 'success'
+    if (status === 'BALANCED' || status === 'CLOSED') return 'success'
     if (status === 'COST_VARIANCE') return 'warning'
     if (status === 'UNRECONCILED') return 'danger'
     if (status === 'WIP') return 'primary'

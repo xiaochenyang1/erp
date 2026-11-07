@@ -63,7 +63,7 @@ function fixture(t) {
   report.checks[1].generatedThroughOldApplication = true
   report.checks[2].writersStopped = true
   Object.assign(report.checks[4], { databaseRejected: true, attachmentsRejected: true, mixedCheckpointRejected: true, targetsUntouched: true })
-  Object.assign(report.checks[6], { from: '168', to: '172', appliedOnce: true, appliedVersions: ['169', '170', '171', '172'], jarSha256 })
+  Object.assign(report.checks[6], { from: '168', to: '173', appliedOnce: true, appliedVersions: ['169', '170', '171', '172', '173'], jarSha256 })
   Object.assign(report.checks[8], { postedPreserved: true, draftPreserved: true, cancelledPreserved: true, adjustedLinkPreserved: true,
     countedPreserved: true, unicodeCustomerPreserved: true, originalAttachmentsRestored: true, laterRecordsAbsent: true })
   Object.assign(report.checks[9], { oldDraftRequiresApproval: true, selfApprovalRejected: true, duplicatePostingRejected: true, countWaitedForPosting: true,

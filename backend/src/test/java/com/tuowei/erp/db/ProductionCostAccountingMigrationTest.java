@@ -81,6 +81,25 @@ class ProductionCostAccountingMigrationTest {
                 "select count(*) from sys_menu where permission = 'production:order:cost:reverse'",
                 Integer.class
         )).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from information_schema.tables where table_name = 'prd_cost_close'",
+                Integer.class
+        )).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from information_schema.columns where table_name = 'prd_order' "
+                        + "and column_name in ('cost_close_status', 'settled_variance_amount', 'cost_close_entry_id', "
+                        + "'cost_closed_date', 'cost_closed_by', 'cost_closed_time')",
+                Integer.class
+        )).isEqualTo(6);
+        assertThat(jdbc.queryForList(
+                "select subject_code from fin_account_subject where subject_code = '5102'",
+                String.class
+        )).containsExactly("5102");
+        assertThat(jdbc.queryForList(
+                "select permission from sys_menu where permission in "
+                        + "('production:order:cost:close', 'production:order:cost:reopen') order by permission",
+                String.class
+        )).containsExactly("production:order:cost:close", "production:order:cost:reopen");
         jdbc.update("""
                 insert into prd_cost_entry
                 (id, company_id, account_book_id, cost_no, order_id, cost_type, business_date,
@@ -97,6 +116,24 @@ class ProductionCostAccountingMigrationTest {
                 """);
         assertThat(jdbc.queryForObject(
                 "select sum(amount) from prd_cost_entry where id in (997172001, 997172002)",
+                BigDecimal.class
+        )).isEqualByComparingTo("0.00");
+        jdbc.update("""
+                insert into prd_cost_close
+                (id, company_id, account_book_id, close_no, order_id, business_date,
+                 amount, status, deleted_flag, created_by, updated_by, version)
+                values (997173001, 1, 1, 'PCC-HIST-173', 997171001, '2026-01-05',
+                        12.50, 'POSTED', 0, 0, 0, 0)
+                """);
+        jdbc.update("""
+                insert into prd_cost_close
+                (id, company_id, account_book_id, close_no, order_id, business_date,
+                 amount, status, reversal_of_close_id, deleted_flag, created_by, updated_by, version)
+                values (997173002, 1, 1, 'PCC-REV-173', 997171001, '2026-01-06',
+                        -12.50, 'POSTED', 997173001, 0, 0, 0, 0)
+                """);
+        assertThat(jdbc.queryForObject(
+                "select sum(amount) from prd_cost_close where id in (997173001, 997173002)",
                 BigDecimal.class
         )).isEqualByComparingTo("0.00");
         assertThat(flyway.migrate().migrationsExecuted).isZero();

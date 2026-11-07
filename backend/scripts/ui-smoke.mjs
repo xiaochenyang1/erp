@@ -5731,6 +5731,7 @@ async function runProductionOrderWorkflow(cdp, auth) {
   const fixture = await prepareProductionOrderFixture(auth)
   const remark = `UI smoke 生产订单 ${fixture.suffix}`
   let order = null
+  let costClose = null
   try {
     await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/production/orders` })
     await waitForPage(cdp, `
@@ -6166,6 +6167,101 @@ async function runProductionOrderWorkflow(cdp, auth) {
     `, 'production order persisted as completed', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production persistence check'))}`)
     })
+
+    const lateCostAmount = 5
+    await invokeButton(cdp, '成本归集', 'completed production cost collection button', orderRowExpression)
+    await waitForPage(cdp, `Boolean(${costDialog})`, 'completed production cost collection dialog')
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.cost-entry-form .el-date-editor input')`,
+      fixture.plannedFinishDate,
+      'late production cost date input'
+    )
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.cost-entry-form .el-input-number input')`,
+      String(lateCostAmount),
+      'late production cost amount input'
+    )
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.cost-entry-form .el-form-item:nth-child(5) input')`,
+      'UI smoke 完工后补录成本',
+      'late production cost remark input'
+    )
+    await invokeButton(cdp, '确认归集', 'late production cost confirm button', costDialog)
+    await waitForPage(cdp, `
+      (async () => {
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        const response = await fetch('/api/production/orders/' + ${JSON.stringify(order.id)} + '/costs', { headers });
+        if (!response.ok) return false;
+        const payload = await response.json();
+        const entry = (payload?.data || []).find((item) => item.costType === 'LABOR'
+          && Number(item.amount) === ${lateCostAmount}
+          && item.remark === 'UI smoke 完工后补录成本');
+        return Boolean(entry
+          && ${costDialog}?.innerText.includes('待结转差异')
+          && ${costDialog}?.innerText.includes('5.00'));
+      })()
+    `, 'late production cost creates variance', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after late production cost'))}`)
+    })
+
+    await invokeButton(cdp, '成本关单', 'production cost close button', costDialog)
+    const costCloseDialog = dialogExpression('生产成本关单 ·')
+    await waitForPage(cdp, `Boolean(${costCloseDialog})`, 'production cost close dialog')
+    await setElementValue(
+      cdp,
+      `${costCloseDialog}.querySelector('.el-date-editor input')`,
+      fixture.plannedFinishDate,
+      'production cost close date input'
+    )
+    await setElementValue(
+      cdp,
+      `${costCloseDialog}.querySelector('.el-form-item:nth-child(2) input')`,
+      'UI smoke 成本关单',
+      'production cost close remark input'
+    )
+    await invokeButton(cdp, '确认关单', 'production cost close confirm button', costCloseDialog)
+    costClose = await waitForPage(cdp, `
+      (async () => {
+        if (${costCloseDialog}) return false;
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        const [detailResponse, closesResponse, reportResponse] = await Promise.all([
+          fetch('/api/production/orders/' + ${JSON.stringify(order.id)}, { headers }),
+          fetch('/api/production/orders/' + ${JSON.stringify(order.id)} + '/cost-closes', { headers }),
+          fetch('/api/reports/production-costs?pageNo=1&pageSize=20&keyword=' + encodeURIComponent(${JSON.stringify(order.orderNo)}), { headers })
+        ]);
+        if (!detailResponse.ok || !closesResponse.ok || !reportResponse.ok) return false;
+        const detail = (await detailResponse.json())?.data;
+        const closes = (await closesResponse.json())?.data || [];
+        const report = (await reportResponse.json())?.data?.records?.[0];
+        const close = closes.find((item) => item.entryKind === 'CLOSE'
+          && Number(item.amount) === ${lateCostAmount}
+          && item.remark === 'UI smoke 成本关单');
+        return detail?.costCloseStatus === 'CLOSED'
+          && Number(detail.settledVarianceAmount) === ${lateCostAmount}
+          && close
+          && report?.costStatus === 'CLOSED'
+          && report?.costCloseStatus === 'CLOSED'
+          && Number(report.costVarianceAmount) === ${lateCostAmount}
+          && Number(report.settledCostVarianceAmount) === ${lateCostAmount}
+          && Number(report.workInProgressCost) === 0
+          && Number(report.productionCostLedgerAmount) === 0
+          && Number(report.reconciliationDifference) === 0
+          && ${costDialog}?.innerText.includes('成本已关单')
+          && ${costDialog}?.innerText.includes('0.00')
+          && !${costDialog}?.querySelector('.cost-entry-form')
+          ? close
+          : false;
+      })()
+    `, 'production cost closed and variance settled', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production cost close'))}`)
+    })
+    await invokeButton(cdp, '关闭', 'closed production cost dialog close button', costDialog)
+    await waitForPage(cdp, `!${costDialog}`, 'closed production cost dialog dismissed')
   } catch (error) {
     const diagnostic = await pageDiagnostics(cdp, 'production workflow failure').catch(() => null)
     throw new Error(`${error.message}${diagnostic ? `\n${JSON.stringify(diagnostic, null, 2)}` : ''}`)
@@ -6180,6 +6276,8 @@ async function runProductionOrderWorkflow(cdp, auth) {
     finishedWarehouse: fixture.finishedWarehouse.warehouseName,
     originalLaborCostAmount: 25.5,
     laborCostAmount: 30.5,
+    lateCostAmount: 5,
+    costCloseNo: costClose?.closeNo || null,
     passed: failures.length === 0,
     failures
   }

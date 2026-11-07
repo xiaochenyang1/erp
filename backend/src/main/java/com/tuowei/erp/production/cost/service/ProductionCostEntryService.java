@@ -263,6 +263,7 @@ public class ProductionCostEntryService {
     }
 
     private void requireCostableOrder(ProductionOrderEntity order) {
+        productionOrderService.requireCostOpen(order, "生产成本归集或冲销");
         if (ProductionOrderService.STATUS_DRAFT.equals(order.getStatus())
                 || ProductionOrderService.STATUS_CANCELLED.equals(order.getStatus())) {
             throw new IllegalArgumentException("草稿或已取消的生产工单不能归集成本或冲销成本");

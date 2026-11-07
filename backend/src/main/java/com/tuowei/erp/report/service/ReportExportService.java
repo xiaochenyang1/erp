@@ -61,6 +61,7 @@ public class ReportExportService {
             "plannedQty", "completedQty", "completionRate",
             "materialCost", "laborCost", "overheadCost", "totalInputCost",
             "finishedMaterialCost", "finishedLaborCost", "finishedOverheadCost", "finishedGoodsCost",
+            "costVarianceAmount", "settledCostVarianceAmount", "costCloseStatus", "costClosedDate",
             "materialWorkInProgressCost", "laborWorkInProgressCost", "overheadWorkInProgressCost",
             "workInProgressCost", "productionCostLedgerAmount", "reconciliationDifference",
             "completionUnitCost", "costStatus"
@@ -235,6 +236,7 @@ public class ReportExportService {
                 record.plannedFinishDate(), record.plannedQty(), record.completedQty(), record.completionRate(),
                 record.materialCost(), record.laborCost(), record.overheadCost(), record.totalInputCost(),
                 record.finishedMaterialCost(), record.finishedLaborCost(), record.finishedOverheadCost(), record.finishedGoodsCost(),
+                record.costVarianceAmount(), record.settledCostVarianceAmount(), record.costCloseStatus(), record.costClosedDate(),
                 record.materialWorkInProgressCost(), record.laborWorkInProgressCost(), record.overheadWorkInProgressCost(),
                 record.workInProgressCost(), record.productionCostLedgerAmount(), record.reconciliationDifference(),
                 record.completionUnitCost(), record.costStatus());

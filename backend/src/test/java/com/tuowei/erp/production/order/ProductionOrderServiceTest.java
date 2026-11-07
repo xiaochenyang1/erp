@@ -10,9 +10,12 @@ import com.tuowei.erp.production.bom.web.ProductionBomLineRequest;
 import com.tuowei.erp.production.bom.web.ProductionBomResponse;
 import com.tuowei.erp.production.completion.service.ProductionCompletionReversalService;
 import com.tuowei.erp.production.completion.service.ProductionCompletionService;
+import com.tuowei.erp.production.cost.service.ProductionCostCloseService;
 import com.tuowei.erp.production.cost.service.ProductionCostEntryService;
+import com.tuowei.erp.production.cost.web.ProductionCostCloseRequest;
 import com.tuowei.erp.production.cost.web.ProductionCostEntryCorrectionRequest;
 import com.tuowei.erp.production.cost.web.ProductionCostEntryRequest;
+import com.tuowei.erp.production.cost.web.ProductionCostReopenRequest;
 import com.tuowei.erp.production.issue.service.ProductionIssueService;
 import com.tuowei.erp.production.order.service.ProductionOrderService;
 import com.tuowei.erp.production.order.web.ProductionCompletionRequest;
@@ -78,6 +81,9 @@ class ProductionOrderServiceTest {
     private ProductionCostEntryService productionCostEntryService;
 
     @Autowired
+    private ProductionCostCloseService productionCostCloseService;
+
+    @Autowired
     private ProductionCostReportService productionCostReportService;
 
     @Autowired
@@ -103,15 +109,16 @@ class ProductionOrderServiceTest {
                 delete from fin_voucher_entry
                 where voucher_id in (
                     select id from fin_voucher
-                    where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL')
+                    where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL', 'PRODUCTION_COST_CLOSE', 'PRODUCTION_COST_CLOSE_REVERSAL')
                 )
                 """);
-        jdbcTemplate.update("delete from fin_voucher where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL')");
+        jdbcTemplate.update("delete from fin_voucher where source_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL', 'PRODUCTION_RETURN', 'PRODUCTION_COST_ENTRY', 'PRODUCTION_COST_ENTRY_REVERSAL', 'PRODUCTION_COST_CLOSE', 'PRODUCTION_COST_CLOSE_REVERSAL')");
         jdbcTemplate.update("delete from inv_reservation_event where source_type = 'PRODUCTION_ORDER'");
         jdbcTemplate.update("delete from inv_reservation where source_type = 'PRODUCTION_ORDER'");
         jdbcTemplate.update("delete from inv_txn where biz_type in ('PRODUCTION_ISSUE', 'PRODUCTION_COMPLETION', 'PRODUCTION_COMPLETION_REVERSAL')");
         jdbcTemplate.update("delete from inv_txn where biz_type = 'PRODUCTION_RETURN'");
         jdbcTemplate.update("delete from prd_completion_reversal");
+        jdbcTemplate.update("delete from prd_cost_close");
         jdbcTemplate.update("delete from prd_cost_entry");
         jdbcTemplate.update("delete from prd_return_line");
         jdbcTemplate.update("delete from prd_return");
@@ -287,7 +294,8 @@ class ProductionOrderServiceTest {
     @WithErpUser(authorities = {
             "production:bom:manage", "production:order:create", "production:order:view",
             "production:order:release", "production:order:issue", "production:order:complete",
-            "production:order:reverse-completion", "production:order:cost", "production:order:cost:reverse"
+            "production:order:reverse-completion", "production:order:cost", "production:order:cost:reverse",
+            "production:order:cost:close", "production:order:cost:reopen"
     })
     void allocatesLaborAndOverheadAcrossBatchesAndReconcilesReversalToTheLedger() {
         seedMaterialBalance(MATERIAL_ONE_ID, "100.0000", "500.00");
@@ -350,10 +358,38 @@ class ProductionOrderServiceTest {
                 "PRODUCTION_COST_ENTRY_REVERSAL", "2211", "debit_amount", new BigDecimal("20.00")
         )).isEqualTo(1);
 
+        var close = productionCostCloseService.close(created.id(), new ProductionCostCloseRequest(
+                LocalDate.of(2026, 5, 23), "settle late payroll variance"
+        ));
+        Assertions.assertThat(close.amount()).isEqualByComparingTo("30.00");
+        var closedReport = productionCostReportService.list(completedQuery).records().get(0);
+        Assertions.assertThat(closedReport.costStatus()).isEqualTo("CLOSED");
+        Assertions.assertThat(closedReport.costVarianceAmount()).isEqualByComparingTo("30.00");
+        Assertions.assertThat(closedReport.settledCostVarianceAmount()).isEqualByComparingTo("30.00");
+        Assertions.assertThat(closedReport.workInProgressCost()).isEqualByComparingTo("0.00");
+        Assertions.assertThat(closedReport.productionCostLedgerAmount()).isEqualByComparingTo("0.00");
+        Assertions.assertThat(closedReport.reconciliationDifference()).isEqualByComparingTo("0.00");
+        Assertions.assertThat(financeEntryCountBySourceType(
+                "PRODUCTION_COST_CLOSE", "5001", "credit_amount", new BigDecimal("30.00")
+        )).isEqualTo(1);
+
+        productionCostCloseService.reopen(created.id(), new ProductionCostReopenRequest(
+                LocalDate.of(2026, 5, 24), "completion reversal required"
+        ));
+        var reopenedReport = productionCostReportService.list(completedQuery).records().get(0);
+        Assertions.assertThat(reopenedReport.costStatus()).isEqualTo("COST_VARIANCE");
+        Assertions.assertThat(reopenedReport.settledCostVarianceAmount()).isEqualByComparingTo("0.00");
+        Assertions.assertThat(reopenedReport.workInProgressCost()).isEqualByComparingTo("30.00");
+        Assertions.assertThat(reopenedReport.productionCostLedgerAmount()).isEqualByComparingTo("30.00");
+        Assertions.assertThat(reopenedReport.reconciliationDifference()).isEqualByComparingTo("0.00");
+        Assertions.assertThat(financeEntryCountBySourceType(
+                "PRODUCTION_COST_CLOSE_REVERSAL", "5001", "debit_amount", new BigDecimal("30.00")
+        )).isEqualTo(1);
+
         ProductionOrderResponse reversed = productionCompletionReversalService.reverseCompletion(
                 created.id(),
                 new ProductionCompletionReversalRequest(
-                        LocalDate.of(2026, 5, 24), new BigDecimal("5.0000"), "half reversal"
+                        LocalDate.of(2026, 5, 25), new BigDecimal("5.0000"), "half reversal"
                 )
         );
         Map<String, Object> reversal = jdbcTemplate.queryForMap("""

@@ -269,6 +269,36 @@ public class FinancePostingService {
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
+    public void recordProductionCostClose(
+            ProductionOrderEntity order,
+            Long sourceId,
+            String sourceNo,
+            BigDecimal varianceAmount,
+            LocalDate bizDate,
+            AuditMetadata audit
+    ) {
+        recordProductionVarianceVoucher(
+                "PRODUCTION_COST_CLOSE", sourceId, sourceNo, varianceAmount, bizDate,
+                "生产成本关单差异结转凭证", "生产成本关单差异结转", audit
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordProductionCostCloseReversal(
+            ProductionOrderEntity order,
+            Long sourceId,
+            String sourceNo,
+            BigDecimal varianceAmount,
+            LocalDate bizDate,
+            AuditMetadata audit
+    ) {
+        recordProductionVarianceVoucher(
+                "PRODUCTION_COST_CLOSE_REVERSAL", sourceId, sourceNo, varianceAmount, bizDate,
+                "生产成本反关单凭证", "生产成本反关单冲回差异", audit
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
     public void recordProductionCompletionReversal(
             ProductionOrderEntity order,
             Long sourceId,
@@ -339,6 +369,35 @@ public class FinancePostingService {
                 voucherRemark,
                 debitSubjectCode,
                 creditSubjectCode,
+                summary,
+                audit
+        );
+    }
+
+    private void recordProductionVarianceVoucher(
+            String sourceType,
+            Long sourceId,
+            String sourceNo,
+            BigDecimal signedAmount,
+            LocalDate bizDate,
+            String voucherRemark,
+            String summary,
+            AuditMetadata audit
+    ) {
+        BigDecimal variance = ScalePrecision.amount(ScalePrecision.zeroDefault(signedAmount));
+        if (variance.signum() == 0) {
+            return;
+        }
+        boolean positiveVariance = variance.signum() > 0;
+        recordProductionVoucher(
+                sourceType,
+                sourceId,
+                sourceNo,
+                variance.abs(),
+                bizDate,
+                voucherRemark,
+                positiveVariance ? "5102" : "5001",
+                positiveVariance ? "5001" : "5102",
                 summary,
                 audit
         );

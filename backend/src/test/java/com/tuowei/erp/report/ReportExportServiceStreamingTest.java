@@ -91,6 +91,7 @@ class ReportExportServiceStreamingTest {
                     new BigDecimal("10.0000"), new BigDecimal("4.0000"), new BigDecimal("0.4000"),
                     new BigDecimal("100.00"), new BigDecimal("30.00"), new BigDecimal("20.00"), new BigDecimal("150.00"),
                     new BigDecimal("40.00"), new BigDecimal("12.00"), new BigDecimal("8.00"), new BigDecimal("60.00"),
+                    new BigDecimal("90.00"), BigDecimal.ZERO, "OPEN", null,
                     new BigDecimal("60.00"), new BigDecimal("18.00"), new BigDecimal("12.00"), new BigDecimal("90.00"),
                     new BigDecimal("90.00"), BigDecimal.ZERO, new BigDecimal("15.0000"), "WIP"
             ));
@@ -108,8 +109,9 @@ class ReportExportServiceStreamingTest {
         assertThat(outputStream.toString(StandardCharsets.UTF_8))
                 .contains("materialCost,laborCost,overheadCost,totalInputCost")
                 .contains("finishedMaterialCost,finishedLaborCost,finishedOverheadCost,finishedGoodsCost")
+                .contains("costVarianceAmount,settledCostVarianceAmount,costCloseStatus,costClosedDate")
                 .contains("materialWorkInProgressCost,laborWorkInProgressCost,overheadWorkInProgressCost,workInProgressCost,productionCostLedgerAmount,reconciliationDifference")
-                .contains("WO-COST-001,FG-001,成品,IN_PROGRESS,2026-06-01,2026-06-02,10.0000,4.0000,0.4000,100.00,30.00,20.00,150.00,40.00,12.00,8.00,60.00,60.00,18.00,12.00,90.00,90.00,0,15.0000,WIP");
+                .contains("WO-COST-001,FG-001,成品,IN_PROGRESS,2026-06-01,2026-06-02,10.0000,4.0000,0.4000,100.00,30.00,20.00,150.00,40.00,12.00,8.00,60.00,90.00,0,OPEN,,60.00,18.00,12.00,90.00,90.00,0,15.0000,WIP");
         verify(queryService).streamProductionCosts(
                 ArgumentMatchers.eq(query),
                 ArgumentMatchers.any()

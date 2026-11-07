@@ -1,6 +1,8 @@
 package com.tuowei.erp.production.order.model;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
@@ -32,6 +34,16 @@ public class ProductionOrderEntity {
     private BigDecimal finishedMaterialAmount;
     private BigDecimal finishedLaborAmount;
     private BigDecimal finishedOverheadAmount;
+    private String costCloseStatus;
+    private BigDecimal settledVarianceAmount;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private Long costCloseEntryId;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private LocalDate costClosedDate;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private Long costClosedBy;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private LocalDateTime costClosedTime;
     private Integer deletedFlag;
     private String remark;
     private Long createdBy;
@@ -81,6 +93,18 @@ public class ProductionOrderEntity {
     public void setFinishedLaborAmount(BigDecimal finishedLaborAmount) { this.finishedLaborAmount = finishedLaborAmount; }
     public BigDecimal getFinishedOverheadAmount() { return finishedOverheadAmount; }
     public void setFinishedOverheadAmount(BigDecimal finishedOverheadAmount) { this.finishedOverheadAmount = finishedOverheadAmount; }
+    public String getCostCloseStatus() { return costCloseStatus; }
+    public void setCostCloseStatus(String costCloseStatus) { this.costCloseStatus = costCloseStatus; }
+    public BigDecimal getSettledVarianceAmount() { return settledVarianceAmount; }
+    public void setSettledVarianceAmount(BigDecimal settledVarianceAmount) { this.settledVarianceAmount = settledVarianceAmount; }
+    public Long getCostCloseEntryId() { return costCloseEntryId; }
+    public void setCostCloseEntryId(Long costCloseEntryId) { this.costCloseEntryId = costCloseEntryId; }
+    public LocalDate getCostClosedDate() { return costClosedDate; }
+    public void setCostClosedDate(LocalDate costClosedDate) { this.costClosedDate = costClosedDate; }
+    public Long getCostClosedBy() { return costClosedBy; }
+    public void setCostClosedBy(Long costClosedBy) { this.costClosedBy = costClosedBy; }
+    public LocalDateTime getCostClosedTime() { return costClosedTime; }
+    public void setCostClosedTime(LocalDateTime costClosedTime) { this.costClosedTime = costClosedTime; }
     public Integer getDeletedFlag() { return deletedFlag; }
     public void setDeletedFlag(Integer deletedFlag) { this.deletedFlag = deletedFlag; }
     public String getRemark() { return remark; }

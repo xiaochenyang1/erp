@@ -100,6 +100,30 @@ class ProductionCostReportServiceTest {
         assertThat(row.reconciliationDifference()).isEqualByComparingTo("0.00");
     }
 
+    @Test
+    void closedCostSeparatesOriginalAndSettledVarianceAndLeavesNoWip() {
+        when(currentUserContext.requireCurrentUser()).thenReturn(CURRENT_USER);
+        ProductionOrderResponse closed = new ProductionOrderResponse(
+                4L, "WO-4", 101L, 201L, 301L, 302L,
+                new BigDecimal("10.0000"), new BigDecimal("10.0000"), null, null, "COMPLETED",
+                new BigDecimal("50.00"), new BigDecimal("30.00"), BigDecimal.ZERO,
+                new BigDecimal("75.00"), new BigDecimal("50.00"), new BigDecimal("25.00"), BigDecimal.ZERO,
+                "CLOSED", new BigDecimal("5.00"), 801L, java.time.LocalDate.of(2026, 11, 8),
+                null, List.of()
+        );
+        when(productionOrderQueryService.list(any())).thenReturn(new PageResponse<>(1, 20, 1, List.of(closed)));
+        when(productionCostLedgerMapper.summarize(CURRENT_USER.companyId(), CURRENT_USER.accountBookId(), List.of(4L)))
+                .thenReturn(List.of(ledgerRow(4L, "0.00")));
+
+        var row = service.list(null).records().get(0);
+
+        assertThat(row.costVarianceAmount()).isEqualByComparingTo("5.00");
+        assertThat(row.settledCostVarianceAmount()).isEqualByComparingTo("5.00");
+        assertThat(row.workInProgressCost()).isEqualByComparingTo("0.00");
+        assertThat(row.reconciliationDifference()).isEqualByComparingTo("0.00");
+        assertThat(row.costStatus()).isEqualTo("CLOSED");
+    }
+
     private ProductionOrderResponse order(long id, String materialAmount) {
         return new ProductionOrderResponse(
                 id,
@@ -120,6 +144,10 @@ class ProductionCostReportServiceTest {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
+                "OPEN",
+                BigDecimal.ZERO,
+                null,
+                null,
                 null,
                 List.of()
         );

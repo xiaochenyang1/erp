@@ -79,6 +79,8 @@ public class ProductionOrderCommandService {
         order.setFinishedMaterialAmount(ScalePrecision.amount(BigDecimal.ZERO));
         order.setFinishedLaborAmount(ScalePrecision.amount(BigDecimal.ZERO));
         order.setFinishedOverheadAmount(ScalePrecision.amount(BigDecimal.ZERO));
+        order.setCostCloseStatus("OPEN");
+        order.setSettledVarianceAmount(ScalePrecision.amount(BigDecimal.ZERO));
         order.setDeletedFlag(0); order.setRemark(request.remark()); fillCreateAudit(order, audit, now);
         queryService.assertCanView(order);
         orderMapper.insert(order);

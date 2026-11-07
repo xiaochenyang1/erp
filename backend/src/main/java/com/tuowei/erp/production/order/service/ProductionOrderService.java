@@ -81,6 +81,13 @@ public class ProductionOrderService {
     public ProductionOrderResponse cancel(Long id) { return postingService.cancel(id); }
 
     public ProductionOrderEntity requireOrder(Long id) { return queryService.requireOrder(id); }
+    public void requireCostOpen(ProductionOrderEntity order, String action) {
+        if ("CLOSED".equals(order.getCostCloseStatus())) {
+            throw new com.tuowei.erp.common.exception.BusinessConflictException(
+                    "生产工单已成本关单，不能执行" + action + "；请先反关单"
+            );
+        }
+    }
     public List<ProductionOrderMaterialEntity> selectMaterials(Long orderId) { return queryService.selectMaterials(orderId); }
     public List<ProductionOrderMaterialEntity> selectMaterials(ProductionOrderEntity order) { return queryService.selectMaterials(order); }
     public ProductionOrderResponse toResponse(ProductionOrderEntity order) { return queryService.toResponse(order); }

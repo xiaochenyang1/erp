@@ -23,6 +23,10 @@ public record ProductionOrderResponse(
         BigDecimal finishedMaterialAmount,
         BigDecimal finishedLaborAmount,
         BigDecimal finishedOverheadAmount,
+        String costCloseStatus,
+        BigDecimal settledVarianceAmount,
+        Long costCloseEntryId,
+        LocalDate costClosedDate,
         String remark,
         List<ProductionOrderMaterialResponse> materials
 ) {
