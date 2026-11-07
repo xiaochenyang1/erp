@@ -10,6 +10,7 @@ import com.tuowei.erp.masterdata.product.service.ProductService;
 import com.tuowei.erp.masterdata.product.web.ProductCreateRequest;
 import com.tuowei.erp.masterdata.product.web.ProductPageQuery;
 import com.tuowei.erp.masterdata.product.web.ProductUpdateRequest;
+import com.tuowei.erp.masterdata.warehouse.service.WarehouseReferenceValidator;
 import com.tuowei.erp.system.dict.service.SystemDictService;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
@@ -45,7 +46,8 @@ class ProductServiceDecompositionTest {
                         InventoryLotBalanceMapper.class,
                         AuditMetadataFactory.class,
                         SystemDictService.class,
-                        ProductQueryService.class
+                        ProductQueryService.class,
+                        WarehouseReferenceValidator.class
                 )
                 .doesNotContain(ProductService.class);
     }
