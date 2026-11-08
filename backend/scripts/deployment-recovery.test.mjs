@@ -39,7 +39,7 @@ function fixture(t) {
   })
   save(path.join(evidenceDirectory, 'attachments-restored.json'), attachment)
   save(path.join(evidenceDirectory, 'attachments-rollback-restored.json'), attachment)
-  for (const name of ['database-upgraded-before-rollback.json', 'database-upgraded-after-rollback.json']) save(path.join(evidenceDirectory, name), { ...baseline, tableCount: baseline.tableCount + 1, dataSha256: '2'.repeat(64) })
+  for (const name of ['database-upgraded-before-rollback.json', 'database-upgraded-after-rollback.json']) save(path.join(evidenceDirectory, name), { ...baseline, tableCount: baseline.tableCount + 2, dataSha256: '2'.repeat(64) })
   for (const name of ['attachments-upgraded-before-rollback.json', 'attachments-upgraded-after-rollback.json']) save(path.join(evidenceDirectory, name), {
     ...attachment, entries: [...attachment.entries, { path: 'new.txt', kind: 'file', size: 42, sha256: '3'.repeat(64) }]
   })
@@ -90,6 +90,16 @@ test('accepts complete version-bound history, restore and cleanup evidence', t =
   assert.equal(result.checks, 14)
   assert.equal(result.rollbackChecks, 3)
   assert.equal(result.rollbackSchema, '168')
+})
+
+test('upgrade evidence requires both production cost tables introduced after V168', t => {
+  const f = fixture(t)
+  for (const name of ['database-upgraded-before-rollback.json', 'database-upgraded-after-rollback.json']) {
+    const file = path.join(f.evidenceDirectory, name)
+    const upgraded = JSON.parse(readFileSync(file, 'utf8'))
+    save(file, { ...upgraded, tableCount: upgraded.tableCount - 1 })
+  }
+  assert.throws(() => validateRecoveryReports(f.options))
 })
 
 test('PASSED cannot hide missing checks, stale versions, unfinished actions or failed cleanup', t => {

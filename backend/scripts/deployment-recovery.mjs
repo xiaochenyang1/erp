@@ -24,6 +24,7 @@ const repo = path.resolve(path.dirname(script), '../..')
 const privateDirectoryPattern = /^erp-recovery-work-[a-zA-Z0-9]{6}$/
 const inventoryTables = ['inv_adjustment', 'inv_adjustment_line', 'inv_stock_check', 'inv_stock_check_line',
   'inv_balance', 'inv_lot_balance', 'inv_txn', 'fin_voucher', 'fin_voucher_entry']
+const upgradeTableIncrease = 2
 export const recoveryChecks = [
   'Start the pinned V168 application on isolated services',
   'Create historical inventory and attachment fixtures through V168 APIs',
@@ -192,7 +193,7 @@ export function validateRecoveryReports({ evidenceDirectory, expectedRevision, e
   assert.deepEqual(retained.stock, { quantity: 12, amount: 120, reserved: 0 })
   assert.deepEqual(retained.stockAfterRestart, retained.stock)
   const upgradedDatabase = read('database-upgraded-before-rollback.json'), upgradedAttachments = read('attachments-upgraded-before-rollback.json')
-  assert.equal(upgradedDatabase.tableCount, checkpoint.databaseSnapshot.tableCount + 1)
+  assert.equal(upgradedDatabase.tableCount, checkpoint.databaseSnapshot.tableCount + upgradeTableIncrease)
   assert(sha256Pattern.test(upgradedDatabase.dataSha256) && upgradedDatabase.rowCounts?.length > 100)
   assert.notEqual(upgradedDatabase.dataSha256, checkpoint.databaseSnapshot.dataSha256)
   assert.equal(upgradedAttachments.kind, attachments.kind)
