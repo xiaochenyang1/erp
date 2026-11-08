@@ -241,11 +241,17 @@ const coreMessages = {
       validation: { code: '请输入工艺路线编码', name: '请输入工艺路线名称', bom: '请选择BOM', operations: '请至少添加一道工序', operationRequired: '第 {line} 道工序：编码、名称、工作中心和标准工时均必填' },
       message: { optionsLoadFailed: '加载工作中心/BOM选项失败', loadFailed: '加载工艺路线失败', detailLoadFailed: '加载工艺路线详情失败', printLoadFailed: '加载打印数据失败', enableConfirm: '确认启用工艺路线“{name}”吗？', disableConfirm: '确认停用工艺路线“{name}”吗？', enabled: '已启用', disabled: '已停用', updated: '更新成功', created: '创建成功', prompt: '提示' }
     },
+    productionSchedule: {
+      title: '有限产能排程', description: '按计划交期、工序顺序和工作中心工作日容量生成可解释的生产排程', horizon: '排程区间', rangeSeparator: '至', startDate: '开始日期', endDate: '结束日期', preview: '预览排程', run: '执行排程', ruleHint: '当前规则：按计划完工日期优先；同一工单工序串行；工作中心周一至周五按每日容量排产；已报工数量不再占用待排产能。', orders: '工单数', scheduled: '已排工序', unscheduled: '未排工序', delayed: '延期工序', capacityTitle: '工作中心负荷', workCenterCode: '中心编码', workCenter: '工作中心', startTime: '开工时间', dailyCapacity: '日产能(分钟)', loadMinutes: '已排负荷', utilization: '区间负荷率', detailTitle: '工序排程明细', committed: '已写入工序快照', previewOnly: '仅预览', orderNo: '工单号', dueDate: '计划完工', sequence: '序', operation: '工序', remainingQty: '待报数量', requiredMinutes: '所需分钟', scheduledStart: '排程开始', scheduledEnd: '排程结束', waitMinutes: '产能等待', result: '结果', reason: '延期/未排原因',
+      status: { scheduled: '已排', delayed: '预计延期', unscheduled: '未排' },
+      validation: { dateRange: '请选择有效的排程开始和结束日期' },
+      message: { previewFailed: '预览生产排程失败', runTitle: '执行有限产能排程', runConfirm: '确认执行 {startDate} 至 {endDate} 的排程并写入工序快照吗？', runSucceeded: '排程完成：已排 {scheduled} 道，未排 {unscheduled} 道', runFailed: '执行生产排程失败' }
+    },
     productionWorkCenter: {
-      title: '工作中心', keyword: '关键字', keywordPlaceholder: '工作中心编码/名称', statusLabel: '状态', all: '全部', search: '查询', reset: '重置', create: '新增工作中心', code: '编码', name: '名称', remark: '备注', actions: '操作', view: '查看', print: '打印', edit: '编辑', enable: '启用', disable: '停用', codePlaceholder: '请输入工作中心编码', namePlaceholder: '请输入工作中心名称', remarkPlaceholder: '请输入备注', cancel: '取消', save: '保存',
+      title: '工作中心', keyword: '关键字', keywordPlaceholder: '工作中心编码/名称', statusLabel: '状态', all: '全部', search: '查询', reset: '重置', create: '新增工作中心', code: '编码', name: '名称', dailyCapacity: '日产能(分钟)', startTime: '开工时间', startTimePlaceholder: '选择每日开工时间', remark: '备注', actions: '操作', view: '查看', print: '打印', edit: '编辑', enable: '启用', disable: '停用', codePlaceholder: '请输入工作中心编码', namePlaceholder: '请输入工作中心名称', remarkPlaceholder: '请输入备注', cancel: '取消', save: '保存',
       status: { active: '启用', disabled: '已停用' },
       dialog: { create: '新增工作中心', edit: '编辑工作中心' },
-      validation: { code: '请输入工作中心编码', name: '请输入工作中心名称' },
+      validation: { code: '请输入工作中心编码', name: '请输入工作中心名称', capacity: '请输入1到1440之间的日产能分钟数', startTime: '请选择每日开工时间' },
       message: { loadFailed: '加载工作中心失败', printLoadFailed: '加载打印数据失败', enableConfirm: '确认启用工作中心“{name}”吗？', disableConfirm: '确认停用工作中心“{name}”吗？', enabled: '已启用', disabled: '已停用', updated: '更新成功', created: '创建成功', prompt: '提示' }
     },
     productionBom: {
@@ -496,11 +502,17 @@ const coreMessages = {
       validation: { code: 'Enter a routing code', name: 'Enter a routing name', bom: 'Select a BOM', operations: 'Add at least one operation', operationRequired: 'Operation {line}: code, name, work center, and standard time are required' },
       message: { optionsLoadFailed: 'Failed to load work center and BOM options', loadFailed: 'Failed to load routings', detailLoadFailed: 'Failed to load routing details', printLoadFailed: 'Failed to load print data', enableConfirm: 'Enable routing “{name}”?', disableConfirm: 'Disable routing “{name}”?', enabled: 'Routing enabled', disabled: 'Routing disabled', updated: 'Routing updated', created: 'Routing created', prompt: 'Confirmation' }
     },
+    productionSchedule: {
+      title: 'Finite-capacity scheduling', description: 'Build an explainable production schedule from due dates, operation precedence, and weekday work-center capacity.', horizon: 'Horizon', rangeSeparator: 'to', startDate: 'Start date', endDate: 'End date', preview: 'Preview', run: 'Run schedule', ruleHint: 'Rules: earliest due date first; operations in one order remain sequential; work centers run Monday to Friday within daily capacity; already reported quantities no longer consume pending capacity.', orders: 'Orders', scheduled: 'Scheduled operations', unscheduled: 'Unscheduled operations', delayed: 'Delayed operations', capacityTitle: 'Work-center load', workCenterCode: 'Center code', workCenter: 'Work center', startTime: 'Start time', dailyCapacity: 'Daily capacity (min)', loadMinutes: 'Scheduled load', utilization: 'Horizon utilization', detailTitle: 'Operation schedule', committed: 'Committed to operation snapshots', previewOnly: 'Preview only', orderNo: 'Order no.', dueDate: 'Due date', sequence: 'No.', operation: 'Operation', remainingQty: 'Remaining qty', requiredMinutes: 'Required minutes', scheduledStart: 'Scheduled start', scheduledEnd: 'Scheduled end', waitMinutes: 'Capacity wait', result: 'Result', reason: 'Delay / unscheduled reason',
+      status: { scheduled: 'Scheduled', delayed: 'Expected late', unscheduled: 'Unscheduled' },
+      validation: { dateRange: 'Select a valid scheduling start and end date' },
+      message: { previewFailed: 'Failed to preview the production schedule', runTitle: 'Run finite-capacity schedule', runConfirm: 'Run the schedule from {startDate} to {endDate} and commit it to operation snapshots?', runSucceeded: 'Schedule completed: {scheduled} scheduled, {unscheduled} unscheduled', runFailed: 'Failed to run the production schedule' }
+    },
     productionWorkCenter: {
-      title: 'Work centers', keyword: 'Keyword', keywordPlaceholder: 'Work center code or name', statusLabel: 'Status', all: 'All', search: 'Search', reset: 'Reset', create: 'New work center', code: 'Code', name: 'Name', remark: 'Remark', actions: 'Actions', view: 'View', print: 'Print', edit: 'Edit', enable: 'Enable', disable: 'Disable', codePlaceholder: 'Enter a work center code', namePlaceholder: 'Enter a work center name', remarkPlaceholder: 'Enter a remark', cancel: 'Cancel', save: 'Save',
+      title: 'Work centers', keyword: 'Keyword', keywordPlaceholder: 'Work center code or name', statusLabel: 'Status', all: 'All', search: 'Search', reset: 'Reset', create: 'New work center', code: 'Code', name: 'Name', dailyCapacity: 'Daily capacity (min)', startTime: 'Start time', startTimePlaceholder: 'Select the daily start time', remark: 'Remark', actions: 'Actions', view: 'View', print: 'Print', edit: 'Edit', enable: 'Enable', disable: 'Disable', codePlaceholder: 'Enter a work center code', namePlaceholder: 'Enter a work center name', remarkPlaceholder: 'Enter a remark', cancel: 'Cancel', save: 'Save',
       status: { active: 'Active', disabled: 'Disabled' },
       dialog: { create: 'New work center', edit: 'Edit work center' },
-      validation: { code: 'Enter a work center code', name: 'Enter a work center name' },
+      validation: { code: 'Enter a work center code', name: 'Enter a work center name', capacity: 'Enter daily capacity between 1 and 1440 minutes', startTime: 'Select the daily start time' },
       message: { loadFailed: 'Failed to load work centers', printLoadFailed: 'Failed to load print data', enableConfirm: 'Enable work center “{name}”?', disableConfirm: 'Disable work center “{name}”?', enabled: 'Work center enabled', disabled: 'Work center disabled', updated: 'Work center updated', created: 'Work center created', prompt: 'Confirmation' }
     },
     productionBom: {

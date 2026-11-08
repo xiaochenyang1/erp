@@ -772,6 +772,16 @@ const routes: RouteRecordRaw[] = [
               icon: 'Guide',
               permission: 'production:routing:view'
             }
+          },
+          {
+            path: 'schedules',
+            name: 'ProductionSchedules',
+            component: () => import('@/views/production/schedules/index.vue'),
+            meta: {
+              title: '产能排程',
+              icon: 'Calendar',
+              permission: 'production:schedule:view'
+            }
           }
         ]
       },

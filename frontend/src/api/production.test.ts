@@ -25,8 +25,10 @@ import {
   getRouting,
   getRoutings,
   postProductionOrderCost,
+  previewProductionSchedule,
   reopenProductionOrderCost,
-  reverseProductionOrderCost
+  reverseProductionOrderCost,
+  runProductionSchedule
 } from '@/api/production'
 
 beforeEach(() => {
@@ -36,10 +38,13 @@ beforeEach(() => {
 })
 
 describe('production API 归一化', () => {
-  it('getWorkCenters 归一化分页 records 的 id 为字符串', async () => {
+  it('getWorkCenters 归一化分页 records 的 id、日产能和开工时间', async () => {
     // 后端 Long ID 以 JSON 字符串下发,归一化须原样保留精度。
     get.mockResolvedValue({
-      records: [{ id: '9007199254740993', workCenterCode: 'WC01', workCenterName: '装配', status: 'ACTIVE' }],
+      records: [{
+        id: '9007199254740993', workCenterCode: 'WC01', workCenterName: '装配',
+        dailyCapacityMinutes: '600', workdayStartTime: '07:30:00', status: 'ACTIVE'
+      }],
       total: 1,
       pageNo: 1,
       pageSize: 20
@@ -47,6 +52,51 @@ describe('production API 归一化', () => {
     const page = await getWorkCenters({ pageNo: 1, pageSize: 20 })
     expect(page.records[0].id).toBe('9007199254740993')
     expect(typeof page.records[0].id).toBe('string')
+    expect(page.records[0].dailyCapacityMinutes).toBe(600)
+    expect(page.records[0].workdayStartTime).toBe('07:30:00')
+  })
+
+  it('normalizes finite-capacity schedule preview and run results', async () => {
+    const response = {
+      startDate: '2026-11-09', endDate: '2026-11-20', committed: false,
+      orderCount: '1', operationCount: '1', scheduledCount: '1', unscheduledCount: '0',
+      delayedCount: '0', generatedTime: '2026-11-08T10:00:00',
+      items: [{
+        operationId: '9007199254740993', orderId: '9007199254740995', orderNo: 'MO001',
+        productId: '9007199254740997', lineNo: 1, operationCode: 'OP10', operationName: '装配',
+        workCenterId: '9007199254740999', remainingQty: '2', standardMinutes: '30',
+        requiredMinutes: '60', capacityWaitMinutes: '15', delayed: false, lateMinutes: '0',
+        scheduleStatus: 'SCHEDULED'
+      }],
+      workCenters: [{
+        workCenterId: '9007199254740999', workCenterCode: 'WC01', workCenterName: '装配',
+        dailyCapacityMinutes: '480', workdayStartTime: '08:00:00', horizonCapacityMinutes: '4800',
+        scheduledMinutes: '60', utilizationPercent: '1.25'
+      }]
+    }
+    post.mockResolvedValueOnce(response)
+
+    const preview = await previewProductionSchedule({ startDate: '2026-11-09', endDate: '2026-11-20' })
+
+    expect(post).toHaveBeenCalledWith('/production/schedules/preview', {
+      startDate: '2026-11-09', endDate: '2026-11-20'
+    })
+    expect(preview).toMatchObject({ orderCount: 1, scheduledCount: 1 })
+    expect(preview.items[0]).toMatchObject({
+      operationId: '9007199254740993', orderId: '9007199254740995', productId: '9007199254740997',
+      workCenterId: '9007199254740999', remainingQty: 2, standardMinutes: 30, requiredMinutes: 60
+    })
+    expect(preview.workCenters[0]).toMatchObject({
+      workCenterId: '9007199254740999', dailyCapacityMinutes: 480,
+      horizonCapacityMinutes: 4800, scheduledMinutes: 60, utilizationPercent: 1.25
+    })
+
+    post.mockResolvedValueOnce({ ...response, committed: true })
+    const run = await runProductionSchedule({ startDate: '2026-11-09', endDate: '2026-11-20' })
+    expect(post).toHaveBeenLastCalledWith('/production/schedules/run', {
+      startDate: '2026-11-09', endDate: '2026-11-20'
+    })
+    expect(run.committed).toBe(true)
   })
 
   it('getRouting 归一化 id/bomId 及工序 workCenterId 为字符串、standardMinutes 为数值', async () => {

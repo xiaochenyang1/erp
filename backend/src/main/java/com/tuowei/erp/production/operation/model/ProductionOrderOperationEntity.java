@@ -1,6 +1,8 @@
 package com.tuowei.erp.production.operation.model;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
@@ -22,11 +24,22 @@ public class ProductionOrderOperationEntity {
     private String operationCode;
     private String operationName;
     private Long workCenterId;
+    private BigDecimal standardMinutes;
     private BigDecimal plannedQty;
     private BigDecimal reportedQty;
     private BigDecimal qualifiedQty;
     private BigDecimal scrapQty;
     private String status;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private BigDecimal scheduledMinutes;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private LocalDateTime scheduledStartTime;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private LocalDateTime scheduledEndTime;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private Long scheduledBy;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private LocalDateTime scheduledTime;
     private Integer deletedFlag;
     private String remark;
     private Long createdBy;
@@ -56,6 +69,8 @@ public class ProductionOrderOperationEntity {
     public void setOperationName(String operationName) { this.operationName = operationName; }
     public Long getWorkCenterId() { return workCenterId; }
     public void setWorkCenterId(Long workCenterId) { this.workCenterId = workCenterId; }
+    public BigDecimal getStandardMinutes() { return standardMinutes; }
+    public void setStandardMinutes(BigDecimal standardMinutes) { this.standardMinutes = standardMinutes; }
     public BigDecimal getPlannedQty() { return plannedQty; }
     public void setPlannedQty(BigDecimal plannedQty) { this.plannedQty = plannedQty; }
     public BigDecimal getReportedQty() { return reportedQty; }
@@ -66,6 +81,16 @@ public class ProductionOrderOperationEntity {
     public void setScrapQty(BigDecimal scrapQty) { this.scrapQty = scrapQty; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public BigDecimal getScheduledMinutes() { return scheduledMinutes; }
+    public void setScheduledMinutes(BigDecimal scheduledMinutes) { this.scheduledMinutes = scheduledMinutes; }
+    public LocalDateTime getScheduledStartTime() { return scheduledStartTime; }
+    public void setScheduledStartTime(LocalDateTime scheduledStartTime) { this.scheduledStartTime = scheduledStartTime; }
+    public LocalDateTime getScheduledEndTime() { return scheduledEndTime; }
+    public void setScheduledEndTime(LocalDateTime scheduledEndTime) { this.scheduledEndTime = scheduledEndTime; }
+    public Long getScheduledBy() { return scheduledBy; }
+    public void setScheduledBy(Long scheduledBy) { this.scheduledBy = scheduledBy; }
+    public LocalDateTime getScheduledTime() { return scheduledTime; }
+    public void setScheduledTime(LocalDateTime scheduledTime) { this.scheduledTime = scheduledTime; }
     public Integer getDeletedFlag() { return deletedFlag; }
     public void setDeletedFlag(Integer deletedFlag) { this.deletedFlag = deletedFlag; }
     public String getRemark() { return remark; }

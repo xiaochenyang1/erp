@@ -18,7 +18,7 @@ describe('production order costs', () => {
     }])
     const loadOperations = vi.fn(async () => [{
       id: 'op-1', orderId: 'order-1', lineNo: 1, operationCode: 'OP10', operationName: 'Assembly',
-      plannedQty: 1, reportedQty: 0, qualifiedQty: 0, scrapQty: 0, status: 'PENDING'
+      standardMinutes: 30, plannedQty: 1, reportedQty: 0, qualifiedQty: 0, scrapQty: 0, status: 'PENDING'
     }])
     const costs = useProductionOrderCosts(t, {
       loadCosts,

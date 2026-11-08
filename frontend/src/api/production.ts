@@ -426,6 +426,8 @@ export interface WorkCenter {
   id: string
   workCenterCode: string
   workCenterName: string
+  dailyCapacityMinutes: number
+  workdayStartTime: string
   status: 'ACTIVE' | 'DISABLED' | string
   remark?: string
 }
@@ -440,18 +442,24 @@ export interface WorkCenterQuery extends PageQuery {
 export interface WorkCenterCreateRequest {
   workCenterCode: string
   workCenterName: string
+  dailyCapacityMinutes: number
+  workdayStartTime: string
   remark?: string
 }
 
 // 工作中心更新请求
 export interface WorkCenterUpdateRequest {
   workCenterName: string
+  dailyCapacityMinutes: number
+  workdayStartTime: string
   remark?: string
 }
 
 const normalizeWorkCenter = (workCenter: WorkCenter): WorkCenter => ({
   ...workCenter,
-  id: String(workCenter.id)
+  id: String(workCenter.id),
+  dailyCapacityMinutes: Number(workCenter.dailyCapacityMinutes ?? 480),
+  workdayStartTime: workCenter.workdayStartTime || '08:00:00'
 })
 
 /**
@@ -629,11 +637,15 @@ export interface ProductionOrderOperation {
   operationName: string
   workCenterId?: string | number
   workCenterName?: string
+  standardMinutes: number
   plannedQty: number
   reportedQty: number
   qualifiedQty: number
   scrapQty: number
   status: 'PENDING' | 'IN_PROGRESS' | 'DONE' | string
+  scheduledMinutes?: number
+  scheduledStartTime?: string
+  scheduledEndTime?: string
   remark?: string
 }
 
@@ -650,10 +662,12 @@ const normalizeOperation = (op: ProductionOrderOperation): ProductionOrderOperat
   id: String(op.id),
   orderId: String(op.orderId),
   workCenterId: op.workCenterId != null ? String(op.workCenterId) : op.workCenterId,
+  standardMinutes: Number(op.standardMinutes ?? 0),
   plannedQty: Number(op.plannedQty ?? 0),
   reportedQty: Number(op.reportedQty ?? 0),
   qualifiedQty: Number(op.qualifiedQty ?? 0),
-  scrapQty: Number(op.scrapQty ?? 0)
+  scrapQty: Number(op.scrapQty ?? 0),
+  scheduledMinutes: op.scheduledMinutes == null ? undefined : Number(op.scheduledMinutes)
 })
 
 export const getProductionOrderOperations = (orderId: string | number) => {
@@ -671,6 +685,97 @@ export const reportProductionOperation = (
     .post<ProductionOrderOperation>(`/production/orders/${orderId}/operations/${operationId}/report`, data)
     .then(normalizeOperation)
 }
+
+// ==================== 有限产能排程 ====================
+
+export interface ProductionScheduleRequest {
+  startDate: string
+  endDate: string
+}
+
+export interface ProductionScheduleItem {
+  operationId: string
+  orderId: string
+  orderNo: string
+  productId: string
+  dueDate?: string
+  lineNo: number
+  operationCode: string
+  operationName: string
+  workCenterId?: string
+  workCenterCode?: string
+  workCenterName?: string
+  remainingQty: number
+  standardMinutes: number
+  requiredMinutes: number
+  scheduledStartTime?: string
+  scheduledEndTime?: string
+  capacityWaitMinutes: number
+  delayed: boolean
+  lateMinutes: number
+  scheduleStatus: 'SCHEDULED' | 'UNSCHEDULED' | string
+  reason?: string
+}
+
+export interface ProductionScheduleWorkCenter {
+  workCenterId: string
+  workCenterCode: string
+  workCenterName: string
+  dailyCapacityMinutes: number
+  workdayStartTime: string
+  horizonCapacityMinutes: number
+  scheduledMinutes: number
+  utilizationPercent: number
+}
+
+export interface ProductionScheduleResult {
+  startDate: string
+  endDate: string
+  committed: boolean
+  orderCount: number
+  operationCount: number
+  scheduledCount: number
+  unscheduledCount: number
+  delayedCount: number
+  generatedTime: string
+  items: ProductionScheduleItem[]
+  workCenters: ProductionScheduleWorkCenter[]
+}
+
+const normalizeScheduleResult = (result: ProductionScheduleResult): ProductionScheduleResult => ({
+  ...result,
+  orderCount: Number(result.orderCount ?? 0),
+  operationCount: Number(result.operationCount ?? 0),
+  scheduledCount: Number(result.scheduledCount ?? 0),
+  unscheduledCount: Number(result.unscheduledCount ?? 0),
+  delayedCount: Number(result.delayedCount ?? 0),
+  items: (result.items || []).map((item) => ({
+    ...item,
+    operationId: String(item.operationId),
+    orderId: String(item.orderId),
+    productId: String(item.productId),
+    workCenterId: item.workCenterId == null ? undefined : String(item.workCenterId),
+    remainingQty: Number(item.remainingQty ?? 0),
+    standardMinutes: Number(item.standardMinutes ?? 0),
+    requiredMinutes: Number(item.requiredMinutes ?? 0),
+    capacityWaitMinutes: Number(item.capacityWaitMinutes ?? 0),
+    lateMinutes: Number(item.lateMinutes ?? 0)
+  })),
+  workCenters: (result.workCenters || []).map((center) => ({
+    ...center,
+    workCenterId: String(center.workCenterId),
+    dailyCapacityMinutes: Number(center.dailyCapacityMinutes ?? 0),
+    horizonCapacityMinutes: Number(center.horizonCapacityMinutes ?? 0),
+    scheduledMinutes: Number(center.scheduledMinutes ?? 0),
+    utilizationPercent: Number(center.utilizationPercent ?? 0)
+  }))
+})
+
+export const previewProductionSchedule = (data: ProductionScheduleRequest) =>
+  request.post<ProductionScheduleResult>('/production/schedules/preview', data).then(normalizeScheduleResult)
+
+export const runProductionSchedule = (data: ProductionScheduleRequest) =>
+  request.post<ProductionScheduleResult>('/production/schedules/run', data).then(normalizeScheduleResult)
 
 // ==================== 生产成本归集 ====================
 

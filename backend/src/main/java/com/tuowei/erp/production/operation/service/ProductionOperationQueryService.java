@@ -128,11 +128,13 @@ public class ProductionOperationQueryService {
         return new ProductionOrderOperationResponse(
                 operation.getId(), operation.getOrderId(), operation.getLineNo(), operation.getOperationCode(),
                 operation.getOperationName(), operation.getWorkCenterId(), workCenterNames.get(operation.getWorkCenterId()),
+                operation.getStandardMinutes() == null ? BigDecimal.ZERO.setScale(2) : operation.getStandardMinutes(),
                 ScalePrecision.quantity(ScalePrecision.zeroDefault(operation.getPlannedQty())),
                 ScalePrecision.quantity(ScalePrecision.zeroDefault(operation.getReportedQty())),
                 ScalePrecision.quantity(ScalePrecision.zeroDefault(operation.getQualifiedQty())),
                 ScalePrecision.quantity(ScalePrecision.zeroDefault(operation.getScrapQty())),
-                operation.getStatus(), operation.getRemark()
+                operation.getStatus(), operation.getScheduledMinutes(), operation.getScheduledStartTime(),
+                operation.getScheduledEndTime(), operation.getRemark()
         );
     }
 }

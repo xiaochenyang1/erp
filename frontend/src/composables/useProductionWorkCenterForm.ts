@@ -13,6 +13,8 @@ export interface ProductionWorkCenterFormState {
   id: string | number | undefined
   workCenterCode: string
   workCenterName: string
+  dailyCapacityMinutes: number
+  workdayStartTime: string
   remark: string
 }
 
@@ -20,6 +22,8 @@ const emptyForm = (): ProductionWorkCenterFormState => ({
   id: undefined,
   workCenterCode: '',
   workCenterName: '',
+  dailyCapacityMinutes: 480,
+  workdayStartTime: '08:00',
   remark: ''
 })
 
@@ -59,6 +63,8 @@ export const useProductionWorkCenterForm = (
       id: row.id,
       workCenterCode: row.workCenterCode,
       workCenterName: row.workCenterName,
+      dailyCapacityMinutes: row.dailyCapacityMinutes,
+      workdayStartTime: row.workdayStartTime.slice(0, 5),
       remark: row.remark || ''
     })
     dialogVisible.value = true
@@ -70,6 +76,8 @@ export const useProductionWorkCenterForm = (
       if (formData.id != null) {
         await options.updateWorkCenter(formData.id, {
           workCenterName: formData.workCenterName,
+          dailyCapacityMinutes: formData.dailyCapacityMinutes,
+          workdayStartTime: formData.workdayStartTime,
           remark: formData.remark
         })
         options.onSuccess?.(t('productionWorkCenter.message.updated'))
@@ -77,6 +85,8 @@ export const useProductionWorkCenterForm = (
         await options.createWorkCenter({
           workCenterCode: formData.workCenterCode,
           workCenterName: formData.workCenterName,
+          dailyCapacityMinutes: formData.dailyCapacityMinutes,
+          workdayStartTime: formData.workdayStartTime,
           remark: formData.remark
         })
         options.onSuccess?.(t('productionWorkCenter.message.created'))

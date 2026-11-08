@@ -367,6 +367,53 @@ async function prepareProductionOrderFixture(auth) {
   }
 }
 
+async function prepareProductionScheduleFixture(auth) {
+  const fixture = await prepareProductionOrderFixture(auth)
+  const workCenter = await apiRequest(auth, 'POST', '/production/work-centers', {
+    workCenterCode: `UISWC${fixture.suffix}`,
+    workCenterName: `UI排程中心${fixture.suffix}`,
+    dailyCapacityMinutes: 480,
+    workdayStartTime: '08:00',
+    remark: 'UI smoke 有限产能排程'
+  })
+  const routing = await apiRequest(auth, 'POST', '/production/routings', {
+    routingCode: `UISRT${fixture.suffix}`,
+    routingName: `UI排程路线${fixture.suffix}`,
+    bomId: fixture.bom.id,
+    remark: 'UI smoke 有限产能排程路线',
+    operations: [{
+      operationCode: 'OP-10',
+      operationName: 'UI排程装配',
+      workCenterId: workCenter.id,
+      standardMinutes: 60,
+      remark: 'UI smoke 排程工序'
+    }]
+  })
+  const createOrder = async (sequence) => {
+    const order = await apiRequest(auth, 'POST', '/production/orders', {
+      bomId: fixture.bom.id,
+      finishedWarehouseId: fixture.finishedWarehouse.id,
+      materialWarehouseId: fixture.materialWarehouse.id,
+      plannedQty: 2,
+      plannedStartDate: fixture.plannedStartDate,
+      plannedFinishDate: fixture.plannedFinishDate,
+      remark: `UI smoke 有限产能排程 ${fixture.suffix}-${sequence}`
+    })
+    return apiRequest(auth, 'POST', `/production/orders/${order.id}/release`)
+  }
+  const orders = [await createOrder(1), await createOrder(2)]
+  for (const order of orders) {
+    const operations = await apiRequest(auth, 'GET', `/production/orders/${order.id}/operations`)
+    if (operations.length !== 1
+      || Number(operations[0].standardMinutes) !== 60
+      || operations[0].scheduledStartTime
+      || operations[0].scheduledEndTime) {
+      throw new Error(`released schedule fixture did not create an unscheduled operation snapshot for ${order.orderNo}`)
+    }
+  }
+  return { ...fixture, workCenter, routing, orders }
+}
+
 async function prepareSalesOrderFixture(auth) {
   const suffix = String(Date.now()).slice(-10)
   const orderDate = new Date().toISOString().slice(0, 10)
@@ -6322,6 +6369,92 @@ async function runProductionOrderWorkflow(cdp, auth) {
   }
 }
 
+async function runProductionScheduleWorkflow(cdp, auth) {
+  resetEvents(cdp.events)
+  const fixture = await prepareProductionScheduleFixture(auth)
+  let committedItems = []
+  let auditLog = null
+  try {
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/production/schedules` })
+    await waitForPage(cdp, `
+      document.body.innerText.includes('有限产能排程')
+        && document.body.innerText.includes('预览排程')
+        && document.body.innerText.includes('执行排程')
+    `, 'production schedule page')
+
+    await invokeButton(cdp, '预览排程', 'production schedule preview button')
+    await waitForPage(cdp, `
+      document.body.innerText.includes(${JSON.stringify(fixture.orders[0].orderNo)})
+        && document.body.innerText.includes(${JSON.stringify(fixture.orders[1].orderNo)})
+        && document.body.innerText.includes('仅预览')
+        && document.body.innerText.includes(${JSON.stringify(fixture.workCenter.workCenterName)})
+    `, 'production schedule preview result', 30000)
+
+    await invokeButton(cdp, '执行排程', 'production schedule run button')
+    await waitForPage(cdp, `Boolean(${messageBoxExpression('执行有限产能排程')})`, 'production schedule confirmation')
+    await invokeButton(cdp, '确定', 'production schedule confirmation button', messageBoxExpression('执行有限产能排程'))
+
+    const committed = await waitForPage(cdp, `
+      (async () => {
+        if (!document.body.innerText.includes('已写入工序快照')) return false;
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        const orderIds = ${JSON.stringify(fixture.orders.map((order) => String(order.id)))};
+        const operationResponses = await Promise.all(orderIds.map((id) =>
+          fetch('/api/production/orders/' + encodeURIComponent(id) + '/operations', { headers })));
+        if (operationResponses.some((response) => !response.ok)) return false;
+        const operationPayloads = await Promise.all(operationResponses.map((response) => response.json()));
+        const operations = operationPayloads.flatMap((payload) => payload?.data || []);
+        if (operations.length !== 2 || operations.some((operation) =>
+          String(operation.workCenterId) !== ${JSON.stringify(String(fixture.workCenter.id))}
+            || Number(operation.scheduledMinutes) !== 120
+            || !operation.scheduledStartTime
+            || !operation.scheduledEndTime)) return false;
+        const sorted = [...operations].sort((left, right) =>
+          String(left.scheduledStartTime).localeCompare(String(right.scheduledStartTime)));
+        if (String(sorted[0].scheduledEndTime) > String(sorted[1].scheduledStartTime)) return false;
+
+        const auditResponse = await fetch('/api/system/audit-logs?pageNo=1&pageSize=20&businessType=PRODUCTION_SCHEDULE&action=RUN', { headers });
+        if (!auditResponse.ok) return false;
+        const auditPayload = await auditResponse.json();
+        const audit = (auditPayload?.data?.records || []).find((record) => {
+          if (record.businessType !== 'PRODUCTION_SCHEDULE' || record.action !== 'RUN') return false;
+          try {
+            const snapshot = JSON.parse(record.snapshotJson || '{}');
+            const scheduledOrderIds = new Set((snapshot.items || []).map((item) => String(item.orderId)));
+            return orderIds.every((id) => scheduledOrderIds.has(id)) && snapshot.committed === true;
+          } catch (error) {
+            return false;
+          }
+        });
+        return audit ? { operations: sorted, audit } : false;
+      })()
+    `, 'production schedule committed without overlap and with audit evidence', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production schedule run'))}`)
+    })
+    committedItems = committed.operations
+    auditLog = committed.audit
+  } catch (error) {
+    const diagnostic = await pageDiagnostics(cdp, 'production schedule workflow failure').catch(() => null)
+    throw new Error(`${error.message}${diagnostic ? `\n${JSON.stringify(diagnostic, null, 2)}` : ''}`)
+  }
+
+  const failures = snapshotFailures(cdp.events)
+  return {
+    name: 'production-finite-capacity-preview-run',
+    orderNos: fixture.orders.map((order) => order.orderNo),
+    routingCode: fixture.routing.routingCode,
+    workCenterCode: fixture.workCenter.workCenterCode,
+    scheduledWindows: committedItems.map((item) => ({
+      start: item.scheduledStartTime,
+      end: item.scheduledEndTime
+    })),
+    auditLogId: auditLog?.id || null,
+    passed: failures.length === 0,
+    failures
+  }
+}
+
 async function runManualVoucherWorkflow(cdp, auth) {
   resetEvents(cdp.events)
   const suffix = String(Date.now()).slice(-10)
@@ -7224,6 +7357,7 @@ async function main() {
     { path: '/qc/inspections', text: '新建检验单' },
     { path: '/production/work-centers', text: '工作中心' },
     { path: '/production/routings', text: '工艺路线' },
+    { path: '/production/schedules', text: '有限产能排程' },
     { path: '/system/document-state-rules', text: '单据状态流转规则' }
   ]
 
@@ -7306,6 +7440,7 @@ async function main() {
     { name: 'inventory-adjustment-create-post-balance', run: () => runInventoryAdjustmentWorkflow(cdp, auth) },
     { name: 'inventory-transfer-create-post-balance', run: () => runInventoryTransferWorkflow(cdp, auth) },
     { name: 'inventory-check-create-adjust-balance', run: () => runInventoryCheckWorkflow(cdp, auth) },
+    { name: 'production-finite-capacity-preview-run', run: () => runProductionScheduleWorkflow(cdp, auth) },
     { name: 'production-order-create-release-issue-complete', run: () => runProductionOrderWorkflow(cdp, auth) },
     { name: 'manual-voucher-create-submit-approve-post-cancel', run: () => runManualVoucherWorkflow(cdp, auth) },
     { name: 'qc-inspection-create-submit-judge-only-qualified', run: () => runQcInspectionWorkflow(cdp, auth) },

@@ -130,6 +130,24 @@ describe('production work center localization', () => {
   })
 })
 
+describe('production schedule localization', () => {
+  afterEach(() => setI18nLocale('zh-CN'))
+
+  it('provides English scheduling, confirmation, and result labels', () => {
+    setI18nLocale('en-US')
+
+    expect(i18n.global.t('productionSchedule.title')).toBe('Finite-capacity scheduling')
+    expect(i18n.global.t('productionSchedule.status.delayed')).toBe('Expected late')
+    expect(i18n.global.t('productionSchedule.validation.dateRange')).toBe('Select a valid scheduling start and end date')
+    expect(i18n.global.t('productionSchedule.message.runConfirm', {
+      startDate: '2026-11-09', endDate: '2026-11-20'
+    })).toBe('Run the schedule from 2026-11-09 to 2026-11-20 and commit it to operation snapshots?')
+    expect(i18n.global.t('productionSchedule.message.runSucceeded', {
+      scheduled: 3, unscheduled: 1
+    })).toBe('Schedule completed: 3 scheduled, 1 unscheduled')
+  })
+})
+
 describe('production routing localization', () => {
   afterEach(() => setI18nLocale('zh-CN'))
 

@@ -28,6 +28,8 @@ public interface ProductionPermissionCodes {
     String PRODUCTION_ROUTING_UPDATE = "production:routing:update";
     String PRODUCTION_ROUTING_ENABLE = "production:routing:enable";
     String PRODUCTION_ROUTING_DISABLE = "production:routing:disable";
+    String PRODUCTION_SCHEDULE_VIEW = "production:schedule:view";
+    String PRODUCTION_SCHEDULE_RUN = "production:schedule:run";
 
     String HAS_PRODUCTION_BOM_VIEW = "hasAuthority('" + PRODUCTION_BOM_VIEW + "')";
     String HAS_PRODUCTION_BOM_MANAGE = "hasAuthority('" + PRODUCTION_BOM_MANAGE + "')";
@@ -55,4 +57,6 @@ public interface ProductionPermissionCodes {
     String HAS_PRODUCTION_ROUTING_UPDATE = "hasAuthority('" + PRODUCTION_ROUTING_UPDATE + "')";
     String HAS_PRODUCTION_ROUTING_ENABLE = "hasAuthority('" + PRODUCTION_ROUTING_ENABLE + "')";
     String HAS_PRODUCTION_ROUTING_DISABLE = "hasAuthority('" + PRODUCTION_ROUTING_DISABLE + "')";
+    String HAS_PRODUCTION_SCHEDULE_VIEW = "hasAuthority('" + PRODUCTION_SCHEDULE_VIEW + "')";
+    String HAS_PRODUCTION_SCHEDULE_RUN = "hasAuthority('" + PRODUCTION_SCHEDULE_RUN + "')";
 }

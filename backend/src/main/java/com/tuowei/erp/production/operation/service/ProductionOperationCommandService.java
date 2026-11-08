@@ -79,7 +79,8 @@ public class ProductionOperationCommandService {
             operation.setOrderId(order.getId()); operation.setRoutingId(routing.getId());
             operation.setRoutingOperationId(routingOperation.getId()); operation.setLineNo(routingOperation.getLineNo());
             operation.setOperationCode(routingOperation.getOperationCode()); operation.setOperationName(routingOperation.getOperationName());
-            operation.setWorkCenterId(routingOperation.getWorkCenterId()); operation.setPlannedQty(planned);
+            operation.setWorkCenterId(routingOperation.getWorkCenterId());
+            operation.setStandardMinutes(routingOperation.getStandardMinutes()); operation.setPlannedQty(planned);
             operation.setReportedQty(BigDecimal.ZERO.setScale(4)); operation.setQualifiedQty(BigDecimal.ZERO.setScale(4));
             operation.setScrapQty(BigDecimal.ZERO.setScale(4)); operation.setStatus(ProductionOperationService.STATUS_PENDING);
             operation.setDeletedFlag(0); operation.setRemark(routingOperation.getRemark());

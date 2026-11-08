@@ -25,7 +25,7 @@ const coreNamespaces = new Set([
   'financeAccount', 'financeAging', 'financeGrossMargin', 'financeStatement', 'barcodeScan',
   'salesOrder', 'salesDelivery', 'purchaseOrder', 'purchaseReceipt', 'purchaseReturn',
   'qcInspection', 'inventoryMrp', 'inventoryReplenishment', 'productionRouting',
-  'productionWorkCenter', 'productionBom', 'productionOrder'
+  'productionWorkCenter', 'productionSchedule', 'productionBom', 'productionOrder'
 ])
 
 const leafEntries = (value: unknown, prefix = ''): Array<[string, string]> => {

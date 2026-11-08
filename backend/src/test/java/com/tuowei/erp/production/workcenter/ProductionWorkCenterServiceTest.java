@@ -22,6 +22,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalTime;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -78,19 +80,23 @@ class ProductionWorkCenterServiceTest {
     @WithErpUser(authorities = {"production:work-center:create", "production:work-center:update"})
     void updatesOnlyNameAndRemarkWhileKeepingCodeUnchanged() {
         ProductionWorkCenterResponse created = productionWorkCenterService.create(
-                new ProductionWorkCenterCreateRequest("WC-895002", "装配", "before"));
+                new ProductionWorkCenterCreateRequest("WC-895002", "装配", 600, LocalTime.of(7, 30), "before"));
 
         ProductionWorkCenterResponse updated = productionWorkCenterService.update(
                 created.id(),
-                new ProductionWorkCenterUpdateRequest("总装", "after"));
+                new ProductionWorkCenterUpdateRequest("总装", 540, LocalTime.of(8, 15), "after"));
 
         Assertions.assertThat(updated.workCenterCode()).isEqualTo("WC-895002");
         Assertions.assertThat(updated.workCenterName()).isEqualTo("总装");
+        Assertions.assertThat(updated.dailyCapacityMinutes()).isEqualTo(540);
+        Assertions.assertThat(updated.workdayStartTime()).isEqualTo(LocalTime.of(8, 15));
         Assertions.assertThat(updated.remark()).isEqualTo("after");
 
         ProductionWorkCenterResponse detail = productionWorkCenterService.getById(created.id());
         Assertions.assertThat(detail.workCenterCode()).isEqualTo("WC-895002");
         Assertions.assertThat(detail.workCenterName()).isEqualTo("总装");
+        Assertions.assertThat(detail.dailyCapacityMinutes()).isEqualTo(540);
+        Assertions.assertThat(detail.workdayStartTime()).isEqualTo(LocalTime.of(8, 15));
         Assertions.assertThat(detail.remark()).isEqualTo("after");
     }
 
@@ -217,6 +223,8 @@ class ProductionWorkCenterServiceTest {
         copy.setAccountBookId(source.getAccountBookId());
         copy.setWorkCenterCode(source.getWorkCenterCode());
         copy.setWorkCenterName(source.getWorkCenterName());
+        copy.setDailyCapacityMinutes(source.getDailyCapacityMinutes());
+        copy.setWorkdayStartTime(source.getWorkdayStartTime());
         copy.setStatus(source.getStatus());
         copy.setDeletedFlag(source.getDeletedFlag());
         copy.setRemark(source.getRemark());

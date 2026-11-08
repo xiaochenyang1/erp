@@ -86,6 +86,8 @@ public class ProductionWorkCenterQueryService {
                 entity.getId(),
                 entity.getWorkCenterCode(),
                 entity.getWorkCenterName(),
+                entity.getDailyCapacityMinutes() == null ? 480 : entity.getDailyCapacityMinutes(),
+                entity.getWorkdayStartTime() == null ? java.time.LocalTime.of(8, 0) : entity.getWorkdayStartTime(),
                 entity.getStatus(),
                 entity.getRemark()
         );

@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Objects;
 
@@ -27,6 +28,8 @@ public class ProductionWorkCenterCommandService {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_DISABLED = "DISABLED";
+    private static final int DEFAULT_DAILY_CAPACITY_MINUTES = 480;
+    private static final LocalTime DEFAULT_WORKDAY_START_TIME = LocalTime.of(8, 0);
 
     private final ProductionWorkCenterMapper workCenterMapper;
     private final ProductionRoutingMapper routingMapper;
@@ -59,6 +62,8 @@ public class ProductionWorkCenterCommandService {
         entity.setAccountBookId(audit.accountBookId());
         entity.setWorkCenterCode(requireText(request.workCenterCode(), "工作中心编码不能为空"));
         entity.setWorkCenterName(requireText(request.workCenterName(), "工作中心名称不能为空"));
+        entity.setDailyCapacityMinutes(normalizeCapacity(request.dailyCapacityMinutes()));
+        entity.setWorkdayStartTime(normalizeStartTime(request.workdayStartTime()));
         entity.setStatus(STATUS_ACTIVE);
         entity.setDeletedFlag(0);
         entity.setRemark(queryService.normalizeNullable(request.remark()));
@@ -73,6 +78,12 @@ public class ProductionWorkCenterCommandService {
         AuditMetadata audit = auditMetadataFactory.current();
         ProductionWorkCenterEntity entity = queryService.requireWorkCenter(id, audit.companyId(), audit.accountBookId());
         entity.setWorkCenterName(requireText(request.workCenterName(), "工作中心名称不能为空"));
+        if (request.dailyCapacityMinutes() != null) {
+            entity.setDailyCapacityMinutes(normalizeCapacity(request.dailyCapacityMinutes()));
+        }
+        if (request.workdayStartTime() != null) {
+            entity.setWorkdayStartTime(normalizeStartTime(request.workdayStartTime()));
+        }
         entity.setRemark(queryService.normalizeNullable(request.remark()));
         entity.setUpdatedBy(audit.userId());
         entity.setUpdatedTime(audit.now());
@@ -158,5 +169,17 @@ public class ProductionWorkCenterCommandService {
             throw new IllegalArgumentException(message);
         }
         return value.trim();
+    }
+
+    private int normalizeCapacity(Integer value) {
+        int capacity = value == null ? DEFAULT_DAILY_CAPACITY_MINUTES : value;
+        if (capacity < 1 || capacity > 1440) {
+            throw new IllegalArgumentException("每日产能分钟数必须在1到1440之间");
+        }
+        return capacity;
+    }
+
+    private LocalTime normalizeStartTime(LocalTime value) {
+        return value == null ? DEFAULT_WORKDAY_START_TIME : value.withSecond(0).withNano(0);
     }
 }
