@@ -13,10 +13,14 @@ vi.mock('@/utils/request', () => ({
 }))
 
 import {
+  batchCloseProductionCosts,
   closeProductionOrderCost,
   correctProductionOrderCost,
   getProductionOrderCostCloses,
   getProductionOrderCosts,
+  getProductionCostPeriods,
+  getProductionCostPeriodCloseEvidence,
+  getProductionCostPeriodClosePreview,
   getWorkCenters,
   getRouting,
   getRoutings,
@@ -169,5 +173,56 @@ describe('production API 归一化', () => {
       businessDate: '2026-11-09', reason: 'late payroll'
     })
     expect(reopened.reversalOfCloseId).toBe('5')
+  })
+
+  it('normalizes period preview, partial batch results, and audit evidence', async () => {
+    get.mockResolvedValue([{
+      id: '9007199254740993', periodYear: 2026, periodMonth: '2026-11',
+      startDate: '2026-11-01', endDate: '2026-11-30', status: 'OPEN'
+    }])
+    const periods = await getProductionCostPeriods()
+    expect(get).toHaveBeenCalledWith('/production/cost-close-periods')
+    expect(periods[0]).toMatchObject({ id: '9007199254740993', periodMonth: '2026-11', status: 'OPEN' })
+
+    get.mockResolvedValue({
+      periodId: '9007199254740993', periodMonth: '2026-11', startDate: '2026-11-01', endDate: '2026-11-30',
+      periodStatus: 'OPEN', candidateCount: 1, positiveVarianceAmount: '5.00', negativeVarianceAmount: '0.00',
+      netVarianceAmount: '5.00', items: [{
+        orderId: '9007199254740995', orderNo: 'MO1', productId: '9007199254740997',
+        completionDate: '2026-11-20', latestActivityDate: '2026-11-25', issuedAmount: '50.00',
+        laborAmount: '5.00', overheadAmount: '0.00', finishedAmount: '50.00', unsettledVarianceAmount: '5.00'
+      }]
+    })
+    const preview = await getProductionCostPeriodClosePreview('9007199254740993')
+    expect(get).toHaveBeenCalledWith('/production/cost-close-periods/9007199254740993/preview')
+    expect(preview.items[0]).toMatchObject({
+      orderId: '9007199254740995', productId: '9007199254740997', unsettledVarianceAmount: 5
+    })
+
+    post.mockResolvedValue({
+      periodId: '9007199254740993', periodMonth: '2026-11', businessDate: '2026-11-30',
+      requestedCount: 2, successCount: 1, failureCount: 1, closedVarianceAmount: '5.00',
+      operatorId: '9007199254740999', executedTime: '2026-11-30T18:00:00', results: [
+        { orderId: '9007199254740995', orderNo: 'MO1', success: true, closeId: '9007199254741001', closeNo: 'PCC1', varianceAmount: '5.00' },
+        { orderId: '8', success: false, errorCode: 'NOT_IN_PERIOD', errorMessage: 'not in period' }
+      ]
+    })
+    const batch = await batchCloseProductionCosts('9007199254740993', {
+      orderIds: ['9007199254740995', '8'], remark: 'month close'
+    })
+    expect(post).toHaveBeenCalledWith('/production/cost-close-periods/9007199254740993/batch-close', {
+      orderIds: ['9007199254740995', '8'], remark: 'month close'
+    })
+    expect(batch.results[0]).toMatchObject({ closeId: '9007199254741001', varianceAmount: 5 })
+
+    get.mockResolvedValue({ records: [{
+      id: '9007199254741003', operatorId: '9007199254740999', operatorName: 'finance',
+      auditTime: '2026-11-30T18:00:00', message: 'batch close', batch
+    }], total: 1, pageNo: 1, pageSize: 20 })
+    const evidence = await getProductionCostPeriodCloseEvidence('9007199254740993', { pageNo: 1 })
+    expect(get).toHaveBeenCalledWith('/production/cost-close-periods/9007199254740993/evidence', {
+      params: { pageNo: 1 }
+    })
+    expect(evidence.records[0].batch.results[0].orderId).toBe('9007199254740995')
   })
 })

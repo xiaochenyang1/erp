@@ -290,7 +290,8 @@ export const financeReportPageMessages = {
           receiptAllocationMismatch: '收款核销不一致',
           settlementAmountInvalid: '应收应付金额异常',
           bankStatementUnmatched: '银行流水未匹配',
-          inventoryBalanceNegative: '负库存余额'
+          inventoryBalanceNegative: '负库存余额',
+          productionCostUnclosed: '已完工工单未成本关单'
         },
         difference: {
           inventoryOnly: '仅库存有记录',
@@ -1018,7 +1019,7 @@ export const financeReportPageMessages = {
           voucherEntryMissing: 'Voucher entries missing', voucherUnbalanced: 'Voucher is unbalanced',
           paymentAllocationMismatch: 'Payment allocation mismatch', receiptAllocationMismatch: 'Receipt allocation mismatch',
           settlementAmountInvalid: 'Invalid receivable/payable amount', bankStatementUnmatched: 'Unmatched bank statement',
-          inventoryBalanceNegative: 'Negative inventory balance'
+          inventoryBalanceNegative: 'Negative inventory balance', productionCostUnclosed: 'Completed production costs not closed'
         },
         difference: { inventoryOnly: 'Inventory record only', financeOnly: 'Finance record only', amountMismatch: 'Amount mismatch' },
         source: {

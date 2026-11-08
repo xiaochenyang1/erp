@@ -57,6 +57,9 @@ class AccountPeriodControllerTest {
         jdbcTemplate.update("delete from fin_voucher_entry where voucher_id between 863000 and 863999 or id between 863000 and 863999");
         jdbcTemplate.update("delete from fin_voucher where id between 863000 and 863999");
         jdbcTemplate.update("delete from inv_txn where id between 863000 and 863999");
+        jdbcTemplate.update("delete from prd_completion where order_id between 863000 and 863999");
+        jdbcTemplate.update("delete from prd_cost_entry where order_id between 863000 and 863999");
+        jdbcTemplate.update("delete from prd_order where id between 863000 and 863999");
         jdbcTemplate.update("delete from fin_account_period where id between 863000 and 863999 or period_year in (2036, 2037)");
     }
 
@@ -199,6 +202,30 @@ class AccountPeriodControllerTest {
                 .hasMessage("期间月结检查未通过，不能锁定");
     }
 
+    @Test
+    @WithErpUser(authorities = {PERIOD_CLOSE, PERIOD_VIEW})
+    void closeCheckReportsCompletedOrdersWithoutCostCloseAndBlocksLock() {
+        seedPeriod(863711L, 2037, "2037-08", "OPEN");
+        seedCompletedProductionOrder(863721L, "MO-863721", LocalDate.of(2037, 8, 20));
+
+        AccountPeriodCloseCheckResponse check = closeChecker.check(863711L);
+
+        Assertions.assertThat(check.passed()).isFalse();
+        Assertions.assertThat(check.issues())
+                .extracting("type")
+                .contains("PRODUCTION_COST_UNCLOSED");
+        Assertions.assertThat(check.checks())
+                .filteredOn(item -> item.code().equals("PRODUCTION_COST_UNCLOSED"))
+                .singleElement()
+                .satisfies(item -> {
+                    Assertions.assertThat(item.passed()).isFalse();
+                    Assertions.assertThat(item.metric()).isEqualByComparingTo("1");
+                });
+        Assertions.assertThatThrownBy(() -> accountPeriodService.lock(863711L))
+                .isInstanceOf(BusinessConflictException.class)
+                .hasMessage("期间月结检查未通过，不能锁定");
+    }
+
     private void seedPeriod(long id, int year, String periodMonth, String status) {
         LocalDate start = LocalDate.parse(periodMonth + "-01");
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
@@ -299,6 +326,39 @@ class AccountPeriodControllerTest {
                 status,
                 LocalDateTime.of(2026, 5, 26, 9, 0),
                 LocalDateTime.of(2026, 5, 26, 9, 0));
+    }
+
+    private void seedCompletedProductionOrder(long id, String orderNo, LocalDate completionDate) {
+        jdbcTemplate.update("""
+                insert into prd_order
+                (id, company_id, account_book_id, order_no, bom_id, product_id, material_warehouse_id,
+                 finished_warehouse_id, planned_qty, completed_qty, planned_start_date, planned_finish_date,
+                 status, issued_amount, labor_amount, overhead_amount, finished_amount,
+                 finished_material_amount, finished_labor_amount, finished_overhead_amount,
+                 cost_close_status, settled_variance_amount, deleted_flag, created_by, created_time,
+                 updated_by, updated_time, version)
+                values (?, 1, 1, ?, 1, 1, 1, 1, 1, 1, ?, ?, 'COMPLETED',
+                        100, 5, 0, 100, 100, 0, 0, 'OPEN', 0, 0, 0, ?, 0, ?, 0)
+                """,
+                id,
+                orderNo,
+                completionDate.minusDays(2),
+                completionDate,
+                LocalDateTime.of(2037, 8, 20, 9, 0),
+                LocalDateTime.of(2037, 8, 20, 9, 0));
+        jdbcTemplate.update("""
+                insert into prd_completion
+                (id, company_id, account_book_id, completion_no, order_id, completion_date,
+                 completed_qty, completed_amount, material_cost_amount, labor_cost_amount, overhead_cost_amount,
+                 created_by, created_time, updated_by, updated_time, version)
+                values (?, 1, 1, ?, ?, ?, 1, 100, 100, 0, 0, 0, ?, 0, ?, 0)
+                """,
+                id + 100,
+                "PC-" + id,
+                id,
+                completionDate,
+                LocalDateTime.of(2037, 8, 20, 9, 0),
+                LocalDateTime.of(2037, 8, 20, 9, 0));
     }
 
     private void deleteIfExists(String tableName, String condition) {

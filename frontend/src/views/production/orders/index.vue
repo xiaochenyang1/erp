@@ -44,7 +44,16 @@
       <template #header>
         <div class="card-header">
           <span>{{ t('productionOrder.title') }}</span>
-          <el-button v-permission="'production:order:create'" type="primary" :icon="Plus" @click="handleAdd">{{ t('productionOrder.create') }}</el-button>
+          <div>
+            <el-button
+              v-permission="'production:order:cost:close'"
+              type="warning"
+              @click="openPeriodClose"
+            >
+              {{ t('productionOrder.periodClose') }}
+            </el-button>
+            <el-button v-permission="'production:order:create'" type="primary" :icon="Plus" @click="handleAdd">{{ t('productionOrder.create') }}</el-button>
+          </div>
         </div>
       </template>
 
@@ -1075,6 +1084,160 @@
       </template>
     </el-dialog>
 
+    <el-dialog
+      v-model="periodCloseDialogVisible"
+      :title="t('productionOrder.periodCloseTitle')"
+      width="1180px"
+      destroy-on-close
+    >
+      <div class="period-close-filter">
+        <el-select
+          v-model="periodClosePeriodId"
+          :placeholder="t('productionOrder.periodCloseSelectPeriod')"
+          style="width: 220px"
+          @change="loadPeriodClosePeriod"
+        >
+          <el-option
+            v-for="period in periodClosePeriods"
+            :key="period.id"
+            :label="`${period.periodMonth} · ${t(`financeReportPages.periods.status.${period.status.toLowerCase()}`)}`"
+            :value="period.id"
+          />
+        </el-select>
+        <el-tag :type="periodClosePreview?.periodStatus === 'OPEN' ? 'success' : 'info'">
+          {{ periodClosePreview
+            ? t(`financeReportPages.periods.status.${periodClosePreview.periodStatus.toLowerCase()}`)
+            : '-' }}
+        </el-tag>
+        <span v-if="periodClosePreview">
+          {{ periodClosePreview.startDate }} ~ {{ periodClosePreview.endDate }}
+        </span>
+        <el-button :loading="periodCloseLoading" @click="loadPeriodClosePeriod">
+          {{ t('productionOrder.refresh') }}
+        </el-button>
+      </div>
+
+      <el-row v-if="periodClosePreview" :gutter="12" class="period-close-summary">
+        <el-col :span="6">
+          <el-statistic :title="t('productionOrder.periodCloseCandidates')" :value="periodClosePreview.candidateCount" />
+        </el-col>
+        <el-col :span="6">
+          <el-statistic :title="t('productionOrder.periodClosePositiveVariance')" :value="periodClosePreview.positiveVarianceAmount" :precision="2" />
+        </el-col>
+        <el-col :span="6">
+          <el-statistic :title="t('productionOrder.periodCloseNegativeVariance')" :value="periodClosePreview.negativeVarianceAmount" :precision="2" />
+        </el-col>
+        <el-col :span="6">
+          <el-statistic :title="t('productionOrder.periodCloseNetVariance')" :value="periodClosePreview.netVarianceAmount" :precision="2" />
+        </el-col>
+      </el-row>
+
+      <el-table
+        v-loading="periodCloseLoading"
+        :data="periodClosePreview?.items || []"
+        border
+        stripe
+        max-height="340"
+        @selection-change="handlePeriodCloseSelection"
+      >
+        <el-table-column type="selection" width="48" :selectable="() => periodClosePreview?.periodStatus === 'OPEN'" />
+        <el-table-column prop="orderNo" :label="t('productionOrder.orderNo')" width="170" />
+        <el-table-column prop="completionDate" :label="t('productionOrder.completionDate')" width="120" />
+        <el-table-column prop="latestActivityDate" :label="t('productionOrder.periodCloseLatestActivity')" width="130" />
+        <el-table-column :label="t('productionOrder.materialCost')" width="120" align="right">
+          <template #default="{ row }">{{ formatCostAmount(row.issuedAmount) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.laborCost')" width="120" align="right">
+          <template #default="{ row }">{{ formatCostAmount(row.laborAmount) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.overheadCost')" width="120" align="right">
+          <template #default="{ row }">{{ formatCostAmount(row.overheadAmount) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.finishedCost')" width="120" align="right">
+          <template #default="{ row }">{{ formatCostAmount(row.finishedAmount) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.unsettledCostVariance')" min-width="130" align="right">
+          <template #default="{ row }">{{ formatCostAmount(row.unsettledVarianceAmount) }}</template>
+        </el-table-column>
+      </el-table>
+      <el-empty
+        v-if="!periodCloseLoading && periodClosePreview && periodClosePreview.items.length === 0"
+        :description="t('productionOrder.periodCloseEmpty')"
+      />
+
+      <el-input
+        v-model="periodCloseRemark"
+        type="textarea"
+        :rows="2"
+        maxlength="255"
+        show-word-limit
+        :placeholder="t('productionOrder.periodCloseRemark')"
+        class="period-close-remark"
+      />
+
+      <template v-if="periodCloseBatchResult">
+        <h4>{{ t('productionOrder.periodCloseResult') }}</h4>
+        <el-alert
+          :type="periodCloseBatchResult.failureCount ? 'warning' : 'success'"
+          :closable="false"
+          show-icon
+          :title="t('productionOrder.periodCloseResultSummary', {
+            success: periodCloseBatchResult.successCount,
+            failed: periodCloseBatchResult.failureCount,
+            amount: formatCostAmount(periodCloseBatchResult.closedVarianceAmount)
+          })"
+        />
+        <el-table :data="periodCloseBatchResult.results" border stripe max-height="260" style="margin-top: 10px">
+          <el-table-column prop="orderNo" :label="t('productionOrder.orderNo')" width="170">
+            <template #default="{ row }">{{ row.orderNo || row.orderId }}</template>
+          </el-table-column>
+          <el-table-column :label="t('productionOrder.periodCloseResultStatus')" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.success ? 'success' : 'danger'">
+                {{ t(row.success ? 'productionOrder.periodCloseResultSuccess' : 'productionOrder.periodCloseResultFailed') }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="closeNo" :label="t('productionOrder.costCloseNo')" width="180" />
+          <el-table-column :label="t('productionOrder.costVariance')" width="120" align="right">
+            <template #default="{ row }">{{ row.varianceAmount == null ? '-' : formatCostAmount(row.varianceAmount) }}</template>
+          </el-table-column>
+          <el-table-column prop="errorMessage" :label="t('productionOrder.periodCloseFailureReason')" min-width="260" show-overflow-tooltip />
+        </el-table>
+      </template>
+
+      <h4>{{ t('productionOrder.periodCloseEvidence') }}</h4>
+      <el-table v-loading="periodCloseEvidenceLoading" :data="periodCloseEvidence" border stripe max-height="260">
+        <el-table-column :label="t('productionOrder.createdAt')" width="180">
+          <template #default="{ row }">{{ formatLocalizedDateTime(row.auditTime) }}</template>
+        </el-table-column>
+        <el-table-column prop="operatorName" :label="t('productionOrder.periodCloseOperator')" width="140" />
+        <el-table-column :label="t('productionOrder.periodCloseSuccessCount')" width="100" align="right">
+          <template #default="{ row }">{{ row.batch.successCount }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.periodCloseFailureCount')" width="100" align="right">
+          <template #default="{ row }">{{ row.batch.failureCount }}</template>
+        </el-table-column>
+        <el-table-column :label="t('productionOrder.costVariance')" width="130" align="right">
+          <template #default="{ row }">{{ formatCostAmount(row.batch.closedVarianceAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="message" :label="t('productionOrder.periodCloseAuditMessage')" min-width="320" show-overflow-tooltip />
+      </el-table>
+
+      <template #footer>
+        <el-button @click="periodCloseDialogVisible = false">{{ t('productionOrder.close') }}</el-button>
+        <el-button
+          v-permission="'production:order:cost:close'"
+          type="primary"
+          :disabled="!periodCloseCanSubmit"
+          :loading="periodCloseSubmitting"
+          @click="submitPeriodClose"
+        >
+          {{ t('productionOrder.periodCloseExecute') }}
+        </el-button>
+      </template>
+    </el-dialog>
+
     <DocumentAttachmentDialog
       v-model="attachmentVisible"
       business-type="PRODUCTION_ORDER"
@@ -1110,7 +1273,11 @@ import {
   correctProductionOrderCost,
   getProductionOrderCostCloses,
   closeProductionOrderCost,
-  reopenProductionOrderCost
+  reopenProductionOrderCost,
+  getProductionCostPeriods,
+  getProductionCostPeriodClosePreview,
+  batchCloseProductionCosts,
+  getProductionCostPeriodCloseEvidence
 } from '@/api/production'
 import { getProducts, getProduct, getWarehouses, getLocations } from '@/api/masterdata'
 import { getBOMs } from '@/api/production'
@@ -1125,6 +1292,7 @@ import { useProductionOrderPresentation } from '@/composables/useProductionOrder
 import { useProductionOrderProductControls } from '@/composables/useProductionOrderProductControls'
 import { useProductionOrderOperations } from '@/composables/useProductionOrderOperations'
 import { useProductionOrderCosts } from '@/composables/useProductionOrderCosts'
+import { useProductionCostPeriodClose } from '@/composables/useProductionCostPeriodClose'
 import { useProductionOrderCompletion } from '@/composables/useProductionOrderCompletion'
 import { useProductionOrderMaterials } from '@/composables/useProductionOrderMaterials'
 import { useProductionOrderForm } from '@/composables/useProductionOrderForm'
@@ -1264,6 +1432,33 @@ const {
   onCompleted: () => loadData()
 })
 const {
+  batchResult: periodCloseBatchResult,
+  canSubmit: periodCloseCanSubmit,
+  dialogVisible: periodCloseDialogVisible,
+  evidence: periodCloseEvidence,
+  evidenceLoading: periodCloseEvidenceLoading,
+  handleSelectionChange: handlePeriodCloseSelection,
+  loadPeriod: loadPeriodClosePeriod,
+  loading: periodCloseLoading,
+  open: openPeriodClose,
+  periodId: periodClosePeriodId,
+  periods: periodClosePeriods,
+  preview: periodClosePreview,
+  remark: periodCloseRemark,
+  submit: submitPeriodClose,
+  submitting: periodCloseSubmitting
+} = useProductionCostPeriodClose(t, {
+  loadPeriods: getProductionCostPeriods,
+  loadPreview: getProductionCostPeriodClosePreview,
+  closeBatch: batchCloseProductionCosts,
+  loadEvidence: getProductionCostPeriodCloseEvidence,
+  confirm: (message, title) => ElMessageBox.confirm(message, title, { type: 'warning' }),
+  onError: (message) => ElMessage.error(message),
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message),
+  onCompleted: () => loadData()
+})
+const {
   canReverseCompletion,
   completeDialogVisible,
   completeForm,
@@ -1381,6 +1576,21 @@ onMounted(async () => {
 
 .cost-close-history-title {
   margin: 18px 0 10px;
+}
+
+.period-close-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.period-close-summary {
+  margin-bottom: 14px;
+}
+
+.period-close-remark {
+  margin-top: 12px;
 }
 
 .serial-progress {

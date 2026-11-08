@@ -12,6 +12,9 @@ describe('finance period presentation', () => {
     expect(presentation.getStatusLabel('LOCKED')).toBe('financeReportPages.periods.status.locked')
     expect(presentation.getStatusType('CLOSED')).toBe('success')
     expect(presentation.getIssueSeverity('INVENTORY_FINANCE_RECONCILIATION')).toBe('danger')
+    expect(presentation.getIssueTypeLabel('PRODUCTION_COST_UNCLOSED')).toBe(
+      'financeReportPages.periods.issue.productionCostUnclosed'
+    )
     expect(presentation.getDifferenceTypeTag('AMOUNT_MISMATCH')).toBe('danger')
     expect(presentation.getSourceTypeLabel('SALES_DELIVERY')).toBe(
       'financeReportPages.periods.source.salesDelivery'

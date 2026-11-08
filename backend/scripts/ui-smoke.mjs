@@ -5729,9 +5729,16 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
 async function runProductionOrderWorkflow(cdp, auth) {
   resetEvents(cdp.events)
   const fixture = await prepareProductionOrderFixture(auth)
+  const periodMonth = fixture.plannedFinishDate.slice(0, 7)
+  const periods = await apiRequest(auth, 'GET', `/finance/periods?year=${fixture.plannedFinishDate.slice(0, 4)}`)
+  const costClosePeriod = periods.find((period) => period.periodMonth === periodMonth)
+  if (!costClosePeriod?.id || costClosePeriod.status !== 'OPEN') {
+    throw new Error(`production cost close period ${periodMonth} is not open`)
+  }
   const remark = `UI smoke 生产订单 ${fixture.suffix}`
   let order = null
   let costClose = null
+  let periodCloseEvidence = null
   try {
     await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/production/orders` })
     await waitForPage(cdp, `
@@ -6208,39 +6215,64 @@ async function runProductionOrderWorkflow(cdp, auth) {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after late production cost'))}`)
     })
 
-    await invokeButton(cdp, '成本关单', 'production cost close button', costDialog)
-    const costCloseDialog = dialogExpression('生产成本关单 ·')
-    await waitForPage(cdp, `Boolean(${costCloseDialog})`, 'production cost close dialog')
-    await setElementValue(
+    const beforeBatchCheck = await apiRequest(auth, 'GET', `/finance/periods/${costClosePeriod.id}/close-check`)
+    if (beforeBatchCheck.passed
+      || !(beforeBatchCheck.issues || []).some((item) => item.type === 'PRODUCTION_COST_UNCLOSED')) {
+      throw new Error('period close check did not block the unclosed completed production order')
+    }
+
+    await invokeButton(cdp, '关闭', 'late production cost dialog close button', costDialog)
+    await waitForPage(cdp, `!${costDialog}`, 'late production cost dialog dismissed')
+    await invokeButton(cdp, '期间批量关单', 'production cost period close button')
+    const periodCloseDialog = dialogExpression('生产成本期间批量关单')
+    await waitForPage(cdp, `Boolean(${periodCloseDialog})`, 'production cost period close dialog')
+    await clickElement(
       cdp,
-      `${costCloseDialog}.querySelector('.el-date-editor input')`,
-      fixture.plannedFinishDate,
-      'production cost close date input'
+      `${periodCloseDialog}.querySelector('.period-close-filter .el-select__wrapper')`,
+      'production cost close period select'
+    )
+    await invokeElement(
+      cdp,
+      `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(periodMonth)}))`,
+      'production cost close period option'
+    )
+    const periodOrderRow = `[...${periodCloseDialog}.querySelectorAll('.el-table__body-wrapper tbody tr')]
+      .find((item) => item.getBoundingClientRect().height > 0 && item.innerText.includes(${JSON.stringify(order.orderNo)}))`
+    await waitForPage(cdp, `Boolean(${periodOrderRow}?.innerText.includes('5.00'))`, 'production cost period candidate')
+    await clickElement(
+      cdp,
+      `${periodOrderRow}.querySelector('.el-checkbox__input')`,
+      'production cost period candidate checkbox'
     )
     await setElementValue(
       cdp,
-      `${costCloseDialog}.querySelector('.el-form-item:nth-child(2) input')`,
-      'UI smoke 成本关单',
-      'production cost close remark input'
+      `${periodCloseDialog}.querySelector('.period-close-remark textarea')`,
+      'UI smoke 期间批量关单',
+      'production cost period close remark'
     )
-    await invokeButton(cdp, '确认关单', 'production cost close confirm button', costCloseDialog)
-    costClose = await waitForPage(cdp, `
+    await invokeButton(cdp, '执行批量关单', 'production cost period close execute button', periodCloseDialog)
+    await waitForPage(cdp, `Boolean(${messageBoxExpression('确认按')})`, 'production cost period close confirmation')
+    await invokeButton(cdp, '确定', 'production cost period close confirmation button', messageBoxExpression('确认按'))
+    const periodCloseResult = await waitForPage(cdp, `
       (async () => {
-        if (${costCloseDialog}) return false;
         const token = localStorage.getItem('token');
         const headers = token ? { Authorization: 'Bearer ' + token } : {};
-        const [detailResponse, closesResponse, reportResponse] = await Promise.all([
+        const [detailResponse, closesResponse, reportResponse, evidenceResponse, closeCheckResponse] = await Promise.all([
           fetch('/api/production/orders/' + ${JSON.stringify(order.id)}, { headers }),
           fetch('/api/production/orders/' + ${JSON.stringify(order.id)} + '/cost-closes', { headers }),
-          fetch('/api/reports/production-costs?pageNo=1&pageSize=20&keyword=' + encodeURIComponent(${JSON.stringify(order.orderNo)}), { headers })
+          fetch('/api/reports/production-costs?pageNo=1&pageSize=20&keyword=' + encodeURIComponent(${JSON.stringify(order.orderNo)}), { headers }),
+          fetch('/api/production/cost-close-periods/' + ${JSON.stringify(String(costClosePeriod.id))} + '/evidence?pageNo=1&pageSize=20', { headers }),
+          fetch('/api/finance/periods/' + ${JSON.stringify(String(costClosePeriod.id))} + '/close-check', { headers })
         ]);
-        if (!detailResponse.ok || !closesResponse.ok || !reportResponse.ok) return false;
+        if (!detailResponse.ok || !closesResponse.ok || !reportResponse.ok || !evidenceResponse.ok || !closeCheckResponse.ok) return false;
         const detail = (await detailResponse.json())?.data;
         const closes = (await closesResponse.json())?.data || [];
         const report = (await reportResponse.json())?.data?.records?.[0];
+        const evidence = (await evidenceResponse.json())?.data?.records?.[0];
+        const closeCheck = (await closeCheckResponse.json())?.data;
         const close = closes.find((item) => item.entryKind === 'CLOSE'
           && Number(item.amount) === ${lateCostAmount}
-          && item.remark === 'UI smoke 成本关单');
+          && item.remark === 'UI smoke 期间批量关单');
         return detail?.costCloseStatus === 'CLOSED'
           && Number(detail.settledVarianceAmount) === ${lateCostAmount}
           && close
@@ -6251,17 +6283,23 @@ async function runProductionOrderWorkflow(cdp, auth) {
           && Number(report.workInProgressCost) === 0
           && Number(report.productionCostLedgerAmount) === 0
           && Number(report.reconciliationDifference) === 0
-          && ${costDialog}?.innerText.includes('成本已关单')
-          && ${costDialog}?.innerText.includes('0.00')
-          && !${costDialog}?.querySelector('.cost-entry-form')
-          ? close
+          && evidence?.batch?.successCount === 1
+          && evidence?.batch?.failureCount === 0
+          && evidence?.batch?.results?.[0]?.closeNo === close.closeNo
+          && (closeCheck?.issues || []).every((item) => item.type !== 'PRODUCTION_COST_UNCLOSED')
+          && (closeCheck?.checks || []).some((item) => item.code === 'PRODUCTION_COST_UNCLOSED' && item.passed === true)
+          && ${periodCloseDialog}?.innerText.includes('本次执行结果')
+          && ${periodCloseDialog}?.innerText.includes('成功 1 张')
+          ? { close, evidence }
           : false;
       })()
-    `, 'production cost closed and variance settled', 30000).catch(async (error) => {
-      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production cost close'))}`)
+    `, 'production cost period batch closed with audit evidence', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production cost period close'))}`)
     })
-    await invokeButton(cdp, '关闭', 'closed production cost dialog close button', costDialog)
-    await waitForPage(cdp, `!${costDialog}`, 'closed production cost dialog dismissed')
+    costClose = periodCloseResult.close
+    periodCloseEvidence = periodCloseResult.evidence
+    await invokeButton(cdp, '关闭', 'production cost period close dialog close button', periodCloseDialog)
+    await waitForPage(cdp, `!${periodCloseDialog}`, 'production cost period close dialog dismissed')
   } catch (error) {
     const diagnostic = await pageDiagnostics(cdp, 'production workflow failure').catch(() => null)
     throw new Error(`${error.message}${diagnostic ? `\n${JSON.stringify(diagnostic, null, 2)}` : ''}`)
@@ -6278,6 +6316,7 @@ async function runProductionOrderWorkflow(cdp, auth) {
     laborCostAmount: 30.5,
     lateCostAmount: 5,
     costCloseNo: costClose?.closeNo || null,
+    periodCloseEvidenceId: periodCloseEvidence?.id || null,
     passed: failures.length === 0,
     failures
   }

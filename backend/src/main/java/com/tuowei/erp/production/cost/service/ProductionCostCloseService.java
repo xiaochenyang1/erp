@@ -192,7 +192,7 @@ public class ProductionCostCloseService {
         }
     }
 
-    private LocalDate latestActivityDate(ProductionOrderEntity order) {
+    LocalDate latestActivityDate(ProductionOrderEntity order) {
         LocalDate latest = costEntryMapper.selectList(new LambdaQueryWrapper<ProductionCostEntryEntity>()
                         .eq(ProductionCostEntryEntity::getCompanyId, order.getCompanyId())
                         .eq(ProductionCostEntryEntity::getAccountBookId, order.getAccountBookId())
@@ -201,19 +201,23 @@ public class ProductionCostCloseService {
                         .orderByDesc(ProductionCostEntryEntity::getBusinessDate)
                         .last("limit 1"))
                 .stream().findFirst().map(ProductionCostEntryEntity::getBusinessDate).orElse(null);
-        LocalDate completionDate = completionMapper.selectList(new LambdaQueryWrapper<ProductionCompletionEntity>()
+        LocalDate completionDate = latestCompletionDate(order);
+        if (latest == null) return completionDate;
+        if (completionDate == null) return latest;
+        return latest.isAfter(completionDate) ? latest : completionDate;
+    }
+
+    LocalDate latestCompletionDate(ProductionOrderEntity order) {
+        return completionMapper.selectList(new LambdaQueryWrapper<ProductionCompletionEntity>()
                         .eq(ProductionCompletionEntity::getCompanyId, order.getCompanyId())
                         .eq(ProductionCompletionEntity::getAccountBookId, order.getAccountBookId())
                         .eq(ProductionCompletionEntity::getOrderId, order.getId())
                         .orderByDesc(ProductionCompletionEntity::getCompletionDate)
                         .last("limit 1"))
                 .stream().findFirst().map(ProductionCompletionEntity::getCompletionDate).orElse(null);
-        if (latest == null) return completionDate;
-        if (completionDate == null) return latest;
-        return latest.isAfter(completionDate) ? latest : completionDate;
     }
 
-    private BigDecimal unsettledVariance(ProductionOrderEntity order) {
+    BigDecimal unsettledVariance(ProductionOrderEntity order) {
         BigDecimal input = ScalePrecision.zeroDefault(order.getIssuedAmount())
                 .add(ScalePrecision.zeroDefault(order.getLaborAmount()))
                 .add(ScalePrecision.zeroDefault(order.getOverheadAmount()));

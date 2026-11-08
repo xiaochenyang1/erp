@@ -745,6 +745,79 @@ export interface ProductionCostReopenRequest {
   reason: string
 }
 
+export interface ProductionCostPeriodCloseItem {
+  orderId: string
+  orderNo: string
+  productId: string
+  completionDate: string
+  latestActivityDate?: string
+  issuedAmount: number
+  laborAmount: number
+  overheadAmount: number
+  finishedAmount: number
+  unsettledVarianceAmount: number
+}
+
+export interface ProductionCostPeriod {
+  id: string
+  periodYear: number
+  periodMonth: string
+  startDate: string
+  endDate: string
+  status: string
+}
+
+export interface ProductionCostPeriodClosePreview {
+  periodId: string
+  periodMonth: string
+  startDate: string
+  endDate: string
+  periodStatus: string
+  candidateCount: number
+  positiveVarianceAmount: number
+  negativeVarianceAmount: number
+  netVarianceAmount: number
+  items: ProductionCostPeriodCloseItem[]
+}
+
+export interface ProductionCostPeriodCloseBatchRequest {
+  orderIds: Array<string | number>
+  remark?: string
+}
+
+export interface ProductionCostPeriodCloseBatchItem {
+  orderId: string
+  orderNo?: string
+  success: boolean
+  closeId?: string
+  closeNo?: string
+  varianceAmount?: number
+  errorCode?: string
+  errorMessage?: string
+}
+
+export interface ProductionCostPeriodCloseBatch {
+  periodId: string
+  periodMonth: string
+  businessDate: string
+  requestedCount: number
+  successCount: number
+  failureCount: number
+  closedVarianceAmount: number
+  operatorId: string
+  executedTime: string
+  results: ProductionCostPeriodCloseBatchItem[]
+}
+
+export interface ProductionCostPeriodCloseEvidence {
+  id: string
+  operatorId?: string
+  operatorName?: string
+  auditTime: string
+  message: string
+  batch: ProductionCostPeriodCloseBatch
+}
+
 const normalizeCostEntry = (entry: ProductionCostEntry): ProductionCostEntry => ({
   ...entry,
   id: String(entry.id),
@@ -823,4 +896,73 @@ export const reopenProductionOrderCost = (
   return request
     .post<ProductionCostCloseEntry>(`/production/orders/${orderId}/cost-reopen`, data)
     .then(normalizeCostCloseEntry)
+}
+
+const normalizePeriodCloseItem = (item: ProductionCostPeriodCloseItem): ProductionCostPeriodCloseItem => ({
+  ...item,
+  orderId: String(item.orderId),
+  productId: String(item.productId),
+  issuedAmount: Number(item.issuedAmount ?? 0),
+  laborAmount: Number(item.laborAmount ?? 0),
+  overheadAmount: Number(item.overheadAmount ?? 0),
+  finishedAmount: Number(item.finishedAmount ?? 0),
+  unsettledVarianceAmount: Number(item.unsettledVarianceAmount ?? 0)
+})
+
+export const getProductionCostPeriods = () => {
+  return request
+    .get<ProductionCostPeriod[]>('/production/cost-close-periods')
+    .then((periods) => periods.map((period) => ({ ...period, id: String(period.id) })))
+}
+
+const normalizePeriodCloseBatch = (batch: ProductionCostPeriodCloseBatch): ProductionCostPeriodCloseBatch => ({
+  ...batch,
+  periodId: String(batch.periodId),
+  operatorId: String(batch.operatorId),
+  closedVarianceAmount: Number(batch.closedVarianceAmount ?? 0),
+  results: (batch.results || []).map((item) => ({
+    ...item,
+    orderId: String(item.orderId),
+    closeId: item.closeId != null ? String(item.closeId) : undefined,
+    varianceAmount: item.varianceAmount == null ? undefined : Number(item.varianceAmount)
+  }))
+})
+
+export const getProductionCostPeriodClosePreview = (periodId: string | number) => {
+  return request
+    .get<ProductionCostPeriodClosePreview>(`/production/cost-close-periods/${periodId}/preview`)
+    .then((preview) => ({
+      ...preview,
+      periodId: String(preview.periodId),
+      positiveVarianceAmount: Number(preview.positiveVarianceAmount ?? 0),
+      negativeVarianceAmount: Number(preview.negativeVarianceAmount ?? 0),
+      netVarianceAmount: Number(preview.netVarianceAmount ?? 0),
+      items: (preview.items || []).map(normalizePeriodCloseItem)
+    }))
+}
+
+export const batchCloseProductionCosts = (
+  periodId: string | number,
+  data: ProductionCostPeriodCloseBatchRequest
+) => {
+  return request
+    .post<ProductionCostPeriodCloseBatch>(`/production/cost-close-periods/${periodId}/batch-close`, data)
+    .then(normalizePeriodCloseBatch)
+}
+
+export const getProductionCostPeriodCloseEvidence = (
+  periodId: string | number,
+  params?: PageQuery
+) => {
+  return request
+    .get<PageResponse<ProductionCostPeriodCloseEvidence>>(`/production/cost-close-periods/${periodId}/evidence`, { params })
+    .then((page) => ({
+      ...page,
+      records: page.records.map((evidence) => ({
+        ...evidence,
+        id: String(evidence.id),
+        operatorId: evidence.operatorId != null ? String(evidence.operatorId) : undefined,
+        batch: normalizePeriodCloseBatch(evidence.batch)
+      }))
+    }))
 }

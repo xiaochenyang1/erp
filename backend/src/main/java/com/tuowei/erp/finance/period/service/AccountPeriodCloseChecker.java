@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Objects;
 
 @Service
-@NativeSqlTenantScoped("JdbcTemplate close checks use the selected account period as the scope source and pass its company_id/account_book_id into every tenant-owned balance, voucher, and settlement query.")
+@NativeSqlTenantScoped("JdbcTemplate close checks use the selected account period as the scope source and pass its company_id/account_book_id into every tenant-owned production, balance, voucher, and settlement query.")
 public class AccountPeriodCloseChecker {
 
     private final AccountPeriodMapper accountPeriodMapper;
@@ -58,6 +58,7 @@ public class AccountPeriodCloseChecker {
         List<AccountPeriodCloseCheckItemResponse> checks = new ArrayList<>();
 
         addOpenDocumentsCheck(period, issues, checks);
+        addProductionCostCloseCheck(period, issues, checks);
         addInventoryFinanceCheck(period, issues, checks);
         addVoucherChecks(period, issues, checks);
         addSettlementChecks(period, issues, checks);
@@ -72,6 +73,64 @@ public class AccountPeriodCloseChecker {
                 issues,
                 checks
         );
+    }
+
+    private void addProductionCostCloseCheck(
+            AccountPeriodEntity period,
+            List<AccountPeriodCloseIssueResponse> issues,
+            List<AccountPeriodCloseCheckItemResponse> checks
+    ) {
+        Long unclosedCount = jdbcTemplate.queryForObject("""
+                select count(*)
+                from prd_order o
+                where o.company_id = ?
+                  and o.account_book_id = ?
+                  and o.deleted_flag = 0
+                  and o.status = 'COMPLETED'
+                  and o.cost_close_status = 'OPEN'
+                  and (
+                      select max(c.completion_date)
+                      from prd_completion c
+                      where c.company_id = o.company_id
+                        and c.account_book_id = o.account_book_id
+                        and c.order_id = o.id
+                  ) <= ?
+                  and not exists (
+                      select 1
+                      from prd_cost_entry e
+                      where e.company_id = o.company_id
+                        and e.account_book_id = o.account_book_id
+                        and e.order_id = o.id
+                        and e.deleted_flag = 0
+                        and e.business_date > ?
+                  )
+                """,
+                Long.class,
+                period.getCompanyId(),
+                period.getAccountBookId(),
+                period.getEndDate(),
+                period.getEndDate()
+        );
+        long count = unclosedCount == null ? 0L : unclosedCount;
+        boolean passed = count == 0;
+        String message = passed
+                ? "期间截止日前已完工工单均已成本关单"
+                : String.format("存在未成本关单的已完工工单 %d 张", count);
+        checks.add(new AccountPeriodCloseCheckItemResponse(
+                "PRODUCTION_COST_UNCLOSED",
+                "生产成本关单",
+                "生产",
+                passed,
+                message,
+                BigDecimal.valueOf(count)
+        ));
+        if (!passed) {
+            issues.add(new AccountPeriodCloseIssueResponse(
+                    "PRODUCTION_COST_UNCLOSED",
+                    message,
+                    BigDecimal.valueOf(count)
+            ));
+        }
     }
 
     private void addOpenDocumentsCheck(
@@ -384,4 +443,5 @@ public class AccountPeriodCloseChecker {
         );
         return value == null ? 0L : value;
     }
+
 }
