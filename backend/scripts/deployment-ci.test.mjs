@@ -106,6 +106,15 @@ test('adapts verified backend and frontend bytes into the existing deployment bu
     manifestSha256: f.verifyOptions.expectedManifestSha256, deploymentChecks: 8, businessChecks: 11, cleanupPassed: true })
 })
 
+test('deployment smoke allows slow image builds and preserves failed Docker output', () => {
+  const smoke = readFileSync(path.join(source, 'backend/scripts/deployment-smoke.mjs'), 'utf8')
+
+  assert.match(smoke, /await compose\(\['build'\], 600000\)/)
+  assert.match(smoke, /program === 'docker' && output/)
+  assert.match(smoke, /appendFile\(path\.join\(evidence, 'docker\.log'\), output\)/)
+  assert.match(smoke, /error\.killed \? ` after \$\{timeout\}ms timeout`/)
+})
+
 test('refuses dirty checkouts and the wrong requested revision before publishing a candidate', t => {
   const f = fixture(t)
   assert.throws(() => prepareDeploymentCandidate({ ...f.options, expectedRevision: '0'.repeat(40) }), /Checkout revision mismatch/)

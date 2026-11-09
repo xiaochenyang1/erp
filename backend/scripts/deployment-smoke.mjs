@@ -73,9 +73,18 @@ async function main() {
       const result = await execute(program, args, { cwd: work, env: environment, timeout, maxBuffer: 16 * 1024 * 1024 })
       if (program === 'docker') await appendFile(path.join(evidence, 'docker.log'), redact(result.stdout + result.stderr))
       return result.stdout
-    } catch (error) { throw new Error(redact(`${program} failed: ${error.stderr || error.message}`)) }
+    } catch (error) {
+      const output = redact((error.stdout || '') + (error.stderr || ''))
+      if (program === 'docker' && output) await appendFile(path.join(evidence, 'docker.log'), output)
+      const timeoutMessage = error.killed ? ` after ${timeout}ms timeout` : ''
+      throw new Error(redact(`${program} failed${timeoutMessage}: ${error.stderr || error.stdout || error.message}`))
+    }
   }
-  const compose = args => command('docker', ['compose', '-p', project, '--env-file', path.join(work, '.env'), '-f', path.join(work, 'compose.yaml'), ...args])
+  const compose = (args, timeout) => command(
+    'docker',
+    ['compose', '-p', project, '--env-file', path.join(work, '.env'), '-f', path.join(work, 'compose.yaml'), ...args],
+    timeout
+  )
   const check = async (name, action) => {
     if (interrupted) throw new Error('Deployment smoke interrupted')
     report.activeStep = name; await persist(); console.log(`[deployment] ${name}`)
@@ -109,7 +118,7 @@ async function main() {
       return { onlyWebPublished: true, prodProfile: true }
     })
     await check('Build accepted artifacts and start MySQL Redis backend and Nginx', async () => {
-      await compose(['build'])
+      await compose(['build'], 600000)
       const replacementNetwork = await prepareReplacementNetwork(args => command('docker', args), project)
       await compose(['up', '-d', '--wait', '--wait-timeout', '300'])
       const manifest = JSON.parse(await readFile(path.join(work, 'deployment-manifest.json')))
