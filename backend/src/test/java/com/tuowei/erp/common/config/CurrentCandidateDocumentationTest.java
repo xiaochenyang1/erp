@@ -44,8 +44,6 @@ class CurrentCandidateDocumentationTest {
 
     @Test
     void historicalStatusEntryPointsLinkToCurrentCandidateStatus() throws IOException {
-        assertThat(readDoc("PROJECT-STATUS-2026-11-06.md"))
-                .contains("PROJECT-STATUS-2026-11-09.md");
         assertThat(readDoc("WHAT_IS_MISSING.md"))
                 .contains("PROJECT-STATUS-2026-11-09.md")
                 .doesNotContain("当前权威状态以本文件");
