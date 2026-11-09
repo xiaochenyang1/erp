@@ -18,6 +18,7 @@ import com.tuowei.erp.production.schedule.web.ProductionScheduleResponse;
 import com.tuowei.erp.production.workcenter.mapper.ProductionWorkCenterMapper;
 import com.tuowei.erp.production.workcenter.model.ProductionWorkCenterEntity;
 import com.tuowei.erp.system.log.service.SystemLogService;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -116,6 +117,7 @@ public class ProductionScheduleService {
     }
 
     private Loaded load(ProductionScheduleRequest request, AuditMetadata audit) {
+        requireFullScope();
         if (request == null || request.startDate() == null || request.endDate() == null) {
             throw new IllegalArgumentException("排程开始和结束日期不能为空");
         }
@@ -148,6 +150,14 @@ public class ProductionScheduleService {
                         .eq(ProductionWorkCenterEntity::getDeletedFlag, 0)
                         .in(ProductionWorkCenterEntity::getId, workCenterIds));
         return new Loaded(orders, operations, workCenters);
+    }
+
+    private void requireFullScope() {
+        // Capacity allocation is account-book-wide. A partial order view would both leak hidden
+        // work and produce a plan that can overlap capacity already consumed by invisible orders.
+        if (!currentUserContext.requirePrincipal().dataScopeSnapshot().hasAllScope()) {
+            throw new AccessDeniedException("有限产能排程需要全部数据范围权限");
+        }
     }
 
     private ProductionScheduleResponse response(

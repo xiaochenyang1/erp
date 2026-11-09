@@ -6,6 +6,8 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.security.CurrentUser;
 import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.production.operation.mapper.ProductionOrderOperationMapper;
 import com.tuowei.erp.production.operation.model.ProductionOrderOperationEntity;
 import com.tuowei.erp.production.order.mapper.ProductionOrderMapper;
@@ -18,6 +20,9 @@ import com.tuowei.erp.production.workcenter.model.ProductionWorkCenterEntity;
 import com.tuowei.erp.system.log.service.SystemLogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
@@ -25,12 +30,16 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +48,7 @@ class ProductionScheduleServiceTest {
     private static final LocalDate END_DATE = LocalDate.of(2026, 11, 10);
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 8, 15, 0);
     private static final AuditMetadata AUDIT = new AuditMetadata(7L, 1L, 1L, NOW);
+    private static final ErpPrincipal FULL_SCOPE_PRINCIPAL = principal(DataScopeSnapshot.all());
 
     private final ProductionOrderMapper orderMapper = mock(ProductionOrderMapper.class);
     private final ProductionOrderOperationMapper operationMapper = mock(ProductionOrderOperationMapper.class);
@@ -78,6 +88,7 @@ class ProductionScheduleServiceTest {
         when(currentUserContext.requireCurrentUser()).thenReturn(new CurrentUser(
                 7L, 1L, 1L, 10L, 20L, "planner", "Planner"
         ));
+        when(currentUserContext.requirePrincipal()).thenReturn(FULL_SCOPE_PRINCIPAL);
         when(orderMapper.selectList(any(Wrapper.class))).thenReturn(List.of(order));
         when(operationMapper.selectList(any(Wrapper.class)))
                 .thenReturn(List.of(scheduledOperation, unscheduledOperation));
@@ -140,6 +151,42 @@ class ProductionScheduleServiceTest {
                 eq(NOW)
         );
         assertThat(snapshot.getValue()).contains("\"committed\":true").contains("\"operationId\":11");
+    }
+
+    @ParameterizedTest(name = "rejects {0} scope")
+    @MethodSource("restrictedScopes")
+    void rejectsPreviewAndRunWithoutFullDataScopeBeforeReadingOrders(
+            String scopeName,
+            DataScopeSnapshot scope
+    ) {
+        when(currentUserContext.requirePrincipal()).thenReturn(principal(scope));
+        ProductionScheduleRequest request = new ProductionScheduleRequest(START_DATE, END_DATE);
+
+        assertThatThrownBy(() -> service.preview(request))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("全部数据范围");
+        assertThatThrownBy(() -> service.run(request))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("全部数据范围");
+
+        verifyNoInteractions(orderMapper, operationMapper, workCenterMapper);
+    }
+
+    private static Stream<Arguments> restrictedScopes() {
+        return Stream.of(
+                Arguments.of("none", DataScopeSnapshot.none()),
+                Arguments.of("warehouse", new DataScopeSnapshot(false, false, false, false, Set.of(101L))),
+                Arguments.of("department", new DataScopeSnapshot(false, true, false, false, Set.of())),
+                Arguments.of("post", new DataScopeSnapshot(false, false, true, false, Set.of())),
+                Arguments.of("self", new DataScopeSnapshot(false, false, false, true, Set.of()))
+        );
+    }
+
+    private static ErpPrincipal principal(DataScopeSnapshot scope) {
+        return new ErpPrincipal(
+                7L, 1L, 1L, 10L, 20L,
+                "planner", "Planner", "N/A", Set.of(), scope
+        );
     }
 
     private ProductionOrderEntity order() {

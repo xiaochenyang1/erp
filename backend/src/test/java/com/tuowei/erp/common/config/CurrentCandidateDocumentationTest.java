@@ -18,8 +18,8 @@ class CurrentCandidateDocumentationTest {
         String checklist = readDoc("business-readiness-checklist.md");
 
         assertThat(status)
-                .contains("e77fdc8")
-                .contains("2,589")
+                .contains("48763d7")
+                .contains("2,593")
                 .contains("1,196")
                 .contains("30/30")
                 .contains("42/42")
@@ -31,6 +31,8 @@ class CurrentCandidateDocumentationTest {
                 .contains("MRP-1")
                 .contains("COST-1")
                 .contains("SCH-1")
+                .contains("SCH-9")
+                .contains("`ALL` 数据范围")
                 .contains("UPG-1")
                 .contains("V168 → V174")
                 .contains("GO / NO-GO");

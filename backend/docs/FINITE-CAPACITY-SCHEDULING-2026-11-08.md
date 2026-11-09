@@ -35,6 +35,7 @@
 
 - `POST /api/production/schedules/preview`：预览，权限 `production:schedule:view`。
 - `POST /api/production/schedules/run`：执行并写入快照，权限 `production:schedule:run`。
+- 排程会读取并竞争整个账套的工单与工作中心容量，因此预览和执行都要求登录态具备 `ALL` 数据范围；仅有仓库、部门、岗位或本人范围的账号直接拒绝，避免泄露隐藏工单或生成忽略隐藏负荷的错误计划。
 - 请求字段：`startDate`、`endDate`。
 - 工作中心新增：`daily_capacity_minutes`、`workday_start_time`。
 - 工单工序新增：`standard_minutes`、`scheduled_minutes`、`scheduled_start_time`、`scheduled_end_time`、`scheduled_by`、`scheduled_time`。
@@ -59,7 +60,7 @@
 ## 自动化覆盖
 
 - 算法测试覆盖同中心争用、工序前置、周末跳过、区间产能不足、延期、非法区间及停用中心汇总。
-- 服务测试覆盖预览不落库、执行写入、旧快照清空、统计口径和审计证据。
+- 服务测试覆盖预览不落库、执行写入、旧快照清空、统计口径、审计证据，以及仓库/部门/岗位/本人等受限数据范围在读取工单前被拒绝。
 - 控制器测试覆盖预览/执行权限、请求校验和 HTTP 响应。
 - 前端测试覆盖 API 数值/Long ID 归一化、预览、执行、取消、错误处理、工作中心产能字段和中英文文案。
 - UI smoke 新增两张同工作中心工单的预览/执行闭环，并校验排程时段无重叠、工序快照和审计日志。

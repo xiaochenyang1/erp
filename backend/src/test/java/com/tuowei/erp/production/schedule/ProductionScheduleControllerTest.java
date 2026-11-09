@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -16,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -90,6 +92,46 @@ class ProductionScheduleControllerTest {
                                 }
                                 """))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithErpUser(authorities = "production:schedule:view", allScope = false, selfScoped = true)
+    void returnsForbiddenWhenDataScopeRejectsPreview() throws Exception {
+        when(scheduleService.preview(REQUEST))
+                .thenThrow(new AccessDeniedException("有限产能排程需要全部数据范围权限"));
+
+        mockMvc.perform(post("/api/production/schedules/preview")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "startDate": "2026-11-09",
+                                  "endDate": "2026-11-20"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("403"))
+                .andExpect(jsonPath("$.message").value("权限不足"));
+    }
+
+    @Test
+    @WithErpUser(authorities = "production:schedule:run", allScope = false, warehouseIds = 101L)
+    void returnsForbiddenWhenDataScopeRejectsRun() throws Exception {
+        when(scheduleService.run(REQUEST))
+                .thenThrow(new AccessDeniedException("有限产能排程需要全部数据范围权限"));
+
+        mockMvc.perform(post("/api/production/schedules/run")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "startDate": "2026-11-09",
+                                  "endDate": "2026-11-20"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("403"))
+                .andExpect(jsonPath("$.message").value("权限不足"));
     }
 
     @Test
