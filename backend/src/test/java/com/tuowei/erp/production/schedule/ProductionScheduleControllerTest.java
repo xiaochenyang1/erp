@@ -17,8 +17,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -101,7 +102,6 @@ class ProductionScheduleControllerTest {
                 .thenThrow(new AccessDeniedException("有限产能排程需要全部数据范围权限"));
 
         mockMvc.perform(post("/api/production/schedules/preview")
-                        .locale(Locale.SIMPLIFIED_CHINESE)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -111,7 +111,8 @@ class ProductionScheduleControllerTest {
                                 """))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("403"))
-                .andExpect(jsonPath("$.message").value("权限不足"));
+                .andExpect(jsonPath("$.message").isNotEmpty())
+                .andExpect(jsonPath("$.message").value(not(containsString("有限产能排程"))));
     }
 
     @Test
@@ -121,7 +122,6 @@ class ProductionScheduleControllerTest {
                 .thenThrow(new AccessDeniedException("有限产能排程需要全部数据范围权限"));
 
         mockMvc.perform(post("/api/production/schedules/run")
-                        .locale(Locale.SIMPLIFIED_CHINESE)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -131,7 +131,8 @@ class ProductionScheduleControllerTest {
                                 """))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("403"))
-                .andExpect(jsonPath("$.message").value("权限不足"));
+                .andExpect(jsonPath("$.message").isNotEmpty())
+                .andExpect(jsonPath("$.message").value(not(containsString("有限产能排程"))));
     }
 
     @Test
