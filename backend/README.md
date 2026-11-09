@@ -1,10 +1,12 @@
 # ERP Server
 
+当前候选收口状态见 [2026-11-09 项目状态](docs/PROJECT-STATUS-2026-11-09.md)。已验证应用基线为 `e77fdc8`；多层分仓 MRP、生产成本核算与有限产能排程一期均已进入代码和自动化回归，下一步是领域评审、真实预生产及 [V170–V174 人工验收](docs/P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md)，不是继续扩大当前候选范围。
+
 前后端统一部署入口见 [完整部署包](docs/FULLSTACK-DEPLOYMENT.md)：复用已通过验证的 JAR 和前端制品，提供 Nginx、同源 API 代理、私有配置初始化及隔离部署回归。
 
-最新开发包括 [库存调整与盘点审批](docs/INVENTORY-APPROVAL-2026-11-06.md) 和 [完整部署 CI](docs/DEPLOYMENT-CI-2026-11-06.md)。部署 CI 从同一提交构建候选，核对上传下载后的制品，执行隔离部署及采销样例，并归档清理结果。
+最新制造扩展包括 [多层分仓 MRP](docs/MRP-MULTILEVEL-2026-11-07.md)、[生产成本核算 1.0](docs/PRODUCTION-COST-ACCOUNTING-1.0.md)和[有限产能排程一期](docs/FINITE-CAPACITY-SCHEDULING-2026-11-08.md)。库存调整与盘点审批见 [开发记录](docs/INVENTORY-APPROVAL-2026-11-06.md)，完整部署 CI 见 [验证记录](docs/DEPLOYMENT-CI-2026-11-06.md)。
 
-部署 CI 还包含 [V168 → V169 升级与数据库、附件恢复](docs/UPGRADE-RECOVERY-2026-11-06.md)：旧版后端通过正常 API 生成历史单据，停写后共同备份，恢复到新卷并验证升级后的审批、库存和附件读写。
+部署 CI 还包含 [V168 → V174 升级与数据库、附件恢复](docs/UPGRADE-RECOVERY-2026-11-06.md)：旧版后端通过正常 API 生成历史单据，停写后共同备份，恢复到新卷并验证升级后的审批、库存、附件、MRP、生产成本和排程迁移；同一流程还恢复 V168 检查点并运行旧版前后端验证回退。
 
 当前启动修复见 [2026-10-28 浏览器回归就绪检查](docs/UI-SMOKE-READINESS-2026-10-28.md)：账号准备和浏览器回归等待管理员初始化事务提交，避免健康接口已可访问时提前登录；候选结果以同一提交的实际报告为准。
 
@@ -134,6 +136,8 @@ node scripts\data-scope-api-smoke.cjs
 
 ## 关键文档
 
+- `docs/PROJECT-STATUS-2026-11-09.md`：当前候选的完成度、验证证据、范围边界和执行顺序
+- `docs/P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md`：V170–V174 真实预生产与人工签字包
 - `docs/WHAT_IS_MISSING.md`：当前完成度与缺口（以代码+smoke 为准）
 - `docs/未完成.md`：需要但尚未具备的功能总清单（P0 签字 / P1 业务 / P2 体验与工程债）
 - `docs/BACKLOG-THREE-TRACKS-2026-07-17.md`：上线最小集 / 业务扩展 / 工程债 三线 backlog

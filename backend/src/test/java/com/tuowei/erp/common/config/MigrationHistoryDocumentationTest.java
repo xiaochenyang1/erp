@@ -21,14 +21,7 @@ class MigrationHistoryDocumentationTest {
 
     @Test
     void flywayVersionGapsAreDocumented() throws IOException {
-        TreeSet<Integer> versions = new TreeSet<>();
-        try (var paths = Files.list(Path.of("src", "main", "resources", "db", "migration"))) {
-            paths.filter(path -> path.getFileName().toString().endsWith(".sql"))
-                    .map(path -> MIGRATION_VERSION_PATTERN.matcher(path.getFileName().toString()))
-                    .filter(Matcher::matches)
-                    .map(matcher -> Integer.parseInt(matcher.group(1)))
-                    .forEach(versions::add);
-        }
+        TreeSet<Integer> versions = migrationVersions();
 
         assertThat(versions).isNotEmpty();
 
@@ -56,6 +49,16 @@ class MigrationHistoryDocumentationTest {
     }
 
     @Test
+    void latestFlywayMigrationIsDocumented() throws IOException {
+        TreeSet<Integer> versions = migrationVersions();
+        String history = Files.readString(Path.of("docs", "migrations-history.md"), StandardCharsets.UTF_8);
+
+        assertThat(history)
+                .as("docs/migrations-history.md must describe the latest migration")
+                .contains("V" + versions.last());
+    }
+
+    @Test
     void newMigrationsDoNotUseDeprecatedMysqlValuesFunction() throws IOException {
         Path migrationDirectory = Path.of("src", "main", "resources", "db", "migration");
         try (var paths = Files.list(migrationDirectory)) {
@@ -75,5 +78,18 @@ class MigrationHistoryDocumentationTest {
     private int migrationVersion(Path path) {
         Matcher matcher = MIGRATION_VERSION_PATTERN.matcher(path.getFileName().toString());
         return matcher.matches() ? Integer.parseInt(matcher.group(1)) : Integer.MIN_VALUE;
+    }
+
+    private TreeSet<Integer> migrationVersions() throws IOException {
+        TreeSet<Integer> versions = new TreeSet<>();
+        try (var paths = Files.list(Path.of("src", "main", "resources", "db", "migration"))) {
+            paths.filter(path -> path.getFileName().toString().endsWith(".sql"))
+                    .map(path -> MIGRATION_VERSION_PATTERN.matcher(path.getFileName().toString()))
+                    .filter(Matcher::matches)
+                    .map(matcher -> Integer.parseInt(matcher.group(1)))
+                    .forEach(versions::add);
+        }
+        assertThat(versions).isNotEmpty();
+        return versions;
     }
 }
