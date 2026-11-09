@@ -18,7 +18,7 @@ class CurrentCandidateDocumentationTest {
         String checklist = readDoc("business-readiness-checklist.md");
 
         assertThat(status)
-                .contains("48763d7")
+                .contains("3b70299")
                 .contains("2,593")
                 .contains("1,196")
                 .contains("30/30")

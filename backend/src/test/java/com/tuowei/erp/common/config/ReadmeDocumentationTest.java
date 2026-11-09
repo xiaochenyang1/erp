@@ -72,7 +72,7 @@ class ReadmeDocumentationTest {
         assertThat(content)
                 .contains("PROJECT-STATUS-2026-11-09.md")
                 .contains("P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md")
-                .contains("48763d7")
+                .contains("3b70299")
                 .contains("`ALL` 数据范围")
                 .contains("V168 → V174")
                 .contains("MRP-MULTILEVEL-2026-11-07.md")

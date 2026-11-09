@@ -4,18 +4,18 @@
 
 项目已经完成当前一期核心范围及轻量制造扩展的代码开发，现阶段应视为“技术候选已通过、等待评审与真实预生产放行”，不再是继续补基础业务页面的开发中期。
 
-最近一次完整验证基线为分支 `refactor/postrelease-sql-gate`、提交 `48763d7446834d18f103255816627e07410c71bc`。该提交已经包含本文件、迁移历史和 V170–V174 验收材料，并通过后端、前端、UI、部署和监控 CI。本次后续收口又补充了有限产能排程的 `ALL` 数据范围门禁；包含该源码修复的新提交必须重新执行同一套 CI，不能沿用 `48763d7` 的通过状态创建 release tag。
+最近一次完整验证的代码与部署基线为分支 `refactor/postrelease-sql-gate`、提交 `3b7029986c1ee01be4ea279ca0d5ee97d7e024ef`。该提交已经包含有限产能排程的 `ALL` 数据范围门禁和部署镜像构建超时留证修复，并通过后端、前端、UI、部署和监控 CI；其中 Deployment Verify 已实际完成生产配置全栈试跑、V168→V174 升级恢复和旧版全栈回退。本文件、README 和验收包的记录更新不改变应用、迁移或部署行为，但包含这些记录更新的最终 PR head 仍须重新执行完整 CI，最终 SHA 以 PR 描述和预生产签字表为准。
 
 ## 当前技术证据
 
 | 检查 | 当前基线结果 | 说明 |
 |---|---|---|
-| 后端发布门禁 | 2,593 项测试，0 failures / errors / skipped，包含 Testcontainers；JAR、内嵌/独立 SBOM 和发布报告复验通过 | [Backend Verify 42548442394](https://github.com/xiaochenyang1/erp/actions/runs/42548442394) |
-| 前端门禁 | 252 个测试文件、1,196 项通过；类型、lint、契约、制品构建/下载复验通过；生产依赖审计 0 漏洞 | [Frontend Verify 42548442324](https://github.com/xiaochenyang1/erp/actions/runs/42548442324) |
-| 浏览器回归 | 30/30 页面、42/42 工作流通过，工作树干净，后端/前端/Chrome 清理通过 | [UI Smoke 42548442352](https://github.com/xiaochenyang1/erp/actions/runs/42548442352) |
-| 完整部署 | prod profile 全栈部署、制品上传下载复验、采销收付及受限账号业务试跑通过 | [Deployment Verify 42548442312](https://github.com/xiaochenyang1/erp/actions/runs/42548442312) |
+| 后端发布门禁 | 2,593 项测试，0 failures / errors / skipped，包含 Testcontainers；JAR、内嵌/独立 SBOM 和发布报告复验通过 | [Backend Verify 42556236038](https://github.com/xiaochenyang1/erp/actions/runs/42556236038) |
+| 前端门禁 | 252 个测试文件、1,196 项通过；类型、lint、契约、制品构建/下载复验通过；生产依赖审计 0 漏洞 | [Frontend Verify 42556236017](https://github.com/xiaochenyang1/erp/actions/runs/42556236017) |
+| 浏览器回归 | 30/30 页面、42/42 工作流通过，工作树干净，后端/前端/Chrome 清理通过 | [UI Smoke 42556235998](https://github.com/xiaochenyang1/erp/actions/runs/42556235998) |
+| 完整部署 | prod profile 全栈部署、制品上传下载复验、采销收付及受限账号业务试跑通过 | [Deployment Verify 42556236028](https://github.com/xiaochenyang1/erp/actions/runs/42556236028) |
 | 升级与回退 | V168 备份恢复后升级到 V174，14/14 检查通过；再恢复 V168 检查点并运行旧版前后端，回退写入和升级数据隔离通过 | 同上 |
-| 监控 | 配置、告警时序/路由和隔离运行验证通过 | [Monitoring Verify 42548442319](https://github.com/xiaochenyang1/erp/actions/runs/42548442319) |
+| 监控 | 配置、告警时序/路由和隔离运行验证通过 | [Monitoring Verify 42556236029](https://github.com/xiaochenyang1/erp/actions/runs/42556236029) |
 
 技术检查只证明当前候选可构建、可部署、可恢复且自动化样例正确，不能替代真实岗位、主数据、期初余额和业务口径签字。
 
@@ -38,7 +38,7 @@
 
 ### 发布与实施门禁
 
-- PR #18 仍为 OPEN，虽可合并且所有检查通过，但尚无 review 结论；当前分支相对 `main` 领先 197 个提交，必须按领域评审，不能把绿色 CI 当成人工代码审查。
+- PR #18 仍为 OPEN，虽可合并且所有检查通过，但尚无 review 结论；当前已验证代码与部署基线相对 `main` 领先 201 个提交，必须按领域评审，不能把绿色 CI 当成人工代码审查。
 - 仓库当前没有 tag、GitHub release 或 deployment 记录。
 - 独立预生产地址、真实岗位账号、验收账套、主数据、期初库存/应收应付和负责人尚未绑定。
 - 财务 F1–F12、质检 Q1–Q5、多币种、计划、生产成本、产能排程及真实监控接收人仍需人工签字。
@@ -65,7 +65,7 @@
 
 ## 候选冻结规则
 
-- `48763d7` 是最近一次完整验证基线，不是自动获得业务批准的正式版本；其后的排程数据范围修复必须形成并验证新候选。
+- `3b70299` 是最近一次完整验证的代码与部署基线，不是自动获得业务批准的正式版本；包含候选记录更新的最终 PR head 仍须形成并验证最终候选。
 - 任何源码、迁移、配置或发布脚本变化都必须产生新候选并重跑全部门禁。
 - 仅文档变化也必须至少重跑文档门禁、构建和候选来源校验；最终 release 仍以一个明确、干净、已完整复验的提交为准。
 - 人工验收必须记录候选完整 SHA、制品摘要、环境、业务单号、执行人和结论，禁止用旧候选的样例或截图代签。
