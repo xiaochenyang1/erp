@@ -682,6 +682,47 @@ export interface FinancialStatementConfiguration {
   validationErrors: string[]
 }
 
+export interface CashFlowLine {
+  itemCode: string
+  itemName: string
+  activityType: 'OPERATING' | 'INVESTING' | 'FINANCING' | string
+  amount: number
+}
+
+export interface CashFlow {
+  dateFrom: string
+  dateTo: string
+  formulaVersion: string
+  operatingLines: CashFlowLine[]
+  investingLines: CashFlowLine[]
+  financingLines: CashFlowLine[]
+  netOperatingCashFlow: number
+  netInvestingCashFlow: number
+  netFinancingCashFlow: number
+  netIncreaseInCash: number
+  openingCash: number
+  closingCash: number
+  reconciliationDifference: number
+  reconciled: boolean
+  unmappedSubjectCodes: string[]
+  mappingErrors: string[]
+}
+
+export interface CashFlowConfigurationItem {
+  itemCode: string
+  itemName: string
+  activityType: 'OPERATING' | 'INVESTING' | 'FINANCING' | string
+  sortNo: number
+  subjectCodes: string[]
+}
+
+export interface CashFlowConfiguration {
+  formulaVersion: string
+  cashSubjectCodes: string[]
+  items: CashFlowConfigurationItem[]
+  validationErrors: string[]
+}
+
 // 总账API
 export const getLedgerEntries = (params: LedgerQuery) => {
   return request.get<LedgerEntry[]>('/finance/ledger/detail', {
@@ -713,6 +754,12 @@ export const getIncomeStatement = (params: Pick<LedgerQuery, 'startDate' | 'endD
   }).then(normalizeIncomeStatement)
 }
 
+export const getCashFlow = (params: Pick<LedgerQuery, 'startDate' | 'endDate' | 'dateFrom' | 'dateTo'>) => {
+  return request.get<CashFlow>('/finance/financial-statements/cash-flow', {
+    params: toLedgerQueryParams(params)
+  }).then(normalizeCashFlow)
+}
+
 export const exportTrialBalance = (params: Pick<LedgerQuery, 'startDate' | 'endDate' | 'dateFrom' | 'dateTo'>) => {
   return request.get<Blob>('/finance/ledger/trial-balance/export', {
     params: toLedgerQueryParams(params),
@@ -734,6 +781,13 @@ export const exportIncomeStatement = (params: Pick<LedgerQuery, 'startDate' | 'e
   })
 }
 
+export const exportCashFlow = (params: Pick<LedgerQuery, 'startDate' | 'endDate' | 'dateFrom' | 'dateTo'>) => {
+  return request.get<Blob>('/finance/financial-statements/cash-flow/export', {
+    params: toLedgerQueryParams(params),
+    responseType: 'blob'
+  })
+}
+
 export const getFinancialStatementConfiguration = (statementType: string) => {
   return request.get<FinancialStatementConfiguration>('/finance/financial-statements/configuration', {
     params: { statementType }
@@ -747,6 +801,24 @@ export const updateFinancialStatementItemSubjects = (
 ) => {
   return request.put<FinancialStatementConfiguration>(
     `/finance/financial-statements/configuration/${statementType}/${itemCode}/subjects`,
+    { subjectCodes }
+  )
+}
+
+export const getCashFlowConfiguration = () => {
+  return request.get<CashFlowConfiguration>('/finance/financial-statements/cash-flow/configuration')
+}
+
+export const updateCashFlowCashSubjects = (subjectCodes: string[]) => {
+  return request.put<CashFlowConfiguration>(
+    '/finance/financial-statements/cash-flow/configuration/cash-subjects',
+    { subjectCodes }
+  )
+}
+
+export const updateCashFlowItemSubjects = (itemCode: string, subjectCodes: string[]) => {
+  return request.put<CashFlowConfiguration>(
+    `/finance/financial-statements/cash-flow/configuration/items/${itemCode}/subjects`,
     { subjectCodes }
   )
 }
@@ -798,10 +870,10 @@ const normalizeTrialBalance = (trialBalance: TrialBalance): TrialBalance => ({
   }))
 })
 
-const normalizeStatementLines = (lines: FinancialStatementLine[] = []) => lines.map((line) => ({
+const normalizeStatementLines = <T extends { amount: number }>(lines: T[] = []): T[] => lines.map((line) => ({
   ...line,
   amount: Number(line.amount ?? 0)
-}))
+})) as T[]
 
 const normalizeBalanceSheet = (statement: BalanceSheet): BalanceSheet => ({
   ...statement,
@@ -825,6 +897,22 @@ const normalizeIncomeStatement = (statement: IncomeStatement): IncomeStatement =
   totalExpense: Number(statement.totalExpense ?? 0),
   netProfit: Number(statement.netProfit ?? 0),
   unclassifiedSubjectCodes: statement.unclassifiedSubjectCodes || [],
+  mappingErrors: statement.mappingErrors || []
+})
+
+const normalizeCashFlow = (statement: CashFlow): CashFlow => ({
+  ...statement,
+  operatingLines: normalizeStatementLines(statement.operatingLines),
+  investingLines: normalizeStatementLines(statement.investingLines),
+  financingLines: normalizeStatementLines(statement.financingLines),
+  netOperatingCashFlow: Number(statement.netOperatingCashFlow ?? 0),
+  netInvestingCashFlow: Number(statement.netInvestingCashFlow ?? 0),
+  netFinancingCashFlow: Number(statement.netFinancingCashFlow ?? 0),
+  netIncreaseInCash: Number(statement.netIncreaseInCash ?? 0),
+  openingCash: Number(statement.openingCash ?? 0),
+  closingCash: Number(statement.closingCash ?? 0),
+  reconciliationDifference: Number(statement.reconciliationDifference ?? 0),
+  unmappedSubjectCodes: statement.unmappedSubjectCodes || [],
   mappingErrors: statement.mappingErrors || []
 })
 

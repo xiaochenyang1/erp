@@ -29,7 +29,7 @@
           <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
           <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
           <el-button
-            v-if="activeTab === 'balance' || activeTab === 'income'"
+            v-if="activeTab === 'balance' || activeTab === 'income' || activeTab === 'cash'"
             v-permission="'finance:subject:manage'"
             :icon="Setting"
             @click="openMappingDialog"
@@ -271,6 +271,68 @@
             <el-descriptions-item :label="$t('financeReportPages.ledger.formulaVersion')">{{ incomeStatement.formulaVersion }}</el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>
+
+        <el-tab-pane :label="$t('financeReportPages.ledger.cashFlowTab')" name="cash">
+          <el-alert
+            v-if="cashFlow"
+            :type="cashFlow.reconciled ? 'success' : 'error'"
+            :closable="false"
+            :title="cashFlow.mappingErrors.length
+              ? $t('financeReportPages.ledger.mappingErrors', { errors: cashFlow.mappingErrors.join('; ') })
+              : cashFlow.unmappedSubjectCodes.length
+                ? $t('financeReportPages.ledger.unmappedCashFlowSubjects', { codes: cashFlow.unmappedSubjectCodes.join(', ') })
+                : cashFlow.reconciled
+                  ? $t('financeReportPages.ledger.cashFlowReconciled')
+                  : $t('financeReportPages.ledger.cashFlowUnreconciled', { difference: formatAmount(cashFlow.reconciliationDifference) })"
+            show-icon
+            style="margin-bottom: 16px"
+          />
+          <el-row v-loading="statementLoading" :gutter="16">
+            <el-col :span="8">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.operatingActivities') }}</template>
+                <el-table :data="cashFlow?.operatingLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" min-width="160" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+            <el-col :span="8">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.investingActivities') }}</template>
+                <el-table :data="cashFlow?.investingLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" min-width="160" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+            <el-col :span="8">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.financingActivities') }}</template>
+                <el-table :data="cashFlow?.financingLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" min-width="160" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+          </el-row>
+          <el-descriptions v-if="cashFlow" :column="4" border style="margin-top: 16px">
+            <el-descriptions-item :label="$t('financeReportPages.ledger.netOperatingCashFlow')">{{ formatAmount(cashFlow.netOperatingCashFlow) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.netInvestingCashFlow')">{{ formatAmount(cashFlow.netInvestingCashFlow) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.netFinancingCashFlow')">{{ formatAmount(cashFlow.netFinancingCashFlow) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.netIncreaseInCash')">{{ formatAmount(cashFlow.netIncreaseInCash) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.openingCash')">{{ formatAmount(cashFlow.openingCash) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.closingCash')">{{ formatAmount(cashFlow.closingCash) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.reconciliationDifference')">{{ formatAmount(cashFlow.reconciliationDifference) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.formulaVersion')">{{ cashFlow.formulaVersion }}</el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
 
@@ -280,13 +342,49 @@
       width="900px"
     >
       <el-alert
-        v-if="statementConfiguration?.validationErrors.length"
+        v-if="(activeTab === 'cash' ? cashFlowConfiguration?.validationErrors : statementConfiguration?.validationErrors)?.length"
         type="error"
         :closable="false"
-        :title="$t('financeReportPages.ledger.mappingErrors', { errors: statementConfiguration.validationErrors.join('; ') })"
+        :title="$t('financeReportPages.ledger.mappingErrors', { errors: (activeTab === 'cash' ? cashFlowConfiguration?.validationErrors : statementConfiguration?.validationErrors)?.join('; ') })"
         style="margin-bottom: 16px"
       />
-      <el-table v-loading="mappingLoading" :data="statementConfiguration?.items || []" border>
+      <el-form v-if="activeTab === 'cash' && cashFlowConfiguration" inline style="margin-bottom: 12px">
+        <el-form-item :label="$t('financeReportPages.ledger.cashEquivalentSubjects')">
+          <el-select v-model="cashFlowConfiguration.cashSubjectCodes" multiple filterable style="width: 560px">
+            <el-option
+              v-for="subject in cashSubjectOptions"
+              :key="subject.code"
+              :label="`${subject.code} ${subject.name}`"
+              :value="subject.code"
+            />
+          </el-select>
+        </el-form-item>
+        <el-button type="primary" @click="saveCashSubjects">{{ $t('financeReportPages.common.save') }}</el-button>
+      </el-form>
+      <el-table v-if="activeTab === 'cash'" v-loading="mappingLoading" :data="cashFlowConfiguration?.items || []" border>
+        <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" width="240" />
+        <el-table-column prop="activityType" :label="$t('financeReportPages.ledger.section')" width="130" />
+        <el-table-column :label="$t('financeReportPages.ledger.mappedSubjects')" min-width="360">
+          <template #default="{ row }">
+            <el-select v-model="row.subjectCodes" multiple filterable style="width: 100%">
+              <el-option
+                v-for="subject in cashCounterpartOptions"
+                :key="subject.code"
+                :label="`${subject.code} ${subject.name}`"
+                :value="subject.code"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="100" align="center">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="saveCashFlowMappingItem(row)">
+              {{ $t('financeReportPages.common.save') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-table v-else v-loading="mappingLoading" :data="statementConfiguration?.items || []" border>
         <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" width="200" />
         <el-table-column prop="sectionCode" :label="$t('financeReportPages.ledger.section')" width="130" />
         <el-table-column :label="$t('financeReportPages.ledger.mappedSubjects')" min-width="360">
@@ -322,20 +420,27 @@ import { Download, Refresh, Search, Setting } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
 import {
   exportBalanceSheet,
+  exportCashFlow,
   exportIncomeStatement,
   exportLedger,
   exportTrialBalance,
   getAccountSubjectTree,
   getBalanceSheet,
+  getCashFlow,
+  getCashFlowConfiguration,
   getIncomeStatement,
   getFinancialStatementConfiguration,
   getLedgerEntries,
   getLedgerSummary,
   getTrialBalance,
+  updateCashFlowCashSubjects,
+  updateCashFlowItemSubjects,
   updateFinancialStatementItemSubjects
 } from '@/api/finance'
 import type {
   AccountSubject,
+  CashFlowConfiguration,
+  CashFlowConfigurationItem,
   FinancialStatementConfiguration,
   FinancialStatementConfigurationItem
 } from '@/api/finance'
@@ -346,6 +451,7 @@ const { t } = useI18n()
 const mappingDialogVisible = ref(false)
 const mappingLoading = ref(false)
 const statementConfiguration = ref<FinancialStatementConfiguration | null>(null)
+const cashFlowConfiguration = ref<CashFlowConfiguration | null>(null)
 
 const {
   formatAmount,
@@ -356,6 +462,7 @@ const {
 const {
   activeTab,
   balanceSheet,
+  cashFlow,
   dateRange,
   detailLedger,
   detailLoading,
@@ -380,12 +487,14 @@ const {
 } = useFinanceLedgerList(t, {
   getAccountSubjectTree,
   getBalanceSheet,
+  getCashFlow,
   getIncomeStatement,
   getLedgerSummary,
   getLedgerEntries,
   getTrialBalance,
   exportTrialBalance,
   exportBalanceSheet,
+  exportCashFlow,
   exportIncomeStatement,
   exportLedger,
   downloadBlob,
@@ -408,13 +517,58 @@ const mappingSubjectOptions = (sectionCode: string) => flattenSubjects(subjectOp
   }))
   .filter((subject) => subject.code)
 
+const allSubjectOptions = computed(() => flattenSubjects(subjectOptions.value)
+  .map((subject) => ({
+    code: subject.code || subject.subjectCode || '',
+    name: subject.name || subject.subjectName || '',
+    type: subject.category || subject.subjectType || ''
+  }))
+  .filter((subject) => subject.code))
+
+const cashSubjectOptions = computed(() => allSubjectOptions.value.filter((subject) => subject.type === 'ASSET'))
+const cashCounterpartOptions = computed(() => {
+  const cashCodes = new Set(cashFlowConfiguration.value?.cashSubjectCodes || [])
+  return allSubjectOptions.value.filter((subject) => !cashCodes.has(subject.code))
+})
+
 const openMappingDialog = async () => {
   mappingDialogVisible.value = true
   mappingLoading.value = true
   try {
-    statementConfiguration.value = await getFinancialStatementConfiguration(mappingStatementType.value)
+    if (activeTab.value === 'cash') {
+      cashFlowConfiguration.value = await getCashFlowConfiguration()
+    } else {
+      statementConfiguration.value = await getFinancialStatementConfiguration(mappingStatementType.value)
+    }
   } catch {
     ElMessage.error(t('financeReportPages.ledger.message.mappingLoadFailed'))
+  } finally {
+    mappingLoading.value = false
+  }
+}
+
+const saveCashSubjects = async () => {
+  if (!cashFlowConfiguration.value) return
+  mappingLoading.value = true
+  try {
+    cashFlowConfiguration.value = await updateCashFlowCashSubjects(cashFlowConfiguration.value.cashSubjectCodes)
+    ElMessage.success(t('financeReportPages.ledger.message.mappingSaved'))
+    await handleQuery()
+  } catch {
+    ElMessage.error(t('financeReportPages.ledger.message.mappingSaveFailed'))
+  } finally {
+    mappingLoading.value = false
+  }
+}
+
+const saveCashFlowMappingItem = async (item: CashFlowConfigurationItem) => {
+  mappingLoading.value = true
+  try {
+    cashFlowConfiguration.value = await updateCashFlowItemSubjects(item.itemCode, item.subjectCodes)
+    ElMessage.success(t('financeReportPages.ledger.message.mappingSaved'))
+    await handleQuery()
+  } catch {
+    ElMessage.error(t('financeReportPages.ledger.message.mappingSaveFailed'))
   } finally {
     mappingLoading.value = false
   }

@@ -73,6 +73,32 @@ class MysqlFlywayMigrationSmokeTest {
                           and account_book_id = 1
                           and formula_version = 'TYPE_MAPPING_V1'
                         """, 16L);
+
+                assertCount(statement, """
+                        select count(*)
+                        from information_schema.tables
+                        where table_schema = database()
+                          and table_name in (
+                            'sys_cash_flow_item_template',
+                            'fin_cash_equivalent_subject',
+                            'fin_cash_flow_subject_map'
+                          )
+                        """, 3L);
+
+                assertCount(statement, """
+                        select count(*)
+                        from sys_cash_flow_item_template
+                        where formula_version = 'CASH_FLOW_DIRECT_V1'
+                          and status = 'ACTIVE'
+                        """, 12L);
+
+                assertCount(statement, """
+                        select count(*)
+                        from fin_cash_flow_subject_map
+                        where company_id = 1
+                          and account_book_id = 1
+                          and formula_version = 'CASH_FLOW_DIRECT_V1'
+                        """, 11L);
             }
         }
     }

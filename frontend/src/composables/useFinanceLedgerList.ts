@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import type {
   AccountSubject,
   BalanceSheet,
+  CashFlow,
   IncomeStatement,
   LedgerEntry,
   LedgerSummary,
@@ -35,16 +36,18 @@ export const useFinanceLedgerList = (
     getTrialBalance?: (params: LedgerQueryParams) => Promise<TrialBalance>
     getBalanceSheet?: (asOfDate: string) => Promise<BalanceSheet>
     getIncomeStatement?: (params: LedgerQueryParams) => Promise<IncomeStatement>
+    getCashFlow?: (params: LedgerQueryParams) => Promise<CashFlow>
     exportLedger: (params: LedgerQueryParams) => Promise<Blob>
     exportTrialBalance?: (params: LedgerQueryParams) => Promise<Blob>
     exportBalanceSheet?: (asOfDate: string) => Promise<Blob>
     exportIncomeStatement?: (params: LedgerQueryParams) => Promise<Blob>
+    exportCashFlow?: (params: LedgerQueryParams) => Promise<Blob>
     downloadBlob: (blob: Blob, fileName: string) => void
     onError?: Notify
     onSuccess?: Notify
   }
 ) => {
-  const activeTab = ref<'general' | 'detail' | 'trial' | 'balance' | 'income'>('general')
+  const activeTab = ref<'general' | 'detail' | 'trial' | 'balance' | 'income' | 'cash'>('general')
   const queryForm = reactive({
     subjectId: undefined as string | number | undefined,
     startDate: '',
@@ -61,6 +64,7 @@ export const useFinanceLedgerList = (
   const statementLoading = ref(false)
   const balanceSheet = ref<BalanceSheet | null>(null)
   const incomeStatement = ref<IncomeStatement | null>(null)
+  const cashFlow = ref<CashFlow | null>(null)
   const pagination = reactive({
     page: 1,
     size: 20,
@@ -188,6 +192,21 @@ export const useFinanceLedgerList = (
     }
   }
 
+  const loadCashFlow = async () => {
+    if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired')) return false
+    if (!options.getCashFlow) return false
+    statementLoading.value = true
+    try {
+      cashFlow.value = await options.getCashFlow(buildLedgerQueryParams())
+      return true
+    } catch {
+      options.onError?.(t('financeReportPages.ledger.message.cashFlowLoadFailed'))
+      return false
+    } finally {
+      statementLoading.value = false
+    }
+  }
+
   const handleQuery = () => {
     syncDateRange()
     if (activeTab.value === 'general') {
@@ -201,6 +220,9 @@ export const useFinanceLedgerList = (
     }
     if (activeTab.value === 'income') {
       return loadIncomeStatement()
+    }
+    if (activeTab.value === 'cash') {
+      return loadCashFlow()
     }
     pagination.page = 1
     return loadDetailLedger()
@@ -216,7 +238,7 @@ export const useFinanceLedgerList = (
   }
 
   const handleTabChange = (tabName: string | number) => {
-    const name = String(tabName) as 'general' | 'detail' | 'trial' | 'balance' | 'income'
+    const name = String(tabName) as 'general' | 'detail' | 'trial' | 'balance' | 'income' | 'cash'
     activeTab.value = name
     if (name === 'general') {
       return loadGeneralLedger()
@@ -229,6 +251,9 @@ export const useFinanceLedgerList = (
     }
     if (name === 'income') {
       return loadIncomeStatement()
+    }
+    if (name === 'cash') {
+      return loadCashFlow()
     }
     pagination.page = 1
     return loadDetailLedger()
@@ -278,6 +303,12 @@ export const useFinanceLedgerList = (
         }
         blob = await options.exportIncomeStatement(buildLedgerQueryParams())
         fileNameKey = 'financeReportPages.ledger.incomeFileName'
+      } else if (activeTab.value === 'cash') {
+        if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired') || !options.exportCashFlow) {
+          return false
+        }
+        blob = await options.exportCashFlow(buildLedgerQueryParams())
+        fileNameKey = 'financeReportPages.ledger.cashFlowFileName'
       } else {
         blob = await options.exportLedger(buildLedgerQueryParams())
       }
@@ -296,6 +327,7 @@ export const useFinanceLedgerList = (
   return {
     activeTab,
     balanceSheet,
+    cashFlow,
     buildLedgerQueryParams,
     dateRange,
     detailLedger,
@@ -314,6 +346,7 @@ export const useFinanceLedgerList = (
     loadDetailLedger,
     loadGeneralLedger,
     loadIncomeStatement,
+    loadCashFlow,
     loadTrialBalance,
     loadSubjects,
     pagination,

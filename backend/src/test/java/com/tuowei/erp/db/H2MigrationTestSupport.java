@@ -22,6 +22,7 @@ final class H2MigrationTestSupport {
     private static final String AUTOMATION_IDEMPOTENCY_MIGRATION = "V155__automation_idempotency_and_ticket_sequence.sql";
     private static final String SCHEDULER_LEASE_MIGRATION = "V156__exception_rule_scheduler_lease.sql";
     private static final String FINANCIAL_STATEMENT_MAPPING_MIGRATION = "V175__financial_statement_mapping.sql";
+    private static final String CASH_FLOW_MAPPING_MIGRATION = "V176__cash_flow_direct_mapping.sql";
     private static final String INVENTORY_SCHEMA_MIGRATION = "V19__inventory_operation_schema.sql";
     private static final String INVENTORY_APPROVAL_MIGRATION = "V169__inventory_adjustment_approval.sql";
     private static final String PRODUCTION_COST_REVERSAL_MIGRATION = "V172__production_cost_entry_reversal.sql";
@@ -69,7 +70,8 @@ final class H2MigrationTestSupport {
                         || migration.getFileName().toString().equals(RECEIPT_PAYMENT_SUBJECT_MIGRATION)
                         || migration.getFileName().toString().equals(AUTOMATION_IDEMPOTENCY_MIGRATION)
                         || migration.getFileName().toString().equals(SCHEDULER_LEASE_MIGRATION)
-                        || migration.getFileName().toString().equals(FINANCIAL_STATEMENT_MAPPING_MIGRATION)) {
+                        || migration.getFileName().toString().equals(FINANCIAL_STATEMENT_MAPPING_MIGRATION)
+                        || migration.getFileName().toString().equals(CASH_FLOW_MAPPING_MIGRATION)) {
                     Files.writeString(target, h2CompatibleRowAliasMigration(migration), StandardCharsets.UTF_8);
                 } else {
                     Files.copy(migration, target, StandardCopyOption.REPLACE_EXISTING);

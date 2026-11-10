@@ -183,6 +183,41 @@ class FlywayMigrationSmokeTest {
     }
 
     @Test
+    void createsDirectCashFlowMappings() {
+        Long tableCount = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) in (
+                    'sys_cash_flow_item_template',
+                    'fin_cash_equivalent_subject',
+                    'fin_cash_flow_subject_map'
+                  )
+                """, Long.class);
+        Assertions.assertThat(tableCount).isEqualTo(3L);
+
+        Long templateCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_cash_flow_item_template
+                where formula_version = 'CASH_FLOW_DIRECT_V1'
+                  and status = 'ACTIVE'
+                """, Long.class);
+        Assertions.assertThat(templateCount).isEqualTo(12L);
+
+        Long cashSubjectCount = jdbcTemplate.queryForObject("""
+                select count(*) from fin_cash_equivalent_subject
+                where company_id = 1 and account_book_id = 1
+                  and formula_version = 'CASH_FLOW_DIRECT_V1'
+                """, Long.class);
+        Assertions.assertThat(cashSubjectCount).isEqualTo(1L);
+
+        Long mappingCount = jdbcTemplate.queryForObject("""
+                select count(*) from fin_cash_flow_subject_map
+                where company_id = 1 and account_book_id = 1
+                  and formula_version = 'CASH_FLOW_DIRECT_V1'
+                """, Long.class);
+        Assertions.assertThat(mappingCount).isEqualTo(11L);
+    }
+
+    @Test
     void createsProductionBatchExecutionTablesSequencesAndPermission() {
         Long tableCount = jdbcTemplate.queryForObject("""
                 select count(*)
