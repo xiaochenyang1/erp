@@ -13,6 +13,7 @@ public record IncomeStatementResponse(
         BigDecimal totalRevenue,
         BigDecimal totalExpense,
         BigDecimal netProfit,
-        List<String> unclassifiedSubjectCodes
+        List<String> unclassifiedSubjectCodes,
+        List<String> mappingErrors
 ) {
 }

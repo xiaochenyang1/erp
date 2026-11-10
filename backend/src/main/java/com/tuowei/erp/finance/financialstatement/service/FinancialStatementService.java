@@ -1,6 +1,8 @@
 package com.tuowei.erp.finance.financialstatement.service;
 
 import com.tuowei.erp.common.math.ScalePrecision;
+import com.tuowei.erp.finance.financialstatement.model.FinancialStatementDefinition;
+import com.tuowei.erp.finance.financialstatement.model.FinancialStatementItemDefinition;
 import com.tuowei.erp.finance.financialstatement.web.BalanceSheetQuery;
 import com.tuowei.erp.finance.financialstatement.web.BalanceSheetResponse;
 import com.tuowei.erp.finance.financialstatement.web.FinancialStatementLineResponse;
@@ -15,21 +17,27 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
 public class FinancialStatementService {
 
-    public static final String FORMULA_VERSION = "TYPE_MAPPING_V1";
     private static final LocalDate LEDGER_EPOCH = LocalDate.of(1000, 1, 1);
-    private static final Set<String> KNOWN_TYPES = Set.of("ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE");
+    private static final Set<String> BALANCE_MAPPED_TYPES = Set.of("ASSET", "LIABILITY", "EQUITY");
+    private static final Set<String> INCOME_MAPPED_TYPES = Set.of("REVENUE", "EXPENSE");
 
     private final TrialBalanceService trialBalanceService;
+    private final FinancialStatementConfigurationService configurationService;
 
-    public FinancialStatementService(TrialBalanceService trialBalanceService) {
+    public FinancialStatementService(
+            TrialBalanceService trialBalanceService,
+            FinancialStatementConfigurationService configurationService
+    ) {
         this.trialBalanceService = trialBalanceService;
+        this.configurationService = configurationService;
     }
 
     @Transactional(readOnly = true)
@@ -40,31 +48,28 @@ public class FinancialStatementService {
         TrialBalanceResponse trial = trialBalanceService.trialBalance(
                 trialQuery(LEDGER_EPOCH, query.getAsOfDate())
         );
-        List<FinancialStatementLineResponse> assets = subjectLines(trial, "ASSET", true);
-        List<FinancialStatementLineResponse> liabilities = subjectLines(trial, "LIABILITY", false);
-        List<FinancialStatementLineResponse> equity = new ArrayList<>(subjectLines(trial, "EQUITY", false));
-
-        BigDecimal totalRevenue = totalForType(trial, "REVENUE", false);
-        BigDecimal totalExpense = totalForType(trial, "EXPENSE", true);
+        FinancialStatementDefinition definition = configurationService.definition(
+                FinancialStatementConfigurationService.BALANCE_SHEET
+        );
+        BigDecimal totalRevenue = totalForSubjectType(trial, "REVENUE", false, false);
+        BigDecimal totalExpense = totalForSubjectType(trial, "EXPENSE", true, false);
         BigDecimal cumulativeProfit = amount(totalRevenue.subtract(totalExpense));
-        equity.add(new FinancialStatementLineResponse(
-                "CURRENT_PROFIT",
-                "累计未结转损益",
-                "FORMULA",
-                null,
-                cumulativeProfit
-        ));
+        List<FinancialStatementLineResponse> allLines = configuredLines(definition, trial, false, cumulativeProfit);
+        List<FinancialStatementLineResponse> assets = sectionLines(definition, allLines, "ASSET");
+        List<FinancialStatementLineResponse> liabilities = sectionLines(definition, allLines, "LIABILITY");
+        List<FinancialStatementLineResponse> equity = sectionLines(definition, allLines, "EQUITY");
 
         BigDecimal totalAssets = sum(assets);
         BigDecimal totalLiabilities = sum(liabilities);
         BigDecimal totalEquity = sum(equity);
         BigDecimal liabilitiesAndEquity = amount(totalLiabilities.add(totalEquity));
         BigDecimal difference = amount(totalAssets.subtract(liabilitiesAndEquity));
-        List<String> unclassified = unclassifiedBalance(trial);
+        List<String> unclassified = unmappedBalance(trial, definition);
+        List<String> mappingErrors = definition.validationErrors();
 
         return new BalanceSheetResponse(
                 query.getAsOfDate(),
-                FORMULA_VERSION,
+                definition.formulaVersion(),
                 List.copyOf(assets),
                 List.copyOf(liabilities),
                 List.copyOf(equity),
@@ -73,8 +78,9 @@ public class FinancialStatementService {
                 totalEquity,
                 liabilitiesAndEquity,
                 difference,
-                difference.signum() == 0 && unclassified.isEmpty(),
-                unclassified
+                difference.signum() == 0 && unclassified.isEmpty() && mappingErrors.isEmpty(),
+                unclassified,
+                mappingErrors
         );
     }
 
@@ -84,77 +90,116 @@ public class FinancialStatementService {
         TrialBalanceResponse trial = trialBalanceService.trialBalance(
                 trialQuery(query.getDateFrom(), query.getDateTo())
         );
-        List<FinancialStatementLineResponse> revenues = subjectLines(trial, "REVENUE", false, true);
-        List<FinancialStatementLineResponse> expenses = subjectLines(trial, "EXPENSE", true, true);
+        FinancialStatementDefinition definition = configurationService.definition(
+                FinancialStatementConfigurationService.INCOME_STATEMENT
+        );
+        List<FinancialStatementLineResponse> allLines = configuredLines(definition, trial, true, BigDecimal.ZERO);
+        List<FinancialStatementLineResponse> revenues = sectionLines(definition, allLines, "REVENUE");
+        List<FinancialStatementLineResponse> expenses = sectionLines(definition, allLines, "EXPENSE");
         BigDecimal totalRevenue = sum(revenues);
         BigDecimal totalExpense = sum(expenses);
 
         return new IncomeStatementResponse(
                 query.getDateFrom(),
                 query.getDateTo(),
-                FORMULA_VERSION,
+                definition.formulaVersion(),
                 revenues,
                 expenses,
                 totalRevenue,
                 totalExpense,
                 amount(totalRevenue.subtract(totalExpense)),
-                unclassifiedIncome(trial)
+                unmappedIncome(trial, definition),
+                definition.validationErrors()
         );
     }
 
-    private List<FinancialStatementLineResponse> subjectLines(
+    private List<FinancialStatementLineResponse> configuredLines(
+            FinancialStatementDefinition definition,
             TrialBalanceResponse trial,
-            String subjectType,
-            boolean debitPositive
+            boolean periodOnly,
+            BigDecimal cumulativeProfit
     ) {
-        return subjectLines(trial, subjectType, debitPositive, false);
+        Map<String, TrialBalanceRowResponse> rowsBySubject = trial.rows().stream()
+                .collect(LinkedHashMap::new, (map, row) -> map.put(row.subjectCode(), row), Map::putAll);
+        return definition.items().stream().map(item -> {
+            boolean formula = item.formulaCode() != null;
+            BigDecimal value = formula
+                    ? formulaAmount(item, cumulativeProfit)
+                    : amount(item.subjectCodes().stream()
+                            .map(rowsBySubject::get)
+                            .filter(java.util.Objects::nonNull)
+                            .map(row -> lineAmount(row, item.amountDirection(), periodOnly))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add));
+            return new FinancialStatementLineResponse(
+                    item.itemCode(), item.itemName(), formula ? "FORMULA" : "SUBJECT_SUM", null, value
+            );
+        }).toList();
     }
 
-    private List<FinancialStatementLineResponse> subjectLines(
+    private List<FinancialStatementLineResponse> sectionLines(
+            FinancialStatementDefinition definition,
+            List<FinancialStatementLineResponse> lines,
+            String sectionCode
+    ) {
+        Map<String, String> sections = definition.items().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        FinancialStatementItemDefinition::itemCode,
+                        FinancialStatementItemDefinition::sectionCode
+                ));
+        return lines.stream().filter(line -> sectionCode.equals(sections.get(line.itemCode()))).toList();
+    }
+
+    private BigDecimal formulaAmount(FinancialStatementItemDefinition item, BigDecimal cumulativeProfit) {
+        if ("CUMULATIVE_PROFIT".equals(item.formulaCode())) {
+            return amount(cumulativeProfit);
+        }
+        throw new IllegalStateException("不支持的财务报表公式: " + item.formulaCode());
+    }
+
+    private BigDecimal totalForSubjectType(
             TrialBalanceResponse trial,
             String subjectType,
             boolean debitPositive,
             boolean periodOnly
     ) {
-        return trial.rows().stream()
-                .filter(row -> subjectType.equals(row.subjectType()))
-                .map(row -> new FinancialStatementLineResponse(
-                        subjectType + "_" + row.subjectCode(),
-                        row.subjectName(),
-                        "SUBJECT",
-                        row.subjectCode(),
-                        lineAmount(row, debitPositive, periodOnly)
-                ))
-                .toList();
-    }
-
-    private BigDecimal totalForType(TrialBalanceResponse trial, String subjectType, boolean debitPositive) {
         return amount(trial.rows().stream()
                 .filter(row -> subjectType.equals(row.subjectType()))
-                .map(row -> lineAmount(row, debitPositive, false))
+                .map(row -> lineAmount(row, debitPositive ? "DEBIT" : "CREDIT", periodOnly))
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 
-    private BigDecimal lineAmount(TrialBalanceRowResponse row, boolean debitPositive, boolean periodOnly) {
+    private BigDecimal lineAmount(TrialBalanceRowResponse row, String amountDirection, boolean periodOnly) {
         BigDecimal debit = periodOnly ? row.periodDebit() : row.closingDebit();
         BigDecimal credit = periodOnly ? row.periodCredit() : row.closingCredit();
-        return debitPositive ? amount(debit.subtract(credit)) : amount(credit.subtract(debit));
+        return "DEBIT".equals(amountDirection)
+                ? amount(debit.subtract(credit))
+                : amount(credit.subtract(debit));
     }
 
-    private List<String> unclassifiedBalance(TrialBalanceResponse trial) {
+    private List<String> unmappedBalance(
+            TrialBalanceResponse trial,
+            FinancialStatementDefinition definition
+    ) {
         return trial.rows().stream()
-                .filter(row -> !KNOWN_TYPES.contains(row.subjectType()))
                 .filter(row -> row.closingDebit().compareTo(row.closingCredit()) != 0)
+                .filter(row -> BALANCE_MAPPED_TYPES.contains(row.subjectType())
+                        || (!INCOME_MAPPED_TYPES.contains(row.subjectType())))
+                .filter(row -> !definition.subjectItemCodes().containsKey(row.subjectCode()))
                 .map(TrialBalanceRowResponse::subjectCode)
                 .distinct()
                 .sorted()
                 .toList();
     }
 
-    private List<String> unclassifiedIncome(TrialBalanceResponse trial) {
+    private List<String> unmappedIncome(
+            TrialBalanceResponse trial,
+            FinancialStatementDefinition definition
+    ) {
         return trial.rows().stream()
-                .filter(row -> !KNOWN_TYPES.contains(row.subjectType()))
                 .filter(row -> row.periodDebit().signum() != 0 || row.periodCredit().signum() != 0)
+                .filter(row -> INCOME_MAPPED_TYPES.contains(row.subjectType())
+                        || (!BALANCE_MAPPED_TYPES.contains(row.subjectType())))
+                .filter(row -> !definition.subjectItemCodes().containsKey(row.subjectCode()))
                 .map(TrialBalanceRowResponse::subjectCode)
                 .distinct()
                 .sorted()

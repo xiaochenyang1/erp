@@ -16,6 +16,7 @@ public record BalanceSheetResponse(
         BigDecimal liabilitiesAndEquity,
         BigDecimal difference,
         boolean balanced,
-        List<String> unclassifiedSubjectCodes
+        List<String> unclassifiedSubjectCodes,
+        List<String> mappingErrors
 ) {
 }

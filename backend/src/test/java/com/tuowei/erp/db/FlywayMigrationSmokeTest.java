@@ -156,6 +156,33 @@ class FlywayMigrationSmokeTest {
     }
 
     @Test
+    void createsVersionedFinancialStatementMappings() {
+        Long tableCount = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) in (
+                    'sys_financial_statement_item_template',
+                    'fin_financial_statement_subject_map'
+                  )
+                """, Long.class);
+        Assertions.assertThat(tableCount).isEqualTo(2L);
+
+        Long templateCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_financial_statement_item_template
+                where formula_version = 'TYPE_MAPPING_V1'
+                  and status = 'ACTIVE'
+                """, Long.class);
+        Assertions.assertThat(templateCount).isEqualTo(17L);
+
+        Long mappingCount = jdbcTemplate.queryForObject("""
+                select count(*) from fin_financial_statement_subject_map
+                where company_id = 1 and account_book_id = 1
+                  and formula_version = 'TYPE_MAPPING_V1'
+                """, Long.class);
+        Assertions.assertThat(mappingCount).isEqualTo(16L);
+    }
+
+    @Test
     void createsProductionBatchExecutionTablesSequencesAndPermission() {
         Long tableCount = jdbcTemplate.queryForObject("""
                 select count(*)

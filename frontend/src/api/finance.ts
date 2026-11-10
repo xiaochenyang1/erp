@@ -649,6 +649,7 @@ export interface BalanceSheet {
   difference: number
   balanced: boolean
   unclassifiedSubjectCodes: string[]
+  mappingErrors: string[]
 }
 
 export interface IncomeStatement {
@@ -661,6 +662,24 @@ export interface IncomeStatement {
   totalExpense: number
   netProfit: number
   unclassifiedSubjectCodes: string[]
+  mappingErrors: string[]
+}
+
+export interface FinancialStatementConfigurationItem {
+  itemCode: string
+  itemName: string
+  sectionCode: string
+  amountDirection: string
+  formulaCode?: string
+  sortNo: number
+  subjectCodes: string[]
+}
+
+export interface FinancialStatementConfiguration {
+  formulaVersion: string
+  statementType: 'BALANCE_SHEET' | 'INCOME_STATEMENT' | string
+  items: FinancialStatementConfigurationItem[]
+  validationErrors: string[]
 }
 
 // 总账API
@@ -692,6 +711,44 @@ export const getIncomeStatement = (params: Pick<LedgerQuery, 'startDate' | 'endD
   return request.get<IncomeStatement>('/finance/financial-statements/income-statement', {
     params: toLedgerQueryParams(params)
   }).then(normalizeIncomeStatement)
+}
+
+export const exportTrialBalance = (params: Pick<LedgerQuery, 'startDate' | 'endDate' | 'dateFrom' | 'dateTo'>) => {
+  return request.get<Blob>('/finance/ledger/trial-balance/export', {
+    params: toLedgerQueryParams(params),
+    responseType: 'blob'
+  })
+}
+
+export const exportBalanceSheet = (asOfDate: string) => {
+  return request.get<Blob>('/finance/financial-statements/balance-sheet/export', {
+    params: { asOfDate },
+    responseType: 'blob'
+  })
+}
+
+export const exportIncomeStatement = (params: Pick<LedgerQuery, 'startDate' | 'endDate' | 'dateFrom' | 'dateTo'>) => {
+  return request.get<Blob>('/finance/financial-statements/income-statement/export', {
+    params: toLedgerQueryParams(params),
+    responseType: 'blob'
+  })
+}
+
+export const getFinancialStatementConfiguration = (statementType: string) => {
+  return request.get<FinancialStatementConfiguration>('/finance/financial-statements/configuration', {
+    params: { statementType }
+  })
+}
+
+export const updateFinancialStatementItemSubjects = (
+  statementType: string,
+  itemCode: string,
+  subjectCodes: string[]
+) => {
+  return request.put<FinancialStatementConfiguration>(
+    `/finance/financial-statements/configuration/${statementType}/${itemCode}/subjects`,
+    { subjectCodes }
+  )
 }
 
 export const exportLedger = (params: LedgerQuery) => {
@@ -756,7 +813,8 @@ const normalizeBalanceSheet = (statement: BalanceSheet): BalanceSheet => ({
   totalEquity: Number(statement.totalEquity ?? 0),
   liabilitiesAndEquity: Number(statement.liabilitiesAndEquity ?? 0),
   difference: Number(statement.difference ?? 0),
-  unclassifiedSubjectCodes: statement.unclassifiedSubjectCodes || []
+  unclassifiedSubjectCodes: statement.unclassifiedSubjectCodes || [],
+  mappingErrors: statement.mappingErrors || []
 })
 
 const normalizeIncomeStatement = (statement: IncomeStatement): IncomeStatement => ({
@@ -766,7 +824,8 @@ const normalizeIncomeStatement = (statement: IncomeStatement): IncomeStatement =
   totalRevenue: Number(statement.totalRevenue ?? 0),
   totalExpense: Number(statement.totalExpense ?? 0),
   netProfit: Number(statement.netProfit ?? 0),
-  unclassifiedSubjectCodes: statement.unclassifiedSubjectCodes || []
+  unclassifiedSubjectCodes: statement.unclassifiedSubjectCodes || [],
+  mappingErrors: statement.mappingErrors || []
 })
 
 // ==================== 会计期间 ====================

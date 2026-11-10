@@ -1,6 +1,7 @@
 package com.tuowei.erp.finance.ledger;
 
 import com.tuowei.erp.finance.ledger.service.FinanceLedgerService;
+import com.tuowei.erp.finance.financialstatement.service.FinancialStatementExportService;
 import com.tuowei.erp.finance.ledger.web.LedgerQuery;
 import com.tuowei.erp.testsupport.ControlledStreamingResponse;
 import com.tuowei.erp.testsupport.WithErpUser;
@@ -39,6 +40,9 @@ class FinanceLedgerControllerExportTest {
 
     @MockitoBean
     private FinanceLedgerService financeLedgerService;
+
+    @MockitoBean
+    private FinancialStatementExportService financialStatementExportService;
 
     @Test
     @WithErpUser(authorities = "system:user:view")
@@ -85,5 +89,28 @@ class FinanceLedgerControllerExportTest {
         assertThat(query.getSubjectCode()).isEqualTo("1001");
         assertThat(query.getDateFrom()).isEqualTo(LocalDate.of(2026, 6, 1));
         assertThat(query.getDateTo()).isEqualTo(LocalDate.of(2026, 6, 30));
+    }
+
+    @Test
+    @WithErpUser(authorities = "finance:ledger:view")
+    void trialBalanceExportStreamsCsv() throws Exception {
+        ControlledStreamingResponse response = ControlledStreamingResponse.csv(
+                "subjectCode,closingDebit,closingCredit\r\n1002,10.00,0.00\r\n"
+        );
+        when(financialStatementExportService.exportTrialBalance(any())).thenReturn(response.body());
+
+        MvcResult result = mockMvc.perform(get("/api/finance/ledger/trial-balance/export")
+                        .param("dateFrom", "2026-06-01")
+                        .param("dateTo", "2026-06-30"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        response.release();
+
+        MvcResult dispatched = mockMvc.perform(asyncDispatch(result))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/csv;charset=UTF-8"))
+                .andReturn();
+        assertThat(dispatched.getResponse().getHeader(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("trial-balance.csv");
     }
 }

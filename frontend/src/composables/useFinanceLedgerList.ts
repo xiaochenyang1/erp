@@ -36,6 +36,9 @@ export const useFinanceLedgerList = (
     getBalanceSheet?: (asOfDate: string) => Promise<BalanceSheet>
     getIncomeStatement?: (params: LedgerQueryParams) => Promise<IncomeStatement>
     exportLedger: (params: LedgerQueryParams) => Promise<Blob>
+    exportTrialBalance?: (params: LedgerQueryParams) => Promise<Blob>
+    exportBalanceSheet?: (asOfDate: string) => Promise<Blob>
+    exportIncomeStatement?: (params: LedgerQueryParams) => Promise<Blob>
     downloadBlob: (blob: Blob, fileName: string) => void
     onError?: Notify
     onSuccess?: Notify
@@ -255,10 +258,32 @@ export const useFinanceLedgerList = (
   const handleExport = async () => {
     try {
       syncDateRange()
-      const blob = await options.exportLedger(buildLedgerQueryParams())
+      let blob: Blob
+      let fileNameKey = 'financeReportPages.ledger.fileName'
+      if (activeTab.value === 'trial') {
+        if (!requireDateRange('financeReportPages.ledger.message.trialDateRequired') || !options.exportTrialBalance) {
+          return false
+        }
+        blob = await options.exportTrialBalance(buildLedgerQueryParams())
+        fileNameKey = 'financeReportPages.ledger.trialFileName'
+      } else if (activeTab.value === 'balance') {
+        if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired') || !options.exportBalanceSheet) {
+          return false
+        }
+        blob = await options.exportBalanceSheet(queryForm.endDate)
+        fileNameKey = 'financeReportPages.ledger.balanceFileName'
+      } else if (activeTab.value === 'income') {
+        if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired') || !options.exportIncomeStatement) {
+          return false
+        }
+        blob = await options.exportIncomeStatement(buildLedgerQueryParams())
+        fileNameKey = 'financeReportPages.ledger.incomeFileName'
+      } else {
+        blob = await options.exportLedger(buildLedgerQueryParams())
+      }
       options.downloadBlob(
         blob,
-        t('financeReportPages.ledger.fileName', { timestamp: Date.now() })
+        t(fileNameKey, { timestamp: Date.now() })
       )
       options.onSuccess?.(t('financeReportPages.ledger.message.exported'))
       return true

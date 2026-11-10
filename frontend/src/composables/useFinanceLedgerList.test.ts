@@ -71,7 +71,8 @@ const balanceSheet = (): BalanceSheet => ({
   liabilitiesAndEquity: 100,
   difference: 0,
   balanced: true,
-  unclassifiedSubjectCodes: []
+  unclassifiedSubjectCodes: [],
+  mappingErrors: []
 })
 
 const incomeStatement = (): IncomeStatement => ({
@@ -83,7 +84,8 @@ const incomeStatement = (): IncomeStatement => ({
   totalRevenue: 100,
   totalExpense: 30,
   netProfit: 70,
-  unclassifiedSubjectCodes: []
+  unclassifiedSubjectCodes: [],
+  mappingErrors: []
 })
 
 const createList = (overrides: Partial<Parameters<typeof useFinanceLedgerList>[1]> = {}) =>
@@ -204,5 +206,20 @@ describe('finance ledger list', () => {
       endDate: '2026-07-31'
     }))
     expect(list.incomeStatement.value?.netProfit).toBe(70)
+  })
+
+  it('exports the active financial statement with its own file name', async () => {
+    const exportBalanceSheet = vi.fn(async () => new Blob(['balance']))
+    const downloadBlob = vi.fn()
+    const list = createList({ exportBalanceSheet, downloadBlob })
+    list.dateRange.value = ['2026-07-01', '2026-07-31']
+    list.activeTab.value = 'balance'
+
+    expect(await list.handleExport()).toBe(true)
+    expect(exportBalanceSheet).toHaveBeenCalledWith('2026-07-31')
+    expect(downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      expect.stringContaining('financeReportPages.ledger.balanceFileName')
+    )
   })
 })

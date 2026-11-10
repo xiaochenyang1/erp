@@ -28,7 +28,15 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
           <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
-          <el-button v-if="activeTab === 'general' || activeTab === 'detail'" v-permission="'finance:ledger:view'" :icon="Download" @click="handleExport">{{ $t('financeReportPages.ledger.export') }}</el-button>
+          <el-button
+            v-if="activeTab === 'balance' || activeTab === 'income'"
+            v-permission="'finance:subject:manage'"
+            :icon="Setting"
+            @click="openMappingDialog"
+          >
+            {{ $t('financeReportPages.ledger.mappingConfiguration') }}
+          </el-button>
+          <el-button v-permission="'finance:ledger:view'" :icon="Download" @click="handleExport">{{ $t('financeReportPages.ledger.export') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -162,7 +170,9 @@
             v-if="balanceSheet"
             :type="balanceSheet.balanced ? 'success' : 'error'"
             :closable="false"
-            :title="balanceSheet.unclassifiedSubjectCodes.length
+            :title="balanceSheet.mappingErrors.length
+              ? $t('financeReportPages.ledger.mappingErrors', { errors: balanceSheet.mappingErrors.join('; ') })
+              : balanceSheet.unclassifiedSubjectCodes.length
               ? $t('financeReportPages.ledger.unclassifiedSubjects', { codes: balanceSheet.unclassifiedSubjectCodes.join(', ') })
               : balanceSheet.balanced
                 ? $t('financeReportPages.ledger.balanceSheetBalanced')
@@ -215,6 +225,14 @@
 
         <el-tab-pane :label="$t('financeReportPages.ledger.incomeStatementTab')" name="income">
           <el-alert
+            v-if="incomeStatement?.mappingErrors.length"
+            type="error"
+            :closable="false"
+            :title="$t('financeReportPages.ledger.mappingErrors', { errors: incomeStatement.mappingErrors.join('; ') })"
+            show-icon
+            style="margin-bottom: 16px"
+          />
+          <el-alert
             v-if="incomeStatement?.unclassifiedSubjectCodes.length"
             type="error"
             :closable="false"
@@ -255,28 +273,79 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
+
+    <el-dialog
+      v-model="mappingDialogVisible"
+      :title="$t('financeReportPages.ledger.mappingConfiguration')"
+      width="900px"
+    >
+      <el-alert
+        v-if="statementConfiguration?.validationErrors.length"
+        type="error"
+        :closable="false"
+        :title="$t('financeReportPages.ledger.mappingErrors', { errors: statementConfiguration.validationErrors.join('; ') })"
+        style="margin-bottom: 16px"
+      />
+      <el-table v-loading="mappingLoading" :data="statementConfiguration?.items || []" border>
+        <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" width="200" />
+        <el-table-column prop="sectionCode" :label="$t('financeReportPages.ledger.section')" width="130" />
+        <el-table-column :label="$t('financeReportPages.ledger.mappedSubjects')" min-width="360">
+          <template #default="{ row }">
+            <span v-if="row.formulaCode">{{ $t('financeReportPages.ledger.formulaItem') }} · {{ row.formulaCode }}</span>
+            <el-select v-else v-model="row.subjectCodes" multiple filterable style="width: 100%">
+              <el-option
+                v-for="subject in mappingSubjectOptions(row.sectionCode)"
+                :key="subject.code"
+                :label="`${subject.code} ${subject.name}`"
+                :value="subject.code"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="100" align="center">
+          <template #default="{ row }">
+            <el-button v-if="!row.formulaCode" type="primary" link @click="saveMappingItem(row)">
+              {{ $t('financeReportPages.common.save') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Download, Refresh, Search } from '@element-plus/icons-vue'
+import { Download, Refresh, Search, Setting } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
 import {
+  exportBalanceSheet,
+  exportIncomeStatement,
   exportLedger,
+  exportTrialBalance,
   getAccountSubjectTree,
   getBalanceSheet,
   getIncomeStatement,
+  getFinancialStatementConfiguration,
   getLedgerEntries,
   getLedgerSummary,
-  getTrialBalance
+  getTrialBalance,
+  updateFinancialStatementItemSubjects
+} from '@/api/finance'
+import type {
+  AccountSubject,
+  FinancialStatementConfiguration,
+  FinancialStatementConfigurationItem
 } from '@/api/finance'
 import { useFinanceLedgerList } from '@/composables/useFinanceLedgerList'
 import { useFinanceLedgerPresentation } from '@/composables/useFinanceLedgerPresentation'
 
 const { t } = useI18n()
+const mappingDialogVisible = ref(false)
+const mappingLoading = ref(false)
+const statementConfiguration = ref<FinancialStatementConfiguration | null>(null)
 
 const {
   formatAmount,
@@ -315,11 +384,58 @@ const {
   getLedgerSummary,
   getLedgerEntries,
   getTrialBalance,
+  exportTrialBalance,
+  exportBalanceSheet,
+  exportIncomeStatement,
   exportLedger,
   downloadBlob,
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message)
 })
+
+const mappingStatementType = computed(() => activeTab.value === 'income' ? 'INCOME_STATEMENT' : 'BALANCE_SHEET')
+
+const flattenSubjects = (subjects: AccountSubject[]): AccountSubject[] => subjects.flatMap((subject) => [
+  subject,
+  ...flattenSubjects(subject.children || [])
+])
+
+const mappingSubjectOptions = (sectionCode: string) => flattenSubjects(subjectOptions.value)
+  .filter((subject) => (subject.category || subject.subjectType) === sectionCode)
+  .map((subject) => ({
+    code: subject.code || subject.subjectCode || '',
+    name: subject.name || subject.subjectName || ''
+  }))
+  .filter((subject) => subject.code)
+
+const openMappingDialog = async () => {
+  mappingDialogVisible.value = true
+  mappingLoading.value = true
+  try {
+    statementConfiguration.value = await getFinancialStatementConfiguration(mappingStatementType.value)
+  } catch {
+    ElMessage.error(t('financeReportPages.ledger.message.mappingLoadFailed'))
+  } finally {
+    mappingLoading.value = false
+  }
+}
+
+const saveMappingItem = async (item: FinancialStatementConfigurationItem) => {
+  mappingLoading.value = true
+  try {
+    statementConfiguration.value = await updateFinancialStatementItemSubjects(
+      mappingStatementType.value,
+      item.itemCode,
+      item.subjectCodes
+    )
+    ElMessage.success(t('financeReportPages.ledger.message.mappingSaved'))
+    await handleQuery()
+  } catch {
+    ElMessage.error(t('financeReportPages.ledger.message.mappingSaveFailed'))
+  } finally {
+    mappingLoading.value = false
+  }
+}
 
 onMounted(async () => {
   await loadSubjects()

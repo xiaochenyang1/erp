@@ -55,6 +55,24 @@ class MysqlFlywayMigrationSmokeTest {
                         where config_code = 'erp.bootstrap.admin-password-initialized'
                           and config_value = 'false'
                         """, 1L);
+
+                assertCount(statement, """
+                        select count(*)
+                        from information_schema.tables
+                        where table_schema = database()
+                          and table_name in (
+                            'sys_financial_statement_item_template',
+                            'fin_financial_statement_subject_map'
+                          )
+                        """, 2L);
+
+                assertCount(statement, """
+                        select count(*)
+                        from fin_financial_statement_subject_map
+                        where company_id = 1
+                          and account_book_id = 1
+                          and formula_version = 'TYPE_MAPPING_V1'
+                        """, 16L);
             }
         }
     }
