@@ -83,6 +83,57 @@ class ProductionScheduleCalculatorTest {
     }
 
     @Test
+    void reusesRemainingCapacityInAnOvernightWorkWindow() {
+        LocalDate monday = LocalDate.of(2026, 11, 9);
+        ProductionWorkCenterEntity center = center(101L, "NIGHT", 600);
+        center.setWorkdayStartTime(LocalTime.of(20, 0));
+        ProductionOrderEntity first = order(1L, "MO-1", monday, monday.plusDays(1));
+        ProductionOrderEntity second = order(2L, "MO-2", monday, monday.plusDays(1));
+        ProductionOrderOperationEntity firstOperation = operation(11L, 1L, 101L, 1, "60", "6");
+        ProductionOrderOperationEntity secondOperation = operation(21L, 2L, 101L, 1, "60", "4");
+
+        var result = calculator.calculate(
+                monday, monday, List.of(first, second),
+                List.of(firstOperation, secondOperation), List.of(center));
+
+        assertEquals(LocalDateTime.of(monday, LocalTime.of(20, 0)), result.items().get(0).scheduledStartTime());
+        assertEquals(LocalDateTime.of(monday.plusDays(1), LocalTime.of(2, 0)), result.items().get(0).scheduledEndTime());
+        assertEquals(result.items().get(0).scheduledEndTime(), result.items().get(1).scheduledStartTime());
+        assertEquals(LocalDateTime.of(monday.plusDays(1), LocalTime.of(6, 0)), result.items().get(1).scheduledEndTime());
+    }
+
+    @Test
+    void continuesLongOvernightLoadOnTheNextWorkday() {
+        LocalDate monday = LocalDate.of(2026, 11, 9);
+        ProductionWorkCenterEntity center = center(101L, "NIGHT", 600);
+        center.setWorkdayStartTime(LocalTime.of(20, 0));
+        ProductionOrderEntity order = order(1L, "MO-1", monday, monday.plusDays(2));
+        ProductionOrderOperationEntity operation = operation(11L, 1L, 101L, 1, "80", "10");
+
+        var result = calculator.calculate(
+                monday, monday.plusDays(1), List.of(order), List.of(operation), List.of(center));
+
+        assertEquals("SCHEDULED", result.items().get(0).scheduleStatus());
+        assertEquals(LocalDateTime.of(monday, LocalTime.of(20, 0)), result.items().get(0).scheduledStartTime());
+        assertEquals(LocalDateTime.of(monday.plusDays(1), LocalTime.of(23, 20)), result.items().get(0).scheduledEndTime());
+    }
+
+    @Test
+    void letsFridayNightShiftCrossMidnightWithoutOpeningASaturdayShift() {
+        LocalDate friday = LocalDate.of(2026, 11, 13);
+        ProductionWorkCenterEntity center = center(101L, "NIGHT", 600);
+        center.setWorkdayStartTime(LocalTime.of(20, 0));
+        ProductionOrderEntity order = order(1L, "MO-1", friday, friday.plusDays(4));
+        ProductionOrderOperationEntity operation = operation(11L, 1L, 101L, 1, "72", "10");
+
+        var result = calculator.calculate(
+                friday, friday.plusDays(3), List.of(order), List.of(operation), List.of(center));
+
+        assertEquals(LocalDateTime.of(friday, LocalTime.of(20, 0)), result.items().get(0).scheduledStartTime());
+        assertEquals(LocalDateTime.of(friday.plusDays(3), LocalTime.of(22, 0)), result.items().get(0).scheduledEndTime());
+    }
+
+    @Test
     void rejectsInvalidAndExcessivelyLongHorizons() {
         LocalDate day = LocalDate.of(2026, 11, 9);
         assertThrows(IllegalArgumentException.class,

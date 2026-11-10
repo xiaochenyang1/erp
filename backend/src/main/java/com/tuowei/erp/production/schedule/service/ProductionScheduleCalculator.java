@@ -97,10 +97,10 @@ public class ProductionScheduleCalculator {
                 }
 
                 LocalDateTime readyTime = predecessorEnd;
-                LocalDateTime earliest = alignToWorkWindow(readyTime, center);
+                LocalDateTime earliest = alignToWorkWindow(readyTime, center, orderStart);
                 LocalDateTime cursor = centerCursor.get(center.getId());
                 LocalDateTime available = cursor == null || cursor.isBefore(earliest) ? earliest : cursor;
-                Allocation allocation = allocate(available, requiredMinutes, center, endDate);
+                Allocation allocation = allocate(available, requiredMinutes, center, orderStart, endDate);
                 if (allocation == null) {
                     predecessorFailure = "排程区间内工作中心产能不足";
                     items.add(unscheduled(order, operation, center, remainingQty, standardMinutes, requiredMinutes,
@@ -141,42 +141,85 @@ public class ProductionScheduleCalculator {
             LocalDateTime available,
             BigDecimal requiredMinutes,
             ProductionWorkCenterEntity center,
+            LocalDate horizonStart,
             LocalDate horizonEnd
     ) {
         long remaining = requiredMinutes.setScale(0, RoundingMode.CEILING).longValueExact();
-        LocalDateTime current = alignToWorkWindow(available, center);
-        if (current.toLocalDate().isAfter(horizonEnd)) return null;
+        WorkWindow window = workWindowAtOrAfter(available, center, horizonStart);
+        if (window.workDate().isAfter(horizonEnd)) return null;
+        LocalDateTime current = alignWithinWindow(available, window);
         LocalDateTime first = current;
         while (remaining > 0) {
-            if (current.toLocalDate().isAfter(horizonEnd)) return null;
-            LocalDateTime dayEnd = current.toLocalDate().atTime(startTime(center)).plusMinutes(capacity(center));
-            long availableMinutes = Math.max(0, Duration.between(current, dayEnd).toMinutes());
+            long availableMinutes = Math.max(0, Duration.between(current, window.end()).toMinutes());
             if (availableMinutes == 0) {
-                current = alignToWorkWindow(current.toLocalDate().plusDays(1).atStartOfDay(), center);
+                window = nextWorkWindow(window.workDate(), center);
+                if (window.workDate().isAfter(horizonEnd)) return null;
+                current = window.start();
                 continue;
             }
             long allocated = Math.min(remaining, availableMinutes);
             current = current.plusMinutes(allocated);
             remaining -= allocated;
             if (remaining > 0) {
-                current = alignToWorkWindow(current.toLocalDate().plusDays(1).atStartOfDay(), center);
+                window = nextWorkWindow(window.workDate(), center);
+                if (window.workDate().isAfter(horizonEnd)) return null;
+                current = window.start();
             }
         }
         return new Allocation(first, current);
     }
 
-    private LocalDateTime alignToWorkWindow(LocalDateTime candidate, ProductionWorkCenterEntity center) {
-        LocalDate date = candidate.toLocalDate();
-        while (isWeekend(date)) date = date.plusDays(1);
-        LocalDateTime start = date.atTime(startTime(center));
-        LocalDateTime end = start.plusMinutes(capacity(center));
-        if (candidate.toLocalDate().isBefore(date) || candidate.isBefore(start)) return start;
-        if (!candidate.isBefore(end)) {
-            LocalDate next = date.plusDays(1);
-            while (isWeekend(next)) next = next.plusDays(1);
-            return next.atTime(startTime(center));
+    private LocalDateTime alignToWorkWindow(
+            LocalDateTime candidate,
+            ProductionWorkCenterEntity center,
+            LocalDate minimumWorkDate
+    ) {
+        WorkWindow window = workWindowAtOrAfter(candidate, center, minimumWorkDate);
+        return alignWithinWindow(candidate, window);
+    }
+
+    private WorkWindow workWindowAtOrAfter(
+            LocalDateTime candidate,
+            ProductionWorkCenterEntity center,
+            LocalDate minimumWorkDate
+    ) {
+        LocalDate candidateDate = candidate.toLocalDate();
+        LocalDate previousDate = candidateDate.minusDays(1);
+        if (!previousDate.isBefore(minimumWorkDate) && !isWeekend(previousDate)) {
+            WorkWindow previous = workWindow(previousDate, center);
+            if (!candidate.isBefore(previous.start()) && candidate.isBefore(previous.end())) {
+                return previous;
+            }
         }
-        return candidate.withSecond(0).withNano(0);
+
+        if (!isWeekend(candidateDate)) {
+            WorkWindow current = workWindow(candidateDate, center);
+            if (candidate.isBefore(current.end())) {
+                return current;
+            }
+            return nextWorkWindow(candidateDate, center);
+        }
+
+        LocalDate nextDate = candidateDate;
+        while (isWeekend(nextDate)) nextDate = nextDate.plusDays(1);
+        return workWindow(nextDate, center);
+    }
+
+    private WorkWindow nextWorkWindow(LocalDate workDate, ProductionWorkCenterEntity center) {
+        LocalDate nextDate = workDate.plusDays(1);
+        while (isWeekend(nextDate)) nextDate = nextDate.plusDays(1);
+        return workWindow(nextDate, center);
+    }
+
+    private WorkWindow workWindow(LocalDate workDate, ProductionWorkCenterEntity center) {
+        LocalDateTime start = workDate.atTime(startTime(center));
+        return new WorkWindow(workDate, start, start.plusMinutes(capacity(center)));
+    }
+
+    private LocalDateTime alignWithinWindow(LocalDateTime candidate, WorkWindow window) {
+        return candidate.isBefore(window.start())
+                ? window.start()
+                : candidate.withSecond(0).withNano(0);
     }
 
     private ProductionScheduleItemResponse unscheduled(
@@ -246,5 +289,8 @@ public class ProductionScheduleCalculator {
     }
 
     private record Allocation(LocalDateTime start, LocalDateTime end) {
+    }
+
+    private record WorkWindow(LocalDate workDate, LocalDateTime start, LocalDateTime end) {
     }
 }
