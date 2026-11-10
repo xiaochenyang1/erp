@@ -1,6 +1,6 @@
 package com.tuowei.erp.common.cache;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
@@ -14,7 +14,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 @Service
-@ConditionalOnBean(StringRedisTemplate.class)
+@Profile("!local & !test")
 public class RedisCacheService implements CacheService {
 
     private static final long SCAN_COUNT = 1000;

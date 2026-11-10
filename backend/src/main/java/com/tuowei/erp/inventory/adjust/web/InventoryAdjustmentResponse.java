@@ -2,6 +2,7 @@ package com.tuowei.erp.inventory.adjust.web;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record InventoryAdjustmentResponse(
@@ -13,6 +14,12 @@ public record InventoryAdjustmentResponse(
         BigDecimal totalQuantity,
         BigDecimal totalAmount,
         String remark,
-        List<InventoryAdjustmentLineResponse> lines
+        List<InventoryAdjustmentLineResponse> lines,
+        String sourceType,
+        Long sourceId,
+        String sourceNo,
+        Long createdBy,
+        LocalDateTime createdTime,
+        LocalDateTime updatedTime
 ) {
 }

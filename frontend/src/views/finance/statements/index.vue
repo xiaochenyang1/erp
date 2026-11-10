@@ -39,11 +39,12 @@
       <div class="summary">
         <div><b>{{ statement.partnerName }}</b> {{ t('financeStatement.partnerTypeValue', { type: partnerTypeLabel(statement.partnerType) }) }}</div>
         <div>{{ t('financeStatement.periodValue', { from: formatDate(statement.dateFrom), to: formatDate(statement.dateTo) }) }}</div>
-        <div>{{ t('financeStatement.openingValue', { amount: money(statement.openingBalance) }) }}</div>
-        <div>{{ t('financeStatement.increaseValue', { amount: money(statement.totalIncrease) }) }}</div>
-        <div>{{ t('financeStatement.decreaseValue', { amount: money(statement.totalDecrease) }) }}</div>
-        <div>{{ t('financeStatement.closingValue', { amount: money(statement.closingBalance) }) }}</div>
+        <div>{{ t('financeStatement.openingValue', { amount: money(statement.openingBalance, statement.baseCurrencyCode) }) }}</div>
+        <div>{{ t('financeStatement.increaseValue', { amount: money(statement.totalIncrease, statement.baseCurrencyCode) }) }}</div>
+        <div>{{ t('financeStatement.decreaseValue', { amount: money(statement.totalDecrease, statement.baseCurrencyCode) }) }}</div>
+        <div>{{ t('financeStatement.closingValue', { amount: money(statement.closingBalance, statement.baseCurrencyCode) }) }}</div>
       </div>
+      <p class="currency-notice">{{ t('financeStatement.currencyNotice', { currency: statement.baseCurrencyCode || 'CNY' }) }}</p>
       <el-table :data="statement.lines" border stripe>
         <el-table-column prop="bizDate" :label="t('financeStatement.date')" width="120">
           <template #default="{ row }">{{ formatDate(row.bizDate) }}</template>
@@ -56,10 +57,10 @@
           <template #default="{ row }">{{ directionLabel(row.direction) }}</template>
         </el-table-column>
         <el-table-column prop="amount" :label="t('financeStatement.amount')" width="140" align="right">
-          <template #default="{ row }">{{ money(row.amount) }}</template>
+          <template #default="{ row }">{{ money(row.amount, statement.baseCurrencyCode) }}</template>
         </el-table-column>
         <el-table-column prop="balance" :label="t('financeStatement.balance')" width="140" align="right">
-          <template #default="{ row }">{{ money(row.balance) }}</template>
+          <template #default="{ row }">{{ money(row.balance, statement.baseCurrencyCode) }}</template>
         </el-table-column>
         <el-table-column prop="remark" :label="t('financeStatement.remark')" min-width="140" show-overflow-tooltip />
       </el-table>
@@ -136,4 +137,5 @@ onMounted(async () => {
 .page { display: flex; flex-direction: column; gap: 12px; }
 .mt { margin-top: 0; }
 .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; font-size: 13px; }
+.currency-notice { color: var(--el-text-color-secondary); font-size: 13px; margin: 0 0 12px; }
 </style>

@@ -20,6 +20,9 @@ public class ProductionCompletionReversalEntity {
     private LocalDate reversalDate;
     private BigDecimal reversedQty;
     private BigDecimal reversedAmount;
+    private BigDecimal materialCostAmount;
+    private BigDecimal laborCostAmount;
+    private BigDecimal overheadCostAmount;
     private String remark;
     private Long createdBy;
     private LocalDateTime createdTime;
@@ -44,6 +47,12 @@ public class ProductionCompletionReversalEntity {
     public void setReversedQty(BigDecimal reversedQty) { this.reversedQty = reversedQty; }
     public BigDecimal getReversedAmount() { return reversedAmount; }
     public void setReversedAmount(BigDecimal reversedAmount) { this.reversedAmount = reversedAmount; }
+    public BigDecimal getMaterialCostAmount() { return materialCostAmount; }
+    public void setMaterialCostAmount(BigDecimal materialCostAmount) { this.materialCostAmount = materialCostAmount; }
+    public BigDecimal getLaborCostAmount() { return laborCostAmount; }
+    public void setLaborCostAmount(BigDecimal laborCostAmount) { this.laborCostAmount = laborCostAmount; }
+    public BigDecimal getOverheadCostAmount() { return overheadCostAmount; }
+    public void setOverheadCostAmount(BigDecimal overheadCostAmount) { this.overheadCostAmount = overheadCostAmount; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
     public Long getCreatedBy() { return createdBy; }

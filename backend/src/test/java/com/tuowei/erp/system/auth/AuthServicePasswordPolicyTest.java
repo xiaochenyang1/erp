@@ -5,7 +5,9 @@ import com.tuowei.erp.common.security.ErpPrincipal;
 import com.tuowei.erp.common.security.JwtTokenService;
 import com.tuowei.erp.common.security.SecurityPrincipalCache;
 import com.tuowei.erp.common.web.ClientIpResolver;
+import com.tuowei.erp.system.auth.service.AuthAccountService;
 import com.tuowei.erp.system.auth.service.AuthService;
+import com.tuowei.erp.system.auth.service.AuthSessionService;
 import com.tuowei.erp.system.auth.service.LoginRateLimiter;
 import com.tuowei.erp.system.auth.service.RefreshTokenService;
 import com.tuowei.erp.system.auth.web.ChangePasswordRequest;
@@ -63,23 +65,28 @@ class AuthServicePasswordPolicyTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(
+        Clock clock = Clock.fixed(Instant.parse("2026-06-08T00:00:00Z"), ZoneOffset.UTC);
+        AuthSessionService sessionService = new AuthSessionService(
                 authenticationManager,
                 jwtTokenService,
                 refreshTokenService,
                 systemLogService,
                 loginRateLimiter,
                 null,  // noOpRateLimiter
+                clientIpResolver
+        );
+        AuthAccountService accountService = new AuthAccountService(
                 currentUserContext,
                 userMapper,
                 mock(com.tuowei.erp.system.user.mapper.UserRoleMapper.class),
                 mock(com.tuowei.erp.system.role.mapper.RoleMapper.class),
                 passwordEncoder,
-                Clock.fixed(Instant.parse("2026-06-08T00:00:00Z"), ZoneOffset.UTC),
-                clientIpResolver,
+                clock,
                 principalCache,
+                refreshTokenService,
                 mock(MenuService.class)
         );
+        authService = new AuthService(sessionService, accountService);
     }
 
     @Test

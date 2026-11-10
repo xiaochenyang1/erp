@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tuowei.erp.common.exception.OptimisticLockGuard;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.commercial.contract.service.ContractExecutionService;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.posting.FinancePostingService;
 import com.tuowei.erp.inventory.serial.service.InventorySerialNumberService;
@@ -26,6 +28,8 @@ import com.tuowei.erp.purchase.returnorder.model.PurchaseReturnLineEntity;
 import com.tuowei.erp.purchase.returnorder.web.PurchaseReturnResponse;
 import com.tuowei.erp.purchase.support.AccumulatedQuantityValidator;
 import com.tuowei.erp.purchase.support.PurchaseReturnQuantities;
+import com.tuowei.erp.system.attachment.service.AttachmentBusinessType;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +59,9 @@ public class PurchaseReturnPostingService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final PurchaseReturnQueryService purchaseReturnQueryService;
     private final AccountPeriodGuard accountPeriodGuard;
+    private final AttachmentService attachmentService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ContractExecutionService contractExecutionService;
 
     public PurchaseReturnPostingService(
             PurchaseReturnMapper purchaseReturnMapper,
@@ -69,7 +76,8 @@ public class PurchaseReturnPostingService {
             FinancePostingService financePostingService,
             AuditMetadataFactory auditMetadataFactory,
             PurchaseReturnQueryService purchaseReturnQueryService,
-            AccountPeriodGuard accountPeriodGuard
+            AccountPeriodGuard accountPeriodGuard,
+            AttachmentService attachmentService
     ) {
         this.purchaseReturnMapper = purchaseReturnMapper;
         this.purchaseReturnLineMapper = purchaseReturnLineMapper;
@@ -84,6 +92,7 @@ public class PurchaseReturnPostingService {
         this.auditMetadataFactory = auditMetadataFactory;
         this.purchaseReturnQueryService = purchaseReturnQueryService;
         this.accountPeriodGuard = accountPeriodGuard;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -93,6 +102,7 @@ public class PurchaseReturnPostingService {
         if (!"DRAFT".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前采购退货单状态不允许过账");
         }
+        attachmentService.requireIfConfigured(AttachmentBusinessType.PURCHASE_RETURN, entity.getId());
         accountPeriodGuard.requireOpen(entity.getReturnDate(), "采购退货过账");
 
         PurchaseReceiptEntity receipt = requirePostedReceipt(
@@ -115,6 +125,8 @@ public class PurchaseReturnPostingService {
                 orderLines,
                 audit
         );
+
+        applyCurrencySnapshot(entity, receipt);
 
         entity.setStatus("POSTED");
         entity.setUpdatedBy(audit.userId());
@@ -149,6 +161,9 @@ public class PurchaseReturnPostingService {
                     purchaseOrderLineMapper.updateById(orderLine),
                     "采购订单明细已被其他操作修改，请刷新后重试"
             );
+            if (contractExecutionService != null) {
+                contractExecutionService.decrease(orderLine.getContractLineId(), returnLine.getQty(), audit);
+            }
 
             inventoryPostingService.postOutbound(
                     new InventoryPostingCommand(
@@ -158,7 +173,7 @@ public class PurchaseReturnPostingService {
                             entity.getReturnNo(),
                             returnLine.getId(),
                             returnLine.getQty(),
-                            returnLine.getAmount(),
+                            CurrencyAmountSupport.posting(returnLine.getAmount(), entity.getExchangeRate()),
                             returnLine.getRemark(),
                             entity.getReturnDate(),
                             returnLine.getLotNo(),
@@ -277,6 +292,15 @@ public class PurchaseReturnPostingService {
                 receiptLine.getQty(),
                 receiptLine.getReturnedQty()
         ).availableReturnQty();
+    }
+
+    private void applyCurrencySnapshot(PurchaseReturnEntity entity, PurchaseReceiptEntity receipt) {
+        String currencyCode = CurrencyAmountSupport.currency(receipt.getCurrencyCode());
+        BigDecimal exchangeRate = CurrencyAmountSupport.rate(receipt.getExchangeRate());
+        entity.setCurrencyCode(currencyCode);
+        entity.setExchangeRate(exchangeRate);
+        entity.setBaseTotalAmount(CurrencyAmountSupport.base(entity.getTotalAmount(), exchangeRate));
+        entity.setBaseTotalTaxAmount(CurrencyAmountSupport.base(entity.getTotalTaxAmount(), exchangeRate));
     }
 
     private record PostingLineContext(

@@ -1,7 +1,9 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 
 import type { Supplier } from '@/api/masterdata'
-import { formatLocalizedCurrency, formatLocalizedDateTime } from '@/utils/locale'
+import { formatLocalizedCurrency, formatLocalizedDateTime, type DisplayPreferences } from '@/utils/locale'
+
+type DisplayPreferencesLike = { locale: string; timeZone?: string }
 
 export type SupplierPageTexts = {
   creditPeriodValue: string
@@ -15,19 +17,27 @@ export type SupplierPageTexts = {
 
 export const useSupplierPresentation = (
   texts: ComputedRef<SupplierPageTexts> | Ref<SupplierPageTexts>,
-  displayPreferences: ComputedRef<{ locale: string; timeZone?: string }> | Ref<{ locale: string; timeZone?: string }>
+  displayPreferences: ComputedRef<DisplayPreferencesLike> | Ref<DisplayPreferencesLike>
 ) => {
   const interpolate = (template: string, params: Record<string, string | number>) =>
     template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
 
+  const joinNames = (items: string[], locale: string) => (
+    locale === 'en-US' ? items.join(', ') : items.join('、')
+  )
+
+  const labelWithCount = (label: string, count: number) => (
+    count > 0 ? `${label} (${count})` : label
+  )
+
   const formatCurrency = (value?: number | string | null) => {
     const amount = Number(value)
     if (!Number.isFinite(amount)) return '-'
-    return formatLocalizedCurrency(amount, {}, displayPreferences.value)
+    return formatLocalizedCurrency(amount, {}, displayPreferences.value as DisplayPreferences)
   }
 
   const formatDateTime = (value?: string | null) => (
-    value ? formatLocalizedDateTime(value, {}, displayPreferences.value) || '-' : '-'
+    value ? formatLocalizedDateTime(value, {}, displayPreferences.value as DisplayPreferences) || '-' : '-'
   )
 
   const hasCreditPeriod = (value?: number | string | null) => Number(value) > 0
@@ -62,6 +72,8 @@ export const useSupplierPresentation = (
     formatDateTime,
     hasCreditPeriod,
     interpolate,
+    joinNames,
+    labelWithCount,
     settlementMethodLabel,
     settlementMethodOptions,
     supplierLabel

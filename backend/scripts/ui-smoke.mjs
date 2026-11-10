@@ -1,5 +1,11 @@
-import { spawn } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
+import { spawnSmokeProcess, cleanupSmokeProcesses } from './ui-smoke-processes.mjs'
+import { connectCdpSocket, pageConditionExpression } from './ui-smoke-cdp.mjs'
+import { waitForBackendReadiness } from './ui-smoke-readiness.mjs'
+import { runMrpUiSmoke, runMultilevelMrpUiSmoke, runMrpWarehouseUiSmoke } from './mrp-ui-smoke.mjs'
+import { runCurrencyDocumentsUiSmoke, runRoundingReportUiSmoke } from './currency-document-ui-smoke.mjs'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -10,6 +16,12 @@ const frontendDir = process.env.ERP_FRONTEND_DIR
   : resolve(backendDir, '..', 'frontend')
 const targetDir = join(backendDir, 'target')
 const chromePath = resolveChromePath()
+const backendPort = Number(process.env.ERP_UI_SMOKE_BACKEND_PORT || 8080)
+const backendBaseUrl = `http://127.0.0.1:${backendPort}`
+const frontendPort = Number(process.env.UI_SMOKE_FRONTEND_PORT || 5173)
+const frontendBaseUrl = `http://127.0.0.1:${frontendPort}`
+const frontendMode = process.env.UI_SMOKE_FRONTEND_MODE || 'dev'
+if (!['dev', 'preview'].includes(frontendMode)) throw new Error('UI_SMOKE_FRONTEND_MODE must be dev or preview')
 
 const children = []
 const loginCache = new Map()
@@ -18,6 +30,8 @@ const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms)
 function resolveChromePath() {
   const candidates = [
     process.env.CHROME_PATH,
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
@@ -32,12 +46,9 @@ function resolveChromePath() {
 }
 
 function start(name, command, args, cwd) {
-  const child = spawn(command, args, {
-    cwd,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true
-  })
-  children.push({ name, child })
+  const handle = spawnSmokeProcess(command, args, { cwd })
+  const { child } = handle
+  children.push({ name, ...handle })
   child.stdout.on('data', (chunk) => appendLog(name, chunk))
   child.stderr.on('data', (chunk) => appendLog(name, chunk))
   child.on('exit', (code, signal) => appendLog(name, `\n[exit code=${code} signal=${signal}]\n`))
@@ -66,6 +77,22 @@ async function waitFor(name, url, timeoutMs = 90000) {
   throw new Error(`${name} did not become ready: ${lastError}`)
 }
 
+async function assertPortAvailable(name, port) {
+  const server = createServer()
+  await new Promise((resolveListen, rejectListen) => {
+    server.once('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        rejectListen(new Error(`${name} port ${port} is already in use`))
+      } else {
+        rejectListen(error)
+      }
+    })
+    server.listen(port, '127.0.0.1', () => {
+      server.close((error) => error ? rejectListen(error) : resolveListen())
+    })
+  })
+}
+
 async function login() {
   const candidates = [
     { username: 'admin', password: 'LocalAdmin123' },
@@ -88,7 +115,7 @@ async function loginWithCredentials(credentials) {
   if (cached) {
     return cached
   }
-  const response = await fetch('http://127.0.0.1:8080/api/auth/login', {
+  const response = await fetch(`${backendBaseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(credentials)
@@ -105,7 +132,7 @@ async function loginWithCredentials(credentials) {
 }
 
 async function apiRequest(auth, method, path, body) {
-  const response = await fetch(`http://127.0.0.1:8080/api${path}`, {
+  const response = await fetch(`${backendBaseUrl}/api${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${auth.accessToken}`,
@@ -126,6 +153,78 @@ async function apiRequest(auth, method, path, body) {
   return payload.data
 }
 
+async function approveInventoryAdjustmentFixture(auth, adjustmentId) {
+  const submitter = await loginWithCredentials({ username: 'runtime_smoke', password: 'RuntimeSmoke123' })
+  await apiRequest(submitter, 'POST', `/inventory/adjustments/${adjustmentId}/submit`, { comment: 'UI smoke 库存备货提交' })
+  const approved = await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustmentId}/approve`, { comment: 'UI smoke 独立库存复核' })
+  if (approved.status !== 'APPROVED') throw new Error('Inventory fixture requires completed approval before posting')
+}
+
+async function assertInventoryFixtureQuantity(auth, fixture, expectedQty) {
+  const balances = await apiRequest(auth, 'GET', `/inventory/balances?pageNo=1&pageSize=100&warehouseId=${fixture.warehouse.id}&productId=${fixture.product.id}`)
+  const qty = (balances.records || []).reduce((total, balance) => total + Number(balance.qtyOnHand), 0)
+  if (qty !== expectedQty) throw new Error(`Inventory changed before posting: expected ${expectedQty}, got ${qty}`)
+}
+
+function inventoryAdjustmentRowExpression(adjustmentNo) {
+  return `[...document.querySelectorAll('.el-table__body-wrapper tbody tr')]
+    .find(item => item.getBoundingClientRect().height > 0 && item.innerText.includes(${JSON.stringify(adjustmentNo)}))`
+}
+
+async function approveInventoryAdjustmentThroughUi(cdp, auth, adjustment, fixture, initialQty) {
+  const row = inventoryAdjustmentRowExpression(adjustment.adjustmentNo)
+  await waitForPage(cdp, visibleTextExpression(row, '草稿'), 'adjustment draft before approval')
+  const canPostDraft = await evaluatePage(cdp, `Boolean(${row}?.innerText.includes('过账'))`)
+  if (canPostDraft) throw new Error('Draft adjustment must not offer posting')
+  await assertInventoryFixtureQuantity(auth, fixture, initialQty)
+  await clickButton(cdp, '提交审批', row)
+  await clickButton(cdp, '确定', messageBoxExpression('确认提交此库存调整单审批吗'))
+  await waitForPage(cdp, visibleTextExpression(row, '待审批'), 'adjustment submitted')
+  await assertInventoryFixtureQuantity(auth, fixture, initialQty)
+
+  await setBrowserAuth(cdp, auth)
+  await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/adjustments?adjustmentNo=${encodeURIComponent(adjustment.adjustmentNo)}` })
+  await waitForPage(cdp, visibleTextExpression(row, '待审批'), 'adjustment visible to independent approver')
+  await clickButton(cdp, '通过', row)
+  await clickButton(cdp, '确定', messageBoxExpression('确认通过当前审批节点吗'))
+  await waitForPage(cdp, visibleTextExpression(row, '已通过'), 'adjustment approved')
+  await assertInventoryFixtureQuantity(auth, fixture, initialQty)
+  await clickButton(cdp, '审批记录', row)
+  const historyDialog = dialogExpression('审批记录')
+  await waitForPage(cdp, `
+    (() => {
+      const dialog = ${historyDialog};
+      if (!dialog?.innerText.includes(${JSON.stringify(adjustment.adjustmentNo)})) return false;
+      const records = [...dialog.querySelectorAll('.el-table__body-wrapper tbody tr')]
+        .map(record => [...record.querySelectorAll('td')].map(cell => cell.innerText.trim()));
+      const submitted = records.find(record => record[0] === '提交');
+      const approved = records.find(record => record[0] === '通过');
+      return Boolean(records.length === 2 && submitted?.[1] && approved?.[1]
+        && submitted[1] !== approved[1] && submitted[3] && approved[3]);
+    })()
+  `, 'adjustment approval history with distinct submitter and approver')
+  await clickElement(cdp, `${historyDialog}.querySelector('.el-dialog__headerbtn')`, 'close approval history')
+}
+
+async function apiUploadAttachment(auth, businessType, businessId, businessNo, filename) {
+  const form = new FormData()
+  form.set('businessType', businessType)
+  form.set('businessId', String(businessId))
+  form.set('businessNo', businessNo)
+  form.set('file', new Blob([`UI smoke attachment for ${businessNo}`], { type: 'text/plain' }), filename)
+  const response = await fetch(`${backendBaseUrl}/api/system/attachments`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${auth.accessToken}` },
+    body: form
+  })
+  const text = await response.text()
+  const payload = text ? JSON.parse(text) : null
+  if (!response.ok || payload?.code !== '0') {
+    throw new Error(`POST /system/attachments failed: HTTP ${response.status} ${text.slice(0, 1000)}`)
+  }
+  return payload.data
+}
+
 async function ensureOpenPeriod(auth, dateText) {
   const year = Number(dateText.slice(0, 4))
   const periodMonth = dateText.slice(0, 7)
@@ -137,6 +236,23 @@ async function ensureOpenPeriod(auth, dateText) {
   if (!period || period.status !== 'OPEN') {
     throw new Error(`required open account period ${periodMonth}, actual=${period ? period.status : 'missing'}`)
   }
+}
+
+async function prepareExpenseBudget(auth, subjectId, suffix) {
+  const budgetYear = new Date().getFullYear()
+  const page = await apiRequest(auth, 'GET', `/finance/budgets?pageNo=1&pageSize=100&budgetYear=${budgetYear}`)
+  const approved = (page?.records || []).find((budget) => budget.status === 'APPROVED')
+  if (approved) await apiRequest(auth, 'POST', `/finance/budgets/${approved.id}/close`)
+  const budget = await apiRequest(auth, 'POST', '/finance/budgets', {
+    budgetYear,
+    budgetName: `UI smoke 费用预算 ${suffix}`,
+    controlPolicy: 'APPROVAL',
+    remark: 'Isolated UI smoke budget fixture',
+    lines: [{ periodMonth: 0, subjectId, budgetAmount: 10000, remark: 'UI smoke expense allowance' }]
+  })
+  await apiRequest(auth, 'POST', `/finance/budgets/${budget.id}/submit`)
+  await apiRequest(auth, 'POST', `/finance/budgets/${budget.id}/approve`)
+  return budget
 }
 
 async function prepareProductionOrderFixture(auth) {
@@ -157,6 +273,7 @@ async function prepareProductionOrderFixture(auth) {
     taxRate: 13,
     lotControlled: false,
     shelfLifeControlled: false,
+    serialControlled: false,
     remark: 'UI smoke 生产成品'
   })
   const materialProduct = await apiRequest(auth, 'POST', '/masterdata/products', {
@@ -181,6 +298,13 @@ async function prepareProductionOrderFixture(auth) {
     address: 'UI smoke 材料仓',
     remark: 'UI smoke 生产材料仓'
   })
+  const materialLocation = await apiRequest(auth, 'POST', '/masterdata/locations', {
+    warehouseId: materialWarehouse.id,
+    locationCode: `UIML${suffix}`,
+    locationName: `UI材料库位${suffix}`,
+    isDefault: true,
+    remark: 'UI smoke 生产材料库位'
+  })
   const finishedWarehouse = await apiRequest(auth, 'POST', '/masterdata/warehouses', {
     warehouseCode: `UIFW${suffix}`,
     warehouseName: `UI成品仓${suffix}`,
@@ -188,6 +312,13 @@ async function prepareProductionOrderFixture(auth) {
     managerUserId: 4001,
     address: 'UI smoke 成品仓',
     remark: 'UI smoke 生产成品仓'
+  })
+  const finishedLocation = await apiRequest(auth, 'POST', '/masterdata/locations', {
+    warehouseId: finishedWarehouse.id,
+    locationCode: `UIFL${suffix}`,
+    locationName: `UI成品库位${suffix}`,
+    isDefault: true,
+    remark: 'UI smoke 生产成品库位'
   })
   const bom = await apiRequest(auth, 'POST', '/production/boms', {
     productId: finishedProduct.id,
@@ -212,10 +343,12 @@ async function prepareProductionOrderFixture(auth) {
         direction: 'IN',
         qty: 20,
         unitCost: 5,
+        locationId: materialLocation.id,
         reason: 'UI smoke 生产备料'
       }
     ]
   })
+  await approveInventoryAdjustmentFixture(auth, adjustment.id)
   await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustment.id}/post`)
 
   return {
@@ -227,9 +360,58 @@ async function prepareProductionOrderFixture(auth) {
     finishedProduct,
     materialProduct,
     materialWarehouse,
+    materialLocation,
     finishedWarehouse,
+    finishedLocation,
     bom
   }
+}
+
+async function prepareProductionScheduleFixture(auth) {
+  const fixture = await prepareProductionOrderFixture(auth)
+  const workCenter = await apiRequest(auth, 'POST', '/production/work-centers', {
+    workCenterCode: `UISWC${fixture.suffix}`,
+    workCenterName: `UI排程中心${fixture.suffix}`,
+    dailyCapacityMinutes: 480,
+    workdayStartTime: '08:00',
+    remark: 'UI smoke 有限产能排程'
+  })
+  const routing = await apiRequest(auth, 'POST', '/production/routings', {
+    routingCode: `UISRT${fixture.suffix}`,
+    routingName: `UI排程路线${fixture.suffix}`,
+    bomId: fixture.bom.id,
+    remark: 'UI smoke 有限产能排程路线',
+    operations: [{
+      operationCode: 'OP-10',
+      operationName: 'UI排程装配',
+      workCenterId: workCenter.id,
+      standardMinutes: 60,
+      remark: 'UI smoke 排程工序'
+    }]
+  })
+  const createOrder = async (sequence) => {
+    const order = await apiRequest(auth, 'POST', '/production/orders', {
+      bomId: fixture.bom.id,
+      finishedWarehouseId: fixture.finishedWarehouse.id,
+      materialWarehouseId: fixture.materialWarehouse.id,
+      plannedQty: 2,
+      plannedStartDate: fixture.plannedStartDate,
+      plannedFinishDate: fixture.plannedFinishDate,
+      remark: `UI smoke 有限产能排程 ${fixture.suffix}-${sequence}`
+    })
+    return apiRequest(auth, 'POST', `/production/orders/${order.id}/release`)
+  }
+  const orders = [await createOrder(1), await createOrder(2)]
+  for (const order of orders) {
+    const operations = await apiRequest(auth, 'GET', `/production/orders/${order.id}/operations`)
+    if (operations.length !== 1
+      || Number(operations[0].standardMinutes) !== 60
+      || operations[0].scheduledStartTime
+      || operations[0].scheduledEndTime) {
+      throw new Error(`released schedule fixture did not create an unscheduled operation snapshot for ${order.orderNo}`)
+    }
+  }
+  return { ...fixture, workCenter, routing, orders }
 }
 
 async function prepareSalesOrderFixture(auth) {
@@ -241,6 +423,7 @@ async function prepareSalesOrderFixture(auth) {
   const customer = await apiRequest(auth, 'POST', '/masterdata/customers', {
     customerCode: `UICS${suffix}`,
     customerName: `UI销售客户${suffix}`,
+    customerType: 'ENTERPRISE',
     contactName: 'UI smoke',
     contactPhone: '13800000000',
     settlementMethod: 'BANK_TRANSFER',
@@ -285,6 +468,7 @@ async function prepareSalesOrderFixture(auth) {
       }
     ]
   })
+  await approveInventoryAdjustmentFixture(auth, adjustment.id)
   await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustment.id}/post`)
 
   return {
@@ -388,6 +572,7 @@ async function prepareInventoryTransferFixture(auth) {
       }
     ]
   })
+  await approveInventoryAdjustmentFixture(auth, adjustment.id)
   await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustment.id}/post`)
 
   return {
@@ -444,6 +629,7 @@ async function prepareInventoryCheckFixture(auth) {
       }
     ]
   })
+  await approveInventoryAdjustmentFixture(auth, adjustment.id)
   await apiRequest(auth, 'POST', `/inventory/adjustments/${adjustment.id}/post`)
 
   return {
@@ -456,11 +642,12 @@ async function prepareInventoryCheckFixture(auth) {
   }
 }
 
-async function prepareApprovedSalesOrderFixture(auth) {
+async function prepareApprovedSalesOrderFixture(auth, currency = {}) {
   const fixture = await prepareSalesOrderFixture(auth)
   const submitterCredentials = { username: 'runtime_smoke', password: 'RuntimeSmoke123' }
   const submitterAuth = await loginWithCredentials(submitterCredentials)
   const order = await apiRequest(submitterAuth, 'POST', '/sales/orders', {
+    ...currency,
     customerId: fixture.customer.id,
     warehouseId: fixture.warehouse.id,
     orderDate: fixture.orderDate,
@@ -487,8 +674,8 @@ async function prepareApprovedSalesOrderFixture(auth) {
   }
 }
 
-async function preparePostedSalesDeliveryFixture(auth) {
-  const fixture = await prepareApprovedSalesOrderFixture(auth)
+async function preparePostedSalesDeliveryFixture(auth, currency = {}) {
+  const fixture = await prepareApprovedSalesOrderFixture(auth, currency)
   const orderLine = (fixture.order.lines || fixture.order.items || [])[0]
   if (!orderLine?.id) {
     throw new Error(`approved sales order ${fixture.order.orderNo} has no line id`)
@@ -735,23 +922,8 @@ async function connectCdp() {
   }
 
   const ws = new WebSocket(page.webSocketDebuggerUrl)
-  const pending = new Map()
   const events = { console: [], exceptions: [], apiErrors: [], networkFailures: [] }
-  let sequence = 0
-
-  ws.addEventListener('message', (message) => {
-    const payload = JSON.parse(message.data)
-    if (payload.id && pending.has(payload.id)) {
-      const { resolve, reject } = pending.get(payload.id)
-      pending.delete(payload.id)
-      if (payload.error) {
-        reject(new Error(`${payload.error.message}: ${payload.error.data || ''}`))
-      } else {
-        resolve(payload.result)
-      }
-      return
-    }
-
+  const connection = await connectCdpSocket(ws, { onEvent: (payload) => {
     if (payload.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(payload.params.type)) {
       events.console.push({
         type: payload.params.type,
@@ -770,20 +942,9 @@ async function connectCdp() {
         events.apiErrors.push(`${response.status} ${response.url}`)
       }
     }
-  })
+  } })
 
-  await new Promise((resolveOpen, rejectOpen) => {
-    ws.addEventListener('open', resolveOpen, { once: true })
-    ws.addEventListener('error', rejectOpen, { once: true })
-  })
-
-  const send = (method, params = {}) => {
-    const id = ++sequence
-    ws.send(JSON.stringify({ id, method, params }))
-    return new Promise((resolveSend, rejectSend) => pending.set(id, { resolve: resolveSend, reject: rejectSend }))
-  }
-
-  return { send, events, close: () => ws.close() }
+  return { ...connection, events }
 }
 
 function snapshotFailures(events) {
@@ -822,7 +983,7 @@ async function waitForPage(cdp, expression, label, timeoutMs = 12000) {
   const deadline = Date.now() + timeoutMs
   let lastValue
   while (Date.now() < deadline) {
-    lastValue = await evaluatePage(cdp, expression)
+    lastValue = await evaluatePage(cdp, pageConditionExpression(expression))
     if (lastValue) {
       return lastValue
     }
@@ -913,11 +1074,21 @@ async function clickElement(cdp, elementExpression, label) {
         return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
       };
       const element = ${elementExpression};
-      if (!visible(element)) return null;
-      const rect = element.getBoundingClientRect();
+      if (!visible(element) || element.disabled) return null;
+      let rect = element.getBoundingClientRect();
+      if (rect.top < 0 || rect.bottom > window.innerHeight || rect.left < 0 || rect.right > window.innerWidth) {
+        element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+        rect = element.getBoundingClientRect();
+      }
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      if (centerX < 0 || centerX > window.innerWidth || centerY < 0 || centerY > window.innerHeight) return null;
+      // Loading masks and closing dialogs may still intercept clicks after rows have refreshed.
+      const hit = document.elementFromPoint(centerX, centerY);
+      if (hit !== element && !element.contains(hit)) return null;
       return {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
+        x: centerX,
+        y: centerY,
         text: element.innerText || element.getAttribute('aria-label') || ''
       };
     })()
@@ -1052,9 +1223,43 @@ async function pageDiagnostics(cdp, label) {
             ariaLabel: item.getAttribute('aria-label') || ''
           }))
           .slice(0, 80),
+        selects: [...document.querySelectorAll('.el-dialog .el-select')]
+          .filter(visible)
+          .map((item, index) => ({
+            index,
+            text: item.innerText.trim(),
+            placeholder: item.querySelector('.el-select__placeholder')?.innerText.trim() || '',
+            context: item.closest('.el-form-item')?.innerText.trim() || item.closest('td')?.innerText.trim() || '',
+            className: item.className,
+            disabled: item.classList.contains('is-disabled'),
+            rect: (() => {
+              const rect = item.getBoundingClientRect();
+              return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            })()
+          }))
+          .slice(0, 40),
+        dropdowns: [...document.querySelectorAll('.el-select-dropdown')]
+          .map((item) => {
+            const style = window.getComputedStyle(item);
+            const rect = item.getBoundingClientRect();
+            return {
+              className: item.className,
+              visibility: style.visibility,
+              display: style.display,
+              rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+              items: [...item.querySelectorAll('.el-select-dropdown__item')].map((option) => option.innerText.trim()).slice(0, 40)
+            };
+          })
+          .slice(0, 20),
+        visibleDropdownItems: [...document.querySelectorAll('.el-select-dropdown__item')]
+          .filter(visible)
+          .map((item) => ({ text: item.innerText.trim(), disabled: item.classList.contains('is-disabled') }))
+          .slice(0, 40),
+        allDropdownItems: [...document.querySelectorAll('.el-select-dropdown__item')]
+          .map((item) => ({ text: item.innerText.trim(), className: item.className }))
+          .slice(0, 40),
         smoke: window.__uiSmoke || null,
-        bodyText: document.body.innerText.slice(0, 1600)
-        ,
+        bodyText: document.body.innerText.slice(0, 1600),
         attachmentDownload: window.__uiSmokeAttachmentDownload || null
       };
     })()
@@ -1066,7 +1271,7 @@ async function runExceptionTicketWorkflow(cdp) {
   const sourceNo = `UI-SMOKE-${Date.now()}`
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/exception-tickets' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/exception-tickets` })
     await waitForPage(cdp, `document.body.innerText.includes('异常工单')`, 'exception ticket page')
 
     await clickButton(cdp, '新建')
@@ -1223,7 +1428,7 @@ async function runSlaPolicyWorkflow(cdp) {
   const remark = `UI smoke SLA策略保存 ${Date.now()}`
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/exception-sla-policies' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/exception-sla-policies` })
     await waitForPage(cdp, `document.body.innerText.includes('SLA策略') && document.body.innerText.includes('配置')`, 'SLA policy page')
 
     await invokeButton(cdp, '配置', 'rule config button')
@@ -1235,12 +1440,12 @@ async function runSlaPolicyWorkflow(cdp) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return Boolean(${dialogExpression('配置SLA策略')});
+        return Boolean(${dialogExpression('配置 SLA 策略')});
       })()
     `, 'SLA edit dialog')
 
-    const dialog = dialogExpression('配置SLA策略')
-    await setElementValue(cdp, `${dialog}.querySelector('textarea[placeholder^="说明 SLA"]')`, remark, 'SLA remark input')
+    const dialog = dialogExpression('配置 SLA 策略')
+    await setElementValue(cdp, `${dialog}.querySelector('textarea')`, remark, 'SLA remark input')
     await clickButton(cdp, '保存', dialog)
     await waitForPage(cdp, `
       (() => {
@@ -1250,7 +1455,7 @@ async function runSlaPolicyWorkflow(cdp) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return !${dialogExpression('配置SLA策略')} && document.body.innerText.includes(${JSON.stringify(remark)});
+        return !${dialogExpression('配置 SLA 策略')} && document.body.innerText.includes(${JSON.stringify(remark)});
       })()
     `, 'SLA policy saved').catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after SLA save'))}`)
@@ -1282,27 +1487,8 @@ async function runExceptionRuleWorkflow(cdp) {
   let restoredTo = ''
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/exception-rules' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/exception-rules` })
     await waitForPage(cdp, `document.body.innerText.includes('异常规则') && document.body.innerText.includes('扫描全部')`, 'exception rule page')
-
-    const readFirstToggleButton = `
-      (() => {
-        const visible = (element) => {
-          if (!element) return false;
-          const style = window.getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-        };
-        const actions = ${rowActionScopeExpression(0)};
-        if (!actions) return null;
-        return [...actions.querySelectorAll('button')]
-          .filter(visible)
-          .map((button) => button.innerText.trim())
-          .find((text) => text.includes('停用') || text.includes('启用')) || null;
-      })()
-    `
-
-    const initialToggleText = await waitForPage(cdp, readFirstToggleButton, 'first rule toggle button')
     await invokeElement(cdp, rowActionButtonExpression('配置'), 'rule config button')
     await waitForPage(cdp, `
       (() => {
@@ -1333,11 +1519,34 @@ async function runExceptionRuleWorkflow(cdp) {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after rule config save'))}`)
     })
 
-    const toggleText = await waitForPage(cdp, readFirstToggleButton, 'first rule toggle button after save')
-    const restoreText = toggleText.includes('停用') ? '启用' : '停用'
+    const configuredRuleActions = `
+      (() => {
+        const rows = [...document.querySelectorAll('.el-table__body-wrapper tbody tr')];
+        const row = rows.find((item) => item.innerText.includes(${JSON.stringify(remark)}));
+        if (!row) return null;
+        const localActions = row.querySelector('.row-actions');
+        if (localActions) return localActions;
+        const rowIndex = rows.indexOf(row);
+        return [...document.querySelectorAll('.row-actions')].filter(visible)[rowIndex] || null;
+      })()
+    `
+    const currentToggleText = await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        const actions = ${configuredRuleActions};
+        return [...(actions?.querySelectorAll('button') || [])]
+          .find((button) => visible(button) && /停用|启用/.test(button.innerText))?.innerText.trim() || null;
+      })()
+    `, 'configured rule toggle button')
+    const restoreText = currentToggleText.includes('停用') ? '启用' : '停用'
     toggledTo = restoreText === '启用' ? '停用' : '启用'
-    restoredTo = initialToggleText.includes('停用') ? '启用' : '停用'
-    await invokeElement(cdp, rowActionButtonExpression(toggleText), `rule ${toggleText}`)
+    restoredTo = currentToggleText.includes('停用') ? '启用' : '停用'
+    await invokeElement(cdp, buttonExpression(currentToggleText, configuredRuleActions), `rule ${currentToggleText}`)
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -1347,14 +1556,14 @@ async function runExceptionRuleWorkflow(cdp) {
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
         const messages = [...document.querySelectorAll('.el-message')].filter(visible).map((item) => item.innerText.trim());
-        const nextButton = ${rowActionButtonExpression(restoreText)};
+        const nextButton = ${buttonExpression(restoreText, configuredRuleActions)};
         return messages.some((message) => message.includes(${JSON.stringify(`规则已${toggledTo}`)})) || Boolean(nextButton);
       })()
     `, `rule toggled to ${toggledTo}`).catch(async (error) => {
-      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, `after rule ${toggleText}`))}`)
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, `after rule ${currentToggleText}`))}`)
     })
 
-    await invokeElement(cdp, rowActionButtonExpression(restoreText), `rule restore ${restoreText}`)
+    await invokeElement(cdp, buttonExpression(restoreText, configuredRuleActions), `rule restore ${restoreText}`)
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -1364,7 +1573,7 @@ async function runExceptionRuleWorkflow(cdp) {
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
         const messages = [...document.querySelectorAll('.el-message')].filter(visible).map((item) => item.innerText.trim());
-        const initialButton = ${rowActionButtonExpression(toggleText)};
+        const initialButton = ${buttonExpression(currentToggleText, configuredRuleActions)};
         return messages.some((message) => message.includes(${JSON.stringify(`规则已${restoredTo}`)})) || Boolean(initialButton);
       })()
     `, `rule restored to ${restoredTo}`).catch(async (error) => {
@@ -1439,7 +1648,7 @@ async function runBusinessTraceWorkflow(cdp) {
   resetEvents(cdp.events)
   const keyword = await findTraceKeyword(cdp)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/reports/traces' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/reports/traces` })
     await waitForPage(cdp, `document.body.innerText.includes('生命周期时间线')`, 'business trace page')
 
     if (keyword) {
@@ -1489,7 +1698,7 @@ async function runBusinessTraceWorkflow(cdp) {
 async function runFinancePeriodWorkflow(cdp) {
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/periods' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/periods` })
     await waitForPage(cdp, `document.body.innerText.includes('会计期间管理') && document.body.innerText.includes('生成年期间')`, 'finance periods page')
 
     await invokeButton(cdp, '生成年期间', 'generate periods button')
@@ -1568,7 +1777,7 @@ async function runFinancePeriodWorkflow(cdp) {
 async function runReportExportWorkflow(cdp) {
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/reports' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/reports` })
     await waitForPage(cdp, `document.body.innerText.includes('当前报表') && document.body.innerText.includes('导出')`, 'reports page')
     await evaluatePage(cdp, `
       (() => {
@@ -1620,7 +1829,7 @@ async function runAttachmentWorkflow(cdp) {
   const filename = `attachment-smoke-${Date.now()}.txt`
   resetEvents(cdp.events)
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/system/attachments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/system/attachments` })
     await waitForPage(cdp, `document.body.innerText.includes('附件中心') && document.body.innerText.includes('上传')`, 'attachments page')
 
     await clickButton(cdp, '上传')
@@ -1749,7 +1958,7 @@ async function runReadinessWorkflow(cdp) {
   const actualResult = `UI smoke 发布门禁通过 ${Date.now()}`
   const decisionComment = `UI smoke No-Go 决策 ${Date.now()}`
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/system/readiness' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/system/readiness` })
     await waitForPage(cdp, `
       document.body.innerText.includes('预生产验收')
         && document.body.innerText.includes('迁移前健康检查')
@@ -1985,7 +2194,7 @@ async function runFundWorkflow(cdp) {
   const counterpartyName = `UI往来方${suffix}`
   const summary = `UI smoke 银行流水 ${suffix}`
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/funds' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/funds` })
     await waitForPage(cdp, `
       document.body.innerText.includes('资金对账')
         && document.body.innerText.includes('新增账户')
@@ -2176,7 +2385,7 @@ async function runFundMatchUnmatchWorkflow(cdp, auth) {
     }
 
     await markSmokeStep(cdp, 'fund-match:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/funds' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/funds` })
     await waitForPage(cdp, `
       document.body.innerText.includes('资金对账')
         && document.body.innerText.includes('银行流水')
@@ -2347,10 +2556,11 @@ async function runExpenseWorkflow(cdp, auth) {
       balanceDirection: 'DEBIT',
       remark: 'UI smoke 支付科目'
     })
+    await prepareExpenseBudget(auth, expenseSubject.id, suffix)
 
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'expense:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/expenses' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/expenses` })
     await waitForPage(cdp, `
       document.body.innerText.includes('费用管理')
         && document.body.innerText.includes('新增费用')
@@ -2377,7 +2587,8 @@ async function runExpenseWorkflow(cdp, auth) {
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(expenseSubject.subjectCode)}))`,
       'expense subject option'
     )
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'expense payment subject select')
+    // Expense form selects are subject, department, then payment subject.
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[2].querySelector('.el-select__wrapper')`, 'expense payment subject select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(paymentSubject.subjectCode)}))`,
@@ -2406,6 +2617,8 @@ async function runExpenseWorkflow(cdp, auth) {
     `, 'expense created as draft', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after expense create'))}`)
     })
+
+    await apiUploadAttachment(submitterAuth, 'EXPENSE', expense.id, expense.expenseNo, `expense-smoke-${suffix}.txt`)
 
     await waitForPage(cdp, `
       (() => {
@@ -2568,7 +2781,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'finance-subject:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/subjects' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/subjects` })
     await waitForPage(cdp, `
       document.body.innerText.includes('会计科目管理')
         && document.body.innerText.includes('新增科目')
@@ -2732,6 +2945,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
       balanceDirection: 'DEBIT',
       remark: 'UI smoke 凭证支付科目'
     })
+    await prepareExpenseBudget(auth, expenseSubject.id, suffix)
     const expense = await apiRequest(submitterAuth, 'POST', '/finance/expenses', {
       expenseDate,
       subjectId: expenseSubject.id,
@@ -2739,6 +2953,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
       amount: 88.88,
       remark: `UI smoke 凭证查询 ${suffix}`
     })
+    await apiUploadAttachment(submitterAuth, 'EXPENSE', expense.id, expense.expenseNo, `voucher-expense-smoke-${suffix}.txt`)
     await apiRequest(submitterAuth, 'POST', `/finance/expenses/${expense.id}/submit`, { remark: 'UI smoke 提交费用' })
     await apiRequest(auth, 'POST', `/finance/expenses/${expense.id}/approve`, { remark: 'UI smoke 审批费用' })
     const postedExpense = await apiRequest(auth, 'POST', `/finance/expenses/${expense.id}/post`)
@@ -2749,7 +2964,7 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
 
     await markSmokeStep(cdp, 'finance-voucher:navigate')
     await setBrowserAuth(cdp, auth)
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/vouchers' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/vouchers` })
     await waitForPage(cdp, `
       document.body.innerText.includes('凭证查询')
         && document.body.innerText.includes(${JSON.stringify(voucherNo)})
@@ -2804,10 +3019,12 @@ async function runFinanceSubjectVoucherWorkflow(cdp, auth) {
 async function runInventoryAdjustmentWorkflow(cdp, auth) {
   resetEvents(cdp.events)
   const fixture = await prepareInventoryAdjustmentFixture(auth)
+  const submitterAuth = await loginWithCredentials({ username: 'runtime_smoke', password: 'RuntimeSmoke123' })
+  await setBrowserAuth(cdp, submitterAuth)
   const remark = `UI smoke 库存调整 ${fixture.suffix}`
   let adjustment = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/inventory/adjustments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/adjustments` })
     await waitForPage(cdp, `
       document.body.innerText.includes('新增调整')
         && document.body.innerText.includes('调整单号')
@@ -2854,7 +3071,9 @@ async function runInventoryAdjustmentWorkflow(cdp, auth) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return ${createDialog}?.querySelectorAll('.el-table__body-wrapper tbody tr').length > 0;
+        const dialog = [...document.querySelectorAll('.el-dialog')]
+          .find((item) => item.innerText.includes('新增库存调整'));
+        return Boolean(dialog?.querySelector('tbody tr'));
       })()
     `, 'adjustment line added')
     await clickElement(cdp, `${createDialog}.querySelector('.el-table__body-wrapper .el-select .el-select__wrapper')`, 'adjustment product select')
@@ -2918,6 +3137,7 @@ async function runInventoryAdjustmentWorkflow(cdp, auth) {
         return row?.innerText.includes('草稿') && row?.innerText.includes(${JSON.stringify(remark)});
       })()
     `, 'inventory adjustment draft row visible')
+    await approveInventoryAdjustmentThroughUi(cdp, auth, adjustment, fixture, 0)
     await evaluatePage(cdp, `
       (() => {
         window.__uiSmoke = {
@@ -3048,7 +3268,7 @@ async function runInventoryTransferWorkflow(cdp, auth) {
   const remark = `UI smoke 库存调拨 ${fixture.suffix}`
   let transfer = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/inventory/transfers' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/transfers` })
     await waitForPage(cdp, `
       document.body.innerText.includes('新增调拨')
         && document.body.innerText.includes('调拨单号')
@@ -3111,7 +3331,9 @@ async function runInventoryTransferWorkflow(cdp, auth) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return ${createDialog}?.querySelectorAll('.el-table__body-wrapper tbody tr').length > 0;
+        const dialog = [...document.querySelectorAll('.el-dialog')]
+          .find((item) => item.innerText.includes('新增库存调拨'));
+        return Boolean(dialog?.querySelector('tbody tr'));
       })()
     `, 'transfer line added')
     await clickElement(cdp, `${createDialog}.querySelector('.el-table__body-wrapper .el-select .el-select__wrapper')`, 'transfer product select')
@@ -3131,7 +3353,13 @@ async function runInventoryTransferWorkflow(cdp, auth) {
     )
     await waitForPage(cdp, visibleTextExpression(createDialog, fixture.product.productCode), 'transfer product selected')
     await setElementValue(cdp, `${createDialog}.querySelector('.el-table__body-wrapper .el-input-number input')`, String(fixture.transferQty), 'transfer qty input')
-    await setElementValue(cdp, `${createDialog}.querySelector('.el-table__body-wrapper input[placeholder="请输入备注"]')`, 'UI smoke 调拨明细', 'transfer line remark input')
+    await setElementValue(cdp, `(() => {
+      const dialog = ${createDialog};
+      const headers = [...dialog.querySelectorAll('.el-table__header-wrapper th')];
+      const remarkIndex = headers.findIndex((header) => header.innerText.trim() === '备注');
+      const row = dialog.querySelector('.el-table__body-wrapper tbody tr');
+      return remarkIndex >= 0 ? row?.querySelectorAll('td')[remarkIndex]?.querySelector('input') : null;
+    })()`, 'UI smoke 调拨明细', 'transfer line remark input')
     await clickButton(cdp, '确定', createDialog)
 
     transfer = await waitForPage(cdp, `
@@ -3151,6 +3379,7 @@ async function runInventoryTransferWorkflow(cdp, auth) {
         const line = detail?.lines?.[0];
         if (!line || String(line.productId) !== ${JSON.stringify(String(fixture.product.id))}) return false;
         if (Number(line.qty) !== ${fixture.transferQty} || Number(line.unitCost) !== 9.5) return false;
+        if (line.lotNo || line.productionDate || line.expiryDate || line.serialNos) return false;
         return detail;
       })()
     `, 'inventory transfer created', 30000).catch(async (error) => {
@@ -3200,7 +3429,54 @@ async function runInventoryTransferWorkflow(cdp, auth) {
         return Boolean(${messageBoxExpression('确认过账此库存调拨吗')});
       })()
     `, 'inventory transfer post confirm')
+    await evaluatePage(cdp, `
+      (() => {
+        window.__uiSmoke = {
+          ...(window.__uiSmoke || {}),
+          inventoryTransferPostRequests: []
+        };
+        if (!window.__uiSmokeInventoryTransferPostPatched) {
+          window.__uiSmokeInventoryTransferPostPatched = true;
+          const rawOpen = XMLHttpRequest.prototype.open;
+          XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+            this.__uiSmokeInventoryTransferPostRecord = null;
+            const normalizedMethod = String(method || 'GET').toUpperCase();
+            if (normalizedMethod === 'POST' && String(url).includes('/api/inventory/transfers/') && String(url).includes('/post')) {
+              this.__uiSmokeInventoryTransferPostRecord = {
+                method: normalizedMethod,
+                url: String(url),
+                status: null,
+                responseText: '',
+                done: false
+              };
+              window.__uiSmoke.inventoryTransferPostRequests.push(this.__uiSmokeInventoryTransferPostRecord);
+              this.addEventListener('loadend', () => {
+                this.__uiSmokeInventoryTransferPostRecord.status = this.status;
+                this.__uiSmokeInventoryTransferPostRecord.responseText = String(this.responseText || '').slice(0, 3000);
+                this.__uiSmokeInventoryTransferPostRecord.done = true;
+              });
+            }
+            return rawOpen.call(this, method, url, ...rest);
+          };
+        }
+        return true;
+      })()
+    `)
     await clickButton(cdp, '确定', messageBoxExpression('确认过账此库存调拨吗'))
+    const transferPostRequest = await waitForPage(cdp, `
+      (window.__uiSmoke?.inventoryTransferPostRequests || []).find((request) => request.done) || false
+    `, 'inventory transfer post response').catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after inventory transfer post request'))}`)
+    })
+    let transferPostPayload = null
+    try {
+      transferPostPayload = JSON.parse(transferPostRequest.responseText || '{}')
+    } catch {
+      throw new Error(`inventory transfer post returned invalid JSON: ${transferPostRequest.responseText}`)
+    }
+    if (transferPostRequest.status < 200 || transferPostRequest.status >= 300 || transferPostPayload?.code !== '0') {
+      throw new Error(`inventory transfer post failed: HTTP ${transferPostRequest.status} ${transferPostRequest.responseText}`)
+    }
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -3264,10 +3540,12 @@ async function runInventoryTransferWorkflow(cdp, auth) {
 async function runInventoryCheckWorkflow(cdp, auth) {
   resetEvents(cdp.events)
   const fixture = await prepareInventoryCheckFixture(auth)
+  const submitterAuth = await loginWithCredentials({ username: 'runtime_smoke', password: 'RuntimeSmoke123' })
+  await setBrowserAuth(cdp, submitterAuth)
   const remark = `UI smoke 库存盘点 ${fixture.suffix}`
   let check = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/inventory/checks' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/inventory/checks` })
     await waitForPage(cdp, `
       document.body.innerText.includes('新增盘点')
         && document.body.innerText.includes('盘点单号')
@@ -3376,21 +3654,12 @@ async function runInventoryCheckWorkflow(cdp, auth) {
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
         const row = ${checkRowExpression};
-        return row?.innerText.includes('已录入') && row?.innerText.includes(${JSON.stringify(remark)});
+        return row?.innerText.includes('已盘点') && row?.innerText.includes(${JSON.stringify(remark)});
       })()
     `, 'inventory check counted row visible')
     await invokeElement(
       cdp,
-      `(() => {
-        const visible = (element) => {
-          if (!element) return false;
-          const style = window.getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-        };
-        const row = ${checkRowExpression};
-        return row && [...row.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '调整');
-      })()`,
+      `[...document.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '生成调整单')`,
       'inventory check adjust button'
     )
     await waitForPage(cdp, `
@@ -3401,10 +3670,10 @@ async function runInventoryCheckWorkflow(cdp, auth) {
           const rect = element.getBoundingClientRect();
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
-        return Boolean(${messageBoxExpression('确认根据此盘点差异调整库存吗')});
+        return Boolean(${messageBoxExpression('确认根据盘点差异生成调整草稿吗')});
       })()
     `, 'inventory check adjust confirm')
-    await clickButton(cdp, '确定', messageBoxExpression('确认根据此盘点差异调整库存吗'))
+    await clickButton(cdp, '确定', messageBoxExpression('确认根据盘点差异生成调整草稿吗'))
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -3414,11 +3683,27 @@ async function runInventoryCheckWorkflow(cdp, auth) {
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
         };
         const row = ${checkRowExpression};
-        return row?.innerText.includes('已调整');
+        return row?.innerText.includes('待调整过账');
       })()
-    `, 'inventory check adjusted row visible', 30000).catch(async (error) => {
+    `, 'inventory check pending row visible', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after inventory check adjust'))}`)
     })
+    await assertInventoryFixtureQuantity(auth, fixture, fixture.initialQty)
+    const pendingCheck = await apiRequest(auth, 'GET', `/inventory/checks/${check.id}`)
+    const adjustment = await apiRequest(auth, 'GET', `/inventory/adjustments/${pendingCheck.generatedAdjustmentId}`)
+    if (adjustment.status !== 'DRAFT' || String(adjustment.sourceId) !== String(check.id)) {
+      throw new Error('Stock count must create a linked draft adjustment')
+    }
+    await clickButton(cdp, pendingCheck.generatedAdjustmentNo)
+    await waitForPage(cdp, `location.pathname === '/inventory/adjustments'`, 'navigate to generated adjustment')
+    await approveInventoryAdjustmentThroughUi(cdp, auth, adjustment, fixture, fixture.initialQty)
+    const adjustmentRow = inventoryAdjustmentRowExpression(adjustment.adjustmentNo)
+    await clickButton(cdp, '过账', adjustmentRow)
+    await clickButton(cdp, '确定', messageBoxExpression('确认过账此库存调整吗'))
+    await waitForPage(cdp, visibleTextExpression(adjustmentRow, '已完成'), 'generated adjustment posted')
+    await clickButton(cdp, check.checkNo, adjustmentRow)
+    await waitForPage(cdp, `location.pathname === '/inventory/checks'`, 'return to linked stock count')
+    await waitForPage(cdp, `Boolean(${checkRowExpression.replace('visible(item) && ', '')}?.innerText.includes('已调整'))`, 'count updated after adjustment posting')
 
     await waitForPage(cdp, `
       (async () => {
@@ -3468,7 +3753,7 @@ async function runSalesOrderWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'sales:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售订单')
         && document.body.innerText.includes('新增订单')
@@ -3490,14 +3775,15 @@ async function runSalesOrderWorkflow(cdp, auth) {
 
     const createDialog = `(${dialogExpression('新增销售订单')} || document.createElement('div'))`
     await markSmokeStep(cdp, 'sales:select-customer')
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[0].querySelector('.el-select__wrapper')`, 'sales customer select')
+    // The form starts with an optional contract, then customer and warehouse.
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'sales customer select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.customer.customerName)}))`,
       'sales customer option'
     )
     await markSmokeStep(cdp, 'sales:select-warehouse')
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'sales warehouse select')
+    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[2].querySelector('.el-select__wrapper')`, 'sales warehouse select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.warehouse.warehouseName)}))`,
@@ -3506,16 +3792,16 @@ async function runSalesOrderWorkflow(cdp, auth) {
     await markSmokeStep(cdp, 'sales:skip-hidden-date-fields')
     await markSmokeStep(cdp, 'sales:set-remark-and-product')
     await setElementValue(cdp, `${createDialog}.querySelector('textarea')`, remark, 'sales remark input')
-    await clickElement(cdp, `${createDialog}.querySelectorAll('.el-select')[2].querySelector('.el-select__wrapper')`, 'sales product select')
+    await clickElement(cdp, `${createDialog}.querySelector('.el-table__body-wrapper .el-select .el-select__wrapper')`, 'sales product select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.product.productCode)}))`,
       'sales product option'
     )
     await markSmokeStep(cdp, 'sales:set-line-and-save')
-    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-input-number input')[0]`, String(fixture.qty), 'sales qty input')
-    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-input-number input')[1]`, String(fixture.price), 'sales price input')
-    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-input-number input')[2]`, String(fixture.taxRate), 'sales tax rate input')
+    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[1]`, String(fixture.qty), 'sales qty input')
+    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[2]`, String(fixture.price), 'sales price input')
+    await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[3]`, String(fixture.taxRate), 'sales tax rate input')
     await setElementValue(cdp, `${createDialog}.querySelector('.el-table__body-wrapper input[placeholder="备注"]')`, 'UI smoke 销售明细', 'sales line remark input')
     await clickElement(cdp, `${createDialog}.querySelector('.el-dialog__footer .el-button--primary')`, 'production save button')
 
@@ -3593,7 +3879,7 @@ async function runSalesOrderWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales:search-submitted-order-as-approver')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售订单')
         && document.body.innerText.includes('新增订单')
@@ -3770,7 +4056,7 @@ async function runWorkflowTaskApprovalWorkflow(cdp, auth) {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'workflow-task:navigate')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
+      url: `${frontendBaseUrl}/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批待办')
@@ -3847,7 +4133,7 @@ async function runWorkflowTaskApprovalWorkflow(cdp, auth) {
 
     await markSmokeStep(cdp, 'workflow-record:navigate-filtered')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=APPROVE`
+      url: `${frontendBaseUrl}/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=APPROVE`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批记录')
@@ -3911,7 +4197,7 @@ async function runWorkflowTaskRejectWorkflow(cdp, auth) {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'workflow-reject:navigate')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
+      url: `${frontendBaseUrl}/workflow/tasks?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&status=PENDING`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批待办')
@@ -3931,8 +4217,8 @@ async function runWorkflowTaskRejectWorkflow(cdp, auth) {
       })()`,
       'workflow task reject button'
     )
-    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('审批驳回')}); })()`, 'workflow reject dialog')
-    const rejectDialog = dialogExpression('审批驳回')
+    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('驳回')}); })()`, 'workflow reject dialog')
+    const rejectDialog = dialogExpression('驳回')
     await setElementValue(cdp, `${rejectDialog}.querySelector('textarea')`, rejectComment, 'workflow reject comment input')
     await clickButton(cdp, '确定', rejectDialog)
 
@@ -4016,7 +4302,7 @@ async function runWorkflowWithdrawWorkflow(cdp, auth) {
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'workflow-withdraw:navigate-records')
     await cdp.send('Page.navigate', {
-      url: `http://127.0.0.1:5173/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=SUBMIT`
+      url: `${frontendBaseUrl}/workflow/records?businessType=SALES_ORDER&businessId=${encodeURIComponent(order.id)}&action=SUBMIT`
     })
     await waitForPage(cdp, `
       document.body.innerText.includes('审批记录')
@@ -4036,8 +4322,8 @@ async function runWorkflowWithdrawWorkflow(cdp, auth) {
       })()`,
       'workflow withdraw button'
     )
-    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('撤回审批')}); })()`, 'workflow withdraw dialog')
-    const withdrawDialog = dialogExpression('撤回审批')
+    await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${dialogExpression('撤回工作流')}); })()`, 'workflow withdraw dialog')
+    const withdrawDialog = dialogExpression('撤回工作流')
     await setElementValue(cdp, `${withdrawDialog}.querySelector('textarea')`, withdrawComment, 'workflow withdraw comment input')
     await clickButton(cdp, '确认撤回', withdrawDialog)
 
@@ -4090,7 +4376,7 @@ async function runSalesDeliveryWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-delivery:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/deliveries' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/deliveries` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售发货')
         && document.body.innerText.includes('新增发货')
@@ -4250,7 +4536,7 @@ async function runSalesReceiptWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-receipt:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/payments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/payments` })
     await waitForPage(cdp, `
       document.body.innerText.includes('收款管理')
         && document.body.innerText.includes('新增收款')
@@ -4297,6 +4583,7 @@ async function runSalesReceiptWorkflow(cdp, auth) {
         return amountInput && Number(amountInput.value) > 0;
       })()
     `, 'receipt amount filled')
+    await setElementValue(cdp, `${createDialog}.querySelector('.el-input-number input')`, String(fixture.receivable.remainingAmount), 'receipt amount input')
     await setElementValue(cdp, `${createDialog}.querySelector('textarea')`, remark, 'receipt remark input')
     await clickButton(cdp, '确定', createDialog)
 
@@ -4362,7 +4649,7 @@ async function runSalesReturnWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-return:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/returns' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/returns` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售退货')
         && document.body.innerText.includes('新增退货')
@@ -4783,7 +5070,7 @@ async function runDraftEditWorkflow(cdp, auth, opts) {
       await opts.beforeSave(cdp, prepared, editDialog)
     }
     await markSmokeStep(cdp, `${opts.step}:update-remark`)
-    await setElementValue(cdp, `${editDialog}.querySelector('textarea')`, newRemark, `${opts.docLabel} remark input`)
+    await setElementValue(cdp, `${editDialog}.querySelector('.el-form-item textarea')`, newRemark, `${opts.docLabel} remark input`)
     await clickButton(cdp, '确定', editDialog)
 
     await markSmokeStep(cdp, `${opts.step}:verify`)
@@ -4827,7 +5114,7 @@ function runPurchaseReceiptDraftEditWorkflow(cdp, auth) {
     name: 'purchase-receipt-draft-edit',
     step: 'purchase-receipt-draft-edit',
     docLabel: '采购收货',
-    url: 'http://127.0.0.1:5173/purchase/receipts',
+    url: `${frontendBaseUrl}/purchase/receipts`,
     pageText: '采购收货管理',
     searchPlaceholder: '请输入收货单号',
     searchButton: '搜索',
@@ -4847,7 +5134,7 @@ function runPurchaseReturnDraftEditWorkflow(cdp, auth) {
     name: 'purchase-return-draft-edit',
     step: 'purchase-return-draft-edit',
     docLabel: '采购退货',
-    url: 'http://127.0.0.1:5173/purchase/returns',
+    url: `${frontendBaseUrl}/purchase/returns`,
     pageText: '采购退货',
     searchPlaceholder: '请输入退货单号',
     searchButton: '搜索',
@@ -4861,7 +5148,7 @@ function runSalesDeliveryDraftEditWorkflow(cdp, auth) {
     name: 'sales-delivery-draft-edit',
     step: 'sales-delivery-draft-edit',
     docLabel: '销售发货',
-    url: 'http://127.0.0.1:5173/sales/deliveries',
+    url: `${frontendBaseUrl}/sales/deliveries`,
     pageText: '销售发货',
     searchPlaceholder: '请输入发货单号',
     searchButton: '查询',
@@ -4881,7 +5168,7 @@ function runSalesReturnDraftEditWorkflow(cdp, auth) {
     name: 'sales-return-draft-edit',
     step: 'sales-return-draft-edit',
     docLabel: '销售退货',
-    url: 'http://127.0.0.1:5173/sales/returns',
+    url: `${frontendBaseUrl}/sales/returns`,
     pageText: '销售退货',
     searchPlaceholder: '请输入退货单号',
     searchButton: '查询',
@@ -4899,7 +5186,7 @@ async function runPurchaseReturnWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-return:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/returns' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/returns` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购退货')
         && document.body.innerText.includes('新增退货')
@@ -4943,7 +5230,7 @@ async function runPurchaseReturnWorkflow(cdp, auth) {
     })
     await setElementValue(cdp, `${createDialog}.querySelectorAll('.el-date-editor input')[0]`, fixture.orderDate, 'purchase return date input')
     await setElementValue(cdp, `${createDialog}.querySelector('.el-input-number input')`, String(returnQty), 'purchase return qty input')
-    await setElementValue(cdp, `${createDialog}.querySelector('textarea')`, remark, 'purchase return remark input')
+    await setElementValue(cdp, `${createDialog}.querySelector('.el-form-item textarea')`, remark, 'purchase return remark input')
     await clickButton(cdp, '确定', createDialog)
 
     await markSmokeStep(cdp, 'purchase-return:wait-created')
@@ -5097,7 +5384,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, submitterAuth)
     await markSmokeStep(cdp, 'purchase-order:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购订单管理')
         && document.body.innerText.includes('新增订单')
@@ -5119,7 +5406,8 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
 
     const orderDialog = `(${dialogExpression('新增采购订单')} || document.createElement('div'))`
     await markSmokeStep(cdp, 'purchase-order:select-supplier')
-    await clickElement(cdp, `${orderDialog}.querySelectorAll('.el-select')[0].querySelector('.el-select__wrapper')`, 'purchase supplier select')
+    // The optional contract select precedes the supplier select.
+    await clickElement(cdp, `${orderDialog}.querySelectorAll('.el-select')[1].querySelector('.el-select__wrapper')`, 'purchase supplier select')
     await invokeElement(
       cdp,
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.supplier.supplierName)}))`,
@@ -5138,8 +5426,8 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.product.productCode)}))`,
       'purchase product option'
     )
-    await setElementValue(cdp, `${orderDialog}.querySelectorAll('.el-input-number input')[0]`, String(fixture.qty), 'purchase qty input')
-    await setElementValue(cdp, `${orderDialog}.querySelectorAll('.el-input-number input')[1]`, String(fixture.price), 'purchase price input')
+    await setElementValue(cdp, `${orderDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[1]`, String(fixture.qty), 'purchase qty input')
+    await setElementValue(cdp, `${orderDialog}.querySelectorAll('.el-table__body-wrapper .el-input-number input')[2]`, String(fixture.price), 'purchase price input')
     await setElementValue(cdp, `${orderDialog}.querySelector('.el-table__body-wrapper input[placeholder="选填"]')`, 'UI smoke 采购明细', 'purchase line remark input')
     await clickButton(cdp, '确定', orderDialog)
 
@@ -5212,7 +5500,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-order:approve-as-admin')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/orders` })
     await waitForPage(cdp, `document.body.innerText.includes('采购订单管理')`, 'purchase order page as approver')
     await setElementValue(cdp, `document.querySelector('input[placeholder="请输入订单编号"]')`, order.orderNo, 'purchase order no search input after submit')
     await clickButton(cdp, '搜索')
@@ -5271,7 +5559,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
     })
 
     await markSmokeStep(cdp, 'purchase-receipt:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/receipts' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/receipts` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购收货管理')
         && document.body.innerText.includes('新增收货')
@@ -5313,7 +5601,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
       `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.warehouse.warehouseName)}))`,
       'purchase receipt warehouse option'
     )
-    await setElementValue(cdp, `${receiptDialog}.querySelector('textarea')`, receiptRemark, 'purchase receipt remark input')
+    await setElementValue(cdp, `${receiptDialog}.querySelector('.el-form-item textarea')`, receiptRemark, 'purchase receipt remark input')
     await clickButton(cdp, '确定', receiptDialog)
 
     receipt = await waitForPage(cdp, `
@@ -5398,7 +5686,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
     })
 
     await markSmokeStep(cdp, 'purchase-payment:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/payments' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/payments` })
     await waitForPage(cdp, `document.body.innerText.includes('收款管理') && document.body.innerText.includes('付款管理')`, 'finance payments page')
     await invokeElement(
       cdp,
@@ -5443,6 +5731,7 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
         return amountInput && Number(amountInput.value) > 0;
       })()
     `, 'payment amount filled')
+    await setElementValue(cdp, `${paymentDialog}.querySelector('.el-input-number input')`, String(payable.remainingAmount), 'payment amount input')
     await setElementValue(cdp, `${paymentDialog}.querySelector('textarea')`, paymentRemark, 'payment remark input')
     await clickButton(cdp, '确定', paymentDialog)
 
@@ -5487,10 +5776,18 @@ async function runPurchaseToPaymentWorkflow(cdp, auth) {
 async function runProductionOrderWorkflow(cdp, auth) {
   resetEvents(cdp.events)
   const fixture = await prepareProductionOrderFixture(auth)
+  const periodMonth = fixture.plannedFinishDate.slice(0, 7)
+  const periods = await apiRequest(auth, 'GET', `/finance/periods?year=${fixture.plannedFinishDate.slice(0, 4)}`)
+  const costClosePeriod = periods.find((period) => period.periodMonth === periodMonth)
+  if (!costClosePeriod?.id || costClosePeriod.status !== 'OPEN') {
+    throw new Error(`production cost close period ${periodMonth} is not open`)
+  }
   const remark = `UI smoke 生产订单 ${fixture.suffix}`
   let order = null
+  let costClose = null
+  let periodCloseEvidence = null
   try {
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/production/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/production/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('生产订单管理')
         && document.body.innerText.includes('新增订单')
@@ -5681,18 +5978,16 @@ async function runProductionOrderWorkflow(cdp, auth) {
       `[...document.querySelectorAll('button')].find((button) => visible(button) && button.innerText.trim() === '领料')`,
       'production issue button'
     )
-    await waitForPage(cdp, `
-      (() => {
-        const visible = (element) => {
-          if (!element) return false;
-          const style = window.getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-        };
-        return Boolean(${messageBoxExpression('按剩余需求领料')});
-      })()
-    `, 'production issue confirm')
-    await clickButton(cdp, '确定', messageBoxExpression('按剩余需求领料'))
+    const issueDialog = dialogExpression('生产领料')
+    await waitForPage(cdp, `Boolean(${issueDialog})`, 'production issue dialog')
+    await setElementValue(cdp, `${issueDialog}.querySelector('input[placeholder="请输入备注"]')`, 'UI smoke 生产领料', 'production issue remark input')
+    await invokeElement(cdp, `${issueDialog}.querySelector('.el-select .el-select__wrapper')`, 'production issue location select')
+    await invokeElement(
+      cdp,
+      `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && !item.classList.contains('is-disabled') && item.innerText.includes(${JSON.stringify(fixture.materialLocation.locationName)}))`,
+      'production issue location option'
+    )
+    await clickButton(cdp, '确认领料', issueDialog)
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -5707,6 +6002,88 @@ async function runProductionOrderWorkflow(cdp, auth) {
     `, 'production order issued', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production issue'))}`)
     })
+
+    const laborCostAmount = 25.5
+    await invokeButton(cdp, '成本归集', 'production cost collection button', orderRowExpression)
+    const costDialog = dialogExpression('生产成本归集')
+    await waitForPage(cdp, `Boolean(${costDialog})`, 'production cost collection dialog')
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.el-input-number input')`,
+      String(laborCostAmount),
+      'production labor cost amount input'
+    )
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.cost-entry-form .el-form-item:nth-child(5) input')`,
+      'UI smoke 生产人工成本',
+      'production labor cost remark input'
+    )
+    await invokeButton(cdp, '确认归集', 'production cost collection confirm button', costDialog)
+    const laborCostEntry = await waitForPage(cdp, `
+      (async () => {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/production/orders/' + ${JSON.stringify(order.id)} + '/costs', {
+          headers: token ? { Authorization: 'Bearer ' + token } : {}
+        });
+        if (!response.ok) return false;
+        const payload = await response.json();
+        const entry = (payload?.data || []).find((item) => item.costType === 'LABOR'
+          && Number(item.amount) === ${laborCostAmount}
+          && item.remark === 'UI smoke 生产人工成本');
+        return entry && ${costDialog}?.innerText.includes('25.50') ? entry : false;
+      })()
+    `, 'production labor cost collected', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production cost collection'))}`)
+    })
+
+    const correctedLaborCostAmount = 30.5
+    const laborCostRowExpression = `
+      [...${costDialog}.querySelectorAll('.el-table__body-wrapper tbody tr')]
+        .find((item) => visible(item) && item.innerText.includes(${JSON.stringify(laborCostEntry.costNo)}))
+    `
+    await invokeButton(cdp, '更正', 'production cost correction button', laborCostRowExpression)
+    const correctionDialog = dialogExpression('更正生产成本')
+    await waitForPage(cdp, `Boolean(${correctionDialog})`, 'production cost correction dialog')
+    await setElementValue(
+      cdp,
+      `${correctionDialog}.querySelector('.el-input-number input')`,
+      String(correctedLaborCostAmount),
+      'corrected production labor cost amount input'
+    )
+    await setElementValue(
+      cdp,
+      `${correctionDialog}.querySelector('textarea')`,
+      'UI smoke 人工成本金额更正',
+      'production cost correction reason input'
+    )
+    await invokeButton(cdp, '确认更正', 'production cost correction confirm button', correctionDialog)
+    await waitForPage(cdp, `
+      (async () => {
+        if (${correctionDialog}) return false;
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/production/orders/' + ${JSON.stringify(order.id)} + '/costs', {
+          headers: token ? { Authorization: 'Bearer ' + token } : {}
+        });
+        if (!response.ok) return false;
+        const payload = await response.json();
+        const entries = payload?.data || [];
+        const original = entries.find((item) => String(item.id) === ${JSON.stringify(String(laborCostEntry.id))});
+        const reversal = entries.find((item) => String(item.reversalOfEntryId) === ${JSON.stringify(String(laborCostEntry.id))});
+        const correction = entries.find((item) => String(item.correctionOfEntryId) === ${JSON.stringify(String(laborCostEntry.id))});
+        return Boolean(original?.status === 'REVERSED'
+          && reversal?.entryKind === 'REVERSAL'
+          && Number(reversal.amount) === -${laborCostAmount}
+          && correction?.entryKind === 'CORRECTION'
+          && Number(correction.amount) === ${correctedLaborCostAmount}
+          && ${costDialog}?.innerText.includes('-25.50')
+          && ${costDialog}?.innerText.includes('30.50'));
+      })()
+    `, 'production labor cost corrected', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production cost correction'))}`)
+    })
+    await invokeButton(cdp, '关闭', 'production cost collection close button', costDialog)
+    await waitForPage(cdp, `!${costDialog}`, 'production cost collection dialog closed')
 
     await invokeElement(
       cdp,
@@ -5725,8 +6102,73 @@ async function runProductionOrderWorkflow(cdp, auth) {
       })()
     `, 'production complete dialog')
     const completeDialog = dialogExpression('生产完工')
-    await setElementValue(cdp, `${completeDialog}.querySelector('textarea')`, 'UI smoke 生产完工', 'production complete remark input')
-    await clickButton(cdp, '确定完工', completeDialog)
+    await setElementValue(cdp, `${completeDialog}.querySelectorAll('textarea')[1]`, 'UI smoke 生产完工', 'production complete remark input')
+    await invokeElement(cdp, `${completeDialog}.querySelector('.el-select .el-select__wrapper')`, 'production complete location select')
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        return Boolean([...document.querySelectorAll('.el-select-dropdown__item')]
+          .find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.finishedLocation.locationName)})));
+      })()
+    `, 'production complete location option')
+    await invokeElement(
+      cdp,
+      `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(fixture.finishedLocation.locationName)}))`,
+      'production complete location option'
+    )
+    await evaluatePage(cdp, `
+      (() => {
+        window.__uiSmoke = {
+          ...(window.__uiSmoke || {}),
+          productionCompletionRequests: []
+        };
+        if (!window.__uiSmokeProductionCompletionPatched) {
+          window.__uiSmokeProductionCompletionPatched = true;
+          const rawOpen = XMLHttpRequest.prototype.open;
+          XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+            this.__uiSmokeProductionCompletionRecord = null;
+            const normalizedMethod = String(method || 'GET').toUpperCase();
+            if (normalizedMethod === 'POST' && String(url).includes('/api/production/orders/') && String(url).includes('/complete')) {
+              this.__uiSmokeProductionCompletionRecord = {
+                method: normalizedMethod,
+                url: String(url),
+                status: null,
+                responseText: '',
+                done: false
+              };
+              window.__uiSmoke.productionCompletionRequests.push(this.__uiSmokeProductionCompletionRecord);
+              this.addEventListener('loadend', () => {
+                this.__uiSmokeProductionCompletionRecord.status = this.status;
+                this.__uiSmokeProductionCompletionRecord.responseText = String(this.responseText || '').slice(0, 3000);
+                this.__uiSmokeProductionCompletionRecord.done = true;
+              });
+            }
+            return rawOpen.call(this, method, url, ...rest);
+          };
+        }
+        return true;
+      })()
+    `)
+    await invokeButton(cdp, '确定完工', 'production complete confirm button', completeDialog)
+    const completionRequest = await waitForPage(cdp, `
+      (window.__uiSmoke?.productionCompletionRequests || []).find((request) => request.done) || false
+    `, 'production completion request response').catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production completion request'))}`)
+    })
+    let completionPayload = null
+    try {
+      completionPayload = JSON.parse(completionRequest.responseText || '{}')
+    } catch {
+      throw new Error(`production completion returned invalid JSON: ${completionRequest.responseText}`)
+    }
+    if (completionRequest.status < 200 || completionRequest.status >= 300 || completionPayload?.code !== '0') {
+      throw new Error(`production completion failed: HTTP ${completionRequest.status} ${completionRequest.responseText}`)
+    }
     await waitForPage(cdp, `
       (() => {
         const visible = (element) => {
@@ -5739,7 +6181,7 @@ async function runProductionOrderWorkflow(cdp, auth) {
         return !${dialogExpression('生产完工')} && row?.innerText.includes('已完成');
       })()
     `, 'production order completed', 30000).catch(async (error) => {
-      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production complete'))}`)
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production complete'))}; events=${JSON.stringify(cdp.events)}`)
     })
 
     await waitForPage(cdp, `
@@ -5767,6 +6209,8 @@ async function runProductionOrderWorkflow(cdp, auth) {
           && String(detail.materialWarehouseId) === ${JSON.stringify(String(fixture.materialWarehouse.id))}
           && String(detail.finishedWarehouseId) === ${JSON.stringify(String(fixture.finishedWarehouse.id))}
           && Number(detail.completedQty) === ${fixture.plannedQty}
+          && Number(detail.laborAmount) === ${correctedLaborCostAmount}
+          && Number(detail.finishedLaborAmount) === ${correctedLaborCostAmount}
           && String(material?.materialProductId) === ${JSON.stringify(String(fixture.materialProduct.id))}
           && Number(material.issuedQty) === ${fixture.requiredMaterialQty}
           && Number(materialBalance?.qtyOnHand) === 10
@@ -5777,6 +6221,132 @@ async function runProductionOrderWorkflow(cdp, auth) {
     `, 'production order persisted as completed', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production persistence check'))}`)
     })
+
+    const lateCostAmount = 5
+    await invokeButton(cdp, '成本归集', 'completed production cost collection button', orderRowExpression)
+    await waitForPage(cdp, `Boolean(${costDialog})`, 'completed production cost collection dialog')
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.cost-entry-form .el-date-editor input')`,
+      fixture.plannedFinishDate,
+      'late production cost date input'
+    )
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.cost-entry-form .el-input-number input')`,
+      String(lateCostAmount),
+      'late production cost amount input'
+    )
+    await setElementValue(
+      cdp,
+      `${costDialog}.querySelector('.cost-entry-form .el-form-item:nth-child(5) input')`,
+      'UI smoke 完工后补录成本',
+      'late production cost remark input'
+    )
+    await invokeButton(cdp, '确认归集', 'late production cost confirm button', costDialog)
+    await waitForPage(cdp, `
+      (async () => {
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        const response = await fetch('/api/production/orders/' + ${JSON.stringify(order.id)} + '/costs', { headers });
+        if (!response.ok) return false;
+        const payload = await response.json();
+        const entry = (payload?.data || []).find((item) => item.costType === 'LABOR'
+          && Number(item.amount) === ${lateCostAmount}
+          && item.remark === 'UI smoke 完工后补录成本');
+        return Boolean(entry
+          && ${costDialog}?.innerText.includes('待结转差异')
+          && ${costDialog}?.innerText.includes('5.00'));
+      })()
+    `, 'late production cost creates variance', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after late production cost'))}`)
+    })
+
+    const beforeBatchCheck = await apiRequest(auth, 'GET', `/finance/periods/${costClosePeriod.id}/close-check`)
+    if (beforeBatchCheck.passed
+      || !(beforeBatchCheck.issues || []).some((item) => item.type === 'PRODUCTION_COST_UNCLOSED')) {
+      throw new Error('period close check did not block the unclosed completed production order')
+    }
+
+    await invokeButton(cdp, '关闭', 'late production cost dialog close button', costDialog)
+    await waitForPage(cdp, `!${costDialog}`, 'late production cost dialog dismissed')
+    await invokeButton(cdp, '期间批量关单', 'production cost period close button')
+    const periodCloseDialog = dialogExpression('生产成本期间批量关单')
+    await waitForPage(cdp, `Boolean(${periodCloseDialog})`, 'production cost period close dialog')
+    await clickElement(
+      cdp,
+      `${periodCloseDialog}.querySelector('.period-close-filter .el-select__wrapper')`,
+      'production cost close period select'
+    )
+    await invokeElement(
+      cdp,
+      `[...document.querySelectorAll('.el-select-dropdown__item')].find((item) => visible(item) && item.innerText.includes(${JSON.stringify(periodMonth)}))`,
+      'production cost close period option'
+    )
+    const periodOrderRow = `[...${periodCloseDialog}.querySelectorAll('.el-table__body-wrapper tbody tr')]
+      .find((item) => item.getBoundingClientRect().height > 0 && item.innerText.includes(${JSON.stringify(order.orderNo)}))`
+    await waitForPage(cdp, `Boolean(${periodOrderRow}?.innerText.includes('5.00'))`, 'production cost period candidate')
+    await clickElement(
+      cdp,
+      `${periodOrderRow}.querySelector('.el-checkbox__input')`,
+      'production cost period candidate checkbox'
+    )
+    await setElementValue(
+      cdp,
+      `${periodCloseDialog}.querySelector('.period-close-remark textarea')`,
+      'UI smoke 期间批量关单',
+      'production cost period close remark'
+    )
+    await invokeButton(cdp, '执行批量关单', 'production cost period close execute button', periodCloseDialog)
+    await waitForPage(cdp, `Boolean(${messageBoxExpression('确认按')})`, 'production cost period close confirmation')
+    await invokeButton(cdp, '确定', 'production cost period close confirmation button', messageBoxExpression('确认按'))
+    const periodCloseResult = await waitForPage(cdp, `
+      (async () => {
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        const [detailResponse, closesResponse, reportResponse, evidenceResponse, closeCheckResponse] = await Promise.all([
+          fetch('/api/production/orders/' + ${JSON.stringify(order.id)}, { headers }),
+          fetch('/api/production/orders/' + ${JSON.stringify(order.id)} + '/cost-closes', { headers }),
+          fetch('/api/reports/production-costs?pageNo=1&pageSize=20&keyword=' + encodeURIComponent(${JSON.stringify(order.orderNo)}), { headers }),
+          fetch('/api/production/cost-close-periods/' + ${JSON.stringify(String(costClosePeriod.id))} + '/evidence?pageNo=1&pageSize=20', { headers }),
+          fetch('/api/finance/periods/' + ${JSON.stringify(String(costClosePeriod.id))} + '/close-check', { headers })
+        ]);
+        if (!detailResponse.ok || !closesResponse.ok || !reportResponse.ok || !evidenceResponse.ok || !closeCheckResponse.ok) return false;
+        const detail = (await detailResponse.json())?.data;
+        const closes = (await closesResponse.json())?.data || [];
+        const report = (await reportResponse.json())?.data?.records?.[0];
+        const evidence = (await evidenceResponse.json())?.data?.records?.[0];
+        const closeCheck = (await closeCheckResponse.json())?.data;
+        const close = closes.find((item) => item.entryKind === 'CLOSE'
+          && Number(item.amount) === ${lateCostAmount}
+          && item.remark === 'UI smoke 期间批量关单');
+        return detail?.costCloseStatus === 'CLOSED'
+          && Number(detail.settledVarianceAmount) === ${lateCostAmount}
+          && close
+          && report?.costStatus === 'CLOSED'
+          && report?.costCloseStatus === 'CLOSED'
+          && Number(report.costVarianceAmount) === ${lateCostAmount}
+          && Number(report.settledCostVarianceAmount) === ${lateCostAmount}
+          && Number(report.workInProgressCost) === 0
+          && Number(report.productionCostLedgerAmount) === 0
+          && Number(report.reconciliationDifference) === 0
+          && evidence?.batch?.successCount === 1
+          && evidence?.batch?.failureCount === 0
+          && evidence?.batch?.results?.[0]?.closeNo === close.closeNo
+          && (closeCheck?.issues || []).every((item) => item.type !== 'PRODUCTION_COST_UNCLOSED')
+          && (closeCheck?.checks || []).some((item) => item.code === 'PRODUCTION_COST_UNCLOSED' && item.passed === true)
+          && ${periodCloseDialog}?.innerText.includes('本次执行结果')
+          && ${periodCloseDialog}?.innerText.includes('成功 1 张')
+          ? { close, evidence }
+          : false;
+      })()
+    `, 'production cost period batch closed with audit evidence', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production cost period close'))}`)
+    })
+    costClose = periodCloseResult.close
+    periodCloseEvidence = periodCloseResult.evidence
+    await invokeButton(cdp, '关闭', 'production cost period close dialog close button', periodCloseDialog)
+    await waitForPage(cdp, `!${periodCloseDialog}`, 'production cost period close dialog dismissed')
   } catch (error) {
     const diagnostic = await pageDiagnostics(cdp, 'production workflow failure').catch(() => null)
     throw new Error(`${error.message}${diagnostic ? `\n${JSON.stringify(diagnostic, null, 2)}` : ''}`)
@@ -5789,23 +6359,100 @@ async function runProductionOrderWorkflow(cdp, auth) {
     bomNo: fixture.bom.bomNo,
     materialWarehouse: fixture.materialWarehouse.warehouseName,
     finishedWarehouse: fixture.finishedWarehouse.warehouseName,
+    originalLaborCostAmount: 25.5,
+    laborCostAmount: 30.5,
+    lateCostAmount: 5,
+    costCloseNo: costClose?.closeNo || null,
+    periodCloseEvidenceId: periodCloseEvidence?.id || null,
     passed: failures.length === 0,
     failures
   }
 }
 
-async function killProcessTree(pid) {
-  if (!pid) {
-    return
-  }
-  await new Promise((resolveKill) => {
-    const killer = spawn('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
-      stdio: 'ignore',
-      windowsHide: true
+async function runProductionScheduleWorkflow(cdp, auth) {
+  resetEvents(cdp.events)
+  const fixture = await prepareProductionScheduleFixture(auth)
+  let committedItems = []
+  let auditLog = null
+  try {
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/production/schedules` })
+    await waitForPage(cdp, `
+      document.body.innerText.includes('有限产能排程')
+        && document.body.innerText.includes('预览排程')
+        && document.body.innerText.includes('执行排程')
+    `, 'production schedule page')
+
+    await invokeButton(cdp, '预览排程', 'production schedule preview button')
+    await waitForPage(cdp, `
+      document.body.innerText.includes(${JSON.stringify(fixture.orders[0].orderNo)})
+        && document.body.innerText.includes(${JSON.stringify(fixture.orders[1].orderNo)})
+        && document.body.innerText.includes('仅预览')
+        && document.body.innerText.includes(${JSON.stringify(fixture.workCenter.workCenterName)})
+    `, 'production schedule preview result', 30000)
+
+    await invokeButton(cdp, '执行排程', 'production schedule run button')
+    await waitForPage(cdp, `Boolean(${messageBoxExpression('执行有限产能排程')})`, 'production schedule confirmation')
+    await invokeButton(cdp, '确定', 'production schedule confirmation button', messageBoxExpression('执行有限产能排程'))
+
+    const committed = await waitForPage(cdp, `
+      (async () => {
+        if (!document.body.innerText.includes('已写入工序快照')) return false;
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        const orderIds = ${JSON.stringify(fixture.orders.map((order) => String(order.id)))};
+        const operationResponses = await Promise.all(orderIds.map((id) =>
+          fetch('/api/production/orders/' + encodeURIComponent(id) + '/operations', { headers })));
+        if (operationResponses.some((response) => !response.ok)) return false;
+        const operationPayloads = await Promise.all(operationResponses.map((response) => response.json()));
+        const operations = operationPayloads.flatMap((payload) => payload?.data || []);
+        if (operations.length !== 2 || operations.some((operation) =>
+          String(operation.workCenterId) !== ${JSON.stringify(String(fixture.workCenter.id))}
+            || Number(operation.scheduledMinutes) !== 120
+            || !operation.scheduledStartTime
+            || !operation.scheduledEndTime)) return false;
+        const sorted = [...operations].sort((left, right) =>
+          String(left.scheduledStartTime).localeCompare(String(right.scheduledStartTime)));
+        if (String(sorted[0].scheduledEndTime) > String(sorted[1].scheduledStartTime)) return false;
+
+        const auditResponse = await fetch('/api/system/audit-logs?pageNo=1&pageSize=20&businessType=PRODUCTION_SCHEDULE&action=RUN', { headers });
+        if (!auditResponse.ok) return false;
+        const auditPayload = await auditResponse.json();
+        const audit = (auditPayload?.data?.records || []).find((record) => {
+          if (record.businessType !== 'PRODUCTION_SCHEDULE' || record.action !== 'RUN') return false;
+          try {
+            const snapshot = JSON.parse(record.snapshotJson || '{}');
+            const scheduledOrderIds = new Set((snapshot.items || []).map((item) => String(item.orderId)));
+            return orderIds.every((id) => scheduledOrderIds.has(id)) && snapshot.committed === true;
+          } catch (error) {
+            return false;
+          }
+        });
+        return audit ? { operations: sorted, audit } : false;
+      })()
+    `, 'production schedule committed without overlap and with audit evidence', 30000).catch(async (error) => {
+      throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after production schedule run'))}`)
     })
-    killer.on('exit', resolveKill)
-    killer.on('error', resolveKill)
-  })
+    committedItems = committed.operations
+    auditLog = committed.audit
+  } catch (error) {
+    const diagnostic = await pageDiagnostics(cdp, 'production schedule workflow failure').catch(() => null)
+    throw new Error(`${error.message}${diagnostic ? `\n${JSON.stringify(diagnostic, null, 2)}` : ''}`)
+  }
+
+  const failures = snapshotFailures(cdp.events)
+  return {
+    name: 'production-finite-capacity-preview-run',
+    orderNos: fixture.orders.map((order) => order.orderNo),
+    routingCode: fixture.routing.routingCode,
+    workCenterCode: fixture.workCenter.workCenterCode,
+    scheduledWindows: committedItems.map((item) => ({
+      start: item.scheduledStartTime,
+      end: item.scheduledEndTime
+    })),
+    auditLogId: auditLog?.id || null,
+    passed: failures.length === 0,
+    failures
+  }
 }
 
 async function runManualVoucherWorkflow(cdp, auth) {
@@ -5845,7 +6492,7 @@ async function runManualVoucherWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'manual-voucher:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/vouchers/manual' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/vouchers/manual` })
     await waitForPage(cdp, `
       document.body.innerText.includes('手工凭证')
         && document.body.innerText.includes('录入凭证')
@@ -6002,7 +6649,7 @@ async function runQcInspectionWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'qc-inspection:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/qc/inspections' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/qc/inspections` })
     await waitForPage(cdp, `document.body.innerText.includes('新建检验单')`, 'qc inspection page', 30000).catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after qc inspection navigate'))}`)
     })
@@ -6114,7 +6761,7 @@ async function runSystemConfigCreateWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'system-config:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/system/configs' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/system/configs` })
     await waitForPage(cdp, `
       document.body.innerText.includes('系统配置管理')
         && document.body.innerText.includes('新增配置')
@@ -6212,7 +6859,7 @@ async function runFinanceInvoiceWorkflow(cdp, auth) {
     await ensureOpenPeriod(auth, invoiceDate)
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'finance-invoice:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/finance/invoices' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/invoices` })
     await waitForPage(cdp, `document.body.innerText.includes('发票登记') && document.body.innerText.includes('新增登记')`, 'finance invoice page', 30000)
 
     await markSmokeStep(cdp, 'finance-invoice:create')
@@ -6247,7 +6894,7 @@ async function runFinanceInvoiceWorkflow(cdp, auth) {
     })()`
 
     await markSmokeStep(cdp, 'finance-invoice:post')
-    await invokeElement(cdp, rowButton('确认'), 'invoice post button')
+    await invokeElement(cdp, rowButton('确定'), 'invoice post button')
     await waitForPage(cdp, `(() => { ${visibleDefinition}; return Boolean(${messageBoxExpression('提示')}); })()`, 'invoice post prompt')
     await clickButton(cdp, '确定', messageBoxExpression('提示'))
     await waitForPage(cdp, `
@@ -6350,7 +6997,7 @@ async function runPurchaseInquiryConvertToPoWorkflow(cdp, auth) {
 
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-inquiry:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/inquiries' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/inquiries` })
     await waitForPage(cdp, `document.body.innerText.includes('采购询价') || document.body.innerText.includes('新建询价单')`, 'purchase inquiry page', 30000)
     await waitForPage(cdp, `(() => { ${visibleDefinition}; return [...document.querySelectorAll('.el-table__body-wrapper tbody tr')].some((row) => visible(row) && row.innerText.includes(${JSON.stringify(inquiry.inquiryNo)})); })()`, 'inquiry row visible', 30000)
 
@@ -6433,7 +7080,7 @@ async function runPurchaseOrderUnapproveWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'purchase-order-unapprove:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/purchase/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/purchase/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('采购订单管理')
         && document.body.innerText.includes('新增订单')
@@ -6527,7 +7174,7 @@ async function runSalesOrderUnapproveWorkflow(cdp, auth) {
   try {
     await setBrowserAuth(cdp, auth)
     await markSmokeStep(cdp, 'sales-order-unapprove:navigate')
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/sales/orders' })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/sales/orders` })
     await waitForPage(cdp, `
       document.body.innerText.includes('销售订单')
         && document.body.innerText.includes('新增订单')
@@ -6615,24 +7262,46 @@ async function main() {
   const chromeProfileDir = join(targetDir, `ui-smoke-chrome-profile-${process.pid}-${Date.now()}`)
   const chromeWindowSize = process.env.UI_SMOKE_WINDOW_SIZE || '1440,1000'
 
+  await assertPortAvailable('ERP backend', backendPort)
+  await assertPortAvailable('UI smoke frontend', frontendPort)
+  await assertPortAvailable('Chrome debugging', 9223)
+
+  const datasourceUrl = process.env.ERP_UI_SMOKE_DATASOURCE_URL
+    || 'jdbc:mysql://localhost:3306/erp_codex_runtime?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8'
+  const datasourceUsername = process.env.ERP_UI_SMOKE_DATASOURCE_USERNAME || 'root'
+  const datasourcePassword = process.env.ERP_UI_SMOKE_DATASOURCE_PASSWORD || '12345678'
+  const backendTimeoutMs = Number(process.env.ERP_UI_SMOKE_BACKEND_TIMEOUT_MS || 90000)
+
   start('backend', 'java', [
     '-jar',
-    'target\\erp-server-1.0.0.jar',
+    join('target', 'erp-server-1.0.0.jar'),
     '--spring.profiles.active=local',
-    '--spring.datasource.url=jdbc:mysql://localhost:3306/erp_codex_runtime?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8'
+    `--spring.datasource.url=${datasourceUrl}`,
+    `--spring.datasource.username=${datasourceUsername}`,
+    `--spring.datasource.password=${datasourcePassword}`,
+    `--server.port=${backendPort}`,
+    `--erp.security.cors.allowed-origins=http://127.0.0.1:${frontendPort}`
   ], backendDir)
 
-  await waitFor('backend', 'http://127.0.0.1:8080/actuator/health')
+  await waitForBackendReadiness(backendBaseUrl, { timeoutMs: backendTimeoutMs })
   const { credentials, auth } = await login()
 
-  start('frontend', process.env.ComSpec || 'cmd.exe', [
-    '/d',
-    '/s',
-    '/c',
-    'npm run dev -- --host 127.0.0.1 --port 5173'
-  ], frontendDir)
+  process.env.ERP_API_PROXY_TARGET = backendBaseUrl
+  if (frontendMode === 'preview' && !existsSync(join(frontendDir, 'dist', 'index.html'))) {
+    throw new Error('Build the frontend before running UI smoke in preview mode')
+  }
+  if (process.platform === 'win32') {
+    start('frontend', process.env.ComSpec || 'cmd.exe', [
+      '/d',
+      '/s',
+      '/c',
+      `npm run ${frontendMode} -- --host 127.0.0.1 --port ${frontendPort} --strictPort`
+    ], frontendDir)
+  } else {
+    start('frontend', 'npm', ['run', frontendMode, '--', '--host', '127.0.0.1', '--port', String(frontendPort), '--strictPort'], frontendDir)
+  }
 
-  await waitFor('frontend', 'http://127.0.0.1:5173/')
+  await waitFor('frontend', `${frontendBaseUrl}/`)
 
   start('chrome', chromePath, [
     '--headless=new',
@@ -6655,8 +7324,8 @@ async function main() {
   await cdp.send('Page.enable')
   await cdp.send('Network.enable')
 
-  await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/login' })
-  await sleep(1500)
+  await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/login` })
+  await waitForPage(cdp, `location.pathname === '/login' && document.querySelector('input[type=\"password\"]') && document.readyState === 'complete'`, 'login page initialized', 30000)
   await setBrowserAuth(cdp, auth)
 
   const routes = [
@@ -6667,8 +7336,12 @@ async function main() {
     { path: '/reports/traces', text: '暂无追踪事件' },
     { path: '/finance/periods', text: '会计期间管理' },
     { path: '/finance/expenses', text: '费用管理' },
+    { path: '/finance/budgets', text: '预算管理' },
+    { path: '/contracts', text: '合同台账' },
+    { path: '/reports', text: '库存估值' },
     { path: '/system/attachments', text: '附件中心' },
     { path: '/inventory/stocks', text: '库存查询' },
+    { path: '/inventory/mrp', text: '多层 MRP' },
     { path: '/sales/orders', text: '销售订单' },
     { path: '/sales/deliveries', text: '销售发货' },
     { path: '/system/users', text: '用户管理' },
@@ -6684,6 +7357,7 @@ async function main() {
     { path: '/qc/inspections', text: '新建检验单' },
     { path: '/production/work-centers', text: '工作中心' },
     { path: '/production/routings', text: '工艺路线' },
+    { path: '/production/schedules', text: '有限产能排程' },
     { path: '/system/document-state-rules', text: '单据状态流转规则' }
   ]
 
@@ -6691,7 +7365,7 @@ async function main() {
   const results = []
   for (const route of shouldRunRoutes ? routes : []) {
     resetEvents(cdp.events)
-    await cdp.send('Page.navigate', { url: `http://127.0.0.1:5173${route.path}` })
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}${route.path}` })
     await sleep(4500)
     const state = await cdp.send('Runtime.evaluate', {
       expression: `({
@@ -6733,7 +7407,15 @@ async function main() {
     .split(/[,\s]+/)
     .map((token) => token.trim())
     .filter(Boolean)
+  const currencyHelpers = { cdp, auth, apiRequest, setBrowserAuth, frontendBaseUrl, prepareSalesOrderFixture,
+    preparePostedSalesDeliveryFixture, waitForPage, invokeElement, clickButton, setElementValue, dialogExpression,
+    approveInventoryAdjustmentFixture, targetDir }
   const workflowDefinitions = [
+    { name: 'mrp-safety-stock-run-and-convert', run: () => runMrpUiSmoke(currencyHelpers) },
+    { name: 'mrp-multilevel-warehouse-trace-and-convert', run: () => runMultilevelMrpUiSmoke(currencyHelpers) },
+    { name: 'mrp-purchase-warehouse-assignment', run: () => runMrpWarehouseUiSmoke(currencyHelpers) },
+    { name: 'currency-contract-invoice-edit-and-version', run: () => runCurrencyDocumentsUiSmoke(currencyHelpers) },
+    { name: 'currency-rounding-report', run: () => runRoundingReportUiSmoke(currencyHelpers) },
     { name: 'exception-ticket-create-and-close', run: () => runExceptionTicketWorkflow(cdp) },
     { name: 'exception-sla-policy-save', run: () => runSlaPolicyWorkflow(cdp) },
     { name: 'exception-rule-config-toggle-and-scan-all', run: () => runExceptionRuleWorkflow(cdp) },
@@ -6758,6 +7440,7 @@ async function main() {
     { name: 'inventory-adjustment-create-post-balance', run: () => runInventoryAdjustmentWorkflow(cdp, auth) },
     { name: 'inventory-transfer-create-post-balance', run: () => runInventoryTransferWorkflow(cdp, auth) },
     { name: 'inventory-check-create-adjust-balance', run: () => runInventoryCheckWorkflow(cdp, auth) },
+    { name: 'production-finite-capacity-preview-run', run: () => runProductionScheduleWorkflow(cdp, auth) },
     { name: 'production-order-create-release-issue-complete', run: () => runProductionOrderWorkflow(cdp, auth) },
     { name: 'manual-voucher-create-submit-approve-post-cancel', run: () => runManualVoucherWorkflow(cdp, auth) },
     { name: 'qc-inspection-create-submit-judge-only-qualified', run: () => runQcInspectionWorkflow(cdp, auth) },
@@ -6796,7 +7479,22 @@ async function main() {
   const failedWorkflows = workflows.filter((workflow) => !workflow.passed)
   const report = {
     loginUser: credentials.username,
+    frontendMode,
     checkedAt: new Date().toISOString(),
+    sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: backendDir, encoding: 'utf8' }).trim(),
+    dirtyWorktree: execFileSync('git', ['status', '--porcelain'], { cwd: backendDir, encoding: 'utf8' }).trim().length > 0,
+    ci: process.env.GITHUB_ACTIONS === 'true'
+      ? {
+          provider: 'github-actions',
+          revision: process.env.GITHUB_SHA || null,
+          workflow: process.env.GITHUB_WORKFLOW || null,
+          runId: process.env.GITHUB_RUN_ID || null,
+          runAttempt: process.env.GITHUB_RUN_ATTEMPT || null,
+          runUrl: process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+            ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+            : null
+        }
+      : null,
     results,
     workflows
   }
@@ -6811,7 +7509,14 @@ async function main() {
 try {
   await main()
 } finally {
-  for (const item of children.reverse()) {
-    await killProcessTree(item.child.pid)
+  const cleanup = {
+    ...await cleanupSmokeProcesses(children),
+    checkedAt: new Date().toISOString(),
+    sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: backendDir, encoding: 'utf8' }).trim(),
+    dirtyWorktree: execFileSync('git', ['status', '--porcelain'], { cwd: backendDir, encoding: 'utf8' }).trim().length > 0
   }
+  mkdirSync(targetDir, { recursive: true })
+  writeFileSync(join(targetDir, 'ui-smoke-cleanup.json'), JSON.stringify(cleanup, null, 2) + '\n')
+  console.log(`[ui-smoke cleanup] ${JSON.stringify(cleanup)}`)
+  if (!cleanup.passed) throw new Error('UI smoke process cleanup failed; see ui-smoke-cleanup.json')
 }

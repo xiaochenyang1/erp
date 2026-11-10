@@ -86,4 +86,20 @@ public class MrpRunLineEntity {
     public void setUpdatedTime(LocalDateTime updatedTime) { this.updatedTime = updatedTime; }
     public Integer getVersion() { return version; }
     public void setVersion(Integer version) { this.version = version; }
+
+    private Long warehouseId;
+    public Long getWarehouseId() { return warehouseId; }
+    public void setWarehouseId(Long value) { this.warehouseId = value; }
+    private Long materialWarehouseId;
+    public Long getMaterialWarehouseId() { return materialWarehouseId; }
+    public void setMaterialWarehouseId(Long value) { this.materialWarehouseId = value; }
+    private Integer bomVersion;
+    public Integer getBomVersion() { return bomVersion; }
+    public void setBomVersion(Integer value) { this.bomVersion = value; }
+    private Integer bomLevel;
+    public Integer getBomLevel() { return bomLevel; }
+    public void setBomLevel(Integer value) { this.bomLevel = value; }
+    private String calculationTrace;
+    public String getCalculationTrace() { return calculationTrace; }
+    public void setCalculationTrace(String value) { this.calculationTrace = value; }
 }

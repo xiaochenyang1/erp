@@ -23,12 +23,14 @@ import com.tuowei.erp.issue.web.ExceptionTicketResponse;
 import com.tuowei.erp.system.log.mapper.OperationLogMapper;
 import com.tuowei.erp.system.log.model.OperationLogEntity;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.springframework.dao.DuplicateKeyException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -146,6 +148,30 @@ class ExceptionRuleScanServiceTest {
     }
 
     @Test
+    void scanPayableOverdueDescribesBaseCurrencyRemaining() {
+        ExceptionRuleEntity rule = rule("PAYABLE_OVERDUE", new BigDecimal("45"));
+        PayableEntity foreign = payable();
+        foreign.setOriginalAmount(new BigDecimal("100"));
+        foreign.setSettledAmount(new BigDecimal("20"));
+        foreign.setExchangeRate(new BigDecimal("7.20"));
+        foreign.setBaseOriginalAmount(new BigDecimal("720.00"));
+        foreign.setBaseSettledAmount(new BigDecimal("140.00"));
+        when(payableMapper.selectList(any())).thenReturn(List.of(foreign));
+        when(slaPolicyService.resolveDueTime(any(), any(), any(), any(AuditMetadata.class)))
+                .thenReturn(AUDIT.now().plusHours(24));
+        when(ticketService.create(any(ExceptionTicketCreateRequest.class), any(AuditMetadata.class)))
+                .thenReturn(ticket(9005L));
+
+        var result = service().scanRule(rule, AUDIT);
+
+        assertThat(result.hitCount()).isEqualTo(1);
+        ArgumentCaptor<ExceptionTicketCreateRequest> requestCaptor =
+                ArgumentCaptor.forClass(ExceptionTicketCreateRequest.class);
+        verify(ticketService).create(requestCaptor.capture(), any(AuditMetadata.class));
+        assertThat(requestCaptor.getValue().getDescription()).contains("剩余金额 580");
+    }
+
+    @Test
     void scanOperationFailuresUsesConfiguredWindowAndMapsTicket() {
         ExceptionRuleEntity rule = rule("OPERATION_FAILURE", new BigDecimal("90"));
         when(operationLogMapper.selectList(any())).thenReturn(List.of(operationLog()));
@@ -250,6 +276,44 @@ class ExceptionRuleScanServiceTest {
         verify(ticketService).create(any(ExceptionTicketCreateRequest.class), ticketAuditCaptor.capture());
         assertThat(ticketAuditCaptor.getValue()).isEqualTo(inventoryAuditCaptor.getValue());
         assertThat(dueRule.getNextScanTime()).isEqualTo(AUDIT.now().plusMinutes(30));
+    }
+
+    @Test
+    void duplicateHitClaimReusesWinnerTicketWithoutCreatingAnotherTicket() {
+        ExceptionRuleEntity rule = rule("LOW_STOCK", BigDecimal.ZERO);
+        when(inventoryAlertService.listLowStock(null, null, AUDIT))
+                .thenReturn(List.of(lowStock()));
+
+        ExceptionRuleHitEntity claimedHit = new ExceptionRuleHitEntity();
+        claimedHit.setId(9101L);
+        claimedHit.setCompanyId(AUDIT.companyId());
+        claimedHit.setAccountBookId(AUDIT.accountBookId());
+        claimedHit.setRuleId(rule.getId());
+        claimedHit.setHitKey("LOW_STOCK:11:22");
+        claimedHit.setTicketId(9102L);
+        claimedHit.setHitCount(1);
+        claimedHit.setDeletedFlag(0);
+        when(hitMapper.insert(any(ExceptionRuleHitEntity.class)))
+                .thenThrow(new DuplicateKeyException("concurrent hit claim"));
+        when(hitMapper.selectOne(any())).thenReturn(null, claimedHit);
+
+        ExceptionTicketEntity linkedTicket = new ExceptionTicketEntity();
+        linkedTicket.setId(9102L);
+        linkedTicket.setCompanyId(AUDIT.companyId());
+        linkedTicket.setAccountBookId(AUDIT.accountBookId());
+        linkedTicket.setDeletedFlag(0);
+        linkedTicket.setStatus("OPEN");
+        when(ticketMapper.selectOne(any())).thenReturn(linkedTicket);
+
+        var result = service().scanRule(rule, AUDIT);
+
+        assertThat(result.status()).isEqualTo("SUCCESS");
+        assertThat(result.ticketCreatedCount()).isZero();
+        assertThat(result.duplicateTicketCount()).isEqualTo(1);
+        verify(ticketService, never()).create(any(ExceptionTicketCreateRequest.class), any(AuditMetadata.class));
+        verify(hitMapper).updateById(claimedHit);
+        assertThat(claimedHit.getTicketId()).isEqualTo(9102L);
+        assertThat(claimedHit.getHitCount()).isEqualTo(2);
     }
 
     private ExceptionRuleScanService service() {

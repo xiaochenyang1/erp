@@ -12,6 +12,8 @@ import com.tuowei.erp.system.role.mapper.RoleMapper;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.system.user.mapper.UserRoleMapper;
 import com.tuowei.erp.system.user.model.UserEntity;
+import com.tuowei.erp.system.user.service.UserCommandService;
+import com.tuowei.erp.system.user.service.UserQueryService;
 import com.tuowei.erp.system.user.service.UserService;
 import com.tuowei.erp.system.user.web.ResetPasswordRequest;
 import com.tuowei.erp.system.user.web.UserCreateRequest;
@@ -62,7 +64,12 @@ class UserServicePasswordPolicyTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(
+        UserQueryService queryService = new UserQueryService(
+                userMapper,
+                userRoleMapper,
+                auditMetadataFactory
+        );
+        UserCommandService commandService = new UserCommandService(
                 userMapper,
                 userRoleMapper,
                 roleMapper,
@@ -73,8 +80,10 @@ class UserServicePasswordPolicyTest {
                 refreshTokenService,
                 principalCache,
                 scopedUserResolver,
-                userPermissionService
+                userPermissionService,
+                queryService
         );
+        userService = new UserService(queryService, commandService);
     }
 
     @Test

@@ -4,9 +4,11 @@
       <el-form :model="queryParams" inline>
         <el-form-item :label="t('workflow.businessType')">
           <el-select v-model="queryParams.businessType" :placeholder="t('workflow.selectBusinessType')" clearable style="width: 170px">
+            <el-option :label="t('workflow.purchaseRequisition')" value="PURCHASE_REQUISITION" />
             <el-option :label="t('workflow.purchaseOrder')" value="PURCHASE_ORDER" />
             <el-option :label="t('workflow.salesOrder')" value="SALES_ORDER" />
             <el-option :label="t('workflow.expense')" value="EXPENSE" />
+            <el-option :label="t('workflow.inventoryAdjustment')" value="INVENTORY_ADJUSTMENT" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('workflow.businessNo')">
@@ -65,7 +67,7 @@
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(toTaskRow(row))">{{ t('workflow.view') }}</el-button>
             <el-button
-              v-if="row.status === 'PENDING'"
+              v-if="row.status === 'PENDING' && canApproveBusiness(row.businessType)"
               v-permission="'workflow:approve'"
               link
               type="success"
@@ -74,7 +76,7 @@
               {{ t('workflow.approve') }}
             </el-button>
             <el-button
-              v-if="row.status === 'PENDING'"
+              v-if="row.status === 'PENDING' && canApproveBusiness(row.businessType)"
               v-permission="'workflow:reject'"
               link
               type="danger"
@@ -225,10 +227,14 @@ import {
 import { getUsers } from '@/api/system'
 import { useWorkflowTaskList } from '@/composables/useWorkflowTaskList'
 import { useWorkflowTaskPresentation } from '@/composables/useWorkflowTaskPresentation'
+import { useUserStore } from '@/store/modules/user'
 import { createWorkflowTaskQueryFromRoute } from './query'
 
 const route = useRoute()
 const { t } = useI18n()
+const userStore = useUserStore()
+const canApproveBusiness = (businessType: string) => businessType !== 'INVENTORY_ADJUSTMENT'
+  || userStore.hasPermission('inventory:adjustment:approve')
 
 const {
   actionForm,

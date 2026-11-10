@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tuowei.erp.common.export.CsvExport;
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.common.web.PageResponse;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
@@ -153,6 +154,10 @@ public class ReceivableQueryService {
                 entity.getOriginalAmount(),
                 entity.getSettledAmount(),
                 remaining(entity.getOriginalAmount(), entity.getSettledAmount()),
+                CurrencyAmountSupport.currency(entity.getCurrencyCode()),
+                CurrencyAmountSupport.rate(entity.getExchangeRate()),
+                CurrencyAmountSupport.baseRemaining(entity.getOriginalAmount(), entity.getSettledAmount(),
+                        entity.getBaseOriginalAmount(), entity.getBaseSettledAmount(), entity.getExchangeRate(), entity.getPostedBaseSettledAmount()),
                 entity.getStatus(),
                 entity.getCreatedTime(),
                 entity.getUpdatedTime(),
@@ -210,6 +215,7 @@ public class ReceivableQueryService {
                 record.remark()
         );
     }
+
 
     private BigDecimal remaining(BigDecimal originalAmount, BigDecimal settledAmount) {
         return ScalePrecision.amount(ScalePrecision.zeroDefault(originalAmount).subtract(ScalePrecision.zeroDefault(settledAmount)));

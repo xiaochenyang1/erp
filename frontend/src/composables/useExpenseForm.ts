@@ -10,6 +10,7 @@ export interface ExpenseFormState {
   id: string | number
   subjectId: string
   paymentSubjectId: string
+  deptId: string
   expenseDate: string
   amount: number
   remark: string
@@ -19,6 +20,7 @@ export interface ExpenseSavePayload {
   expenseDate: string
   subjectId: string
   paymentSubjectId: string
+  deptId?: string
   amount: number
   remark: string
 }
@@ -44,6 +46,7 @@ export const useExpenseForm = (
     id: '',
     subjectId: '',
     paymentSubjectId: '',
+    deptId: '',
     expenseDate: '',
     amount: 0,
     remark: ''
@@ -63,6 +66,7 @@ export const useExpenseForm = (
       id: '',
       subjectId: '',
       paymentSubjectId: '',
+      deptId: '',
       expenseDate: '',
       amount: 0,
       remark: ''
@@ -83,6 +87,7 @@ export const useExpenseForm = (
         id: expense.id,
         subjectId: String(expense.subjectId),
         paymentSubjectId: String(expense.paymentSubjectId),
+        deptId: expense.deptId == null ? '' : String(expense.deptId),
         expenseDate: expense.expenseDate,
         amount: Number(expense.amount || 0),
         remark: expense.remark || ''
@@ -102,6 +107,7 @@ export const useExpenseForm = (
         expenseDate: formData.expenseDate,
         subjectId: formData.subjectId,
         paymentSubjectId: formData.paymentSubjectId,
+        deptId: formData.deptId || undefined,
         amount: formData.amount,
         remark: formData.remark
       }

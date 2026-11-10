@@ -47,10 +47,13 @@ class DataScopeServiceActiveRoleTenantBoundaryTest {
         when(userDataScopeMapper.selectList(any())).thenReturn(List.of());
 
         DataScopeService service = new DataScopeService(
-                userRoleMapper,
-                roleMapper,
-                mock(RoleDataScopeMapper.class),
-                userDataScopeMapper
+                new DataScopeSnapshotService(
+                        userRoleMapper,
+                        roleMapper,
+                        mock(RoleDataScopeMapper.class),
+                        userDataScopeMapper
+                ),
+                new DataScopePolicyService()
         );
 
         assertThat(service.buildSnapshot(USER_ID, COMPANY_ID, ACCOUNT_BOOK_ID)).isEqualTo(DataScopeSnapshot.none());

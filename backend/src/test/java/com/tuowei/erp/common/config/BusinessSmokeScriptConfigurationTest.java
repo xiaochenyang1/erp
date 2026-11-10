@@ -55,6 +55,36 @@ class BusinessSmokeScriptConfigurationTest {
     }
 
     @Test
+    void extensionFeatureSmokeUsesCurrentCustomerInvoiceAndCreditContracts() throws IOException {
+        String script = Files.readString(
+                Path.of("scripts", "extension-features-api-smoke.cjs"),
+                StandardCharsets.UTF_8
+        );
+
+        assertThat(script)
+                .contains("return order")
+                .contains("relatedBizType: 'PURCHASE_ORDER'")
+                .contains("relatedBizId: purchaseOrder.id")
+                .contains("customerType: 'ENTERPRISE'")
+                .contains("const submit = await request(")
+                .contains("'超信用额度提交拦截'");
+    }
+
+    @Test
+    void extensionFeatureSmokeGeneratesAndVerifiesOpenAccountingPeriod() throws IOException {
+        String script = Files.readString(
+                Path.of("scripts", "extension-features-api-smoke.cjs"),
+                StandardCharsets.UTF_8
+        );
+
+        assertThat(script)
+                .contains("const periods = await must(token, 'POST', '/api/finance/periods/generate', { year }, 'generate accounting periods')")
+                .contains("item.periodMonth === periodMonth")
+                .contains("period.status !== 'OPEN'")
+                .doesNotContain("/api/finance/periods/generate?year=");
+    }
+
+    @Test
     void releaseDocumentsReferenceBusinessSmokeScript() throws IOException {
         String deployment = Files.readString(Path.of("docs", "production-deployment.md"), StandardCharsets.UTF_8);
         String checklist = Files.readString(Path.of("docs", "business-readiness-checklist.md"), StandardCharsets.UTF_8);
@@ -108,6 +138,30 @@ class BusinessSmokeScriptConfigurationTest {
         assertThat(script)
                 .contains(": resolve(backendDir, '..', 'frontend')")
                 .contains("const chromeWindowSize = process.env.UI_SMOKE_WINDOW_SIZE || '1440,1000'")
-                .contains("`--window-size=${chromeWindowSize}`");
+                .contains("`--window-size=${chromeWindowSize}`")
+                .contains("process.env.ERP_UI_SMOKE_DATASOURCE_URL")
+                .contains("join('target', 'erp-server-1.0.0.jar')")
+                .contains("process.platform === 'win32'")
+                .contains("'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'");
+    }
+
+    @Test
+    void uiSmokeProductionWorkflowCoversLaborCostCollection() throws IOException {
+        String script = Files.readString(Path.of("scripts", "ui-smoke.mjs"), StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("const laborCostAmount = 25.5")
+                .contains("invokeButton(cdp, '成本归集', 'production cost collection button', orderRowExpression)")
+                .contains("dialogExpression('生产成本归集')")
+                .contains("'/costs'")
+                .contains("item.costType === 'LABOR'")
+                .contains("const laborCostEntry = await waitForPage(cdp, `")
+                .contains("const correctedLaborCostAmount = 30.5")
+                .contains("invokeButton(cdp, '更正', 'production cost correction button', laborCostRowExpression)")
+                .contains("dialogExpression('更正生产成本')")
+                .contains("reversal?.entryKind === 'REVERSAL'")
+                .contains("correction?.entryKind === 'CORRECTION'")
+                .contains("detail.laborAmount")
+                .contains("detail.finishedLaborAmount");
     }
 }

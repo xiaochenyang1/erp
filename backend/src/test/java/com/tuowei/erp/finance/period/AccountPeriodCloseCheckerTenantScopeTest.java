@@ -1,21 +1,28 @@
 package com.tuowei.erp.finance.period;
 
+import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.fx.service.FxRevaluationService;
 import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.service.AccountPeriodCloseChecker;
 import com.tuowei.erp.finance.period.service.InventoryFinanceReconciliationService;
 import com.tuowei.erp.finance.period.web.InventoryFinanceReconciliationResponse;
+import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckItemResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AccountPeriodCloseCheckerTenantScopeTest {
@@ -23,10 +30,15 @@ class AccountPeriodCloseCheckerTenantScopeTest {
     @Test
     void settlementAllocationChecksScopeAllocationRowsByParentCompanyAndAccountBook() {
         AccountPeriodMapper accountPeriodMapper = mock(AccountPeriodMapper.class);
+        AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
         InventoryFinanceReconciliationService reconciliationService = mock(InventoryFinanceReconciliationService.class);
         CapturingJdbcTemplate jdbcTemplate = new CapturingJdbcTemplate();
         AccountPeriodEntity period = period();
+        FxRevaluationService fxRevaluationService = mock(FxRevaluationService.class);
+        when(fxRevaluationService.checkForClose(period)).thenReturn(new AccountPeriodCloseCheckItemResponse(
+                "FX_REVALUATION", "期末调汇", "财务", true, "无外币余额", BigDecimal.ZERO));
         when(accountPeriodMapper.selectById(period.getId())).thenReturn(period);
+        when(auditMetadataFactory.current()).thenReturn(audit(period.getCompanyId(), period.getAccountBookId()));
         when(reconciliationService.summary(period.getId())).thenReturn(new InventoryFinanceReconciliationResponse(
                 period.getId(),
                 period.getPeriodMonth(),
@@ -36,7 +48,13 @@ class AccountPeriodCloseCheckerTenantScopeTest {
                 true
         ));
 
-        new AccountPeriodCloseChecker(accountPeriodMapper, reconciliationService, jdbcTemplate).check(period.getId());
+        new AccountPeriodCloseChecker(
+                accountPeriodMapper,
+                auditMetadataFactory,
+                reconciliationService,
+                jdbcTemplate,
+                fxRevaluationService
+        ).check(period.getId());
 
         assertThat(singleSqlContaining(jdbcTemplate.sqls(), "from fin_payment_allocation a"))
                 .contains("a.company_id = p.company_id")
@@ -44,6 +62,31 @@ class AccountPeriodCloseCheckerTenantScopeTest {
         assertThat(singleSqlContaining(jdbcTemplate.sqls(), "from fin_receipt_allocation a"))
                 .contains("a.company_id = r.company_id")
                 .contains("a.account_book_id = r.account_book_id");
+    }
+
+    @Test
+    void rejectsCrossAccountBookPeriodBeforeAnyCloseCheckQuery() {
+        AccountPeriodMapper accountPeriodMapper = mock(AccountPeriodMapper.class);
+        AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
+        InventoryFinanceReconciliationService reconciliationService = mock(InventoryFinanceReconciliationService.class);
+        CapturingJdbcTemplate jdbcTemplate = new CapturingJdbcTemplate();
+        AccountPeriodEntity period = period();
+        when(accountPeriodMapper.selectById(period.getId())).thenReturn(period);
+        when(auditMetadataFactory.current()).thenReturn(audit(period.getCompanyId(), 999L));
+        AccountPeriodCloseChecker checker = new AccountPeriodCloseChecker(
+                accountPeriodMapper,
+                auditMetadataFactory,
+                reconciliationService,
+                jdbcTemplate,
+                mock(FxRevaluationService.class)
+        );
+
+        assertThatThrownBy(() -> checker.check(period.getId()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("会计期间不存在");
+
+        assertThat(jdbcTemplate.sqls()).isEmpty();
+        verifyNoInteractions(reconciliationService);
     }
 
     private AccountPeriodEntity period() {
@@ -57,6 +100,10 @@ class AccountPeriodCloseCheckerTenantScopeTest {
         period.setEndDate(LocalDate.of(2026, 6, 30));
         period.setStatus("OPEN");
         return period;
+    }
+
+    private AuditMetadata audit(Long companyId, Long accountBookId) {
+        return new AuditMetadata(1L, companyId, accountBookId, LocalDateTime.of(2026, 8, 27, 9, 0));
     }
 
     private String singleSqlContaining(List<String> sqls, String token) {
@@ -74,6 +121,12 @@ class AccountPeriodCloseCheckerTenantScopeTest {
         @Override
         public <T> T queryForObject(String sql, Class<T> requiredType, Object... args) {
             sqls.add(sql.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim());
+            if (BigDecimal.class.equals(requiredType)) {
+                return requiredType.cast(BigDecimal.ZERO);
+            }
+            if (String.class.equals(requiredType)) {
+                return requiredType.cast("CNY");
+            }
             return requiredType.cast(0L);
         }
 

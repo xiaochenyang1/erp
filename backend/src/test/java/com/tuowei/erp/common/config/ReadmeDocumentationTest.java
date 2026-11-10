@@ -64,4 +64,19 @@ class ReadmeDocumentationTest {
         assertThat(localConfig)
                 .contains("local-admin-password: ${ERP_LOCAL_ADMIN_PASSWORD:LocalAdmin123}");
     }
+
+    @Test
+    void projectEntryPointLinksCurrentCandidateAndLatestAcceptancePackage() throws IOException {
+        String content = Files.readString(Path.of("README.md"), StandardCharsets.UTF_8);
+
+        assertThat(content)
+                .contains("PROJECT-STATUS-2026-11-09.md")
+                .contains("P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md")
+                .contains("3b70299")
+                .contains("`ALL` 数据范围")
+                .contains("V168 → V174")
+                .contains("MRP-MULTILEVEL-2026-11-07.md")
+                .contains("PRODUCTION-COST-ACCOUNTING-1.0.md")
+                .contains("FINITE-CAPACITY-SCHEDULING-2026-11-08.md");
+    }
 }

@@ -42,6 +42,10 @@
       <el-table v-loading="loading" :data="tableData" border stripe>
         <el-table-column prop="workCenterCode" :label="t('productionWorkCenter.code')" width="180" />
         <el-table-column prop="workCenterName" :label="t('productionWorkCenter.name')" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="dailyCapacityMinutes" :label="t('productionWorkCenter.dailyCapacity')" width="140" align="right" />
+        <el-table-column prop="workdayStartTime" :label="t('productionWorkCenter.startTime')" width="120" align="center">
+          <template #default="{ row }">{{ row.workdayStartTime?.slice(0, 5) }}</template>
+        </el-table-column>
         <el-table-column prop="status" :label="t('productionWorkCenter.statusLabel')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusLabel(row.status) }}</el-tag>
@@ -91,7 +95,7 @@
 
     <!-- 新增/编辑对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="520px" @close="handleDialogClose">
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="90px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
         <el-form-item :label="t('productionWorkCenter.code')" prop="workCenterCode">
           <el-input
             v-model="formData.workCenterCode"
@@ -101,6 +105,18 @@
         </el-form-item>
         <el-form-item :label="t('productionWorkCenter.name')" prop="workCenterName">
           <el-input v-model="formData.workCenterName" :placeholder="t('productionWorkCenter.namePlaceholder')" />
+        </el-form-item>
+        <el-form-item :label="t('productionWorkCenter.dailyCapacity')" prop="dailyCapacityMinutes">
+          <el-input-number v-model="formData.dailyCapacityMinutes" :min="1" :max="1440" :step="30" controls-position="right" />
+        </el-form-item>
+        <el-form-item :label="t('productionWorkCenter.startTime')" prop="workdayStartTime">
+          <el-time-select
+            v-model="formData.workdayStartTime"
+            start="00:00"
+            step="00:30"
+            end="23:30"
+            :placeholder="t('productionWorkCenter.startTimePlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="t('productionWorkCenter.remark')" prop="remark">
           <el-input v-model="formData.remark" type="textarea" :rows="3" :placeholder="t('productionWorkCenter.remarkPlaceholder')" />
@@ -187,7 +203,9 @@ const {
 
 const formRules = computed<FormRules>(() => ({
   workCenterCode: [{ required: true, message: t('productionWorkCenter.validation.code'), trigger: 'blur' }],
-  workCenterName: [{ required: true, message: t('productionWorkCenter.validation.name'), trigger: 'blur' }]
+  workCenterName: [{ required: true, message: t('productionWorkCenter.validation.name'), trigger: 'blur' }],
+  dailyCapacityMinutes: [{ required: true, message: t('productionWorkCenter.validation.capacity'), trigger: 'change' }],
+  workdayStartTime: [{ required: true, message: t('productionWorkCenter.validation.startTime'), trigger: 'change' }]
 }))
 
 const handleSubmit = async () => {

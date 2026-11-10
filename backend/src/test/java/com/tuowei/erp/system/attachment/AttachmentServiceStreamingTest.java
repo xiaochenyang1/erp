@@ -9,7 +9,10 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.system.attachment.mapper.AttachmentMapper;
 import com.tuowei.erp.system.attachment.model.AttachmentEntity;
+import com.tuowei.erp.system.attachment.service.AttachmentCommandService;
+import com.tuowei.erp.system.attachment.service.AttachmentQueryService;
 import com.tuowei.erp.system.attachment.service.AttachmentService;
+import com.tuowei.erp.system.attachment.service.AttachmentStorageService;
 import com.tuowei.erp.system.attachment.web.AttachmentPageQuery;
 import com.tuowei.erp.system.attachment.web.AttachmentResponse;
 import com.tuowei.erp.system.timeline.service.BusinessTimelineService;
@@ -356,13 +359,24 @@ class AttachmentServiceStreamingTest {
     }
 
     private AttachmentService newService(AttachmentMapper mapper, AuditMetadataFactory auditMetadataFactory) {
-        return new AttachmentService(
+        AttachmentProperties properties = new AttachmentProperties(storageRoot.toString(), 1024L, "EXPENSE", 1);
+        AttachmentStorageService storageService = new AttachmentStorageService(properties, CLOCK);
+        AttachmentQueryService queryService = new AttachmentQueryService(
                 mapper,
                 auditMetadataFactory,
-                new AttachmentProperties(storageRoot.toString(), 1024L, "EXPENSE", 1),
+                properties,
+                storageService
+        );
+        AttachmentCommandService commandService = new AttachmentCommandService(
+                mapper,
+                auditMetadataFactory,
+                properties,
                 mock(BusinessTimelineService.class),
+                storageService,
+                queryService,
                 CLOCK
         );
+        return new AttachmentService(queryService, commandService);
     }
 
     private static class InputStreamOnlyMultipartFile implements MultipartFile {

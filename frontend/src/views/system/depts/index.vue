@@ -135,13 +135,12 @@ const {
   handleCreate,
   handleEdit: openEdit,
   handleSubmit: saveDept,
-  resetForm: resetFormState,
   submitLoading
 } = useSystemDeptForm(t, {
   getDept,
   createDept,
   updateDept,
-  onSubmitted: loadData,
+  onSubmitted: async () => { await loadData() },
   ...notify
 })
 
@@ -164,11 +163,6 @@ const handleSubmit = async () => {
     if (!valid) return
     await saveDept()
   })
-}
-
-const resetForm = () => {
-  formRef.value?.clearValidate()
-  resetFormState()
 }
 
 onMounted(() => {

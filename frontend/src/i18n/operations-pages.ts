@@ -2,6 +2,7 @@ export const operationsPageMessages = {
   'zh-CN': {
     inventoryAdjustments: {
       adjustmentNo: '调整单号',
+      sourceNo: '来源盘点单',
       warehouse: '仓库',
       location: '库位',
       lotNo: '批次号',
@@ -44,10 +45,19 @@ export const operationsPageMessages = {
         productionDate: '生产日期',
         lotNo: '请输入批次号'},
       type: { gain: '盘盈', loss: '盘亏', other: '其他' },
-      status: { draft: '草稿', completed: '已完成', cancelled: '已取消' },
+      status: { draft: '草稿', submitted: '待审批', approved: '已通过', rejected: '已驳回', completed: '已完成', cancelled: '已取消' },
       action: {
         search: '查询', reset: '重置', create: '新增调整', view: '查看', print: '打印', post: '过账',
+        edit: '编辑', submit: '提交审批', approve: '通过', reject: '驳回', withdraw: '撤回', history: '审批记录',
         cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
+      },
+      approval: {
+        submitConfirm: '确认提交此库存调整单审批吗？提交后不可编辑，审批通过后才能过账。',
+        approveConfirm: '确认通过当前审批节点吗？全部审批完成后才能过账。',
+        withdrawConfirm: '确认撤回审批并恢复为草稿吗？仅提交人可在审批节点尚未处理时撤回。',
+        rejectReason: '请填写驳回原因（1至255字）',
+        loadFailed: '加载审批记录失败',
+        hint: '提交和审批不会改变库存；全部审批通过后，需执行过账。盘点生成的调整单须取消后回到盘点单修改。'
       },
       validation: {
         warehouse: '请选择仓库', adjustmentDate: '请选择调整日期',
@@ -63,9 +73,10 @@ export const operationsPageMessages = {
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
         printLoadFailed: '加载打印数据失败',
         postConfirm: '确认过账此库存调整吗？', cancelConfirm: '确认取消此库存调整吗？',
+        editNotAllowed: '仅草稿或已驳回的手工调整单可编辑；盘点生成的调整单请先取消，再修改盘点单并重新生成。',
         success: '操作成功', failed: '操作失败'
       },
-      dialog: { create: '新增库存调整', view: '查看库存调整' }
+      dialog: { create: '新增库存调整', edit: '编辑库存调整', view: '查看库存调整' }
     },
     inventoryTransfers: {
       transferNo: '调拨单号',
@@ -129,6 +140,7 @@ export const operationsPageMessages = {
     },
     inventoryChecks: {
       checkNo: '盘点单号',
+      generatedAdjustment: '差异调整单',
       warehouse: '仓库',
       location: '库位',
       lotNo: '批次号',
@@ -162,10 +174,10 @@ export const operationsPageMessages = {
         productionDate: '生产日期',
         serialNos: '多个序列号用逗号/分号/换行分隔',
         lotNo: '请输入批次号'},
-      status: { counted: '已盘点', adjusted: '已调整', cancelled: '已取消' },
+      status: { counted: '已盘点', adjustmentPending: '待调整过账', adjusted: '已调整', cancelled: '已取消' },
       action: {
         search: '查询', reset: '重置', create: '新增盘点', view: '查看', print: '打印', edit: '编辑',
-        adjust: '调整库存', cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
+        adjust: '生成调整单', cancel: '取消', addProduct: '添加产品', delete: '删除', confirm: '确定'
       },
       validation: {
         warehouse: '请选择仓库', checkDate: '请选择盘点日期', itemRequired: '请至少添加一条盘点明细',
@@ -179,7 +191,7 @@ export const operationsPageMessages = {
         loadFailed: '加载数据失败', warehousesLoadFailed: '加载仓库列表失败',
         productsLoadFailed: '加载产品列表失败', detailLoadFailed: '加载详情失败',
         printLoadFailed: '加载打印数据失败',
-        stockLoadFailed: '加载库存数据失败', adjustConfirm: '确认根据此盘点单调整库存吗？',
+        stockLoadFailed: '加载库存数据失败', adjustConfirm: '确认根据盘点差异生成调整草稿吗？请在库存调整页提交审批，审批通过并过账后才会更新库存。',
         cancelConfirm: '确认取消此库存盘点吗？', success: '操作成功', failed: '操作失败'
       },
       dialog: { create: '新增库存盘点', edit: '编辑库存盘点', view: '查看库存盘点' }
@@ -324,13 +336,21 @@ export const operationsPageMessages = {
         expiryAlerts: '效期预警', reservationCheck: '预留检查', export: '导出', refresh: '刷新',
         view: '详情', reservationDetails: '预留明细', lots: '批次', transaction: '流水',
         source: '来源', release: '释放', manualRelease: '手工释放', cancel: '取消',
-        confirmRelease: '确认释放', trace: '追踪'
+        confirmRelease: '确认释放', trace: '追踪', viewGenealogy: '查看谱系'
       },
       reservationStatus: { active: '有效', released: '已释放', cancelled: '已取消' },
       reservationEvent: { reserve: '预留', release: '释放', manualRelease: '手工释放' },
       directionValue: { inbound: '入库', outbound: '出库' },
       expiryStatus: { expired: '已过期', expiring: '即将过期', normal: '正常' },
       severityValue: { error: '错误', warning: '警告' },
+      issueTypeValue: {
+        reservationBalanceMissing: '预占对应库存余额缺失',
+        balanceReservedMismatch: '余额预占数量与预占汇总不一致',
+        balanceAvailableNegative: '库存可用量为负',
+        reservationQuantityInvalid: '预占数量不自洽',
+        reservationSourceMissing: '预占来源单据缺失',
+        reservationSourceStatusInvalid: '预占来源单据状态不匹配'
+      },
       sourceTypeValue: { salesOrder: '销售订单' },
       dialog: { manualRelease: '手工释放预留' },
       validation: {
@@ -351,6 +371,50 @@ export const operationsPageMessages = {
         optionsLoadFailed: '加载筛选项失败'
       },
       file: { stockBalances: '库存余额_{timestamp}.csv' }
+    },
+    inventoryLotGenealogy: {
+      title: '批次谱系',
+      noLot: '无批次',
+      listSeparator: '、',
+      upstream: '上游来源',
+      downstream: '下游去向',
+      recallList: '客户召回清单',
+      empty: '暂无谱系数据',
+      field: { product: '产品', lotNo: '批次号', direction: '追溯方向', maxDepth: '最大深度' },
+      placeholder: { product: '请选择产品', lotNo: '请输入批次号', direction: '请选择方向' },
+      direction: { upstream: '仅上游', downstream: '仅下游', both: '上下游' },
+      action: {
+        search: '查询', reset: '重置', exportRecall: '导出召回清单', openDocument: '打开单据'
+      },
+      bizType: {
+        purchaseReceipt: '采购收货', purchaseReturn: '采购退货', salesDelivery: '销售发货',
+        salesReturn: '销售退货', productionIssue: '生产领料', productionCompletion: '生产完工',
+        productionCompletionReversal: '完工红冲', productionReturn: '生产退料',
+        inventoryAdjustment: '库存调整', inventoryTransfer: '库存调拨', inventoryCheck: '库存盘点',
+        openingBalance: '期初库存'
+      },
+      reason: {
+        purchased: '采购入库来源', sold: '已发往客户', returnedByCustomer: '客户退回',
+        returnedToSupplier: '已退供应商', movedInternally: '内部移动', adjusted: '库存调整',
+        openingBalance: '期初库存', reversed: '已红冲或退料', inProduction: '仍在生产中',
+        noMaterialIssued: '未找到生产领料', materialNotLotControlled: '材料未启用批次管理',
+        outputNotLotControlled: '产出未启用批次管理', alreadyVisited: '已访问节点',
+        maxDepth: '达到最大深度', nodeLimitPerLevel: '单层节点达到上限',
+        nodeLimitTotal: '总节点达到上限', unknownSource: '未知来源', unknownDestination: '未知去向'
+      },
+      banner: {
+        truncated: '谱系结果已截断：{reasons}',
+        scopeLimited: '当前账号的数据范围有限，显示的是可见仓库内的部分谱系。'
+      },
+      recall: {
+        product: '产品', lotNo: '批次号', bizType: '业务类型', bizNo: '业务单号',
+        orderNo: '销售订单', counterpartyCode: '客户编码', counterpartyName: '客户名称',
+        qty: '数量', occurredTime: '发生时间', filename: '批次召回清单.csv'
+      },
+      feedback: {
+        productAndLotRequired: '请选择产品并输入批次号', loadFailed: '加载批次谱系失败',
+        exportEmpty: '当前没有可导出的客户召回记录', productsLoadFailed: '加载产品列表失败'
+      }
     },
     salesReturnOps: {
       returnNo: '退货单号',
@@ -485,6 +549,7 @@ export const operationsPageMessages = {
   'en-US': {
     inventoryAdjustments: {
       adjustmentNo: 'Adjustment no.',
+      sourceNo: 'Source stock count',
       warehouse: 'Warehouse',
       location: 'Location',
       productionDate: 'Production date',
@@ -527,10 +592,19 @@ export const operationsPageMessages = {
         productionDate: 'Production date',
         lotNo: 'Enter a lot no.'},
       type: { gain: 'Stock gain', loss: 'Stock loss', other: 'Other' },
-      status: { draft: 'Draft', completed: 'Completed', cancelled: 'Cancelled' },
+      status: { draft: 'Draft', submitted: 'Pending approval', approved: 'Approved', rejected: 'Rejected', completed: 'Completed', cancelled: 'Cancelled' },
       action: {
         search: 'Search', reset: 'Reset', create: 'New adjustment', view: 'View', print: 'Print', post: 'Post',
+        edit: 'Edit', submit: 'Submit for approval', approve: 'Approve', reject: 'Reject', withdraw: 'Withdraw', history: 'Approval history',
         cancel: 'Cancel', addProduct: 'Add product', delete: 'Delete', confirm: 'Confirm'
+      },
+      approval: {
+        submitConfirm: 'Submit this adjustment for approval? Editing is disabled after submission; posting requires completed approval.',
+        approveConfirm: 'Approve the current step? Posting is available after all approval steps are complete.',
+        withdrawConfirm: 'Withdraw and return to draft? Only the submitter can withdraw before an approval step has been processed.',
+        rejectReason: 'Enter a rejection reason (1–255 characters)',
+        loadFailed: 'Failed to load approval history',
+        hint: 'Submission and approval do not change stock. Post after all approvals are complete. To correct a count-derived adjustment, cancel it and edit the stock count.'
       },
       validation: {
         warehouse: 'Select a warehouse', adjustmentDate: 'Select an adjustment date',
@@ -546,9 +620,10 @@ export const operationsPageMessages = {
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
         printLoadFailed: 'Failed to load print data',
         postConfirm: 'Post this inventory adjustment?', cancelConfirm: 'Cancel this inventory adjustment?',
+        editNotAllowed: 'Only manual draft or rejected adjustments can be edited. For count-derived adjustments, cancel, correct the stock count and regenerate.',
         success: 'Operation successful', failed: 'Operation failed'
       },
-      dialog: { create: 'New inventory adjustment', view: 'View inventory adjustment' }
+      dialog: { create: 'New inventory adjustment', edit: 'Edit inventory adjustment', view: 'View inventory adjustment' }
     },
     inventoryTransfers: {
       transferNo: 'Transfer no.',
@@ -612,6 +687,7 @@ export const operationsPageMessages = {
     },
     inventoryChecks: {
       checkNo: 'Stock count no.',
+      generatedAdjustment: 'Difference adjustment',
       warehouse: 'Warehouse',
       location: 'Location',
       lotNo: 'Lot no.',
@@ -645,10 +721,10 @@ export const operationsPageMessages = {
         productionDate: 'Production date',
         serialNos: 'Separate serials with comma, semicolon, or newline',
         lotNo: 'Enter a lot no.'},
-      status: { counted: 'Counted', adjusted: 'Adjusted', cancelled: 'Cancelled' },
+      status: { counted: 'Counted', adjustmentPending: 'Awaiting adjustment posting', adjusted: 'Adjusted', cancelled: 'Cancelled' },
       action: {
         search: 'Search', reset: 'Reset', create: 'New stock count', view: 'View', print: 'Print', edit: 'Edit',
-        adjust: 'Adjust stock', cancel: 'Cancel', addProduct: 'Add product', delete: 'Delete', confirm: 'Confirm'
+        adjust: 'Generate adjustment', cancel: 'Cancel', addProduct: 'Add product', delete: 'Delete', confirm: 'Confirm'
       },
       validation: {
         warehouse: 'Select a warehouse', checkDate: 'Select a count date',
@@ -664,7 +740,7 @@ export const operationsPageMessages = {
         productsLoadFailed: 'Failed to load products', detailLoadFailed: 'Failed to load details',
         printLoadFailed: 'Failed to load print data',
         stockLoadFailed: 'Failed to load stock data',
-        adjustConfirm: 'Adjust inventory from this stock count?',
+        adjustConfirm: 'Generate a draft adjustment for the count differences? Submit it for approval on the inventory adjustments page, then post it to update stock.',
         cancelConfirm: 'Cancel this stock count?', success: 'Operation successful', failed: 'Operation failed'
       },
       dialog: { create: 'New stock count', edit: 'Edit stock count', view: 'View stock count' }
@@ -810,13 +886,22 @@ export const operationsPageMessages = {
         expiryAlerts: 'Expiry alerts', reservationCheck: 'Reservation check', export: 'Export',
         refresh: 'Refresh', view: 'Details', reservationDetails: 'Reservations', lots: 'Lots',
         transaction: 'Transactions', source: 'Source', release: 'Release',
-        manualRelease: 'Manual release', cancel: 'Cancel', confirmRelease: 'Confirm release', trace: 'Trace'
+        manualRelease: 'Manual release', cancel: 'Cancel', confirmRelease: 'Confirm release', trace: 'Trace',
+        viewGenealogy: 'View genealogy'
       },
       reservationStatus: { active: 'Active', released: 'Released', cancelled: 'Cancelled' },
       reservationEvent: { reserve: 'Reserve', release: 'Release', manualRelease: 'Manual release' },
       directionValue: { inbound: 'Inbound', outbound: 'Outbound' },
       expiryStatus: { expired: 'Expired', expiring: 'Expiring soon', normal: 'Normal' },
       severityValue: { error: 'Error', warning: 'Warning' },
+      issueTypeValue: {
+        reservationBalanceMissing: 'Reserved stock has no balance record',
+        balanceReservedMismatch: 'Balance reserved quantity does not match active reservations',
+        balanceAvailableNegative: 'Available stock is negative',
+        reservationQuantityInvalid: 'Reservation quantities are inconsistent',
+        reservationSourceMissing: 'Reservation source document is missing',
+        reservationSourceStatusInvalid: 'Reservation source document status does not match'
+      },
       sourceTypeValue: { salesOrder: 'Sales order' },
       dialog: { manualRelease: 'Manually release reservation' },
       validation: {
@@ -842,6 +927,50 @@ export const operationsPageMessages = {
         reservationCheckFailed: 'Reservation check failed', optionsLoadFailed: 'Failed to load filter options'
       },
       file: { stockBalances: 'inventory_balances_{timestamp}.csv' }
+    },
+    inventoryLotGenealogy: {
+      title: 'Lot genealogy',
+      noLot: 'No lot',
+      listSeparator: ', ',
+      upstream: 'Upstream sources',
+      downstream: 'Downstream destinations',
+      recallList: 'Customer recall list',
+      empty: 'No genealogy data',
+      field: { product: 'Product', lotNo: 'Lot no.', direction: 'Trace direction', maxDepth: 'Maximum depth' },
+      placeholder: { product: 'Select a product', lotNo: 'Enter a lot no.', direction: 'Select a direction' },
+      direction: { upstream: 'Upstream only', downstream: 'Downstream only', both: 'Both directions' },
+      action: {
+        search: 'Search', reset: 'Reset', exportRecall: 'Export recall list', openDocument: 'Open document'
+      },
+      bizType: {
+        purchaseReceipt: 'Purchase receipt', purchaseReturn: 'Purchase return', salesDelivery: 'Sales delivery',
+        salesReturn: 'Sales return', productionIssue: 'Production issue', productionCompletion: 'Production completion',
+        productionCompletionReversal: 'Completion reversal', productionReturn: 'Production return',
+        inventoryAdjustment: 'Inventory adjustment', inventoryTransfer: 'Inventory transfer', inventoryCheck: 'Stock check',
+        openingBalance: 'Opening inventory'
+      },
+      reason: {
+        purchased: 'Purchased source', sold: 'Delivered to customer', returnedByCustomer: 'Returned by customer',
+        returnedToSupplier: 'Returned to supplier', movedInternally: 'Moved internally', adjusted: 'Inventory adjusted',
+        openingBalance: 'Opening inventory', reversed: 'Reversed or returned', inProduction: 'Still in production',
+        noMaterialIssued: 'No material issue found', materialNotLotControlled: 'Material is not lot-controlled',
+        outputNotLotControlled: 'Output is not lot-controlled', alreadyVisited: 'Already visited',
+        maxDepth: 'Maximum depth reached', nodeLimitPerLevel: 'Per-level node limit reached',
+        nodeLimitTotal: 'Total node limit reached', unknownSource: 'Unknown source', unknownDestination: 'Unknown destination'
+      },
+      banner: {
+        truncated: 'The genealogy result was truncated: {reasons}',
+        scopeLimited: 'Your data scope is limited. This is a partial genealogy for visible warehouses.'
+      },
+      recall: {
+        product: 'Product', lotNo: 'Lot no.', bizType: 'Business type', bizNo: 'Business no.',
+        orderNo: 'Sales order', counterpartyCode: 'Customer code', counterpartyName: 'Customer name',
+        qty: 'Quantity', occurredTime: 'Occurred', filename: 'lot_recall_list.csv'
+      },
+      feedback: {
+        productAndLotRequired: 'Select a product and enter a lot no.', loadFailed: 'Failed to load lot genealogy',
+        exportEmpty: 'There are no customer recall records to export', productsLoadFailed: 'Failed to load products'
+      }
     },
     salesReturnOps: {
       returnNo: 'Return no.',

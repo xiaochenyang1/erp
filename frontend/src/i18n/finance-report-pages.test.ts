@@ -14,6 +14,11 @@ const componentPaths = [
   'src/views/finance/periods/index.vue',
   'src/views/finance/funds/index.vue',
   'src/views/finance/expenses/index.vue',
+  'src/views/finance/budgets/index.vue',
+  'src/composables/useBudgetExecution.ts',
+  'src/composables/useBudgetForm.ts',
+  'src/composables/useBudgetList.ts',
+  'src/composables/useBudgetPresentation.ts',
   'src/views/finance/payments/index.vue',
   'src/views/finance/vouchers/manual/index.vue',
   'src/views/reports/index.vue',
@@ -44,6 +49,7 @@ describe('finance and report page localization', () => {
     for (const path of componentPaths) {
       const source = readFileSync(resolve(process.cwd(), path), 'utf8')
       for (const match of source.matchAll(/financeReportPages(?:\.[A-Za-z0-9_]+)+/g)) {
+        if (source.slice((match.index || 0) + match[0].length).startsWith('.${')) continue
         keys.add(match[0])
       }
     }
@@ -67,10 +73,24 @@ describe('finance and report page localization', () => {
     expect(readNestedValue(english, 'financeReportPages.periods.status.locked')).toBe('Locked')
     expect(readNestedValue(english, 'financeReportPages.funds.message.unmatchTitle')).toBe('Unmatch')
     expect(readNestedValue(english, 'financeReportPages.expenses.status.posted')).toBe('Posted')
+    expect(readNestedValue(english, 'financeReportPages.budgets.message.executionLoadFailed')).toBe('Failed to load budget execution')
     expect(readNestedValue(english, 'financeReportPages.payments.validation.allocationRequired')).toBe('Enter at least one allocation amount')
     expect(readNestedValue(english, 'financeReportPages.manualVouchers.message.posted')).toBe('Voucher posted')
     expect(readNestedValue(english, 'financeReportPages.reports.fileName')).toBe('{report}-{timestamp}.csv')
     expect(readNestedValue(english, 'financeReportPages.traces.ticketStatus.processing')).toBe('In progress')
+  })
+
+  it('shows input, completion, work-in-progress, and ledger columns for production costs', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/reports/index.vue'), 'utf8')
+
+    for (const field of [
+      'materialCost', 'laborCost', 'overheadCost', 'totalInputCost',
+      'finishedMaterialCost', 'finishedLaborCost', 'finishedOverheadCost', 'finishedGoodsCost',
+      'materialWorkInProgressCost', 'laborWorkInProgressCost', 'overheadWorkInProgressCost', 'workInProgressCost',
+      'productionCostLedgerAmount', 'reconciliationDifference'
+    ]) {
+      expect(source).toContain(`prop="${field}"`)
+    }
   })
 
   it('leaves no hard-coded Chinese UI copy or static copy attributes in the migrated pages', () => {

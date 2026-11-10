@@ -19,6 +19,16 @@ type Confirm = (
     type?: string
   }
 ) => Promise<unknown>
+type Prompt = (
+  message: string,
+  title: string,
+  options?: {
+    confirmButtonText?: string
+    cancelButtonText?: string
+    inputPlaceholder?: string
+    inputValidator?: (value: string) => string | boolean | undefined
+  }
+) => Promise<{ value?: string }>
 type PageQuery = {
   pageNo?: number
   pageSize?: number
@@ -34,14 +44,16 @@ export const useSalesDeliveryList = (
     postDelivery: (id: string | number) => Promise<unknown>
     updateLogistics: (
       id: string | number,
-      payload: { logisticsStatus: string; carrierName?: string; trackingNo?: string }
+      payload: { logisticsStatus: string; carrierName?: string; trackingNo?: string; deliveredBy?: string; deliveryProofAttachmentId?: string | number }
     ) => Promise<unknown>
+    uploadDeliveryAttachment?: (id: string | number, file: File, deliveryNo?: string) => Promise<{ id: string }>
     getCustomers: (params: PageQuery) => Promise<PageResponse<Customer>>
     getWarehouses: (params: PageQuery) => Promise<PageResponse<Warehouse>>
     getOrders: (params: PageQuery) => Promise<PageResponse<SalesOrder>>
     getLocations: (params: PageQuery & { warehouseId?: string | number }) => Promise<PageResponse<Location>>
     printDelivery: (doc: SalesDelivery) => void
     confirm: Confirm
+    prompt?: Prompt
     initialDeliveryNo?: string
     initialLogisticsStatus?: string
     initialTrackingNo?: string
@@ -214,10 +226,43 @@ export const useSalesDeliveryList = (
       options.onInfo?.(t('salesDelivery.message.logisticsDone'))
       return
     }
+    let deliveredBy: string | undefined
+    let deliveryProofAttachmentId: string | undefined
+    if (next === 'DELIVERED') {
+      if (!options.uploadDeliveryAttachment) { options.onError?.(t('salesDelivery.message.deliveryProofRequired')); return }
+      let recipient: string | undefined
+      if (options.prompt) {
+        try {
+          const result = await options.prompt(
+            t('salesDelivery.message.recipientPrompt'),
+            t('salesDelivery.message.prompt'),
+            {
+              confirmButtonText: t('common.confirm'),
+              cancelButtonText: t('common.cancel'),
+              inputPlaceholder: t('salesDelivery.message.recipientPlaceholder'),
+              inputValidator: (value) => value.trim() ? true : t('salesDelivery.message.recipientRequired')
+            }
+          )
+          recipient = result.value?.trim()
+        } catch {
+          return
+        }
+      } else {
+        recipient = window.prompt(t('salesDelivery.message.recipientPrompt'))?.trim()
+      }
+      if (!recipient) { options.onError?.(t('salesDelivery.message.recipientRequired')); return }
+      const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*,.pdf'
+      const file = await new Promise<File | undefined>((resolve) => { input.onchange = () => resolve(input.files?.[0]); input.click() })
+      if (!file) { options.onError?.(t('salesDelivery.message.deliveryProofRequired')); return }
+      deliveredBy = recipient
+      deliveryProofAttachmentId = (await options.uploadDeliveryAttachment(row.id, file, row.deliveryNo)).id
+    }
     await options.updateLogistics(row.id, {
       logisticsStatus: next,
       carrierName: row.carrierName,
-      trackingNo: row.trackingNo
+      trackingNo: row.trackingNo,
+      deliveredBy,
+      deliveryProofAttachmentId
     })
     options.onSuccess?.(t('salesDelivery.message.logisticsUpdated'))
     handleQuery()

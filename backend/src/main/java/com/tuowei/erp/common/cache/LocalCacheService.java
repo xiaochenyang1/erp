@@ -2,8 +2,7 @@ package com.tuowei.erp.common.cache;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -16,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 @Service
-@ConditionalOnMissingBean(StringRedisTemplate.class)
+@Profile({"local", "test"})
 public class LocalCacheService implements CacheService {
 
     private static final Logger log = LoggerFactory.getLogger(LocalCacheService.class);
@@ -25,7 +24,7 @@ public class LocalCacheService implements CacheService {
 
     public LocalCacheService(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
-        log.warn("使用本地内存缓存（Redis不可用）");
+        log.info("当前 profile 使用本地内存缓存");
     }
 
     @Override

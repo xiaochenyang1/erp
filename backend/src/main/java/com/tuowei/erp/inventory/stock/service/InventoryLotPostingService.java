@@ -21,7 +21,7 @@ import java.util.Objects;
 
 /**
  * Owns batch/expiry validation, lot allocation and synchronized lot/aggregate balance mutation.
- * Transaction boundaries intentionally remain on {@link InventoryPostingService}.
+ * Transaction boundaries are declared by the inventory posting facade and balance posting service.
  */
 @Service
 public class InventoryLotPostingService {

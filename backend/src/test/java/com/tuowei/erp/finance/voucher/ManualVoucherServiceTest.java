@@ -16,9 +16,13 @@ import com.tuowei.erp.finance.voucher.model.ManualVoucherEntity;
 import com.tuowei.erp.finance.voucher.model.ManualVoucherLineEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntity;
 import com.tuowei.erp.finance.voucher.model.VoucherEntryEntity;
+import com.tuowei.erp.finance.voucher.service.ManualVoucherCommandService;
+import com.tuowei.erp.finance.voucher.service.ManualVoucherPostingService;
 import com.tuowei.erp.finance.voucher.service.ManualVoucherService;
+import com.tuowei.erp.finance.voucher.service.ManualVoucherQueryService;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherLineRequest;
 import com.tuowei.erp.finance.voucher.web.ManualVoucherSaveRequest;
+import com.tuowei.erp.system.attachment.service.AttachmentService;
 import com.tuowei.erp.system.config.service.SequenceNumberGenerator;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -58,6 +62,7 @@ class ManualVoucherServiceTest {
     private final AccountPeriodGuard accountPeriodGuard = mock(AccountPeriodGuard.class);
     private final SequenceNumberGenerator sequenceNumberGenerator = mock(SequenceNumberGenerator.class);
     private final AuditMetadataFactory auditMetadataFactory = mock(AuditMetadataFactory.class);
+    private final AttachmentService attachmentService = mock(AttachmentService.class);
 
     @BeforeAll
     static void initTableInfo() {
@@ -115,6 +120,100 @@ class ManualVoucherServiceTest {
         assertThat(manual.getStatus()).isEqualTo("POSTED");
         assertThat(manual.getPostedVoucherId()).isEqualTo(2001L);
         verify(manualVoucherMapper).updateById(manual);
+    }
+
+    @Test
+    void submitStopsAtAttachmentGateWithoutLeavingDraft() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        ManualVoucherEntity manual = manualVoucher(1001L, "DRAFT", AUDIT.companyId(), AUDIT.accountBookId());
+        when(manualVoucherMapper.selectById(1001L)).thenReturn(manual);
+        when(manualVoucherLineMapper.selectList(any())).thenReturn(manualLines(1001L));
+        doThrow(new IllegalArgumentException("业务类型 MANUAL_VOUCHER 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService).requireIfConfigured("MANUAL_VOUCHER", 1001L);
+
+        assertThatThrownBy(() -> service().submit(1001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MANUAL_VOUCHER");
+
+        assertThat(manual.getStatus()).isEqualTo("DRAFT");
+        verify(manualVoucherMapper, never()).updateById(any(ManualVoucherEntity.class));
+    }
+
+    @Test
+    void postStopsAtAttachmentGateBeforeEnteringLedger() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        ManualVoucherEntity manual = manualVoucher(1001L, "APPROVED", AUDIT.companyId(), AUDIT.accountBookId());
+        when(manualVoucherMapper.selectById(1001L)).thenReturn(manual);
+        when(manualVoucherLineMapper.selectList(any())).thenReturn(manualLines(1001L));
+        doThrow(new IllegalArgumentException("业务类型 MANUAL_VOUCHER 要求至少上传 1 个附件，当前 0 个"))
+                .when(attachmentService).requireIfConfigured("MANUAL_VOUCHER", 1001L);
+
+        assertThatThrownBy(() -> service().post(1001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MANUAL_VOUCHER");
+
+        assertThat(manual.getStatus()).isEqualTo("APPROVED");
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        verify(manualVoucherLineMapper, never()).selectList(any());
+        verify(voucherMapper, never()).insert(any(VoucherEntity.class));
+        verify(voucherEntryMapper, never()).insert(any(VoucherEntryEntity.class));
+        verify(manualVoucherMapper, never()).updateById(any(ManualVoucherEntity.class));
+    }
+
+    @Test
+    void postRejectsNonApprovedBeforeAttachmentPeriodOrLedgerWrites() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        ManualVoucherEntity manual = manualVoucher(1001L, "DRAFT", AUDIT.companyId(), AUDIT.accountBookId());
+        when(manualVoucherMapper.selectById(1001L)).thenReturn(manual);
+
+        assertThatThrownBy(() -> service().post(1001L))
+                .isInstanceOf(BusinessConflictException.class)
+                .hasMessage("只有审批通过的手工凭证可以过账");
+
+        verify(attachmentService, never()).requireIfConfigured(any(), any());
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        verify(manualVoucherLineMapper, never()).selectList(any());
+        verify(voucherMapper, never()).insert(any(VoucherEntity.class));
+        verify(voucherEntryMapper, never()).insert(any(VoucherEntryEntity.class));
+        verify(manualVoucherMapper, never()).updateById(any(ManualVoucherEntity.class));
+    }
+
+    @Test
+    void postRejectsDifferentAccountBookBeforeSideEffects() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(manualVoucherMapper.selectById(1001L))
+                .thenReturn(manualVoucher(1001L, "APPROVED", AUDIT.companyId(), 99L));
+
+        assertThatThrownBy(() -> service().post(1001L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("手工凭证不存在");
+
+        verify(attachmentService, never()).requireIfConfigured(any(), any());
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        verify(manualVoucherLineMapper, never()).selectList(any());
+        verify(voucherMapper, never()).insert(any(VoucherEntity.class));
+        verify(voucherEntryMapper, never()).insert(any(VoucherEntryEntity.class));
+        verify(manualVoucherMapper, never()).updateById(any(ManualVoucherEntity.class));
+    }
+
+    @Test
+    void postRejectsUnbalancedPersistedLinesBeforeLedgerWrites() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        ManualVoucherEntity manual = manualVoucher(1001L, "APPROVED", AUDIT.companyId(), AUDIT.accountBookId());
+        when(manualVoucherMapper.selectById(1001L)).thenReturn(manual);
+        when(manualVoucherLineMapper.selectList(any())).thenReturn(List.of(
+                manualLine(1001L, 1, 101L, "1001", "现金", "100.00", "0.00"),
+                manualLine(1001L, 2, 201L, "2001", "应付", "0.00", "90.00")
+        ));
+
+        assertThatThrownBy(() -> service().post(1001L))
+                .isInstanceOf(BusinessConflictException.class)
+                .hasMessage("借贷金额不平衡，不能继续");
+
+        verify(accountPeriodGuard).requireOpen(LocalDate.of(2026, 7, 1), "手工凭证过账");
+        verify(voucherMapper, never()).insert(any(VoucherEntity.class));
+        verify(voucherEntryMapper, never()).insert(any(VoucherEntryEntity.class));
+        verify(manualVoucherMapper, never()).updateById(any(ManualVoucherEntity.class));
     }
 
     @Test
@@ -371,6 +470,25 @@ class ManualVoucherServiceTest {
     }
 
     @Test
+    void cancelRejectsDifferentAccountBookBeforeSideEffects() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(manualVoucherMapper.selectById(1001L))
+                .thenReturn(manualVoucher(1001L, "POSTED", AUDIT.companyId(), 99L));
+
+        assertThatThrownBy(() -> service().cancel(1001L, "跨账套"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("手工凭证不存在");
+
+        verify(accountPeriodGuard, never()).requireOpen(any(), any());
+        verify(voucherMapper, never()).selectById(any());
+        verify(voucherMapper, never()).selectOne(any());
+        verify(voucherMapper, never()).insert(any(VoucherEntity.class));
+        verify(voucherEntryMapper, never()).selectList(any());
+        verify(voucherEntryMapper, never()).insert(any(VoucherEntryEntity.class));
+        verify(manualVoucherMapper, never()).updateById(any(ManualVoucherEntity.class));
+    }
+
+    @Test
     void cancelUsesPeriodGuardForCancelDate() {
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
         ManualVoucherEntity manual = manualVoucher(1001L, "POSTED", AUDIT.companyId(), AUDIT.accountBookId());
@@ -416,15 +534,33 @@ class ManualVoucherServiceTest {
     }
 
     private ManualVoucherService service() {
-        return new ManualVoucherService(
+        ManualVoucherQueryService queryService = new ManualVoucherQueryService(
                 manualVoucherMapper,
                 manualVoucherLineMapper,
+                auditMetadataFactory
+        );
+        ManualVoucherCommandService commandService = new ManualVoucherCommandService(
+                manualVoucherMapper,
+                manualVoucherLineMapper,
+                accountSubjectMapper,
+                sequenceNumberGenerator,
+                auditMetadataFactory,
+                queryService,
+                attachmentService
+        );
+        ManualVoucherPostingService postingService = new ManualVoucherPostingService(
+                manualVoucherMapper,
                 voucherMapper,
                 voucherEntryMapper,
-                accountSubjectMapper,
                 accountPeriodGuard,
-                sequenceNumberGenerator,
-                auditMetadataFactory
+                auditMetadataFactory,
+                queryService,
+                attachmentService
+        );
+        return new ManualVoucherService(
+                queryService,
+                commandService,
+                postingService
         );
     }
 

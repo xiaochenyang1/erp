@@ -52,6 +52,13 @@ public class OpeningReceivableImportHandler extends AbstractImportHandler {
         if (originalAmount != null && settledAmount.compareTo(originalAmount) > 0) {
             errors.add(new ImportRowErrorResponse("settled_amount", "已核销金额不能超过原始金额"));
         }
+        OpeningSettlementCurrency.Snapshot currency = OpeningSettlementCurrency.resolve(
+                support.optionalText(raw, "currency_code"),
+                support.optionalText(raw, "exchange_rate"),
+                originalAmount,
+                settledAmount,
+                errors
+        );
         CustomerEntity customer = null;
         if (customerCode != null) {
             customer = customerMapper.selectOne(new LambdaQueryWrapper<CustomerEntity>()
@@ -80,6 +87,10 @@ public class OpeningReceivableImportHandler extends AbstractImportHandler {
         normalized.put("bizDate", support.optionalText(raw, "biz_date"));
         normalized.put("originalAmount", originalAmount);
         normalized.put("settledAmount", settledAmount);
+        normalized.put("currencyCode", currency.currencyCode());
+        normalized.put("exchangeRate", currency.exchangeRate());
+        normalized.put("baseOriginalAmount", currency.baseOriginalAmount());
+        normalized.put("baseSettledAmount", currency.baseSettledAmount());
         normalized.put("remark", support.optionalText(raw, "remark"));
         return new ImportRowPlan(normalized, errors);
     }
@@ -106,6 +117,7 @@ public class OpeningReceivableImportHandler extends AbstractImportHandler {
             entity.setBizDate(dateValue(normalized, "bizDate"));
             entity.setOriginalAmount(decimalValue(normalized, "originalAmount"));
             entity.setSettledAmount(decimalValue(normalized, "settledAmount"));
+            applyCurrency(entity, normalized);
             entity.setStatus(settlementStatus(entity.getOriginalAmount(), entity.getSettledAmount()));
             entity.setDeletedFlag(0);
             entity.setRemark(text(normalized, "remark"));
@@ -117,6 +129,24 @@ public class OpeningReceivableImportHandler extends AbstractImportHandler {
             receivableMapper.insert(entity);
         }
         return rows.size();
+    }
+
+    private void applyCurrency(ReceivableEntity entity, Map<String, Object> normalized) {
+        if (!normalized.containsKey("currencyCode")) {
+            return;
+        }
+        entity.setCurrencyCode(text(normalized, "currencyCode"));
+        entity.setExchangeRate(nullableDecimal(normalized, "exchangeRate"));
+        entity.setBaseOriginalAmount(nullableDecimal(normalized, "baseOriginalAmount"));
+        entity.setBaseSettledAmount(nullableDecimal(normalized, "baseSettledAmount"));
+    }
+
+    private BigDecimal nullableDecimal(Map<String, Object> normalized, String key) {
+        Object value = normalized.get(key);
+        if (value == null) {
+            return null;
+        }
+        return decimalValue(normalized, key);
     }
 
     private void rejectExistingNormalReceivables(AuditMetadata audit) {

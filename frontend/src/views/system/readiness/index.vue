@@ -521,6 +521,11 @@ const {
   openItemDialog,
   openResultDialog,
   openRunDialog,
+  resetDecisionForm,
+  resetEvidenceForm,
+  resetItemForm,
+  resetResultForm,
+  resetRunForm,
   resultDialogVisible,
   resultForm,
   resultSubmitting,
@@ -541,9 +546,9 @@ const {
   getRunDetail: getReadinessRunDetail,
   selectedDetail,
   selectedRun,
-  onRunCreated: openDetail,
+  onRunCreated: async (run) => { await openDetail(run) },
   onSubmitted: loadRuns,
-  onDetailChanged: refreshDetail,
+  onDetailChanged: async () => { await refreshDetail() },
   ...notify
 })
 

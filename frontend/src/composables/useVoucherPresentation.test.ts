@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { Voucher } from '@/api/finance'
+import { financeReportPageMessages } from '@/i18n/finance-report-pages'
 import { useVoucherPresentation } from './useVoucherPresentation'
 
 const t = (key: string) => key
+
+const readNestedValue = (source: unknown, path: string): unknown => (
+  path.split('.').reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== 'object') return undefined
+    return (current as Record<string, unknown>)[segment]
+  }, source)
+)
 
 describe('voucher presentation', () => {
   beforeEach(() => {
@@ -19,13 +27,51 @@ describe('voucher presentation', () => {
       .toBe('financeReportPages.vouchers.sourceValue.expense')
     expect(sourceTypeLabel('EXPENSE_REVERSAL'))
       .toBe('financeReportPages.vouchers.sourceValue.expenseReversal')
-    expect(sourceTypeLabel('MANUAL')).toBe('MANUAL')
+    expect(sourceTypeLabel('RECEIPT'))
+      .toBe('financeReportPages.vouchers.sourceValue.receipt')
+    expect(sourceTypeLabel('PAYMENT_REVERSAL'))
+      .toBe('financeReportPages.vouchers.sourceValue.paymentReversal')
+    expect(sourceTypeLabel('UNKNOWN_SOURCE')).toBe('UNKNOWN_SOURCE')
     expect(sourceTypeLabel()).toBe('-')
 
     expect(sourceTypeTag('EXPENSE')).toBe('success')
     expect(sourceTypeTag('EXPENSE_REVERSAL')).toBe('warning')
-    expect(sourceTypeTag('MANUAL')).toBe('info')
+    expect(sourceTypeTag('RECEIPT')).toBe('success')
+    expect(sourceTypeTag('PAYMENT_REVERSAL')).toBe('warning')
+    expect(sourceTypeTag('SALES_DELIVERY')).toBe('info')
+    expect(sourceTypeTag('UNKNOWN_SOURCE')).toBe('info')
     expect(sourceTypeTag()).toBe('info')
+  })
+
+  it('offers every posted source type as a filter option, settlement sources first', () => {
+    const { sourceTypeLabel, sourceTypeOptions } = useVoucherPresentation(t)
+    const options = sourceTypeOptions()
+
+    expect(options.map((option) => option.value).slice(0, 6)).toEqual([
+      'RECEIPT',
+      'RECEIPT_REVERSAL',
+      'PAYMENT',
+      'PAYMENT_REVERSAL',
+      'EXPENSE',
+      'EXPENSE_REVERSAL'
+    ])
+    expect(options.map((option) => option.value)).toContain('MANUAL')
+    expect(options.map((option) => option.value)).toContain('SALES_DELIVERY')
+    expect(new Set(options.map((option) => option.value)).size).toBe(options.length)
+    for (const option of options) {
+      expect(option.label, option.value).toBe(sourceTypeLabel(option.value))
+    }
+  })
+
+  it('resolves every filter option label in both locales', () => {
+    const { sourceTypeOptions } = useVoucherPresentation(t)
+
+    for (const locale of ['zh-CN', 'en-US'] as const) {
+      for (const option of sourceTypeOptions()) {
+        expect(typeof readNestedValue(financeReportPageMessages[locale], option.label), `${locale}:${option.value}`)
+          .toBe('string')
+      }
+    }
   })
 
   it('maps every voucher status and preserves unknown values', () => {

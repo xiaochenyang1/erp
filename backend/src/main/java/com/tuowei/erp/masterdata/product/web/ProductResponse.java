@@ -21,8 +21,33 @@ public record ProductResponse(
         Boolean inspectionRequired,
         Boolean serialControlled,
         String remark,
-        String barcode
+        String barcode,
+        ProductMrpPolicy mrpPolicy
 ) {
+    public ProductResponse(
+        Long id,
+        String productCode,
+        String productName,
+        String productType,
+        String categoryName,
+        String specification,
+        String unitName,
+        String auxUnitName,
+        BigDecimal conversionFactor,
+        BigDecimal purchasePrice,
+        BigDecimal salePrice,
+        BigDecimal taxRate,
+        String status,
+        Boolean lotControlled,
+        Boolean shelfLifeControlled,
+        Boolean inspectionRequired,
+        Boolean serialControlled,
+        String remark,
+        String barcode
+    ) {
+        this(id, productCode, productName, productType, categoryName, specification, unitName, auxUnitName, conversionFactor, purchasePrice, salePrice, taxRate, status, lotControlled, shelfLifeControlled, inspectionRequired, serialControlled, remark, barcode, null);
+    }
+
     public ProductResponse(
             Long id,
             String productCode,

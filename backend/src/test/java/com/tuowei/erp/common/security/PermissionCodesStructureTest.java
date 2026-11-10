@@ -36,7 +36,8 @@ class PermissionCodesStructureTest {
             ExceptionTicketPermissionCodes.class,
             ExceptionRulePermissionCodes.class,
             ExceptionSlaPolicyPermissionCodes.class,
-            QcPermissionCodes.class
+            QcPermissionCodes.class,
+            ContractPermissionCodes.class
     };
 
     @Test

@@ -23,6 +23,8 @@ export interface SettlementFormState {
   selectedIds: string[]
   documentDate: string
   amount: number
+  currencyCode: string
+  exchangeRate: number
   remark: string
 }
 
@@ -80,6 +82,8 @@ export const useSettlementForm = <TOpenItem extends OpenItem>(
     selectedIds: [],
     documentDate: '',
     amount: 0,
+    currencyCode: 'CNY',
+    exchangeRate: 1,
     remark: ''
   })
 
@@ -95,6 +99,8 @@ export const useSettlementForm = <TOpenItem extends OpenItem>(
     form.selectedIds = []
     form.documentDate = ''
     form.amount = 0
+    form.currencyCode = 'CNY'
+    form.exchangeRate = 1
     form.remark = ''
     allocationRows.value = []
     openItems.value = []
@@ -193,6 +199,8 @@ export const useSettlementForm = <TOpenItem extends OpenItem>(
         [options.partyKey]: form.partyId,
         [options.dateKey]: form.documentDate,
         [options.amountKey]: formAmount(),
+        currencyCode: form.currencyCode,
+        exchangeRate: form.exchangeRate,
         [options.methodKey]: options.method,
         allocations,
         remark: form.remark

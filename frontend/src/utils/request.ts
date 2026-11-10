@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
+import { i18n } from '@/i18n'
 import { invalidateAuthSession } from '@/utils/authSession'
 import { readDisplayPreferences } from '@/utils/locale'
 
@@ -99,6 +100,9 @@ const clearAuthAndRedirect = () => {
   flushQueue(null)
 }
 
+const isLoginRequest = (url?: string) =>
+  typeof url === 'string' && /(?:^|\/)auth\/login(?:$|[?/#])/.test(url)
+
 // 用裸 axios 调刷新接口：不走业务拦截器，也避免与 auth.ts 形成循环依赖
 const doRefreshToken = (refreshToken: string): Promise<string> => {
   const baseURL = import.meta.env.VITE_APP_BASE_API || '/api'
@@ -189,6 +193,12 @@ service.interceptors.response.use(
   (error) => {
     // 401：走静默续期流程（成功则透明重放，调用方无感知）
     if (error.response?.status === 401) {
+      // 登录凭据错误不是会话过期；不要刷新/清理当前会话。
+      if (isLoginRequest(error.config?.url)) {
+        const message = error.response?.data?.message || i18n.global.t('login.invalidCredentials')
+        ElMessage.error(message)
+        return Promise.reject(error)
+      }
       return handleUnauthorized(error)
     }
 

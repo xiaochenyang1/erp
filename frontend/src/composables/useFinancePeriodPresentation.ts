@@ -53,7 +53,8 @@ export const useFinancePeriodPresentation = (t: Translate) => {
       RECEIPT_ALLOCATION_MISMATCH: t('financeReportPages.periods.issue.receiptAllocationMismatch'),
       SETTLEMENT_AMOUNT_INVALID: t('financeReportPages.periods.issue.settlementAmountInvalid'),
       BANK_STATEMENT_UNMATCHED: t('financeReportPages.periods.issue.bankStatementUnmatched'),
-      INVENTORY_BALANCE_NEGATIVE: t('financeReportPages.periods.issue.inventoryBalanceNegative')
+      INVENTORY_BALANCE_NEGATIVE: t('financeReportPages.periods.issue.inventoryBalanceNegative'),
+      PRODUCTION_COST_UNCLOSED: t('financeReportPages.periods.issue.productionCostUnclosed')
     }
     return map[type] || type
   }

@@ -1,6 +1,7 @@
 package com.tuowei.erp.sales.order.service;
 
 import com.tuowei.erp.common.math.ScalePrecision;
+import com.tuowei.erp.finance.currency.support.CurrencyAmountSupport;
 import com.tuowei.erp.sales.order.web.SalesOrderLineRequest;
 import com.tuowei.erp.sales.price.service.SalesPriceService;
 import org.springframework.stereotype.Component;
@@ -30,6 +31,18 @@ public class SalesPriceEvaluator {
             LocalDate orderDate,
             List<SalesOrderLineRequest> lines
     ) {
+        assertLinesWithinMinPrice(companyId, accountBookId, customerId, orderDate, lines, BigDecimal.ONE);
+    }
+
+    /** Price-list limits are in account-book base currency; order prices are in transaction currency. */
+    public void assertLinesWithinMinPrice(
+            Long companyId,
+            Long accountBookId,
+            Long customerId,
+            LocalDate orderDate,
+            List<SalesOrderLineRequest> lines,
+            BigDecimal exchangeRate
+    ) {
         if (lines == null || lines.isEmpty()) {
             return;
         }
@@ -50,10 +63,10 @@ public class SalesPriceEvaluator {
             if (minPrice == null) {
                 continue;
             }
-            BigDecimal price = ScalePrecision.amount(line.price());
+            BigDecimal price = CurrencyAmountSupport.posting(ScalePrecision.amount(line.price()), exchangeRate);
             if (price.compareTo(minPrice) < 0) {
                 throw new IllegalArgumentException(String.format(
-                        "第 %d 行单价 %s 低于生效最低价 %s，请调整价格",
+                        "第 %d 行折合本位币单价 %s 低于生效最低价 %s，请调整价格",
                         index,
                         price.toPlainString(),
                         minPrice.toPlainString()

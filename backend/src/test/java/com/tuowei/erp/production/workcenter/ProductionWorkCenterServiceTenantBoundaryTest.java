@@ -10,6 +10,8 @@ import com.tuowei.erp.production.routing.mapper.ProductionRoutingMapper;
 import com.tuowei.erp.production.routing.mapper.ProductionRoutingOperationMapper;
 import com.tuowei.erp.production.workcenter.mapper.ProductionWorkCenterMapper;
 import com.tuowei.erp.production.workcenter.model.ProductionWorkCenterEntity;
+import com.tuowei.erp.production.workcenter.service.ProductionWorkCenterCommandService;
+import com.tuowei.erp.production.workcenter.service.ProductionWorkCenterQueryService;
 import com.tuowei.erp.production.workcenter.service.ProductionWorkCenterService;
 import com.tuowei.erp.production.workcenter.web.ProductionWorkCenterPageQuery;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -84,7 +86,11 @@ class ProductionWorkCenterServiceTenantBoundaryTest {
     }
 
     private ProductionWorkCenterService service() {
-        return new ProductionWorkCenterService(workCenterMapper, routingMapper, routingOperationMapper, auditMetadataFactory);
+        ProductionWorkCenterQueryService queryService =
+                new ProductionWorkCenterQueryService(workCenterMapper, auditMetadataFactory);
+        ProductionWorkCenterCommandService commandService = new ProductionWorkCenterCommandService(
+                workCenterMapper, routingMapper, routingOperationMapper, auditMetadataFactory, queryService);
+        return new ProductionWorkCenterService(queryService, commandService);
     }
 
     private ProductionWorkCenterEntity activeWorkCenter(Long id, Long companyId, Long accountBookId) {

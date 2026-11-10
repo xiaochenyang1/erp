@@ -297,10 +297,7 @@ const {
   ...notify
 })
 
-const {
-  permissionCount,
-  warehouseOptionLabel
-} = useSystemRolePresentation(t)
+const { warehouseOptionLabel } = useSystemRolePresentation(t)
 
 const {
   currentRoleName,
@@ -321,7 +318,6 @@ const {
   permissionDialogVisible,
   permissionSubmitLoading,
   permissionTree,
-  resetForm: resetFormState,
   selectedPermissions,
   submitDataScopeAssignment,
   submitLoading,
@@ -361,11 +357,6 @@ const handleSubmit = async () => {
     if (!valid) return
     await saveRole()
   })
-}
-
-const resetForm = () => {
-  formRef.value?.clearValidate()
-  resetFormState()
 }
 
 const handlePermission = async (row: Role) => {

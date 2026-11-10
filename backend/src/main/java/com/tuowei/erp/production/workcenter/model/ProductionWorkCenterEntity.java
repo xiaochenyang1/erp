@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @TableName("prd_work_center")
 public class ProductionWorkCenterEntity {
@@ -16,6 +17,8 @@ public class ProductionWorkCenterEntity {
     private Long accountBookId;
     private String workCenterCode;
     private String workCenterName;
+    private Integer dailyCapacityMinutes;
+    private LocalTime workdayStartTime;
     private String status;
     private Integer deletedFlag;
     private String remark;
@@ -64,6 +67,22 @@ public class ProductionWorkCenterEntity {
 
     public void setWorkCenterName(String workCenterName) {
         this.workCenterName = workCenterName;
+    }
+
+    public Integer getDailyCapacityMinutes() {
+        return dailyCapacityMinutes;
+    }
+
+    public void setDailyCapacityMinutes(Integer dailyCapacityMinutes) {
+        this.dailyCapacityMinutes = dailyCapacityMinutes;
+    }
+
+    public LocalTime getWorkdayStartTime() {
+        return workdayStartTime;
+    }
+
+    public void setWorkdayStartTime(LocalTime workdayStartTime) {
+        this.workdayStartTime = workdayStartTime;
     }
 
     public String getStatus() {

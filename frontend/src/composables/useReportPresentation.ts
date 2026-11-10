@@ -2,9 +2,12 @@ import { computed, type ComputedRef, type Ref } from 'vue'
 
 import type {
   FinanceSettlementReportRow,
+  FxGainLossReportRow,
   InventoryBalanceReportRow,
   InventoryTransactionReportRow,
+  InventoryValuationReportRow,
   OrderReportRow
+  , ProductionCostReportRow
 } from '@/api/workflow'
 import { formatLocalizedCurrency, formatLocalizedNumber } from '@/utils/locale'
 
@@ -15,7 +18,10 @@ export const reportKeys = [
   'sales',
   'inventoryBalance',
   'inventoryTransaction',
-  'financeSettlement'
+  'financeSettlement',
+  'fxGainLoss',
+  'inventoryValuation',
+  'productionCost'
 ] as const
 
 export type ReportKey = (typeof reportKeys)[number]
@@ -24,6 +30,9 @@ export type ReportRecord =
   | InventoryBalanceReportRow
   | InventoryTransactionReportRow
   | FinanceSettlementReportRow
+  | FxGainLossReportRow
+  | InventoryValuationReportRow
+  | ProductionCostReportRow
 
 export interface ReportState {
   loading: boolean
@@ -38,7 +47,10 @@ const reportTabMessageKeys: Record<ReportKey, string> = {
   sales: 'financeReportPages.reports.tabs.sales',
   inventoryBalance: 'financeReportPages.reports.tabs.inventoryBalance',
   inventoryTransaction: 'financeReportPages.reports.tabs.inventoryTransaction',
-  financeSettlement: 'financeReportPages.reports.tabs.financeSettlement'
+  financeSettlement: 'financeReportPages.reports.tabs.financeSettlement',
+  fxGainLoss: 'financeReportPages.reports.tabs.fxGainLoss',
+  inventoryValuation: 'financeReportPages.reports.tabs.inventoryValuation',
+  productionCost: 'financeReportPages.reports.tabs.productionCost'
 }
 
 const reportStatusMessageKeys: Record<string, string> = {
@@ -65,6 +77,16 @@ const reportStatusMessageKeys: Record<string, string> = {
   OFFSET: 'financeReportPages.reports.status.offset'
 }
 
+/** Derived by ProductionCostReportService from the order status and WIP balance. */
+const costStatusMessageKeys: Record<string, string> = {
+  BALANCED: 'financeReportPages.reports.costStatusValue.balanced',
+  CLOSED: 'financeReportPages.reports.costStatusValue.closed',
+  COST_VARIANCE: 'financeReportPages.reports.costStatusValue.costVariance',
+  UNRECONCILED: 'financeReportPages.reports.costStatusValue.unreconciled',
+  WIP: 'financeReportPages.reports.costStatusValue.wip',
+  NOT_POSTED: 'financeReportPages.reports.costStatusValue.notPosted'
+}
+
 const reportBusinessTypeMessageKeys: Record<string, string> = {
   PURCHASE_RECEIPT: 'financeReportPages.reports.businessTypeValue.purchaseReceipt',
   PURCHASE_RETURN: 'financeReportPages.reports.businessTypeValue.purchaseReturn',
@@ -84,17 +106,25 @@ export const getReportTabLabel = (t: Translate, key: ReportKey) =>
 
 export const sumReportAmount = (records: ReportRecord[]) =>
   records.reduce((sum, row) => {
+    if ('fxGainLossAmount' in row) return sum + (row.direction === 'PAYABLE' ? -1 : 1)
+      * (Number(row.fxGainLossAmount || 0) + Number(row.roundingAmount || 0))
+    if ('baseTotalAmount' in row && Number(row.baseTotalAmount || 0) !== 0) {
+      return sum + Number(row.baseTotalAmount || 0)
+    }
     if ('totalAmount' in row) return sum + Number(row.totalAmount || 0)
     if ('amountOnHand' in row) return sum + Number(row.amountOnHand || 0)
     if ('amount' in row) return sum + Number(row.amount || 0)
     if ('remainingAmount' in row) return sum + Number(row.remainingAmount || 0)
+    if ('closingAmount' in row) return sum + Number(row.closingAmount || 0)
+    if ('totalInputCost' in row) return sum + Number(row.totalInputCost || 0)
     return sum
   }, 0)
 
 export const useReportPresentation = (
   t: Translate,
   activeKey: Ref<ReportKey>,
-  activeState: ComputedRef<ReportState>
+  activeState: ComputedRef<ReportState>,
+  baseCurrency?: Ref<string>
 ) => {
   const reportTabs = computed(() => reportKeys.map((key) => ({
     key,
@@ -108,9 +138,15 @@ export const useReportPresentation = (
     Math.max(1, Math.ceil(activeState.value.total / activeState.value.pageSize))
   )
   const summaryAmount = computed(() => sumReportAmount(activeState.value.records))
+  const roundingTotal = computed(() => activeState.value.records.reduce((sum, row) =>
+    'fxGainLossAmount' in row
+      ? sum + (row.direction === 'PAYABLE' ? -1 : 1) * Number(row.roundingAmount || 0)
+      : sum, 0))
 
   const formatMoney = (amount?: number) =>
-    formatLocalizedCurrency(Number(amount || 0))
+    baseCurrency && !baseCurrency.value
+      ? formatLocalizedNumber(Number(amount || 0), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : formatLocalizedCurrency(Number(amount || 0), { currency: baseCurrency?.value || 'CNY' })
 
   const formatNumber = (value?: number) =>
     formatLocalizedNumber(Number(value || 0), {
@@ -127,8 +163,17 @@ export const useReportPresentation = (
   const reportDirectionLabel = (direction?: string) => {
     if (direction === 'IN') return t('financeReportPages.reports.directionValue.inbound')
     if (direction === 'OUT') return t('financeReportPages.reports.directionValue.outbound')
+    if (direction === 'RECEIVABLE') return t('financeReportPages.reports.directionValue.receivable')
+    if (direction === 'PAYABLE') return t('financeReportPages.reports.directionValue.payable')
     return direction || '-'
   }
+
+  // Rates render with up to 6 decimals, a readable projection of the DECIMAL(24,12) snapshot.
+  const formatExchangeRate = (rate?: number) =>
+    formatLocalizedNumber(Number(rate || 0), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6
+    })
 
   const reportBusinessTypeLabel = (type?: string) => {
     if (!type) return '-'
@@ -136,8 +181,25 @@ export const useReportPresentation = (
     return key ? t(key) : type
   }
 
+  const costStatusLabel = (status?: string) => {
+    if (!status) return '-'
+    const key = costStatusMessageKeys[status]
+    return key ? t(key) : status
+  }
+
+  const costStatusType = (status?: string): 'success' | 'warning' | 'danger' | 'info' | 'primary' => {
+    if (status === 'BALANCED' || status === 'CLOSED') return 'success'
+    if (status === 'COST_VARIANCE') return 'warning'
+    if (status === 'UNRECONCILED') return 'danger'
+    if (status === 'WIP') return 'primary'
+    return 'info'
+  }
+
   return {
     activeReport,
+    costStatusLabel,
+    costStatusType,
+    formatExchangeRate,
     formatMoney,
     formatNumber,
     isReportKey,
@@ -146,6 +208,7 @@ export const useReportPresentation = (
     reportDirectionLabel,
     reportStatusLabel,
     reportTabs,
-    summaryAmount
+    summaryAmount,
+    roundingTotal
   }
 }

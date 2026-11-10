@@ -192,7 +192,7 @@ class WorkflowNotificationIntegrationTest {
         Assertions.assertThat(todoCountFor(SECOND_APPROVER_ID)).isZero();
 
         useUser(APPROVER_ID, 1L, 1L, "wf_notify_approver");
-        workflowService.approve("SALES_ORDER", BUSINESS_ID, "first approve");
+        Assertions.assertThat(workflowService.approve("SALES_ORDER", BUSINESS_ID, "first approve")).isFalse();
 
         Assertions.assertThat(instanceStatus()).isEqualTo("IN_APPROVAL");
         Assertions.assertThat(taskCountByStatus("APPROVED")).isEqualTo(1);
@@ -201,7 +201,7 @@ class WorkflowNotificationIntegrationTest {
         Assertions.assertThat(todoCountFor(SECOND_APPROVER_ID)).isEqualTo(1);
 
         useUser(SECOND_APPROVER_ID, 1L, 1L, "wf_notify_second_approver");
-        workflowService.approve("SALES_ORDER", BUSINESS_ID, "second approve");
+        Assertions.assertThat(workflowService.approve("SALES_ORDER", BUSINESS_ID, "second approve")).isTrue();
 
         Assertions.assertThat(instanceStatus()).isEqualTo("APPROVED");
         Assertions.assertThat(taskCountByStatus("APPROVED")).isEqualTo(2);
@@ -220,7 +220,7 @@ class WorkflowNotificationIntegrationTest {
         Assertions.assertThat(todoCountFor(SECOND_APPROVER_ID)).isEqualTo(1);
 
         useUser(APPROVER_ID, 1L, 1L, "wf_notify_approver");
-        workflowService.approve("SALES_ORDER", BUSINESS_ID, "first approve");
+        Assertions.assertThat(workflowService.approve("SALES_ORDER", BUSINESS_ID, "first approve")).isFalse();
 
         Assertions.assertThat(instanceStatus()).isEqualTo("IN_APPROVAL");
         Assertions.assertThat(taskCountByStatus("PENDING")).isEqualTo(1);
@@ -230,7 +230,7 @@ class WorkflowNotificationIntegrationTest {
         Assertions.assertThat(todoCountFor(SECOND_APPROVER_ID)).isEqualTo(1);
 
         useUser(SECOND_APPROVER_ID, 1L, 1L, "wf_notify_second_approver");
-        workflowService.approve("SALES_ORDER", BUSINESS_ID, "second approve");
+        Assertions.assertThat(workflowService.approve("SALES_ORDER", BUSINESS_ID, "second approve")).isTrue();
 
         Assertions.assertThat(instanceStatus()).isEqualTo("APPROVED");
         Assertions.assertThat(taskCountByStatus("PENDING")).isZero();
@@ -476,8 +476,14 @@ class WorkflowNotificationIntegrationTest {
     }
 
     private void cleanup() {
-        jdbcTemplate.update("delete from sys_notification_recipient where recipient_user_id in (?, ?, ?, ?, ?)",
-                SUBMITTER_ID, APPROVER_ID, OTHER_COMPANY_APPROVER_ID, FALLBACK_VIEWER_ID, SECOND_APPROVER_ID);
+        jdbcTemplate.update("""
+                delete from sys_notification_recipient
+                where notification_id in (
+                    select id
+                    from sys_notification
+                    where business_no = ?
+                )
+                """, BUSINESS_NO);
         jdbcTemplate.update("delete from sys_notification where business_no = ?", BUSINESS_NO);
         jdbcTemplate.update("delete from wf_approval_task where business_no = ?", BUSINESS_NO);
         jdbcTemplate.update("delete from wf_approval_record where business_no = ?", BUSINESS_NO);

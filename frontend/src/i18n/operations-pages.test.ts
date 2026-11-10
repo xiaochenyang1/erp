@@ -10,6 +10,7 @@ const expectedNamespaces = [
   'inventoryChecks',
   'inventoryAlerts',
   'inventoryStocks',
+  'inventoryLotGenealogy',
   'salesReturnOps',
   'purchaseInquiryOps'
 ] as const
@@ -30,6 +31,7 @@ const componentPaths = [
   'src/views/inventory/checks/index.vue',
   'src/views/inventory/alerts/index.vue',
   'src/views/inventory/stocks/index.vue',
+  'src/views/inventory/lot-genealogy/index.vue',
   'src/views/sales/returns/index.vue',
   'src/views/purchase/inquiries/index.vue'
 ] as const

@@ -2,6 +2,9 @@ package com.tuowei.erp.finance.period.service;
 
 import com.tuowei.erp.common.math.ScalePrecision;
 import com.tuowei.erp.common.persistence.NativeSqlTenantScoped;
+import com.tuowei.erp.common.security.AuditMetadata;
+import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.finance.fx.service.FxRevaluationService;
 import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckItemResponse;
@@ -15,40 +18,53 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
-@NativeSqlTenantScoped("JdbcTemplate close checks use the selected account period as the scope source and pass its company_id/account_book_id into every tenant-owned balance, voucher, and settlement query.")
+@NativeSqlTenantScoped("JdbcTemplate close checks use the selected account period as the scope source and pass its company_id/account_book_id into every tenant-owned production, balance, voucher, and settlement query.")
 public class AccountPeriodCloseChecker {
 
     private final AccountPeriodMapper accountPeriodMapper;
+    private final AuditMetadataFactory auditMetadataFactory;
     private final InventoryFinanceReconciliationService reconciliationService;
     private final JdbcTemplate jdbcTemplate;
+    private final FxRevaluationService fxRevaluationService;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AccountPeriodCloseChecker(
             AccountPeriodMapper accountPeriodMapper,
+            AuditMetadataFactory auditMetadataFactory,
             InventoryFinanceReconciliationService reconciliationService,
-            JdbcTemplate jdbcTemplate
+            JdbcTemplate jdbcTemplate,
+            FxRevaluationService fxRevaluationService
     ) {
         this.accountPeriodMapper = accountPeriodMapper;
+        this.auditMetadataFactory = auditMetadataFactory;
         this.reconciliationService = reconciliationService;
         this.jdbcTemplate = jdbcTemplate;
+        this.fxRevaluationService = fxRevaluationService;
     }
 
     @Transactional(readOnly = true)
     public AccountPeriodCloseCheckResponse check(Long periodId) {
+        AuditMetadata audit = auditMetadataFactory.current();
         AccountPeriodEntity period = accountPeriodMapper.selectById(periodId);
-        if (period == null) {
+        if (period == null
+                || !Objects.equals(period.getCompanyId(), audit.companyId())
+                || !Objects.equals(period.getAccountBookId(), audit.accountBookId())) {
             throw new IllegalArgumentException("会计期间不存在");
         }
         List<AccountPeriodCloseIssueResponse> issues = new ArrayList<>();
         List<AccountPeriodCloseCheckItemResponse> checks = new ArrayList<>();
 
         addOpenDocumentsCheck(period, issues, checks);
+        addProductionCostCloseCheck(period, issues, checks);
         addInventoryFinanceCheck(period, issues, checks);
         addVoucherChecks(period, issues, checks);
         addSettlementChecks(period, issues, checks);
         addBankStatementCheck(period, issues, checks);
         addInventoryBalanceCheck(period, issues, checks);
+        addFxRevaluationCheck(period, issues, checks);
 
         return new AccountPeriodCloseCheckResponse(
                 period.getId(),
@@ -57,6 +73,64 @@ public class AccountPeriodCloseChecker {
                 issues,
                 checks
         );
+    }
+
+    private void addProductionCostCloseCheck(
+            AccountPeriodEntity period,
+            List<AccountPeriodCloseIssueResponse> issues,
+            List<AccountPeriodCloseCheckItemResponse> checks
+    ) {
+        Long unclosedCount = jdbcTemplate.queryForObject("""
+                select count(*)
+                from prd_order o
+                where o.company_id = ?
+                  and o.account_book_id = ?
+                  and o.deleted_flag = 0
+                  and o.status = 'COMPLETED'
+                  and o.cost_close_status = 'OPEN'
+                  and (
+                      select max(c.completion_date)
+                      from prd_completion c
+                      where c.company_id = o.company_id
+                        and c.account_book_id = o.account_book_id
+                        and c.order_id = o.id
+                  ) <= ?
+                  and not exists (
+                      select 1
+                      from prd_cost_entry e
+                      where e.company_id = o.company_id
+                        and e.account_book_id = o.account_book_id
+                        and e.order_id = o.id
+                        and e.deleted_flag = 0
+                        and e.business_date > ?
+                  )
+                """,
+                Long.class,
+                period.getCompanyId(),
+                period.getAccountBookId(),
+                period.getEndDate(),
+                period.getEndDate()
+        );
+        long count = unclosedCount == null ? 0L : unclosedCount;
+        boolean passed = count == 0;
+        String message = passed
+                ? "期间截止日前已完工工单均已成本关单"
+                : String.format("存在未成本关单的已完工工单 %d 张", count);
+        checks.add(new AccountPeriodCloseCheckItemResponse(
+                "PRODUCTION_COST_UNCLOSED",
+                "生产成本关单",
+                "生产",
+                passed,
+                message,
+                BigDecimal.valueOf(count)
+        ));
+        if (!passed) {
+            issues.add(new AccountPeriodCloseIssueResponse(
+                    "PRODUCTION_COST_UNCLOSED",
+                    message,
+                    BigDecimal.valueOf(count)
+            ));
+        }
     }
 
     private void addOpenDocumentsCheck(
@@ -346,6 +420,18 @@ public class AccountPeriodCloseChecker {
         }
     }
 
+    private void addFxRevaluationCheck(
+            AccountPeriodEntity period,
+            List<AccountPeriodCloseIssueResponse> issues,
+            List<AccountPeriodCloseCheckItemResponse> checks
+    ) {
+        AccountPeriodCloseCheckItemResponse check = fxRevaluationService.checkForClose(period);
+        checks.add(check);
+        if (!check.passed()) {
+            issues.add(new AccountPeriodCloseIssueResponse("FX_REVALUATION", check.message(), check.metric()));
+        }
+    }
+
     private long count(String sql, AccountPeriodEntity period) {
         Long value = jdbcTemplate.queryForObject(
                 sql,
@@ -357,4 +443,5 @@ public class AccountPeriodCloseChecker {
         );
         return value == null ? 0L : value;
     }
+
 }

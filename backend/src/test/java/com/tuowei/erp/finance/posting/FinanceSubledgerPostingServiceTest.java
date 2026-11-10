@@ -16,6 +16,7 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -58,7 +59,7 @@ class FinanceSubledgerPostingServiceTest {
     }
 
     @Test
-    void recordsReceivableWithTenantScopedDeduplicationAndCustomerCreditPeriod() {
+    void recordsReceivableWithTenantScopedDeduplicationCustomerCreditPeriodAndCurrencySnapshot() {
         when(receivableMapper.selectCount(any())).thenReturn(0L);
         CustomerEntity customer = new CustomerEntity();
         customer.setId(301L);
@@ -75,6 +76,8 @@ class FinanceSubledgerPostingServiceTest {
                 301L,
                 LocalDate.of(2026, 7, 31),
                 new BigDecimal("113.00"),
+                "USD",
+                new BigDecimal("7.20"),
                 "sales delivery",
                 AUDIT
         );
@@ -93,6 +96,10 @@ class FinanceSubledgerPostingServiceTest {
         assertThat(entity.getDueDate()).isEqualTo(LocalDate.of(2026, 8, 30));
         assertThat(entity.getStatus()).isEqualTo("UNSETTLED");
         assertThat(entity.getSettledAmount()).isEqualByComparingTo("0.00");
+        assertThat(entity.getCurrencyCode()).isEqualTo("USD");
+        assertThat(entity.getExchangeRate()).isEqualByComparingTo("7.20");
+        assertThat(entity.getBaseOriginalAmount()).isEqualByComparingTo("813.600000");
+        assertThat(entity.getBaseSettledAmount()).isEqualByComparingTo("0.000000");
         assertThat(entity.getCreatedBy()).isEqualTo(AUDIT.userId());
         assertThat(entity.getCreatedTime()).isEqualTo(AUDIT.now());
     }
@@ -115,6 +122,8 @@ class FinanceSubledgerPostingServiceTest {
                 302L,
                 LocalDate.of(2026, 7, 31),
                 new BigDecimal("22.60"),
+                "CNY",
+                BigDecimal.ONE,
                 "purchase return",
                 AUDIT
         );
@@ -140,16 +149,60 @@ class FinanceSubledgerPostingServiceTest {
 
         service.recordPayableIfAbsent(
                 "PURCHASE_RECEIPT", 403L, "PR-403", "INCREASE", 303L,
-                LocalDate.of(2026, 7, 31), BigDecimal.TEN, "purchase receipt", AUDIT
+                LocalDate.of(2026, 7, 31), BigDecimal.TEN, "CNY", BigDecimal.ONE, "purchase receipt", AUDIT
         );
         service.recordReceivableIfAbsent(
                 "SALES_DELIVERY", 404L, "SD-404", "INCREASE", 304L,
-                LocalDate.of(2026, 7, 31), BigDecimal.TEN, "sales delivery", AUDIT
+                LocalDate.of(2026, 7, 31), BigDecimal.TEN, "CNY", BigDecimal.ONE, "sales delivery", AUDIT
         );
 
         verify(payableMapper, never()).insert(any(PayableEntity.class));
         verify(receivableMapper, never()).insert(any(ReceivableEntity.class));
         verifyNoInteractions(customerMapper, supplierMapper);
+    }
+
+    @Test
+    void reusesPayableWonByConcurrentSourceInsert() {
+        PayableEntity winner = new PayableEntity();
+        winner.setId(405L);
+        winner.setCompanyId(AUDIT.companyId());
+        winner.setAccountBookId(AUDIT.accountBookId());
+        when(payableMapper.selectCount(any())).thenReturn(0L);
+        when(payableMapper.insert(any(PayableEntity.class)))
+                .thenThrow(new DuplicateKeyException("duplicate payable source"));
+        when(payableMapper.selectOne(any())).thenReturn(winner);
+
+        service.recordPayableIfAbsent(
+                "PURCHASE_RECEIPT", 405L, "PR-405", "INCREASE", null,
+                LocalDate.of(2026, 7, 31), new BigDecimal("12.00"), "CNY", BigDecimal.ONE, "purchase receipt", AUDIT
+        );
+
+        ArgumentCaptor<LambdaQueryWrapper<PayableEntity>> lookup = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(payableMapper).selectOne(lookup.capture());
+        assertThat(lookup.getValue().getSqlSegment().toLowerCase(Locale.ROOT))
+                .contains("for update");
+    }
+
+    @Test
+    void reusesReceivableWonByConcurrentSourceInsert() {
+        ReceivableEntity winner = new ReceivableEntity();
+        winner.setId(406L);
+        winner.setCompanyId(AUDIT.companyId());
+        winner.setAccountBookId(AUDIT.accountBookId());
+        when(receivableMapper.selectCount(any())).thenReturn(0L);
+        when(receivableMapper.insert(any(ReceivableEntity.class)))
+                .thenThrow(new DuplicateKeyException("duplicate receivable source"));
+        when(receivableMapper.selectOne(any())).thenReturn(winner);
+
+        service.recordReceivableIfAbsent(
+                "SALES_DELIVERY", 406L, "SD-406", "INCREASE", null,
+                LocalDate.of(2026, 7, 31), new BigDecimal("12.00"), "CNY", BigDecimal.ONE, "sales delivery", AUDIT
+        );
+
+        ArgumentCaptor<LambdaQueryWrapper<ReceivableEntity>> lookup = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(receivableMapper).selectOne(lookup.capture());
+        assertThat(lookup.getValue().getSqlSegment().toLowerCase(Locale.ROOT))
+                .contains("for update");
     }
 
     private void assertTenantScoped(LambdaQueryWrapper<?> wrapper) {

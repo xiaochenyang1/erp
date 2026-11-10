@@ -14,18 +14,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class MigrationHistoryDocumentationTest {
 
+    private static final int LEGACY_MYSQL_VALUES_MAX_VERSION = 145;
     private static final Pattern MIGRATION_VERSION_PATTERN = Pattern.compile("^V(\\d+)__.+\\.sql$");
+    private static final Pattern DEPRECATED_MYSQL_VALUES_FUNCTION_PATTERN = Pattern.compile(
+            "(?i)\\bVALUES\\s*\\(\\s*[A-Za-z_][A-Za-z0-9_]*\\s*\\)");
 
     @Test
     void flywayVersionGapsAreDocumented() throws IOException {
-        TreeSet<Integer> versions = new TreeSet<>();
-        try (var paths = Files.list(Path.of("src", "main", "resources", "db", "migration"))) {
-            paths.filter(path -> path.getFileName().toString().endsWith(".sql"))
-                    .map(path -> MIGRATION_VERSION_PATTERN.matcher(path.getFileName().toString()))
-                    .filter(Matcher::matches)
-                    .map(matcher -> Integer.parseInt(matcher.group(1)))
-                    .forEach(versions::add);
-        }
+        TreeSet<Integer> versions = migrationVersions();
 
         assertThat(versions).isNotEmpty();
 
@@ -50,5 +46,50 @@ class MigrationHistoryDocumentationTest {
         missingVersions.forEach(version -> assertThat(history)
                 .as("docs/migrations-history.md must mention missing V%s", version)
                 .contains("V" + version));
+    }
+
+    @Test
+    void latestFlywayMigrationIsDocumented() throws IOException {
+        TreeSet<Integer> versions = migrationVersions();
+        String history = Files.readString(Path.of("docs", "migrations-history.md"), StandardCharsets.UTF_8);
+
+        assertThat(history)
+                .as("docs/migrations-history.md must describe the latest migration")
+                .contains("V" + versions.last());
+    }
+
+    @Test
+    void newMigrationsDoNotUseDeprecatedMysqlValuesFunction() throws IOException {
+        Path migrationDirectory = Path.of("src", "main", "resources", "db", "migration");
+        try (var paths = Files.list(migrationDirectory)) {
+            for (Path path : paths
+                    .filter(path -> path.getFileName().toString().endsWith(".sql"))
+                    .filter(path -> migrationVersion(path) > LEGACY_MYSQL_VALUES_MAX_VERSION)
+                    .toList()) {
+                String migration = Files.readString(path, StandardCharsets.UTF_8);
+                assertThat(DEPRECATED_MYSQL_VALUES_FUNCTION_PATTERN.matcher(migration).find())
+                        .as("New migration %s must use MySQL row aliases instead of deprecated VALUES(column)",
+                                path.getFileName())
+                        .isFalse();
+            }
+        }
+    }
+
+    private int migrationVersion(Path path) {
+        Matcher matcher = MIGRATION_VERSION_PATTERN.matcher(path.getFileName().toString());
+        return matcher.matches() ? Integer.parseInt(matcher.group(1)) : Integer.MIN_VALUE;
+    }
+
+    private TreeSet<Integer> migrationVersions() throws IOException {
+        TreeSet<Integer> versions = new TreeSet<>();
+        try (var paths = Files.list(Path.of("src", "main", "resources", "db", "migration"))) {
+            paths.filter(path -> path.getFileName().toString().endsWith(".sql"))
+                    .map(path -> MIGRATION_VERSION_PATTERN.matcher(path.getFileName().toString()))
+                    .filter(Matcher::matches)
+                    .map(matcher -> Integer.parseInt(matcher.group(1)))
+                    .forEach(versions::add);
+        }
+        assertThat(versions).isNotEmpty();
+        return versions;
     }
 }

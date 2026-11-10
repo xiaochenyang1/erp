@@ -67,12 +67,16 @@ class ProductionWorkCenterControllerTest {
                                 {
                                   "workCenterCode": " WC-001 ",
                                   "workCenterName": " 焊接一车间 ",
+                                  "dailyCapacityMinutes": 600,
+                                  "workdayStartTime": "07:30",
                                   "remark": " 首条产线 "
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workCenterCode").value("WC-001"))
                 .andExpect(jsonPath("$.data.workCenterName").value("焊接一车间"))
+                .andExpect(jsonPath("$.data.dailyCapacityMinutes").value(600))
+                .andExpect(jsonPath("$.data.workdayStartTime").value("07:30:00"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data.remark").value("首条产线"))
                 .andReturn());
@@ -82,6 +86,8 @@ class ProductionWorkCenterControllerTest {
                         .content("""
                                 {
                                   "workCenterName": " 焊接总装线 ",
+                                  "dailyCapacityMinutes": 540,
+                                  "workdayStartTime": "08:15",
                                   "remark": " 已更新 "
                                 }
                                 """))
@@ -89,6 +95,8 @@ class ProductionWorkCenterControllerTest {
                 .andExpect(jsonPath("$.data.id").value(id))
                 .andExpect(jsonPath("$.data.workCenterCode").value("WC-001"))
                 .andExpect(jsonPath("$.data.workCenterName").value("焊接总装线"))
+                .andExpect(jsonPath("$.data.dailyCapacityMinutes").value(540))
+                .andExpect(jsonPath("$.data.workdayStartTime").value("08:15:00"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data.remark").value("已更新"));
 
@@ -97,6 +105,8 @@ class ProductionWorkCenterControllerTest {
                 .andExpect(jsonPath("$.data.id").value(id))
                 .andExpect(jsonPath("$.data.workCenterCode").value("WC-001"))
                 .andExpect(jsonPath("$.data.workCenterName").value("焊接总装线"))
+                .andExpect(jsonPath("$.data.dailyCapacityMinutes").value(540))
+                .andExpect(jsonPath("$.data.workdayStartTime").value("08:15:00"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data.remark").value("已更新"));
 
@@ -110,6 +120,8 @@ class ProductionWorkCenterControllerTest {
                 .andExpect(jsonPath("$.data.records[0].id").value(id))
                 .andExpect(jsonPath("$.data.records[0].workCenterCode").value("WC-001"))
                 .andExpect(jsonPath("$.data.records[0].workCenterName").value("焊接总装线"))
+                .andExpect(jsonPath("$.data.records[0].dailyCapacityMinutes").value(540))
+                .andExpect(jsonPath("$.data.records[0].workdayStartTime").value("08:15:00"))
                 .andExpect(jsonPath("$.data.records[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data.records[0].remark").value("已更新"));
 

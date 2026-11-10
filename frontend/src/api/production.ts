@@ -144,7 +144,16 @@ export interface ProductionOrder {
   plannedStartDate?: string
   plannedFinishDate?: string
   issuedAmount?: number
+  laborAmount?: number
+  overheadAmount?: number
   finishedAmount?: number
+  finishedMaterialAmount?: number
+  finishedLaborAmount?: number
+  finishedOverheadAmount?: number
+  costCloseStatus?: 'OPEN' | 'CLOSED'
+  settledVarianceAmount?: number
+  costCloseEntryId?: string
+  costClosedDate?: string
   warehouseName?: string
   planStartDate: string
   planEndDate: string
@@ -177,10 +186,9 @@ export interface ProductionOrderMaterial {
 
 // 生产订单查询参数
 export interface ProductionOrderQuery extends PageQuery {
-  orderNo?: string
+  keyword?: string
   productId?: string | number
   status?: string
-  priority?: string
   planStartDate?: string
   planEndDate?: string
 }
@@ -367,6 +375,16 @@ const normalizeProductionOrder = (order: ProductionOrder): ProductionOrder => ({
   planStartDate: order.planStartDate ?? order.plannedStartDate ?? '',
   planEndDate: order.planEndDate ?? order.plannedFinishDate ?? '',
   priority: order.priority ?? 'NORMAL',
+  issuedAmount: Number(order.issuedAmount ?? 0),
+  laborAmount: Number(order.laborAmount ?? 0),
+  overheadAmount: Number(order.overheadAmount ?? 0),
+  finishedAmount: Number(order.finishedAmount ?? 0),
+  finishedMaterialAmount: Number(order.finishedMaterialAmount ?? 0),
+  finishedLaborAmount: Number(order.finishedLaborAmount ?? 0),
+  finishedOverheadAmount: Number(order.finishedOverheadAmount ?? 0),
+  costCloseStatus: order.costCloseStatus ?? 'OPEN',
+  settledVarianceAmount: Number(order.settledVarianceAmount ?? 0),
+  costCloseEntryId: order.costCloseEntryId != null ? String(order.costCloseEntryId) : undefined,
   materials: (order.materials || []).map(normalizeProductionOrderMaterial)
 })
 
@@ -408,6 +426,8 @@ export interface WorkCenter {
   id: string
   workCenterCode: string
   workCenterName: string
+  dailyCapacityMinutes: number
+  workdayStartTime: string
   status: 'ACTIVE' | 'DISABLED' | string
   remark?: string
 }
@@ -422,18 +442,24 @@ export interface WorkCenterQuery extends PageQuery {
 export interface WorkCenterCreateRequest {
   workCenterCode: string
   workCenterName: string
+  dailyCapacityMinutes: number
+  workdayStartTime: string
   remark?: string
 }
 
 // 工作中心更新请求
 export interface WorkCenterUpdateRequest {
   workCenterName: string
+  dailyCapacityMinutes: number
+  workdayStartTime: string
   remark?: string
 }
 
 const normalizeWorkCenter = (workCenter: WorkCenter): WorkCenter => ({
   ...workCenter,
-  id: String(workCenter.id)
+  id: String(workCenter.id),
+  dailyCapacityMinutes: Number(workCenter.dailyCapacityMinutes ?? 480),
+  workdayStartTime: workCenter.workdayStartTime || '08:00:00'
 })
 
 /**
@@ -611,11 +637,15 @@ export interface ProductionOrderOperation {
   operationName: string
   workCenterId?: string | number
   workCenterName?: string
+  standardMinutes: number
   plannedQty: number
   reportedQty: number
   qualifiedQty: number
   scrapQty: number
   status: 'PENDING' | 'IN_PROGRESS' | 'DONE' | string
+  scheduledMinutes?: number
+  scheduledStartTime?: string
+  scheduledEndTime?: string
   remark?: string
 }
 
@@ -632,10 +662,12 @@ const normalizeOperation = (op: ProductionOrderOperation): ProductionOrderOperat
   id: String(op.id),
   orderId: String(op.orderId),
   workCenterId: op.workCenterId != null ? String(op.workCenterId) : op.workCenterId,
+  standardMinutes: Number(op.standardMinutes ?? 0),
   plannedQty: Number(op.plannedQty ?? 0),
   reportedQty: Number(op.reportedQty ?? 0),
   qualifiedQty: Number(op.qualifiedQty ?? 0),
-  scrapQty: Number(op.scrapQty ?? 0)
+  scrapQty: Number(op.scrapQty ?? 0),
+  scheduledMinutes: op.scheduledMinutes == null ? undefined : Number(op.scheduledMinutes)
 })
 
 export const getProductionOrderOperations = (orderId: string | number) => {
@@ -652,4 +684,390 @@ export const reportProductionOperation = (
   return request
     .post<ProductionOrderOperation>(`/production/orders/${orderId}/operations/${operationId}/report`, data)
     .then(normalizeOperation)
+}
+
+// ==================== 有限产能排程 ====================
+
+export interface ProductionScheduleRequest {
+  startDate: string
+  endDate: string
+}
+
+export interface ProductionScheduleItem {
+  operationId: string
+  orderId: string
+  orderNo: string
+  productId: string
+  dueDate?: string
+  lineNo: number
+  operationCode: string
+  operationName: string
+  workCenterId?: string
+  workCenterCode?: string
+  workCenterName?: string
+  remainingQty: number
+  standardMinutes: number
+  requiredMinutes: number
+  scheduledStartTime?: string
+  scheduledEndTime?: string
+  capacityWaitMinutes: number
+  delayed: boolean
+  lateMinutes: number
+  scheduleStatus: 'SCHEDULED' | 'UNSCHEDULED' | string
+  reason?: string
+}
+
+export interface ProductionScheduleWorkCenter {
+  workCenterId: string
+  workCenterCode: string
+  workCenterName: string
+  dailyCapacityMinutes: number
+  workdayStartTime: string
+  horizonCapacityMinutes: number
+  scheduledMinutes: number
+  utilizationPercent: number
+}
+
+export interface ProductionScheduleResult {
+  startDate: string
+  endDate: string
+  committed: boolean
+  orderCount: number
+  operationCount: number
+  scheduledCount: number
+  unscheduledCount: number
+  delayedCount: number
+  generatedTime: string
+  items: ProductionScheduleItem[]
+  workCenters: ProductionScheduleWorkCenter[]
+}
+
+const normalizeScheduleResult = (result: ProductionScheduleResult): ProductionScheduleResult => ({
+  ...result,
+  orderCount: Number(result.orderCount ?? 0),
+  operationCount: Number(result.operationCount ?? 0),
+  scheduledCount: Number(result.scheduledCount ?? 0),
+  unscheduledCount: Number(result.unscheduledCount ?? 0),
+  delayedCount: Number(result.delayedCount ?? 0),
+  items: (result.items || []).map((item) => ({
+    ...item,
+    operationId: String(item.operationId),
+    orderId: String(item.orderId),
+    productId: String(item.productId),
+    workCenterId: item.workCenterId == null ? undefined : String(item.workCenterId),
+    remainingQty: Number(item.remainingQty ?? 0),
+    standardMinutes: Number(item.standardMinutes ?? 0),
+    requiredMinutes: Number(item.requiredMinutes ?? 0),
+    capacityWaitMinutes: Number(item.capacityWaitMinutes ?? 0),
+    lateMinutes: Number(item.lateMinutes ?? 0)
+  })),
+  workCenters: (result.workCenters || []).map((center) => ({
+    ...center,
+    workCenterId: String(center.workCenterId),
+    dailyCapacityMinutes: Number(center.dailyCapacityMinutes ?? 0),
+    horizonCapacityMinutes: Number(center.horizonCapacityMinutes ?? 0),
+    scheduledMinutes: Number(center.scheduledMinutes ?? 0),
+    utilizationPercent: Number(center.utilizationPercent ?? 0)
+  }))
+})
+
+export const previewProductionSchedule = (data: ProductionScheduleRequest) =>
+  request.post<ProductionScheduleResult>('/production/schedules/preview', data).then(normalizeScheduleResult)
+
+export const runProductionSchedule = (data: ProductionScheduleRequest) =>
+  request.post<ProductionScheduleResult>('/production/schedules/run', data).then(normalizeScheduleResult)
+
+// ==================== 生产成本归集 ====================
+
+export type ProductionCostType = 'LABOR' | 'OVERHEAD'
+export type ProductionCostEntryKind = 'ORIGINAL' | 'REVERSAL' | 'CORRECTION'
+
+export interface ProductionCostEntry {
+  id: string | number
+  costNo: string
+  orderId: string | number
+  operationId?: string | number
+  costType: ProductionCostType
+  businessDate: string
+  amount: number
+  status: string
+  entryKind: ProductionCostEntryKind
+  reversalOfEntryId?: string | number
+  reversalOfCostNo?: string
+  correctionOfEntryId?: string | number
+  correctionOfCostNo?: string
+  reversalEntryId?: string | number
+  reversalCostNo?: string
+  correctionEntryId?: string | number
+  correctionCostNo?: string
+  remark?: string
+  createdTime?: string
+}
+
+export interface ProductionCostEntryRequest {
+  costType: ProductionCostType
+  operationId?: string | number
+  businessDate: string
+  amount: number
+  remark?: string
+}
+
+export interface ProductionCostEntryReversalRequest {
+  businessDate: string
+  reason: string
+}
+
+export interface ProductionCostEntryCorrectionRequest extends ProductionCostEntryRequest {
+  reason: string
+}
+
+export type ProductionCostCloseEntryKind = 'CLOSE' | 'REVERSAL'
+
+export interface ProductionCostCloseEntry {
+  id: string | number
+  closeNo: string
+  orderId: string | number
+  businessDate: string
+  amount: number
+  status: string
+  entryKind: ProductionCostCloseEntryKind
+  reversalOfCloseId?: string | number
+  reversalOfCloseNo?: string
+  reversalEntryId?: string | number
+  reversalCloseNo?: string
+  reason?: string
+  remark?: string
+  createdTime?: string
+}
+
+export interface ProductionCostCloseRequest {
+  businessDate: string
+  remark?: string
+}
+
+export interface ProductionCostReopenRequest {
+  businessDate: string
+  reason: string
+}
+
+export interface ProductionCostPeriodCloseItem {
+  orderId: string
+  orderNo: string
+  productId: string
+  completionDate: string
+  latestActivityDate?: string
+  issuedAmount: number
+  laborAmount: number
+  overheadAmount: number
+  finishedAmount: number
+  unsettledVarianceAmount: number
+}
+
+export interface ProductionCostPeriod {
+  id: string
+  periodYear: number
+  periodMonth: string
+  startDate: string
+  endDate: string
+  status: string
+}
+
+export interface ProductionCostPeriodClosePreview {
+  periodId: string
+  periodMonth: string
+  startDate: string
+  endDate: string
+  periodStatus: string
+  candidateCount: number
+  positiveVarianceAmount: number
+  negativeVarianceAmount: number
+  netVarianceAmount: number
+  items: ProductionCostPeriodCloseItem[]
+}
+
+export interface ProductionCostPeriodCloseBatchRequest {
+  orderIds: Array<string | number>
+  remark?: string
+}
+
+export interface ProductionCostPeriodCloseBatchItem {
+  orderId: string
+  orderNo?: string
+  success: boolean
+  closeId?: string
+  closeNo?: string
+  varianceAmount?: number
+  errorCode?: string
+  errorMessage?: string
+}
+
+export interface ProductionCostPeriodCloseBatch {
+  periodId: string
+  periodMonth: string
+  businessDate: string
+  requestedCount: number
+  successCount: number
+  failureCount: number
+  closedVarianceAmount: number
+  operatorId: string
+  executedTime: string
+  results: ProductionCostPeriodCloseBatchItem[]
+}
+
+export interface ProductionCostPeriodCloseEvidence {
+  id: string
+  operatorId?: string
+  operatorName?: string
+  auditTime: string
+  message: string
+  batch: ProductionCostPeriodCloseBatch
+}
+
+const normalizeCostEntry = (entry: ProductionCostEntry): ProductionCostEntry => ({
+  ...entry,
+  id: String(entry.id),
+  orderId: String(entry.orderId),
+  operationId: entry.operationId != null ? String(entry.operationId) : undefined,
+  reversalOfEntryId: entry.reversalOfEntryId != null ? String(entry.reversalOfEntryId) : undefined,
+  correctionOfEntryId: entry.correctionOfEntryId != null ? String(entry.correctionOfEntryId) : undefined,
+  reversalEntryId: entry.reversalEntryId != null ? String(entry.reversalEntryId) : undefined,
+  correctionEntryId: entry.correctionEntryId != null ? String(entry.correctionEntryId) : undefined,
+  amount: Number(entry.amount ?? 0)
+})
+
+export const getProductionOrderCosts = (orderId: string | number) => {
+  return request
+    .get<ProductionCostEntry[]>(`/production/orders/${orderId}/costs`)
+    .then((list) => (list || []).map(normalizeCostEntry))
+}
+
+export const postProductionOrderCost = (
+  orderId: string | number,
+  data: ProductionCostEntryRequest
+) => {
+  return request
+    .post<ProductionCostEntry>(`/production/orders/${orderId}/costs`, data)
+    .then(normalizeCostEntry)
+}
+
+export const reverseProductionOrderCost = (
+  orderId: string | number,
+  costEntryId: string | number,
+  data: ProductionCostEntryReversalRequest
+) => {
+  return request
+    .post<ProductionCostEntry>(`/production/orders/${orderId}/costs/${costEntryId}/reverse`, data)
+    .then(normalizeCostEntry)
+}
+
+export const correctProductionOrderCost = (
+  orderId: string | number,
+  costEntryId: string | number,
+  data: ProductionCostEntryCorrectionRequest
+) => {
+  return request
+    .post<ProductionCostEntry>(`/production/orders/${orderId}/costs/${costEntryId}/correct`, data)
+    .then(normalizeCostEntry)
+}
+
+const normalizeCostCloseEntry = (entry: ProductionCostCloseEntry): ProductionCostCloseEntry => ({
+  ...entry,
+  id: String(entry.id),
+  orderId: String(entry.orderId),
+  reversalOfCloseId: entry.reversalOfCloseId != null ? String(entry.reversalOfCloseId) : undefined,
+  reversalEntryId: entry.reversalEntryId != null ? String(entry.reversalEntryId) : undefined,
+  amount: Number(entry.amount ?? 0)
+})
+
+export const getProductionOrderCostCloses = (orderId: string | number) => {
+  return request
+    .get<ProductionCostCloseEntry[]>(`/production/orders/${orderId}/cost-closes`)
+    .then((list) => (list || []).map(normalizeCostCloseEntry))
+}
+
+export const closeProductionOrderCost = (
+  orderId: string | number,
+  data: ProductionCostCloseRequest
+) => {
+  return request
+    .post<ProductionCostCloseEntry>(`/production/orders/${orderId}/cost-close`, data)
+    .then(normalizeCostCloseEntry)
+}
+
+export const reopenProductionOrderCost = (
+  orderId: string | number,
+  data: ProductionCostReopenRequest
+) => {
+  return request
+    .post<ProductionCostCloseEntry>(`/production/orders/${orderId}/cost-reopen`, data)
+    .then(normalizeCostCloseEntry)
+}
+
+const normalizePeriodCloseItem = (item: ProductionCostPeriodCloseItem): ProductionCostPeriodCloseItem => ({
+  ...item,
+  orderId: String(item.orderId),
+  productId: String(item.productId),
+  issuedAmount: Number(item.issuedAmount ?? 0),
+  laborAmount: Number(item.laborAmount ?? 0),
+  overheadAmount: Number(item.overheadAmount ?? 0),
+  finishedAmount: Number(item.finishedAmount ?? 0),
+  unsettledVarianceAmount: Number(item.unsettledVarianceAmount ?? 0)
+})
+
+export const getProductionCostPeriods = () => {
+  return request
+    .get<ProductionCostPeriod[]>('/production/cost-close-periods')
+    .then((periods) => periods.map((period) => ({ ...period, id: String(period.id) })))
+}
+
+const normalizePeriodCloseBatch = (batch: ProductionCostPeriodCloseBatch): ProductionCostPeriodCloseBatch => ({
+  ...batch,
+  periodId: String(batch.periodId),
+  operatorId: String(batch.operatorId),
+  closedVarianceAmount: Number(batch.closedVarianceAmount ?? 0),
+  results: (batch.results || []).map((item) => ({
+    ...item,
+    orderId: String(item.orderId),
+    closeId: item.closeId != null ? String(item.closeId) : undefined,
+    varianceAmount: item.varianceAmount == null ? undefined : Number(item.varianceAmount)
+  }))
+})
+
+export const getProductionCostPeriodClosePreview = (periodId: string | number) => {
+  return request
+    .get<ProductionCostPeriodClosePreview>(`/production/cost-close-periods/${periodId}/preview`)
+    .then((preview) => ({
+      ...preview,
+      periodId: String(preview.periodId),
+      positiveVarianceAmount: Number(preview.positiveVarianceAmount ?? 0),
+      negativeVarianceAmount: Number(preview.negativeVarianceAmount ?? 0),
+      netVarianceAmount: Number(preview.netVarianceAmount ?? 0),
+      items: (preview.items || []).map(normalizePeriodCloseItem)
+    }))
+}
+
+export const batchCloseProductionCosts = (
+  periodId: string | number,
+  data: ProductionCostPeriodCloseBatchRequest
+) => {
+  return request
+    .post<ProductionCostPeriodCloseBatch>(`/production/cost-close-periods/${periodId}/batch-close`, data)
+    .then(normalizePeriodCloseBatch)
+}
+
+export const getProductionCostPeriodCloseEvidence = (
+  periodId: string | number,
+  params?: PageQuery
+) => {
+  return request
+    .get<PageResponse<ProductionCostPeriodCloseEvidence>>(`/production/cost-close-periods/${periodId}/evidence`, { params })
+    .then((page) => ({
+      ...page,
+      records: page.records.map((evidence) => ({
+        ...evidence,
+        id: String(evidence.id),
+        operatorId: evidence.operatorId != null ? String(evidence.operatorId) : undefined,
+        batch: normalizePeriodCloseBatch(evidence.batch)
+      }))
+    }))
 }

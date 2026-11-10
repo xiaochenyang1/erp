@@ -20,12 +20,18 @@ const TYPE_TAG_TYPES: Record<string, TagType> = {
 
 const STATUS_KEYS: Record<string, string> = {
   DRAFT: 'inventoryAdjustments.status.draft',
+  SUBMITTED: 'inventoryAdjustments.status.submitted',
+  APPROVED: 'inventoryAdjustments.status.approved',
+  REJECTED: 'inventoryAdjustments.status.rejected',
   COMPLETED: 'inventoryAdjustments.status.completed',
   CANCELLED: 'inventoryAdjustments.status.cancelled'
 }
 
 const STATUS_TAG_TYPES: Record<string, TagType> = {
   DRAFT: 'info',
+  SUBMITTED: 'warning',
+  APPROVED: 'success',
+  REJECTED: 'danger',
   COMPLETED: 'success',
   CANCELLED: 'danger'
 }

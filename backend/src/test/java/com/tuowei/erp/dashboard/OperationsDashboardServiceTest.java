@@ -5,11 +5,20 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
+import com.tuowei.erp.common.security.CurrentUser;
+import com.tuowei.erp.common.security.CurrentUserContext;
+import com.tuowei.erp.common.security.DataScopeService;
+import com.tuowei.erp.common.security.DataScopeSnapshot;
+import com.tuowei.erp.common.security.ErpPrincipal;
+import com.tuowei.erp.common.security.ScopedUserResolver;
+import com.tuowei.erp.dashboard.service.OperationsDashboardPresentationService;
+import com.tuowei.erp.dashboard.service.OperationsDashboardQueryService;
 import com.tuowei.erp.dashboard.service.OperationsDashboardService;
 import com.tuowei.erp.finance.payable.mapper.PayableMapper;
 import com.tuowei.erp.finance.payable.model.PayableEntity;
 import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.receivable.model.ReceivableEntity;
+import com.tuowei.erp.finance.settlement.service.FinanceSettlementScopeSupport;
 import com.tuowei.erp.inventory.alert.service.InventoryAlertService;
 import com.tuowei.erp.inventory.alert.web.InventoryLowStockResponse;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
@@ -42,6 +51,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,6 +72,18 @@ class OperationsDashboardServiceTest {
 
     @Mock
     private AuditMetadataFactory auditMetadataFactory;
+
+    @Mock
+    private CurrentUserContext currentUserContext;
+
+    @Mock
+    private DataScopeService dataScopeService;
+
+    @Mock
+    private ScopedUserResolver scopedUserResolver;
+
+    @Mock
+    private FinanceSettlementScopeSupport financeSettlementScopeSupport;
 
     @Mock
     private WorkflowTaskMapper workflowTaskMapper;
@@ -104,6 +126,7 @@ class OperationsDashboardServiceTest {
 
     @Test
     void aggregatesMetricsTodosAndTenantScopedQueries() {
+        stubAllScope();
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
         when(workflowTaskMapper.selectCount(any())).thenReturn(2L, 1L);
         when(workflowTaskMapper.selectList(any())).thenReturn(List.of(
@@ -130,7 +153,7 @@ class OperationsDashboardServiceTest {
         when(operationLogMapper.selectList(any())).thenReturn(List.of(
                 failedOperation(9501L, "purchase", "post", "GR-001", LocalDateTime.of(2026, 6, 30, 9, 30))
         ));
-        when(salesDeliveryLineMapper.selectTopSkus(101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5))
+        when(salesDeliveryLineMapper.selectTopSkusScoped(101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5, null, null))
                 .thenReturn(List.of(new OperationsDashboardTopSkuResponse(
                         701L, "SKU-001", "畅销商品", "件", new BigDecimal("12.0000"), new BigDecimal("3600.00"))));
 
@@ -183,6 +206,7 @@ class OperationsDashboardServiceTest {
 
     @Test
     void capsTodosAtTwelveItems() {
+        stubAllScope();
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
         when(workflowTaskMapper.selectCount(any())).thenReturn(15L);
         List<WorkflowTaskEntity> tasks = new ArrayList<>();
@@ -206,6 +230,7 @@ class OperationsDashboardServiceTest {
 
     @Test
     void localizesTodoTextForEnglishLocale() {
+        stubAllScope();
         LocaleContextHolder.setLocale(Locale.US);
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
         when(workflowTaskMapper.selectCount(any())).thenReturn(1L, 0L);
@@ -228,7 +253,7 @@ class OperationsDashboardServiceTest {
         when(operationLogMapper.selectList(any())).thenReturn(List.of(
                 failedOperation(9501L, "purchase", "post", "GR-001", LocalDateTime.of(2026, 6, 30, 9, 30))
         ));
-        when(salesDeliveryLineMapper.selectTopSkus(101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5))
+        when(salesDeliveryLineMapper.selectTopSkusScoped(101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5, null, null))
                 .thenReturn(List.of());
 
         var response = service().getOperationsDashboard();
@@ -271,9 +296,105 @@ class OperationsDashboardServiceTest {
                 });
     }
 
+    @Test
+    void appliesWarehouseScopeToInventoryAndTopSkuQueries() {
+        DataScopeSnapshot snapshot = new DataScopeSnapshot(false, false, false, false, Set.of(601L));
+        stubScope(snapshot);
+        when(inventoryAlertService.listLowStock(null, null, AUDIT, Set.of(601L))).thenReturn(List.of());
+        when(workflowTaskMapper.selectCount(any())).thenReturn(0L, 0L);
+        when(workflowTaskMapper.selectList(any())).thenReturn(List.of());
+        when(receivableMapper.selectCount(any())).thenReturn(0L);
+        when(receivableMapper.selectList(any())).thenReturn(List.of());
+        when(payableMapper.selectCount(any())).thenReturn(0L);
+        when(payableMapper.selectList(any())).thenReturn(List.of());
+        when(purchaseOrderMapper.selectCount(any())).thenReturn(0L);
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of());
+        when(operationLogMapper.selectList(any())).thenReturn(List.of());
+        when(salesDeliveryLineMapper.selectTopSkusScoped(
+                101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5, Set.of(), Set.of(601L)))
+                .thenReturn(List.of());
+
+        service().getOperationsDashboard();
+
+        verify(inventoryAlertService).listLowStock(null, null, AUDIT, Set.of(601L));
+        verify(salesDeliveryLineMapper).selectTopSkusScoped(
+                101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5, Set.of(), Set.of(601L));
+        verify(dataScopeService).applyPurchaseOrderScope(any(), any(), org.mockito.ArgumentMatchers.eq(snapshot), any(), any());
+        verify(dataScopeService).applySalesOrderScope(any(), any(), org.mockito.ArgumentMatchers.eq(snapshot), any(), any());
+    }
+
+    @Test
+    void noneScopeAddsRejectPredicatesToDocumentAndFinanceQueries() {
+        DataScopeSnapshot snapshot = DataScopeSnapshot.none();
+        stubScope(snapshot);
+        when(inventoryAlertService.listLowStock(null, null, AUDIT, Set.of())).thenReturn(List.of());
+        when(workflowTaskMapper.selectCount(any())).thenReturn(0L, 0L);
+        when(workflowTaskMapper.selectList(any())).thenReturn(List.of());
+        when(receivableMapper.selectCount(any())).thenReturn(0L);
+        when(receivableMapper.selectList(any())).thenReturn(List.of());
+        when(payableMapper.selectCount(any())).thenReturn(0L);
+        when(payableMapper.selectList(any())).thenReturn(List.of());
+        when(purchaseOrderMapper.selectCount(any())).thenReturn(0L);
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of());
+        when(operationLogMapper.selectList(any())).thenReturn(List.of());
+        when(salesDeliveryLineMapper.selectTopSkusScoped(
+                101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5, Set.of(), Set.of()))
+                .thenReturn(List.of());
+        when(dataScopeService.applyPurchaseOrderScope(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> ((LambdaQueryWrapper<?>) invocation.getArgument(0)).apply("1 = 0"));
+        when(dataScopeService.applySalesOrderScope(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> ((LambdaQueryWrapper<?>) invocation.getArgument(0)).apply("1 = 0"));
+        when(financeSettlementScopeSupport.applyReceivableScope(any()))
+                .thenAnswer(invocation -> ((LambdaQueryWrapper<?>) invocation.getArgument(0)).apply("1 = 0"));
+        when(financeSettlementScopeSupport.applyPayableScope(any()))
+                .thenAnswer(invocation -> ((LambdaQueryWrapper<?>) invocation.getArgument(0)).apply("1 = 0"));
+
+        service().getOperationsDashboard();
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<PurchaseOrderEntity>> purchaseCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(purchaseOrderMapper).selectCount(purchaseCaptor.capture());
+        assertThat(purchaseCaptor.getValue().getSqlSegment()).contains("1 = 0");
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaQueryWrapper<ReceivableEntity>> receivableCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(receivableMapper).selectCount(receivableCaptor.capture());
+        assertThat(receivableCaptor.getValue().getSqlSegment()).contains("1 = 0");
+    }
+
+    @Test
+    void selfScopePassesCurrentUserToTopSkuAggregation() {
+        DataScopeSnapshot snapshot = new DataScopeSnapshot(false, false, false, true, Set.of());
+        stubScope(snapshot);
+        when(inventoryAlertService.listLowStock(null, null, AUDIT, Set.of())).thenReturn(List.of());
+        when(workflowTaskMapper.selectCount(any())).thenReturn(0L, 0L);
+        when(workflowTaskMapper.selectList(any())).thenReturn(List.of());
+        when(receivableMapper.selectCount(any())).thenReturn(0L);
+        when(receivableMapper.selectList(any())).thenReturn(List.of());
+        when(payableMapper.selectCount(any())).thenReturn(0L);
+        when(payableMapper.selectList(any())).thenReturn(List.of());
+        when(purchaseOrderMapper.selectCount(any())).thenReturn(0L);
+        when(salesOrderMapper.selectList(any())).thenReturn(List.of());
+        when(operationLogMapper.selectList(any())).thenReturn(List.of());
+        when(salesDeliveryLineMapper.selectTopSkusScoped(
+                101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5,
+                Set.of(AUDIT.userId()), Set.of())).thenReturn(List.of());
+
+        service().getOperationsDashboard();
+
+        verify(salesDeliveryLineMapper).selectTopSkusScoped(
+                101L, 202L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5,
+                Set.of(AUDIT.userId()), Set.of());
+    }
+
     private OperationsDashboardService service() {
-        return new OperationsDashboardService(
+        OperationsDashboardQueryService queryService = new OperationsDashboardQueryService(
                 auditMetadataFactory,
+                currentUserContext,
+                dataScopeService,
+                scopedUserResolver,
+                financeSettlementScopeSupport,
                 workflowTaskMapper,
                 inventoryAlertService,
                 receivableMapper,
@@ -282,9 +403,37 @@ class OperationsDashboardServiceTest {
                 salesOrderMapper,
                 operationLogMapper,
                 salesDeliveryLineMapper,
-                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai")),
-                MESSAGE_SOURCE
+                Clock.fixed(Instant.parse("2026-06-30T02:00:00Z"), ZoneId.of("Asia/Shanghai"))
         );
+        return new OperationsDashboardService(
+                queryService,
+                new OperationsDashboardPresentationService(MESSAGE_SOURCE)
+        );
+    }
+
+    private void stubAllScope() {
+        stubScope(DataScopeSnapshot.all());
+    }
+
+    private void stubScope(DataScopeSnapshot snapshot) {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        CurrentUser currentUser = new CurrentUser(
+                AUDIT.userId(), AUDIT.companyId(), AUDIT.accountBookId(), 11L, 12L, "scope_user", "Scope User");
+        when(currentUserContext.requireCurrentUser()).thenReturn(currentUser);
+        when(currentUserContext.requirePrincipal()).thenReturn(new ErpPrincipal(
+                currentUser.userId(), currentUser.companyId(), currentUser.accountBookId(), currentUser.deptId(),
+                currentUser.postId(), currentUser.username(), currentUser.realName(), "password", Set.of(),
+                snapshot));
+        when(scopedUserResolver.resolve(currentUser, snapshot))
+                .thenReturn(new ScopedUserResolver.ScopedUserIds(Set.of(), Set.of()));
+        when(dataScopeService.applyPurchaseOrderScope(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(dataScopeService.applySalesOrderScope(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(financeSettlementScopeSupport.applyReceivableScope(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(financeSettlementScopeSupport.applyPayableScope(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     private static WorkflowTaskEntity workflowTask(Long id, String businessType, String businessNo, LocalDateTime createdTime) {

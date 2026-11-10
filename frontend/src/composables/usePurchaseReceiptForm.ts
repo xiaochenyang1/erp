@@ -165,6 +165,10 @@ export const usePurchaseReceiptForm = (
     const summary = availableOrders.value.find((order) => String(order.id) === String(orderId))
     const order = summary?.items?.length ? summary : await options.getOrder(orderId)
     if (!order) return
+    if (order.plannedWarehouseId != null) {
+      form.warehouseId = order.plannedWarehouseId
+      await options.loadLocations(form.warehouseId)
+    }
 
     const orderItems = (order.items || []).map((item) => ({
       orderItemId: item.id,

@@ -16,6 +16,8 @@ import { getRuntimeMenuTree, type RuntimeMenu } from '@/api/auth'
 export const useMenuStore = defineStore('menu', () => {
   const menuTree = ref<RuntimeMenu[]>([])
   const loaded = ref(false)
+  let loadingPromise: Promise<boolean> | null = null
+  let loadVersion = 0
 
   // 后端菜单树里所有非空 path 的集合（CATALOG/MENU 节点），BUTTON 节点 path 为空自然忽略
   const visiblePaths = computed(() => {
@@ -30,18 +32,38 @@ export const useMenuStore = defineStore('menu', () => {
     return set
   })
 
-  const loadMenus = async () => {
-    try {
-      menuTree.value = await getRuntimeMenuTree()
-      loaded.value = true
-    } catch (error) {
-      // 接口失败时不阻塞进入系统：侧边栏回退到按权限过滤静态路由
-      console.error('加载运行时菜单失败，回退到静态菜单', error)
-      loaded.value = false
-    }
+  const loadMenus = async (): Promise<boolean> => {
+    if (loaded.value) return true
+    if (loadingPromise) return loadingPromise
+
+    const version = loadVersion
+    loadingPromise = (async () => {
+      try {
+        const tree = (await getRuntimeMenuTree()) || []
+        if (version !== loadVersion) return false
+        menuTree.value = tree
+        // 空树也是一次成功响应，不能回退到静态权限菜单。
+        loaded.value = true
+        return true
+      } catch (error) {
+        if (version !== loadVersion) return false
+        // 接口失败时保留静态菜单回退，路由守卫会继续使用 API 权限校验。
+        console.error('加载运行时菜单失败，回退到静态菜单', error)
+        loaded.value = false
+        return false
+      } finally {
+        if (version === loadVersion) {
+          loadingPromise = null
+        }
+      }
+    })()
+
+    return loadingPromise
   }
 
   const reset = () => {
+    loadVersion++
+    loadingPromise = null
     menuTree.value = []
     loaded.value = false
   }

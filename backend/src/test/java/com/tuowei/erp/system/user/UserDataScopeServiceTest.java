@@ -12,6 +12,8 @@ import com.tuowei.erp.system.datascope.mapper.UserDataScopeMapper;
 import com.tuowei.erp.system.datascope.model.UserDataScopeEntity;
 import com.tuowei.erp.system.user.mapper.UserMapper;
 import com.tuowei.erp.system.user.model.UserEntity;
+import com.tuowei.erp.system.user.service.UserDataScopeCommandService;
+import com.tuowei.erp.system.user.service.UserDataScopeQueryService;
 import com.tuowei.erp.system.user.service.UserDataScopeService;
 import com.tuowei.erp.system.user.web.UserDataScopeAssignRequest;
 import com.tuowei.erp.system.user.web.UserDataScopeResponse;
@@ -48,14 +50,20 @@ class UserDataScopeServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserDataScopeService(
+        UserDataScopeQueryService queryService = new UserDataScopeQueryService(
                 userMapper,
+                userDataScopeMapper,
+                auditMetadataFactory,
+                dataScopeService
+        );
+        UserDataScopeCommandService commandService = new UserDataScopeCommandService(
                 userDataScopeMapper,
                 warehouseMapper,
                 auditMetadataFactory,
                 principalCache,
-                dataScopeService
+                queryService
         );
+        service = new UserDataScopeService(queryService, commandService);
     }
 
     @Test

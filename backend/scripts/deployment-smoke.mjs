@@ -1,0 +1,241 @@
+// Test a copied deployment bundle on disposable local services, never an existing target.
+import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
+import { createHash, randomBytes } from 'node:crypto'
+import { cp, mkdir, mkdtemp, readFile, writeFile, appendFile, realpath, rename, rm } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { parseArgs, promisify } from 'node:util'
+import { setTimeout as delay } from 'node:timers/promises'
+import { verifyDeploymentBundle, initializeDeployment } from './deployment-bundle.mjs'
+import { browserCheck } from './deployment-browser.mjs'
+import { cleanupSmokeProcesses } from './ui-smoke-processes.mjs'
+import { runTrial } from './trial-business-acceptance.mjs'
+import { prepareReplacementNetwork } from './deployment-smoke-network.mjs'
+
+const execute = promisify(execFile)
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+const hash = bytes => createHash('sha256').update(bytes).digest('hex')
+const secrets = []
+let interrupted = false
+const redact = value => secrets.reduce((result, secret) => result.replaceAll(secret, '[REDACTED]'), String(value))
+const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(ERP_|MYSQL_|REDIS_|COMPOSE_|SPRING_|JAVA_)/.test(key)))
+
+async function until(check, timeout = 90000) {
+  const deadline = Date.now() + timeout
+  let lastError
+  do {
+    if (interrupted) throw new Error('Deployment smoke interrupted')
+    try { return await check() } catch (error) { lastError = error }
+    await delay(250)
+  } while (Date.now() < deadline)
+  throw lastError
+}
+
+async function freePort() {
+  const server = createServer()
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const port = server.address().port
+  await new Promise(resolve => server.close(resolve))
+  return port
+}
+
+async function main() {
+  const { values } = parseArgs({ options: { bundle: { type: 'string' }, 'expected-manifest-sha256': { type: 'string' }, evidence: { type: 'string' } } })
+  const verified = verifyDeploymentBundle({ bundleDirectory: values.bundle, expectedManifestSha256: values['expected-manifest-sha256'] })
+  const { stdout: revisionOutput } = await execute('git', ['rev-parse', 'HEAD'], { cwd: repo })
+  const { stdout: status } = await execute('git', ['status', '--porcelain'], { cwd: repo })
+  assert.equal(status.trim(), '', 'Commit smoke tooling before collecting deployment evidence')
+  const evidence = path.resolve(values.evidence)
+  assert(evidence !== repo && !evidence.startsWith(repo + path.sep), 'Evidence must be outside the source tree')
+  await mkdir(evidence, { mode: 0o700 }) // Refuse to overwrite previous evidence.
+  const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'erp-deployment-smoke-')))
+  const work = path.join(directory, 'bundle')
+  const project = `erp-preview-deployment-${randomBytes(6).toString('hex')}`
+  const holder = `${project}-ip-holder`
+  const children = []
+  const report = { schemaVersion: 1, kind: 'erp-deployment-smoke', status: 'RUNNING', startedAt: new Date().toISOString(), ...verified,
+    runtimeToolRevision: revisionOutput.trim(), project, checks: [],
+    scope: 'Local disposable fullstack prod deployment; synthetic data; not real preproduction or business signoff' }
+  let cdpCleanup, token, attachmentId
+  const onSignal = () => { interrupted = true }
+  process.on('SIGINT', onSignal); process.on('SIGTERM', onSignal)
+  const persist = async () => {
+    const temporary = path.join(evidence, 'report.json.tmp')
+    await writeFile(temporary, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 })
+    await rename(temporary, path.join(evidence, 'report.json'))
+  }
+  const command = async (program, args, timeout = 300000) => {
+    try {
+      const result = await execute(program, args, { cwd: work, env: environment, timeout, maxBuffer: 16 * 1024 * 1024 })
+      if (program === 'docker') await appendFile(path.join(evidence, 'docker.log'), redact(result.stdout + result.stderr))
+      return result.stdout
+    } catch (error) {
+      const output = redact((error.stdout || '') + (error.stderr || ''))
+      if (program === 'docker' && output) await appendFile(path.join(evidence, 'docker.log'), output)
+      const timeoutMessage = error.killed ? ` after ${timeout}ms timeout` : ''
+      throw new Error(redact(`${program} failed${timeoutMessage}: ${error.stderr || error.stdout || error.message}`))
+    }
+  }
+  const compose = (args, timeout) => command(
+    'docker',
+    ['compose', '-p', project, '--env-file', path.join(work, '.env'), '-f', path.join(work, 'compose.yaml'), ...args],
+    timeout
+  )
+  const check = async (name, action) => {
+    if (interrupted) throw new Error('Deployment smoke interrupted')
+    report.activeStep = name; await persist(); console.log(`[deployment] ${name}`)
+    try { report.checks.push({ name, passed: true, ...await action() }) }
+    catch (error) { report.checks.push({ name, passed: false, failure: redact(error.message) }); throw error }
+    report.activeStep = null; await persist()
+  }
+  try {
+    await cp(path.resolve(values.bundle), work, { recursive: true, filter: source => path.basename(source) !== '.env' })
+    const port = await freePort()
+    const base = `http://127.0.0.1:${port}`
+    initializeDeployment({ bundleDirectory: work, expectedManifestSha256: verified.manifestSha256, origin: base, port })
+    const config = Object.fromEntries((await readFile(path.join(work, '.env'), 'utf8')).trim().split('\n').map(line => {
+      const split = line.indexOf('='); return [line.slice(0, split), line.slice(split + 1)]
+    }))
+    secrets.push(...Object.entries(config).filter(([key]) => /PASSWORD|SECRET/.test(key)).map(([, value]) => value))
+    report.baseUrl = base
+    const request = (route, options = {}) => fetch(base + route, { ...options, signal: AbortSignal.timeout(15000) })
+    const api = async (route, options = {}) => {
+      const response = await request(route, { ...options, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } })
+      assert.equal(response.status, 200, `${route}: HTTP ${response.status}`)
+      const payload = await response.json(); assert.equal(payload.code, '0', `${route}: ${payload.message}`); return payload.data
+    }
+    await check('Compose isolation and production defaults', async () => {
+      const rendered = JSON.parse(await compose(['config', '--format', 'json']))
+      for (const name of ['mysql', 'redis', 'erp-server']) assert(!rendered.services[name].ports?.length, `${name} must not publish ports`)
+      assert.equal(rendered.services.web.ports[0].host_ip, '127.0.0.1')
+      assert.equal(rendered.services['erp-server'].environment.SPRING_PROFILES_ACTIVE, 'prod')
+      assert.notEqual(rendered.services['erp-server'].environment.ERP_RATE_LIMIT_ENABLED, 'false')
+      await writeFile(path.join(evidence, 'compose-redacted.json'), redact(JSON.stringify(rendered, null, 2)))
+      return { onlyWebPublished: true, prodProfile: true }
+    })
+    await check('Build accepted artifacts and start MySQL Redis backend and Nginx', async () => {
+      await compose(['build'], 600000)
+      const replacementNetwork = await prepareReplacementNetwork(args => command('docker', args), project)
+      await compose(['up', '-d', '--wait', '--wait-timeout', '300'])
+      const manifest = JSON.parse(await readFile(path.join(work, 'deployment-manifest.json')))
+      assert.equal((await compose(['exec', '-T', 'erp-server', 'sha256sum', '/app/erp-server.jar'])).split(/\s/)[0], manifest.jarSha256)
+      const nginxUser = (await compose(['exec', '-T', 'web', 'id', '-u'])).trim(); assert.notEqual(nginxUser, '0')
+      report.images = await compose(['images', '--format', 'json'])
+      return { jarSha256: manifest.jarSha256, nginxNonRoot: true, replacementNetwork }
+    })
+    await check('Static bytes deep links cache rules and missing assets', async () => {
+      const index = await readFile(path.join(work, 'frontend/artifact/dist/index.html'))
+      for (const route of ['/', '/sales/orders', '/finance/periods']) {
+        const response = await request(route); assert.equal(response.status, 200)
+        assert.match(response.headers.get('cache-control') || '', /no-store/)
+        assert.equal(hash(Buffer.from(await response.arrayBuffer())), hash(index))
+      }
+      const frontend = JSON.parse(await readFile(path.join(work, 'frontend/artifact/manifest.json')))
+      const asset = frontend.files.find(file => /^dist\/assets\/.+\.js$/.test(file.path))
+      const response = await request('/' + asset.path.slice(5)); assert.equal(response.status, 200)
+      assert.match(response.headers.get('cache-control') || '', /immutable/)
+      assert.match(response.headers.get('content-type') || '', /javascript/)
+      assert.equal(hash(Buffer.from(await response.arrayBuffer())), asset.sha256)
+      assert.equal((await request('/assets/missing.js')).status, 404)
+      const deployed = await (await request('/__deployment.json')).json()
+      assert.equal(deployed.applicationRevision, verified.applicationRevision)
+      assert.equal(deployed.toolRevision, verified.toolRevision)
+      return { immutableAssets: true, uncachedHtml: true, missingAssetStatus: 404 }
+    })
+    await check('Production API authentication and proxy error boundaries', async () => {
+      const unauthenticated = await request('/api/system/profile'); assert.equal(unauthenticated.status, 401)
+      assert.equal((await unauthenticated.json()).code, '401')
+      assert.equal((await request('/actuator/prometheus')).status, 404)
+      assert.equal((await request('/readyz')).status, 200)
+      const login = await api('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password: config.ERP_BOOTSTRAP_ADMIN_PASSWORD }) })
+      token = login.accessToken; assert(token); secrets.push(token)
+      await api('/api/system/profile')
+      const missing = await request('/api/nonexistent-deployment-route', { headers: { Authorization: `Bearer ${token}` } })
+      assert.equal(missing.status, 404); assert.match(missing.headers.get('content-type') || '', /json/)
+      return { authenticated: true, anonymousStatus: 401, missingApiStatus: 404, publicActuatorStatus: 404 }
+    })
+    const attachment = Buffer.alloc(2 * 1024 * 1024, 'x')
+    await check('Multipart attachment larger than 1 MB and download headers', async () => {
+      const form = new FormData(); form.set('businessType', 'SALES_ORDER'); form.set('businessId', '910001')
+      form.set('businessNo', 'DEPLOYMENT-SMOKE'); form.set('file', new Blob([attachment], { type: 'text/plain' }), 'deployment-attachment.txt')
+      const uploaded = await api('/api/system/attachments', { method: 'POST', body: form }); attachmentId = uploaded.id
+      const download = await request(`/api/system/attachments/${attachmentId}/download`, { headers: { Authorization: `Bearer ${token}` } })
+      assert.equal(download.status, 200); assert.match(download.headers.get('content-disposition') || '', /attachment/)
+      assert.equal(hash(Buffer.from(await download.arrayBuffer())), hash(attachment))
+      return { bytes: attachment.length, sha256: hash(attachment), attachmentId }
+    })
+    await check('Browser login and refreshed business deep links', () => browserCheck(base, config.ERP_BOOTSTRAP_ADMIN_PASSWORD, directory, evidence, children, () => interrupted))
+    await check('Backend replacement changes IP without restarting Nginx or losing attachments', async () => {
+      const old = (await compose(['ps', '-q', 'erp-server'])).trim()
+      const web = (await compose(['ps', '-q', 'web'])).trim()
+      const inspect = JSON.parse(await command('docker', ['inspect', old]))[0]
+      const [network, endpoint] = Object.entries(inspect.NetworkSettings.Networks)[0]
+      await compose(['stop', 'erp-server']); await compose(['rm', '-f', 'erp-server'])
+      await command('docker', ['run', '-d', '--name', holder, '--network', network, '--ip', endpoint.IPAddress,
+        '--entrypoint', 'sleep', 'nginx:1.28-alpine', '240'])
+      await compose(['up', '-d', '--no-deps', '--wait', '--wait-timeout', '180', 'erp-server'])
+      const replacement = (await compose(['ps', '-q', 'erp-server'])).trim()
+      const newInspect = JSON.parse(await command('docker', ['inspect', replacement]))[0]
+      const newIp = newInspect.NetworkSettings.Networks[network].IPAddress
+      assert.notEqual(newIp, endpoint.IPAddress)
+      assert.equal((await compose(['ps', '-q', 'web'])).trim(), web)
+      await until(async () => { const response = await request('/readyz'); assert.equal(response.status, 200) })
+      await api('/api/system/profile')
+      const response = await request(`/api/system/attachments/${attachmentId}/download`, { headers: { Authorization: `Bearer ${token}` } })
+      assert.equal(response.status, 200); assert.equal(hash(Buffer.from(await response.arrayBuffer())), hash(attachment))
+      await api(`/api/system/attachments/${attachmentId}`, { method: 'DELETE' })
+      return { oldBackendIp: endpoint.IPAddress, newBackendIp: newIp, sameNginxContainer: true, attachmentPreserved: true }
+    })
+    await check('Purchase payment sales receipt and restricted-user business trial', async () => {
+      const trialEvidence = path.join(evidence, 'business-trial')
+      const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai',
+        year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      try {
+        const trial = await runTrial({ bundleDirectory: work, expectedManifestSha256: verified.manifestSha256,
+          project, outputDirectory: trialEvidence, date })
+        assert.equal(trial.status, 'PASSED')
+        const details = JSON.parse(await readFile(path.join(trialEvidence, 'report.json')))
+        assert.equal(details.sourceRevision, report.runtimeToolRevision)
+        assert.equal(details.applicationRevision, report.applicationRevision)
+        return { checks: trial.checks, report: 'business-trial/report.json', retainedForInteractiveUse: false }
+      } finally {
+        // This database is disposable; preserve results but never archive trial credentials
+        // or instructions referring to an account removed during the parent cleanup.
+        await rm(path.join(trialEvidence, 'private-account.json'), { force: true })
+        await rm(path.join(trialEvidence, 'HANDOFF.md'), { force: true })
+      }
+    })
+    verifyDeploymentBundle({ bundleDirectory: values.bundle, expectedManifestSha256: values['expected-manifest-sha256'] })
+    report.status = 'PASSED'
+  } catch (error) { report.status = 'FAILED'; report.failure = redact(error.message) }
+  finally {
+    cdpCleanup = await cleanupSmokeProcesses(children)
+    report.browserCleanup = cdpCleanup
+    try {
+      const holderId = (await command('docker', ['ps', '-aq', '--filter', `name=^${holder}$`])).trim()
+      if (holderId) await command('docker', ['rm', '-f', holderId])
+      if (existsSync(path.join(work, '.env'))) {
+        try { await compose(['logs', '--no-color', '--tail', '200']) }
+        finally { await compose(['down', '--volumes', '--remove-orphans', '--rmi', 'local', '--timeout', '30']) }
+      }
+      const containers = (await command('docker', ['ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`])).trim()
+      const volumes = (await command('docker', ['volume', 'ls', '-q', '--filter', `label=com.docker.compose.project=${project}`])).trim()
+      const networks = (await command('docker', ['network', 'ls', '-q', '--filter', `label=com.docker.compose.project=${project}`])).trim()
+      assert.equal(containers + volumes + networks, '')
+      report.cleanupPassed = cdpCleanup.passed
+      await rm(directory, { recursive: true, force: true })
+    } catch (error) { report.cleanupPassed = false; report.cleanupFailure = redact(error.message) }
+    if (!report.cleanupPassed) report.status = 'FAILED'
+    report.finishedAt = new Date().toISOString(); await persist()
+    process.removeListener('SIGINT', onSignal); process.removeListener('SIGTERM', onSignal)
+  }
+  assert.equal(report.status, 'PASSED', `Deployment smoke failed: ${report.failure || report.cleanupFailure}; see ${evidence}`)
+  console.log(`[deployment] PASSED: ${evidence}`)
+}
+
+main().catch(error => { console.error(redact(error.message)); process.exitCode = 1 })

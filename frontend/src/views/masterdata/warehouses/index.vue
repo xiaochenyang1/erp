@@ -87,7 +87,38 @@
       @export="handleExport"
       @refresh="loadData"
       @page-change="handlePageChange"
+      @selection-change="handleSelectionChange"
     >
+      <template #toolbar-left>
+        <el-button v-permission="'masterdata:warehouse:create'" type="primary" :icon="Plus" @click="handleCreate">
+          {{ texts.createWarehouse }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:warehouse:enable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="CircleCheck"
+          @click="handleBatchEnable"
+        >
+          {{ labelWithCount(texts.batchEnable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          v-permission="'masterdata:warehouse:disable'"
+          :disabled="selectedRows.length === 0 || batchRunning"
+          :loading="batchRunning"
+          :icon="Delete"
+          @click="handleBatchDisable"
+        >
+          {{ labelWithCount(texts.batchDisable, selectedRows.length) }}
+        </el-button>
+        <el-button
+          :disabled="selectedRows.length === 0"
+          :icon="Download"
+          @click="handleExportSelected"
+        >
+          {{ labelWithCount(texts.exportSelected, selectedRows.length) }}
+        </el-button>
+      </template>
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="code" :label="texts.warehouseCode" width="140" fixed>
         <template #default="{ row }">
@@ -324,7 +355,9 @@ import {
   Clock,
   UserFilled,
   Memo,
-  Box
+  Box,
+  Plus,
+  Download
 } from '@element-plus/icons-vue'
 import {
   getWarehouses,
@@ -409,6 +442,19 @@ const WAREHOUSE_TEXTS = {
     exportSuccess: '导出成功',
     exportFailed: '导出失败',
     exportFilename: '仓库列表',
+    confirm: '确定',
+    batchEnable: '批量启用',
+    batchDisable: '批量停用',
+    exportSelected: '导出选中',
+    selectedExportFilename: '仓库_选中{count}条',
+    batchEnableTitle: '批量启用',
+    batchDisableTitle: '批量停用',
+    batchEnableConfirm: '确认启用选中的 {count} 个仓库吗？',
+    batchDisableConfirm: '确认停用选中的 {count} 个仓库吗？',
+    batchEnableSuccess: '已启用 {count} 个',
+    batchDisableSuccess: '已停用 {count} 个',
+    batchEnablePartial: '已启用 {success} 个，失败 {failedCount} 个：{failed}',
+    batchDisablePartial: '已停用 {success} 个，失败 {failedCount} 个：{failed}',
     validationEnterCode: '请输入仓库编码',
     validationCodeLength: '长度在 2 到 50 个字符',
     validationEnterName: '请输入仓库名称',
@@ -474,6 +520,19 @@ const WAREHOUSE_TEXTS = {
     exportSuccess: 'Export completed',
     exportFailed: 'Failed to export warehouses',
     exportFilename: 'warehouse-list',
+    confirm: 'Confirm',
+    batchEnable: 'Enable selected',
+    batchDisable: 'Disable selected',
+    exportSelected: 'Export selected',
+    selectedExportFilename: 'warehouses-selected-{count}',
+    batchEnableTitle: 'Enable Selected',
+    batchDisableTitle: 'Disable Selected',
+    batchEnableConfirm: 'Enable {count} selected warehouses?',
+    batchDisableConfirm: 'Disable {count} selected warehouses?',
+    batchEnableSuccess: 'Enabled {count} warehouses',
+    batchDisableSuccess: 'Disabled {count} warehouses',
+    batchEnablePartial: 'Enabled {success} warehouses, failed {failedCount}: {failed}',
+    batchDisablePartial: 'Disabled {success} warehouses, failed {failedCount}: {failed}',
     validationEnterCode: 'Enter warehouse code',
     validationCodeLength: 'Length must be between 2 and 50 characters',
     validationEnterName: 'Enter warehouse name',
@@ -495,25 +554,33 @@ const {
   formatDateTime,
   formatNumber,
   interpolate,
+  joinNames,
+  labelWithCount,
   managerLabel: resolveManagerFromOptions,
   userLabel
 } = useWarehousePresentation(displayPreferences)
 
 const {
+  batchRunning,
   currentRow,
   deptOptions,
   detailVisible,
+  handleBatchDisable,
+  handleBatchEnable,
   handleDelete,
   handleEnable,
   handleExport,
+  handleExportSelected,
   handlePageChange,
   handleReset,
   handleSearch,
+  handleSelectionChange,
   handleView,
   loadData,
   loadOptions,
   loading,
   searchForm,
+  selectedRows,
   stockSummary,
   tableData,
   total,
@@ -527,10 +594,13 @@ const {
   exportWarehouses,
   getDeptTree,
   getUsers,
-  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts),
+  confirm: (message, title, opts) => ElMessageBox.confirm(message, title, opts as any),
   interpolate,
+  joinNames: (items, locale) => joinNames(items, locale),
+  locale: computed(() => appStore.locale),
   onError: (message) => ElMessage.error(message),
-  onSuccess: (message) => ElMessage.success(message)
+  onSuccess: (message) => ElMessage.success(message),
+  onWarning: (message) => ElMessage.warning(message)
 })
 
 const activeCount = computed(() => countActive(tableData.value))

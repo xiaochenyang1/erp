@@ -13,7 +13,9 @@ const createForm = (overrides: Partial<Parameters<typeof useInventorySerialForm>
         { id: 'p1', productCode: 'S1', productName: 'Serial', serialControlled: true } as any,
         { id: 'p2', productCode: 'N1', productName: 'Normal', serialControlled: false } as any
       ],
-      total: 2
+      total: 2,
+      pageNo: 1,
+      pageSize: 200
     })),
     locationsForWarehouse: (warehouseId, all = []) =>
       warehouseId

@@ -8,10 +8,16 @@ import com.tuowei.erp.report.service.ReportExportService;
 import com.tuowei.erp.report.service.ReportQueryService;
 import com.tuowei.erp.report.web.FinanceSettlementReportQuery;
 import com.tuowei.erp.report.web.FinanceSettlementReportResponse;
+import com.tuowei.erp.report.web.FxGainLossReportQuery;
+import com.tuowei.erp.report.web.FxGainLossReportResponse;
 import com.tuowei.erp.report.web.InventoryBalanceReportQuery;
 import com.tuowei.erp.report.web.InventoryBalanceReportResponse;
 import com.tuowei.erp.report.web.InventoryTransactionReportQuery;
 import com.tuowei.erp.report.web.InventoryTransactionReportResponse;
+import com.tuowei.erp.report.web.InventoryValuationReportQuery;
+import com.tuowei.erp.report.web.InventoryValuationReportResponse;
+import com.tuowei.erp.report.web.ProductionCostReportQuery;
+import com.tuowei.erp.report.web.ProductionCostReportResponse;
 import com.tuowei.erp.report.web.OrderReportResponse;
 import com.tuowei.erp.report.web.PurchaseOrderReportQuery;
 import com.tuowei.erp.report.web.SalesOrderReportQuery;
@@ -97,6 +103,42 @@ public class ReportController {
     @GetMapping("/finance-settlements/export")
     public ResponseEntity<StreamingResponseBody> exportFinanceSettlements(FinanceSettlementReportQuery query) {
         return csv("finance-settlements.csv", reportExportService.exportFinanceSettlements(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_REPORT_VIEW)
+    @GetMapping("/fx-gain-loss")
+    public ApiResponse<PageResponse<FxGainLossReportResponse>> fxGainLoss(FxGainLossReportQuery query) {
+        return ApiResponse.success(reportQueryService.listFxGainLoss(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_REPORT_VIEW)
+    @GetMapping("/fx-gain-loss/export")
+    public ResponseEntity<StreamingResponseBody> exportFxGainLoss(FxGainLossReportQuery query) {
+        return csv("fx-gain-loss.csv", reportExportService.exportFxGainLoss(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_REPORT_VIEW)
+    @GetMapping("/inventory-valuations")
+    public ApiResponse<PageResponse<InventoryValuationReportResponse>> inventoryValuations(InventoryValuationReportQuery query) {
+        return ApiResponse.success(reportQueryService.listInventoryValuations(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_REPORT_VIEW)
+    @GetMapping("/inventory-valuations/export")
+    public ResponseEntity<StreamingResponseBody> exportInventoryValuations(InventoryValuationReportQuery query) {
+        return csv("inventory-valuations.csv", reportExportService.exportInventoryValuations(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_REPORT_VIEW)
+    @GetMapping("/production-costs")
+    public ApiResponse<PageResponse<ProductionCostReportResponse>> productionCosts(ProductionCostReportQuery query) {
+        return ApiResponse.success(reportQueryService.listProductionCosts(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_REPORT_VIEW)
+    @GetMapping("/production-costs/export")
+    public ResponseEntity<StreamingResponseBody> exportProductionCosts(ProductionCostReportQuery query) {
+        return csv("production-costs.csv", reportExportService.exportProductionCosts(query));
     }
 
     private ResponseEntity<StreamingResponseBody> csv(String filename, StreamingResponseBody body) {

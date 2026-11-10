@@ -16,6 +16,9 @@ import com.tuowei.erp.finance.receivable.mapper.ReceivableMapper;
 import com.tuowei.erp.finance.settlement.service.FinanceSettlementScopeSupport;
 import com.tuowei.erp.inventory.stock.mapper.InventoryBalanceMapper;
 import com.tuowei.erp.inventory.stock.mapper.InventoryTransactionMapper;
+import com.tuowei.erp.report.service.InventoryReportQueryService;
+import com.tuowei.erp.report.service.OrderReportQueryService;
+import com.tuowei.erp.report.service.FinanceSettlementReportQueryService;
 import com.tuowei.erp.inventory.stock.model.InventoryBalanceEntity;
 import com.tuowei.erp.inventory.stock.model.InventoryTransactionEntity;
 import com.tuowei.erp.purchase.order.mapper.PurchaseOrderMapper;
@@ -126,18 +129,15 @@ class ReportQueryServiceInventoryScopeTest {
 
     private ReportQueryService service() {
         return new ReportQueryService(
-                mock(PurchaseOrderMapper.class),
-                mock(SalesOrderMapper.class),
-                inventoryBalanceMapper,
-                inventoryTransactionMapper,
-                mock(PayableMapper.class),
-                mock(ReceivableMapper.class),
-                mock(FinanceSettlementReportMapper.class),
-                currentUserContext,
-                dataScopeService,
-                mock(ScopedUserResolver.class),
-                mock(FinanceSettlementScopeSupport.class),
-                new ReportProperties(5_000, 500)
+                mock(OrderReportQueryService.class),
+                new InventoryReportQueryService(
+                        inventoryBalanceMapper,
+                        inventoryTransactionMapper,
+                        currentUserContext,
+                        dataScopeService,
+                        new ReportProperties(5_000, 500)
+                ),
+                mock(FinanceSettlementReportQueryService.class)
         );
     }
 

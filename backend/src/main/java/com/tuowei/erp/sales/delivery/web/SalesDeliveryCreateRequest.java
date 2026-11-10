@@ -15,6 +15,13 @@ public record SalesDeliveryCreateRequest(
         String carrierName,
         String trackingNo,
         String logisticsStatus,
+        String deliveredBy,
+        Long deliveryProofAttachmentId,
         @Valid @NotEmpty(message = "lines不能为空") List<SalesDeliveryLineRequest> lines
 ) {
+    public SalesDeliveryCreateRequest(Long orderId, Long warehouseId, LocalDate deliveryDate, String remark,
+                                      String carrierName, String trackingNo, String logisticsStatus,
+                                      List<SalesDeliveryLineRequest> lines) {
+        this(orderId, warehouseId, deliveryDate, remark, carrierName, trackingNo, logisticsStatus, null, null, lines);
+    }
 }

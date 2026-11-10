@@ -5,8 +5,8 @@ type TagType = 'success' | 'info' | 'warning' | 'danger' | 'primary'
 
 /** Display helpers for finance invoice registration lists. */
 export const useFinanceInvoicePresentation = (t: Translate) => {
-  const formatAmount = (amount?: number | string) =>
-    formatLocalizedCurrency(Number(amount || 0))
+  const formatAmount = (amount?: number | string, currency?: string) =>
+    formatLocalizedCurrency(Number(amount || 0), { currency: currency || 'CNY', currencyDisplay: 'code' })
 
   const formatDate = (value?: string) => formatLocalizedDate(value) || '-'
 

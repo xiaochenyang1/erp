@@ -25,6 +25,8 @@ describe('production work center form', () => {
       id: 'wc1',
       workCenterCode: 'WC01',
       workCenterName: '装配',
+      dailyCapacityMinutes: 600,
+      workdayStartTime: '07:30:00',
       remark: '备注'
     } as WorkCenter)
     expect(form.isEdit.value).toBe(true)
@@ -32,6 +34,8 @@ describe('production work center form', () => {
       id: 'wc1',
       workCenterCode: 'WC01',
       workCenterName: '装配',
+      dailyCapacityMinutes: 600,
+      workdayStartTime: '07:30',
       remark: '备注'
     })
     expect(form.dialogTitle.value).toBe('productionWorkCenter.dialog.edit')
@@ -50,6 +54,8 @@ describe('production work center form', () => {
     expect(createWorkCenter).toHaveBeenCalledWith({
       workCenterCode: 'WC02',
       workCenterName: '机加',
+      dailyCapacityMinutes: 480,
+      workdayStartTime: '08:00',
       remark: ''
     })
 
@@ -57,12 +63,16 @@ describe('production work center form', () => {
       id: 'wc1',
       workCenterCode: 'WC01',
       workCenterName: '装配',
+      dailyCapacityMinutes: 540,
+      workdayStartTime: '08:30:00',
       remark: ''
     } as WorkCenter)
     form.formData.workCenterName = '装配线'
     expect(await form.handleSubmit()).toBe(true)
     expect(updateWorkCenter).toHaveBeenCalledWith('wc1', {
       workCenterName: '装配线',
+      dailyCapacityMinutes: 540,
+      workdayStartTime: '08:30',
       remark: ''
     })
     expect(onSubmitted).toHaveBeenCalled()

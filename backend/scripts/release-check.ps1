@@ -6,11 +6,17 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Child JVM tests must use this verified runtime even when pwsh is not on PATH.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw "PowerShell 7 is required for the release gate."
+}
+$null = Get-Command Test-Path, Join-Path, Get-ChildItem, ConvertTo-Json, ConvertFrom-Json, Get-FileHash -ErrorAction Stop
+$env:PWSH = [System.IO.Path]::Combine($PSHOME, $(if ([System.IO.Path]::DirectorySeparatorChar -eq "\") { "pwsh.exe" } else { "pwsh" }))
 . (Join-Path $PSScriptRoot "sha256-helpers.ps1")
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 if (-not $MavenRepoLocal) {
-    $MavenRepoLocal = Join-Path $RepoRoot ".m2\repository"
+    $MavenRepoLocal = Join-Path $RepoRoot ".m2/repository"
 }
 if (-not $ReportDirectory) {
     $ReportDirectory = Join-Path $RepoRoot "target"
@@ -339,7 +345,7 @@ function Invoke-ReleaseCheckReportVerifier {
         [switch]$AllowDirtyWorktree
     )
 
-    $verifierPath = Join-Path $RepositoryRoot "scripts\verify-release-check-report.ps1"
+    $verifierPath = Join-Path $RepositoryRoot "scripts/verify-release-check-report.ps1"
     if (-not (Test-Path -LiteralPath $verifierPath -PathType Leaf)) {
         throw "Missing release check report verifier: $verifierPath"
     }
@@ -426,9 +432,9 @@ try {
     }
 
     $requiredArtifacts = @(
-        "target\erp-server-1.0.0.jar",
-        "target\classes\META-INF\sbom\application.cdx.json",
-        "target\bom.json"
+        "target/erp-server-1.0.0.jar",
+        "target/classes/META-INF/sbom/application.cdx.json",
+        "target/bom.json"
     )
 
     $verifiedArtifacts = @()

@@ -28,6 +28,7 @@ class InventoryPostingLotServiceTest {
     private static final long ACCOUNT_BOOK_ID = 1L;
     private static final long USER_ID = 1L;
     private static final long WAREHOUSE_ID = 894101L;
+    private static final long LOCATION_ID = WAREHOUSE_ID + 500000000000000000L;
     private static final long LOT_SHELF_PRODUCT_ID = 894201L;
     private static final long LOT_ONLY_PRODUCT_ID = 894202L;
     private static final long NON_LOT_PRODUCT_ID = 894203L;
@@ -42,6 +43,7 @@ class InventoryPostingLotServiceTest {
     @BeforeEach
     void setup() {
         cleanup();
+        seedDefaultLocation();
         seedProducts();
     }
 
@@ -54,7 +56,19 @@ class InventoryPostingLotServiceTest {
                 """);
         jdbcTemplate.update("delete from inv_lot_balance where id between 894000 and 894999 or product_id between 894200 and 894299");
         jdbcTemplate.update("delete from inv_balance where product_id between 894200 and 894299");
+        jdbcTemplate.update("delete from md_location where id = ? or warehouse_id = ?", LOCATION_ID, WAREHOUSE_ID);
         jdbcTemplate.update("delete from md_product where id between 894200 and 894299 or product_code like 'LOT-PROD-894%'");
+    }
+
+    private void seedDefaultLocation() {
+        jdbcTemplate.update("""
+                insert into md_location
+                (id, company_id, account_book_id, warehouse_id, location_code, location_name,
+                 is_default, status, deleted_flag, remark, created_by, created_time, updated_by, updated_time, version)
+                values (?, ?, ?, ?, 'MAIN', 'Default Location', 1, 'ACTIVE', 0,
+                        'inventory lot posting test default location', ?, ?, ?, ?, 0)
+                """, LOCATION_ID, COMPANY_ID, ACCOUNT_BOOK_ID, WAREHOUSE_ID,
+                USER_ID, NOW, USER_ID, NOW);
     }
 
     @Test

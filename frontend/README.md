@@ -7,11 +7,11 @@
 - **框架**: Vue 3.4+ (Composition API)
 - **语言**: TypeScript 5.0+
 - **UI库**: Element Plus 2.8+
-- **构建工具**: Vite 5.0+
+- **构建工具**: Vite 8.1+
 - **状态管理**: Pinia 2.1+
 - **路由**: Vue Router 4.0+
 - **HTTP**: Axios 1.7+
-- **图表**: ECharts 5.5+
+- **图表**: ECharts 6.1+
 
 ## 功能模块
 
@@ -76,6 +76,35 @@ npm run build
 ```bash
 npm run preview
 ```
+
+### 发布制品与离线复验
+
+在已提交、干净的候选上运行 `npm run release:build`。该命令重新构建，生成
+`release-artifacts/dist/`、构建日志和 `manifest.json`，记录候选提交、源码与依赖锁指纹、
+每个文件的长度和 SHA-256。目录已存在时拒绝覆盖；可用 `--output /absolute/new/directory`
+指定仓库外的新目录。构建失败或构建中源码变化时不会留下有效发布清单。
+
+```bash
+npm run release:build -- --output /absolute/new/frontend-artifact
+npm run release:verify -- --artifact /absolute/new/frontend-artifact \
+  --expected-revision <完整候选提交SHA>
+```
+
+保存验证结果中的 `manifestSha256` 到独立交接记录。下载或复制后，用原始记录复验：
+
+```bash
+npm run release:verify -- --artifact /absolute/downloaded/frontend-artifact \
+  --expected-revision <完整候选提交SHA> --expected-manifest-sha256 <原始清单SHA256>
+```
+
+验证脚本应来自已核准候选，不应从待验证包中替换。文件改写、缺失、增加、符号链接、
+候选不一致或清单摘要不符都会导致失败。`--allow-dirty-worktree` 仅用于开发诊断，
+其结果不能通过默认发布验证。
+
+Frontend Verify 会完成检查、构建、生产依赖审计、上传，再按本轮 artifact ID 下载并复验。
+制品名为 `erp-frontend-release-artifacts`，保留 90 天；这不是永久备份，交付时仍须另行归档。
+本地完整候选入口 `../backend/scripts/release-candidate-local.sh` 将前端包保存在证据目录的
+`frontend/` 下，并在 `artifact-sha256.json` 中绑定清单摘要。技术验证不替代业务签字。
 
 ## 开发规范
 
@@ -161,7 +190,7 @@ npm run openapi:check
 
 ## 开发进度
 
-查看 [frontend-development-progress.md](../erpServer/docs/frontend-development-progress.md)
+查看 [项目当前完成度与缺口盘点](../backend/docs/WHAT_IS_MISSING.md) 和 [未完成功能执行板](../backend/docs/未完成.md)。
 
 ## License
 

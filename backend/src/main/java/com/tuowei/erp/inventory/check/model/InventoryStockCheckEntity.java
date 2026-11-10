@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,7 +21,9 @@ public class InventoryStockCheckEntity {
     private Long warehouseId;
     private LocalDate checkDate;
     private String status;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Long generatedAdjustmentId;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String generatedAdjustmentNo;
     private Integer deletedFlag;
     private String remark;

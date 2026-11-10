@@ -18,7 +18,12 @@ const subject = (overrides: Partial<AccountSubject> = {}): AccountSubject => ({
 const createList = (overrides: Partial<Parameters<typeof useAccountSubjectList>[1]> = {}) =>
   useAccountSubjectList(t, {
     getAccountSubjectTree: vi.fn(async () => [subject()]),
-    getAccountSubjects: vi.fn(async () => ({ records: [subject({ id: '2', name: 'Bank' })], total: 1 })),
+    getAccountSubjects: vi.fn(async () => ({
+      records: [subject({ id: '2', name: 'Bank' })],
+      total: 1,
+      pageNo: 1,
+      pageSize: 20
+    })),
     enableAccountSubject: vi.fn(async () => ({})),
     disableAccountSubject: vi.fn(async () => ({})),
     subjectDisplayName: (row) => row.name || String(row.id),
@@ -41,7 +46,9 @@ describe('account subject list', () => {
     const getAccountSubjectTree = vi.fn(async () => [subject()])
     const getAccountSubjects = vi.fn(async () => ({
       records: [subject({ id: '2', name: 'Bank' })],
-      total: 1
+      total: 1,
+      pageNo: 1,
+      pageSize: 20
     }))
     const list = createList({ getAccountSubjectTree, getAccountSubjects })
 

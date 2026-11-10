@@ -11,6 +11,8 @@ const row = (overrides: Partial<WorkCenter> = {}) =>
     id: 'wc1',
     workCenterCode: 'WC01',
     workCenterName: '装配',
+    dailyCapacityMinutes: 480,
+    workdayStartTime: '08:00:00',
     status: 'ACTIVE',
     ...overrides
   }) as WorkCenter

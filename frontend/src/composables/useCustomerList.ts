@@ -34,6 +34,32 @@ type CustomerTexts = {
   exportSuccess: string
   exportFailed: string
   exportFilename: string
+  confirm: string
+  selectedExportFilename: string
+  batchEnable: string
+  batchDisable: string
+  exportSelected: string
+  batchEnableTitle: string
+  batchDisableTitle: string
+  batchEnableConfirm: string
+  batchDisableConfirm: string
+  batchEnableSuccess: string
+  batchDisableSuccess: string
+  batchEnablePartial: string
+  batchDisablePartial: string
+  customerCode: string
+  customerName: string
+  customerType: string
+  company: string
+  individual: string
+  contact: string
+  phone: string
+  email: string
+  creditLimit: string
+  creditPeriod: string
+  status: string
+  active: string
+  inactive: string
   [key: string]: string | undefined
 }
 
@@ -57,8 +83,12 @@ export const useCustomerList = (
     confirm: Confirm
     cancelLabel: () => string
     interpolate: (template: string, params: Record<string, string | number>) => string
+    joinNames: (items: string[], locale: string) => string
+    formatCurrency: (value?: number | string | null) => string
+    locale: Ref<string> | ComputedRef<string>
     onError?: Notify
     onSuccess?: Notify
+    onWarning?: Notify
   }
 ) => {
   const searchForm = reactive<CustomerQuery>({
@@ -72,9 +102,15 @@ export const useCustomerList = (
   const tableData = ref<Customer[]>([])
   const total = ref(0)
   const loading = ref(false)
+  const selectedRows = ref<Customer[]>([])
   const detailVisible = ref(false)
   const currentRow = ref<Customer>()
   const creditExposure = ref<CustomerCreditExposure>()
+  const batchRunning = ref(false)
+
+  const handleSelectionChange = (rows: Customer[]) => {
+    selectedRows.value = rows
+  }
 
   const loadData = async () => {
     loading.value = true
@@ -166,6 +202,116 @@ export const useCustomerList = (
     }
   }
 
+  const runBatch = async (
+    rows: Customer[],
+    action: (row: Customer) => Promise<unknown>,
+    actionTexts: {
+      confirmTitle: string
+      confirmText: string
+      successText: (success: number) => string
+      partialText: (success: number, failed: string[]) => string
+    }
+  ) => {
+    if (rows.length === 0 || batchRunning.value) return
+    await options.confirm(actionTexts.confirmText, actionTexts.confirmTitle, {
+      confirmButtonText: texts.value.confirm,
+      cancelButtonText: options.cancelLabel(),
+      type: 'warning'
+    })
+
+    batchRunning.value = true
+    let success = 0
+    const failed: string[] = []
+    try {
+      for (const row of rows) {
+        try {
+          await action(row)
+          success += 1
+        } catch {
+          failed.push(row.name || row.customerName || row.code || row.customerCode || String(row.id))
+        }
+      }
+      if (failed.length === 0) {
+        options.onSuccess?.(actionTexts.successText(success))
+      } else {
+        options.onWarning?.(actionTexts.partialText(success, failed))
+      }
+      await loadData()
+    } finally {
+      batchRunning.value = false
+    }
+  }
+
+  const handleBatchEnable = () => {
+    const rows = selectedRows.value
+    return runBatch(rows, (row) => options.enableCustomer(row.id), {
+      confirmTitle: texts.value.batchEnableTitle,
+      confirmText: options.interpolate(texts.value.batchEnableConfirm, { count: rows.length }),
+      successText: (success) => options.interpolate(texts.value.batchEnableSuccess, { count: success }),
+      partialText: (success, failed) => options.interpolate(texts.value.batchEnablePartial, {
+        success,
+        failedCount: failed.length,
+        failed: options.joinNames(failed, options.locale.value)
+      })
+    })
+  }
+
+  const handleBatchDisable = () => {
+    const rows = selectedRows.value
+    return runBatch(rows, (row) => options.deleteCustomer(row.id), {
+      confirmTitle: texts.value.batchDisableTitle,
+      confirmText: options.interpolate(texts.value.batchDisableConfirm, { count: rows.length }),
+      successText: (success) => options.interpolate(texts.value.batchDisableSuccess, { count: success }),
+      partialText: (success, failed) => options.interpolate(texts.value.batchDisablePartial, {
+        success,
+        failedCount: failed.length,
+        failed: options.joinNames(failed, options.locale.value)
+      })
+    })
+  }
+
+  const exportSelectedRowsToCsv = (
+    filename: string,
+    headers: string[],
+    rows: Array<Array<string | number>>
+  ) => {
+    const escapeCell = (value: string | number) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const csv = [headers, ...rows].map((row) => row.map(escapeCell).join(',')).join('\r\n')
+    downloadBlob(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }), `${filename}.csv`)
+  }
+
+  const handleExportSelected = () => {
+    const rows = selectedRows.value
+    if (rows.length === 0) return
+    const headers = [
+      texts.value.customerCode,
+      texts.value.customerName,
+      texts.value.customerType,
+      texts.value.contact,
+      texts.value.phone,
+      texts.value.email,
+      texts.value.creditLimit,
+      texts.value.creditPeriod,
+      texts.value.status
+    ]
+    const lines = rows.map((row) => [
+      row.code || '',
+      row.name || '',
+      row.type === 'COMPANY' ? texts.value.company : texts.value.individual,
+      row.contact || '',
+      row.mobile || '',
+      row.email || '',
+      row.creditLimit != null ? options.formatCurrency(row.creditLimit) : '',
+      row.creditPeriod != null ? String(row.creditPeriod) : '',
+      row.status === 'ACTIVE' ? texts.value.active : texts.value.inactive
+    ])
+    exportSelectedRowsToCsv(
+      options.interpolate(texts.value.selectedExportFilename, { count: rows.length }),
+      headers,
+      lines
+    )
+  }
+
   const handleExport = async () => {
     try {
       const blob = await options.exportCustomers(searchForm)
@@ -177,19 +323,25 @@ export const useCustomerList = (
   }
 
   return {
+    batchRunning,
     creditExposure,
     currentRow,
     detailVisible,
+    handleBatchDisable,
+    handleBatchEnable,
     handleDelete,
     handleEnable,
     handleExport,
+    handleExportSelected,
     handlePageChange,
     handleReset,
     handleSearch,
+    handleSelectionChange,
     handleView,
     loadData,
     loading,
     searchForm,
+    selectedRows,
     tableData,
     total
   }

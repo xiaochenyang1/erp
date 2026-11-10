@@ -9,6 +9,8 @@ import com.tuowei.erp.common.security.AuditMetadata;
 import com.tuowei.erp.common.security.AuditMetadataFactory;
 import com.tuowei.erp.system.auth.mapper.RefreshTokenMapper;
 import com.tuowei.erp.system.auth.model.RefreshTokenEntity;
+import com.tuowei.erp.system.auth.service.UserSessionCommandService;
+import com.tuowei.erp.system.auth.service.UserSessionQueryService;
 import com.tuowei.erp.system.auth.service.UserSessionService;
 import com.tuowei.erp.system.auth.web.UserSessionPageQuery;
 import com.tuowei.erp.system.user.mapper.UserMapper;
@@ -172,7 +174,11 @@ class UserSessionServiceTenantBoundaryTest {
     }
 
     private UserSessionService service() {
-        return new UserSessionService(refreshTokenMapper, userMapper, auditMetadataFactory, CLOCK);
+        UserSessionQueryService queryService =
+                new UserSessionQueryService(refreshTokenMapper, userMapper, auditMetadataFactory);
+        UserSessionCommandService commandService =
+                new UserSessionCommandService(refreshTokenMapper, userMapper, auditMetadataFactory, CLOCK);
+        return new UserSessionService(queryService, commandService);
     }
 
     private static void initTableInfo(Class<?> entityClass) {

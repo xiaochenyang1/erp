@@ -35,7 +35,7 @@ UI_SMOKE_ROUTES=0 node scripts/ui-smoke.mjs
 ## API smoke 结果
 
 - 原 **15/15 PASS**（extension-features）；V125 原子转换加入幂等校验后为 16 项，待目标环境复验
-- **12/12 PASS**（data-scope）
+- **12/12 PASS**（data-scope 历史基线；2026-08-25 加固版新增双非管理员账号、报表与隐藏追踪负例，待目标环境复验）
 - 报告：`target/extension-features-api-smoke/`、`target/data-scope-api-smoke/`
 
 | 段 | 覆盖 |
