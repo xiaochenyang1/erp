@@ -600,6 +600,69 @@ export interface LedgerSummary {
   creditAmount: number
 }
 
+export interface TrialBalanceRow {
+  subjectCode: string
+  subjectName: string
+  subjectType: string
+  balanceDirection: string
+  openingDebit: number
+  openingCredit: number
+  periodDebit: number
+  periodCredit: number
+  closingDebit: number
+  closingCredit: number
+}
+
+export interface TrialBalance {
+  dateFrom: string
+  dateTo: string
+  rows: TrialBalanceRow[]
+  openingDebit: number
+  openingCredit: number
+  periodDebit: number
+  periodCredit: number
+  closingDebit: number
+  closingCredit: number
+  openingBalanced: boolean
+  periodBalanced: boolean
+  closingBalanced: boolean
+}
+
+export interface FinancialStatementLine {
+  itemCode: string
+  itemName: string
+  lineType: 'SUBJECT' | 'FORMULA' | string
+  subjectCode?: string
+  amount: number
+}
+
+export interface BalanceSheet {
+  asOfDate: string
+  formulaVersion: string
+  assetLines: FinancialStatementLine[]
+  liabilityLines: FinancialStatementLine[]
+  equityLines: FinancialStatementLine[]
+  totalAssets: number
+  totalLiabilities: number
+  totalEquity: number
+  liabilitiesAndEquity: number
+  difference: number
+  balanced: boolean
+  unclassifiedSubjectCodes: string[]
+}
+
+export interface IncomeStatement {
+  dateFrom: string
+  dateTo: string
+  formulaVersion: string
+  revenueLines: FinancialStatementLine[]
+  expenseLines: FinancialStatementLine[]
+  totalRevenue: number
+  totalExpense: number
+  netProfit: number
+  unclassifiedSubjectCodes: string[]
+}
+
 // 总账API
 export const getLedgerEntries = (params: LedgerQuery) => {
   return request.get<LedgerEntry[]>('/finance/ledger/detail', {
@@ -611,6 +674,24 @@ export const getLedgerSummary = (params: LedgerQuery) => {
   return request.get<LedgerSummary[]>('/finance/ledger/general', {
     params: toLedgerQueryParams(params)
   }).then((summaries) => summaries.map(normalizeLedgerSummary))
+}
+
+export const getTrialBalance = (params: Pick<LedgerQuery, 'startDate' | 'endDate' | 'dateFrom' | 'dateTo'>) => {
+  return request.get<TrialBalance>('/finance/ledger/trial-balance', {
+    params: toLedgerQueryParams(params)
+  }).then(normalizeTrialBalance)
+}
+
+export const getBalanceSheet = (asOfDate: string) => {
+  return request.get<BalanceSheet>('/finance/financial-statements/balance-sheet', {
+    params: { asOfDate }
+  }).then(normalizeBalanceSheet)
+}
+
+export const getIncomeStatement = (params: Pick<LedgerQuery, 'startDate' | 'endDate' | 'dateFrom' | 'dateTo'>) => {
+  return request.get<IncomeStatement>('/finance/financial-statements/income-statement', {
+    params: toLedgerQueryParams(params)
+  }).then(normalizeIncomeStatement)
 }
 
 export const exportLedger = (params: LedgerQuery) => {
@@ -639,6 +720,53 @@ const normalizeLedgerSummary = (summary: LedgerSummary): LedgerSummary => ({
   ...summary,
   debitAmount: summary.debitAmount ?? 0,
   creditAmount: summary.creditAmount ?? 0
+})
+
+const normalizeTrialBalance = (trialBalance: TrialBalance): TrialBalance => ({
+  ...trialBalance,
+  openingDebit: Number(trialBalance.openingDebit ?? 0),
+  openingCredit: Number(trialBalance.openingCredit ?? 0),
+  periodDebit: Number(trialBalance.periodDebit ?? 0),
+  periodCredit: Number(trialBalance.periodCredit ?? 0),
+  closingDebit: Number(trialBalance.closingDebit ?? 0),
+  closingCredit: Number(trialBalance.closingCredit ?? 0),
+  rows: (trialBalance.rows || []).map((row) => ({
+    ...row,
+    openingDebit: Number(row.openingDebit ?? 0),
+    openingCredit: Number(row.openingCredit ?? 0),
+    periodDebit: Number(row.periodDebit ?? 0),
+    periodCredit: Number(row.periodCredit ?? 0),
+    closingDebit: Number(row.closingDebit ?? 0),
+    closingCredit: Number(row.closingCredit ?? 0)
+  }))
+})
+
+const normalizeStatementLines = (lines: FinancialStatementLine[] = []) => lines.map((line) => ({
+  ...line,
+  amount: Number(line.amount ?? 0)
+}))
+
+const normalizeBalanceSheet = (statement: BalanceSheet): BalanceSheet => ({
+  ...statement,
+  assetLines: normalizeStatementLines(statement.assetLines),
+  liabilityLines: normalizeStatementLines(statement.liabilityLines),
+  equityLines: normalizeStatementLines(statement.equityLines),
+  totalAssets: Number(statement.totalAssets ?? 0),
+  totalLiabilities: Number(statement.totalLiabilities ?? 0),
+  totalEquity: Number(statement.totalEquity ?? 0),
+  liabilitiesAndEquity: Number(statement.liabilitiesAndEquity ?? 0),
+  difference: Number(statement.difference ?? 0),
+  unclassifiedSubjectCodes: statement.unclassifiedSubjectCodes || []
+})
+
+const normalizeIncomeStatement = (statement: IncomeStatement): IncomeStatement => ({
+  ...statement,
+  revenueLines: normalizeStatementLines(statement.revenueLines),
+  expenseLines: normalizeStatementLines(statement.expenseLines),
+  totalRevenue: Number(statement.totalRevenue ?? 0),
+  totalExpense: Number(statement.totalExpense ?? 0),
+  netProfit: Number(statement.netProfit ?? 0),
+  unclassifiedSubjectCodes: statement.unclassifiedSubjectCodes || []
 })
 
 // ==================== 会计期间 ====================

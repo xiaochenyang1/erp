@@ -4,9 +4,12 @@ import com.tuowei.erp.common.security.PermissionCodes;
 import com.tuowei.erp.common.web.ApiResponse;
 import com.tuowei.erp.common.web.SafeFilename;
 import com.tuowei.erp.finance.ledger.service.FinanceLedgerService;
+import com.tuowei.erp.finance.ledger.service.TrialBalanceService;
 import com.tuowei.erp.finance.ledger.web.DetailLedgerResponse;
 import com.tuowei.erp.finance.ledger.web.GeneralLedgerResponse;
 import com.tuowei.erp.finance.ledger.web.LedgerQuery;
+import com.tuowei.erp.finance.ledger.web.TrialBalanceQuery;
+import com.tuowei.erp.finance.ledger.web.TrialBalanceResponse;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -25,9 +28,14 @@ import java.util.List;
 public class FinanceLedgerController {
 
     private final FinanceLedgerService financeLedgerService;
+    private final TrialBalanceService trialBalanceService;
 
-    public FinanceLedgerController(FinanceLedgerService financeLedgerService) {
+    public FinanceLedgerController(
+            FinanceLedgerService financeLedgerService,
+            TrialBalanceService trialBalanceService
+    ) {
         this.financeLedgerService = financeLedgerService;
+        this.trialBalanceService = trialBalanceService;
     }
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_LEDGER_VIEW)
@@ -40,6 +48,12 @@ public class FinanceLedgerController {
     @GetMapping("/detail")
     public ApiResponse<List<DetailLedgerResponse>> detail(LedgerQuery query) {
         return ApiResponse.success(financeLedgerService.detail(query));
+    }
+
+    @PreAuthorize(PermissionCodes.HAS_FINANCE_LEDGER_VIEW)
+    @GetMapping("/trial-balance")
+    public ApiResponse<TrialBalanceResponse> trialBalance(TrialBalanceQuery query) {
+        return ApiResponse.success(trialBalanceService.trialBalance(query));
     }
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_LEDGER_VIEW)

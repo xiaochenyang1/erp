@@ -2,8 +2,11 @@ import { reactive, ref } from 'vue'
 
 import type {
   AccountSubject,
+  BalanceSheet,
+  IncomeStatement,
   LedgerEntry,
-  LedgerSummary
+  LedgerSummary,
+  TrialBalance
 } from '@/api/finance'
 import {
   findSubjectByCode,
@@ -29,13 +32,16 @@ export const useFinanceLedgerList = (
     getAccountSubjectTree: () => Promise<AccountSubject[]>
     getLedgerSummary: (params: LedgerQueryParams) => Promise<LedgerSummary[]>
     getLedgerEntries: (params: LedgerQueryParams) => Promise<LedgerEntry[]>
+    getTrialBalance?: (params: LedgerQueryParams) => Promise<TrialBalance>
+    getBalanceSheet?: (asOfDate: string) => Promise<BalanceSheet>
+    getIncomeStatement?: (params: LedgerQueryParams) => Promise<IncomeStatement>
     exportLedger: (params: LedgerQueryParams) => Promise<Blob>
     downloadBlob: (blob: Blob, fileName: string) => void
     onError?: Notify
     onSuccess?: Notify
   }
 ) => {
-  const activeTab = ref<'general' | 'detail'>('general')
+  const activeTab = ref<'general' | 'detail' | 'trial' | 'balance' | 'income'>('general')
   const queryForm = reactive({
     subjectId: undefined as string | number | undefined,
     startDate: '',
@@ -47,6 +53,11 @@ export const useFinanceLedgerList = (
   const generalLedger = ref<LedgerSummary[]>([])
   const detailLoading = ref(false)
   const detailLedger = ref<LedgerEntry[]>([])
+  const trialLoading = ref(false)
+  const trialBalance = ref<TrialBalance | null>(null)
+  const statementLoading = ref(false)
+  const balanceSheet = ref<BalanceSheet | null>(null)
+  const incomeStatement = ref<IncomeStatement | null>(null)
   const pagination = reactive({
     page: 1,
     size: 20,
@@ -115,10 +126,78 @@ export const useFinanceLedgerList = (
     }
   }
 
+  const loadTrialBalance = async () => {
+    syncDateRange()
+    if (!queryForm.startDate || !queryForm.endDate) {
+      options.onError?.(t('financeReportPages.ledger.message.trialDateRequired'))
+      return false
+    }
+    if (!options.getTrialBalance) {
+      options.onError?.(t('financeReportPages.ledger.message.trialLoadFailed'))
+      return false
+    }
+    trialLoading.value = true
+    try {
+      trialBalance.value = await options.getTrialBalance(buildLedgerQueryParams())
+      return true
+    } catch {
+      options.onError?.(t('financeReportPages.ledger.message.trialLoadFailed'))
+      return false
+    } finally {
+      trialLoading.value = false
+    }
+  }
+
+  const requireDateRange = (messageKey: string) => {
+    syncDateRange()
+    if (queryForm.startDate && queryForm.endDate) return true
+    options.onError?.(t(messageKey))
+    return false
+  }
+
+  const loadBalanceSheet = async () => {
+    if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired')) return false
+    if (!options.getBalanceSheet) return false
+    statementLoading.value = true
+    try {
+      balanceSheet.value = await options.getBalanceSheet(queryForm.endDate)
+      return true
+    } catch {
+      options.onError?.(t('financeReportPages.ledger.message.balanceLoadFailed'))
+      return false
+    } finally {
+      statementLoading.value = false
+    }
+  }
+
+  const loadIncomeStatement = async () => {
+    if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired')) return false
+    if (!options.getIncomeStatement) return false
+    statementLoading.value = true
+    try {
+      incomeStatement.value = await options.getIncomeStatement(buildLedgerQueryParams())
+      return true
+    } catch {
+      options.onError?.(t('financeReportPages.ledger.message.incomeLoadFailed'))
+      return false
+    } finally {
+      statementLoading.value = false
+    }
+  }
+
   const handleQuery = () => {
     syncDateRange()
     if (activeTab.value === 'general') {
       return loadGeneralLedger()
+    }
+    if (activeTab.value === 'trial') {
+      return loadTrialBalance()
+    }
+    if (activeTab.value === 'balance') {
+      return loadBalanceSheet()
+    }
+    if (activeTab.value === 'income') {
+      return loadIncomeStatement()
     }
     pagination.page = 1
     return loadDetailLedger()
@@ -134,10 +213,19 @@ export const useFinanceLedgerList = (
   }
 
   const handleTabChange = (tabName: string | number) => {
-    const name = String(tabName) as 'general' | 'detail'
+    const name = String(tabName) as 'general' | 'detail' | 'trial' | 'balance' | 'income'
     activeTab.value = name
     if (name === 'general') {
       return loadGeneralLedger()
+    }
+    if (name === 'trial') {
+      return loadTrialBalance()
+    }
+    if (name === 'balance') {
+      return loadBalanceSheet()
+    }
+    if (name === 'income') {
+      return loadIncomeStatement()
     }
     pagination.page = 1
     return loadDetailLedger()
@@ -182,6 +270,7 @@ export const useFinanceLedgerList = (
 
   return {
     activeTab,
+    balanceSheet,
     buildLedgerQueryParams,
     dateRange,
     detailLedger,
@@ -195,11 +284,18 @@ export const useFinanceLedgerList = (
     handleSizeChange,
     handleTabChange,
     handleViewDetail,
+    incomeStatement,
+    loadBalanceSheet,
     loadDetailLedger,
     loadGeneralLedger,
+    loadIncomeStatement,
+    loadTrialBalance,
     loadSubjects,
     pagination,
     queryForm,
-    subjectOptions
+    subjectOptions,
+    statementLoading,
+    trialBalance,
+    trialLoading
   }
 }
