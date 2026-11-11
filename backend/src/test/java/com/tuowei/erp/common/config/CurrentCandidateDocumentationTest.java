@@ -20,14 +20,19 @@ class CurrentCandidateDocumentationTest {
         assertThat(status)
                 .contains("PR #18")
                 .contains("1e1f6c5")
+                .contains("717bb24")
+                .contains("2,646")
                 .contains("1,201")
                 .contains("83 项")
                 .contains("112 项")
-                .contains("31 个路由")
-                .contains("43 个工作流")
-                .contains("不能声称 31/31 或 43/43 已通过")
+                .contains("31/31 路由")
+                .contains("43/43 工作流")
+                .contains("V168 → V178")
+                .contains("Monitoring Verify")
+                .contains("代码评审")
                 .contains("管理报表最小版")
-                .contains("间接法尚未开发");
+                .contains("间接法尚未开发")
+                .doesNotContain("不能声称 31/31 或 43/43 已通过");
 
         assertThat(acceptance)
                 .contains("FS-1")

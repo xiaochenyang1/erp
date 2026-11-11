@@ -2,7 +2,7 @@
 
 基于 Vue 3 + TypeScript + Element Plus 开发的企业资源计划(ERP)管理系统前端。
 
-当前财务报表二期状态见 [2026-11-11 项目状态](../backend/docs/PROJECT-STATUS-2026-11-11.md)和 [FS-1–FS-12 验收清单](../backend/docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md)。`/finance/ledger` 已包含试算平衡、资产负债表、利润表、直接法现金流量表、科目映射和 CSV 导出；新增浏览器 smoke 已扩展为 31 个路由、43 个工作流，但仍待真实浏览器和完整 CI 验证。
+当前财务报表二期状态见 [2026-11-11 项目状态](../backend/docs/PROJECT-STATUS-2026-11-11.md)和 [FS-1–FS-13 验收清单](../backend/docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md)。`/finance/ledger` 已包含试算平衡、资产负债表、利润表、直接法现金流量表、科目映射和 CSV 导出；候选 `717bb24` 的前端 252 个测试文件/1,201 项测试、31/31 路由和 43/43 工作流均已通过。后续提交仍须按最终 SHA 复验，真实账套财务签字尚未完成。
 
 ## 技术栈
 
