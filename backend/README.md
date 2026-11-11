@@ -1,6 +1,8 @@
 # ERP Server
 
-当前候选收口状态见 [2026-11-09 项目状态](docs/PROJECT-STATUS-2026-11-09.md)。最近一次完整验证的代码与部署基线为 `3b70299`；多层分仓 MRP、生产成本核算与有限产能排程一期均已进入代码和自动化回归，排程预览和执行账号必须具备 `ALL` 数据范围，部署门禁也已验证较慢镜像构建、V168→V174 升级恢复和旧版全栈回退。包含本次记录更新的最终 PR head 仍须对应完整 CI 全绿，之后再进入领域评审、真实预生产及 [V170–V174 人工验收](docs/P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md)，不继续扩大当前候选范围。
+当前开发状态见 [2026-11-11 项目状态](docs/PROJECT-STATUS-2026-11-11.md)。一期 PR #18 已于 2026-11-10 合并到 `main`（`1e1f6c5`），但尚无 tag、GitHub Release 或真实预生产签字。当前二期分支已实现试算平衡、资产负债表、利润表、直接法现金流量表、账套级映射和 CSV；它们属于管理报表最小版，间接法和完整法定格式不在本期范围。新增 31 路由/43 工作流 smoke 仍待 MySQL 8.4、真实浏览器和完整 CI 验证，之后按 [财务报表验收清单](docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md) 执行 FS-1–FS-12。
+
+一期制造与运维验收继续使用 [V170–V174 人工验收包](docs/P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md)；排程预览和执行账号必须具备 `ALL` 数据范围，V168→V174 升级恢复与旧版回退的历史完整证据基线为 `3b70299`，不能直接证明当前财务报表候选通过。
 
 前后端统一部署入口见 [完整部署包](docs/FULLSTACK-DEPLOYMENT.md)：复用已通过验证的 JAR 和前端制品，提供 Nginx、同源 API 代理、私有配置初始化及隔离部署回归。
 
@@ -126,6 +128,7 @@ Track B 扩展能力（询价/发票/OQC/信用 + 数据范围）可单独复跑
 # 或：
 node scripts\extension-features-api-smoke.cjs
 node scripts\data-scope-api-smoke.cjs
+node scripts\financial-statements-api-smoke.mjs
 ```
 
 约定详见 `docs/local-runtime-integration.md`。找联调缺口请扫 Controller 写端点 → 前端 `src/api` → 页面按钮，不要按 6 月旧 md 开补洞任务。
@@ -136,7 +139,9 @@ node scripts\data-scope-api-smoke.cjs
 
 ## 关键文档
 
-- `docs/PROJECT-STATUS-2026-11-09.md`：当前候选的完成度、验证证据、范围边界和执行顺序
+- `docs/PROJECT-STATUS-2026-11-11.md`：当前财务报表二期候选的完成度、验证证据、范围边界和执行顺序
+- `docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md`：V175–V176 财务报表 FS-1–FS-12 预生产验收清单
+- `docs/PROJECT-STATUS-2026-11-09.md`：一期合并前的历史候选状态与完整 CI 基线
 - `docs/P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md`：V170–V174 真实预生产与人工签字包
 - `docs/WHAT_IS_MISSING.md`：当前完成度与缺口（以代码+smoke 为准）
 - `docs/未完成.md`：需要但尚未具备的功能总清单（P0 签字 / P1 业务 / P2 体验与工程债）

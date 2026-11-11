@@ -3,7 +3,8 @@ param(
     [switch]$SkipDataScope,
     [switch]$SkipExtension,
     [switch]$SkipBudget,
-    [switch]$SkipContract
+    [switch]$SkipContract,
+    [switch]$SkipFinancialStatements
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,10 +62,21 @@ if (-not $SkipContract) {
     }
 }
 
+if (-not $SkipFinancialStatements) {
+    Write-Step "node scripts/financial-statements-api-smoke.mjs"
+    Push-Location $RepoRoot
+    try {
+        node (Join-Path $PSScriptRoot "financial-statements-api-smoke.mjs")
+        if ($LASTEXITCODE -ne 0) { $failed++ }
+    } finally {
+        Pop-Location
+    }
+}
+
 if ($failed -gt 0) {
     Write-Step "FAILED suites=$failed"
     exit 1
 }
 
 Write-Step "ALL extension regression suites passed"
-Write-Step "Reports: target/extension-features-api-smoke/  target/data-scope-api-smoke/  target/budget-api-smoke/  target/contract-api-smoke/"
+Write-Step "Reports: target/extension-features-api-smoke/  target/data-scope-api-smoke/  target/budget-api-smoke/  target/contract-api-smoke/  target/financial-statements-api-smoke/"

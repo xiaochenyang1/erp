@@ -164,4 +164,33 @@ class BusinessSmokeScriptConfigurationTest {
                 .contains("detail.laborAmount")
                 .contains("detail.finishedLaborAmount");
     }
+
+    @Test
+    void financialStatementSmokeIsRegisteredInApiAndBrowserGates() throws IOException {
+        String uiSmoke = Files.readString(Path.of("scripts", "ui-smoke.mjs"), StandardCharsets.UTF_8);
+        String extensionRegression = Files.readString(
+                Path.of("scripts", "local-extension-regression.ps1"), StandardCharsets.UTF_8);
+        String apiSmoke = Files.readString(
+                Path.of("scripts", "financial-statements-api-smoke.mjs"), StandardCharsets.UTF_8);
+
+        assertThat(uiSmoke)
+                .contains("import { exerciseFinancialStatements } from './financial-statements-api-smoke.mjs'")
+                .contains("{ path: '/finance/ledger', text: '试算平衡' }")
+                .contains("financial-statements-post-query-map-and-export")
+                .contains("document.body.innerText.includes('CASH_FLOW_DIRECT_V1')")
+                .contains("window.__uiSmokeFinancialStatementDownload");
+
+        assertThat(extensionRegression)
+                .contains("[switch]$SkipFinancialStatements")
+                .contains("financial-statements-api-smoke.mjs")
+                .contains("target/financial-statements-api-smoke/");
+
+        assertThat(apiSmoke)
+                .contains("verifyFinancialStatementDelta")
+                .contains("/finance/ledger/trial-balance")
+                .contains("/finance/financial-statements/balance-sheet")
+                .contains("/finance/financial-statements/income-statement")
+                .contains("/finance/financial-statements/cash-flow")
+                .contains("/finance/vouchers/manual/${voucher.id}/post");
+    }
 }

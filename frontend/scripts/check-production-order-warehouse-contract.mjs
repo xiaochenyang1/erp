@@ -1721,14 +1721,29 @@ for (const fragment of [
   'prop="voucherNo"',
   'prop="balance"',
   'res.records',
-  'res.total',
-  'openingBalance',
-  'closingBalance',
-  'totalDebit',
-  'totalCredit'
+  'res.total'
 ]) {
   if (ledgerView.includes(fragment)) {
     errors.push(`总账页仍保留旧字段或假分页片段: ${fragment}`)
+  }
+}
+
+// Keep the legacy ledger-field guard scoped to actual bindings/accesses. The
+// financial-statement tabs legitimately use these words in i18n keys (for
+// example `financeReportPages.ledger.openingBalance`), which must not be
+// mistaken for the removed general-ledger response fields.
+for (const fragment of [
+  'prop="openingBalance"',
+  'prop="closingBalance"',
+  'prop="totalDebit"',
+  'prop="totalCredit"',
+  'row.openingBalance',
+  'row.closingBalance',
+  'row.totalDebit',
+  'row.totalCredit'
+]) {
+  if (ledgerView.includes(fragment)) {
+    errors.push(`总账页仍绑定旧汇总字段: ${fragment}`)
   }
 }
 

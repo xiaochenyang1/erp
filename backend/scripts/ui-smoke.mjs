@@ -4,6 +4,7 @@ import { connectCdpSocket, pageConditionExpression } from './ui-smoke-cdp.mjs'
 import { waitForBackendReadiness } from './ui-smoke-readiness.mjs'
 import { runMrpUiSmoke, runMultilevelMrpUiSmoke, runMrpWarehouseUiSmoke } from './mrp-ui-smoke.mjs'
 import { runCurrencyDocumentsUiSmoke, runRoundingReportUiSmoke } from './currency-document-ui-smoke.mjs'
+import { exerciseFinancialStatements } from './financial-statements-api-smoke.mjs'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
@@ -1819,6 +1820,122 @@ async function runReportExportWorkflow(cdp) {
   return {
     name: 'report-export-download',
     downloads: download,
+    passed: failures.length === 0,
+    failures
+  }
+}
+
+async function runFinancialStatementsWorkflow(cdp, auth) {
+  resetEvents(cdp.events)
+  let evidence = null
+  try {
+    evidence = await exerciseFinancialStatements(
+      (method, path, body) => apiRequest(auth, method, path, body),
+      { remarkPrefix: 'UI smoke 财务报表' }
+    )
+    await setBrowserAuth(cdp, auth)
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/ledger` })
+    await waitForPage(cdp, `
+      document.body.innerText.includes('总账查询')
+        && document.body.innerText.includes('试算平衡')
+        && document.body.innerText.includes('现金流量表（直接法）')
+    `, 'financial statements page', 30000)
+
+    await waitForPage(cdp, `
+      (() => {
+        const inputs = [...document.querySelectorAll('.el-date-editor--daterange input')];
+        if (inputs.length !== 2) return false;
+        const values = [${JSON.stringify(evidence.date)}, ${JSON.stringify(evidence.date)}];
+        for (let index = 0; index < inputs.length; index += 1) {
+          const input = inputs[index];
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(input, values[index]); else input.value = values[index];
+          input.dispatchEvent(new InputEvent('input', { bubbles: true, data: values[index], inputType: 'insertText' }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        inputs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+        inputs[1].blur();
+        return inputs.every((input, index) => input.value === values[index]);
+      })()
+    `, 'financial statement date range')
+
+    const clickTab = async (label, condition, resultLabel) => {
+      await invokeElement(
+        cdp,
+        `[...document.querySelectorAll('.el-tabs__item')].find((item) => visible(item) && item.innerText.trim() === ${JSON.stringify(label)})`,
+        `${label} tab`
+      )
+      await waitForPage(cdp, condition, resultLabel, 30000).catch(async (error) => {
+        throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, `after ${label}`))}`)
+      })
+    }
+
+    await clickTab('试算平衡', `
+      document.body.innerText.includes('期初、本期和期末借贷均平衡')
+        && document.body.innerText.includes('1002')
+        && document.body.innerText.includes('6602')
+    `, 'trial balance rendered')
+    await clickTab('资产负债表', `
+      document.body.innerText.includes('资产总额与负债及权益合计勾稽一致')
+        && document.body.innerText.includes('TYPE_MAPPING_V1')
+    `, 'balance sheet rendered')
+    await clickTab('利润表', `
+      document.body.innerText.includes('净利润')
+        && document.body.innerText.includes('TYPE_MAPPING_V1')
+    `, 'income statement rendered')
+    await clickTab('现金流量表（直接法）', `
+      document.body.innerText.includes('期初现金、本期净现金流量与期末现金勾稽一致')
+        && document.body.innerText.includes('CASH_FLOW_DIRECT_V1')
+    `, 'cash-flow statement rendered')
+
+    await clickButton(cdp, '科目映射')
+    await waitForPage(cdp, `
+      (() => {
+        const dialog = ${dialogExpression('科目映射')};
+        return Boolean(dialog)
+          && dialog.innerText.includes('现金及现金等价物科目')
+          && dialog.innerText.includes('销售商品及提供劳务收到的现金')
+          && dialog.innerText.includes('支付的其他经营活动现金');
+      })()
+    `, 'cash-flow mapping dialog')
+    await clickElement(cdp, `${dialogExpression('科目映射')}.querySelector('.el-dialog__headerbtn')`, 'close mapping dialog')
+
+    await evaluatePage(cdp, `
+      (() => {
+        window.__uiSmokeFinancialStatementDownload = { blobs: [], clicks: [] };
+        const rawCreateObjectURL = URL.createObjectURL.bind(URL);
+        URL.createObjectURL = (blob) => {
+          window.__uiSmokeFinancialStatementDownload.blobs.push({ size: blob.size, type: blob.type });
+          return rawCreateObjectURL(blob);
+        };
+        const rawClick = HTMLAnchorElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function() {
+          window.__uiSmokeFinancialStatementDownload.clicks.push({ download: this.download || '' });
+          return rawClick.call(this);
+        };
+        return true;
+      })()
+    `)
+    await clickButton(cdp, '导出')
+    await waitForPage(cdp, `
+      (() => {
+        const download = window.__uiSmokeFinancialStatementDownload || { blobs: [], clicks: [] };
+        return document.body.innerText.includes('导出成功')
+          && download.blobs.some((blob) => blob.size > 0 && blob.type.includes('text/csv'))
+          && download.clicks.some((click) => click.download.includes('现金流量表'));
+      })()
+    `, 'cash-flow CSV exported', 30000)
+  } catch (error) {
+    const diagnostic = await pageDiagnostics(cdp, 'financial statements workflow failure').catch(() => null)
+    throw new Error(`${error.message}${diagnostic ? `\n${JSON.stringify(diagnostic, null, 2)}` : ''}`)
+  }
+
+  const failures = snapshotFailures(cdp.events)
+  return {
+    name: 'financial-statements-post-query-map-and-export',
+    voucherNo: evidence?.voucherNo || null,
+    date: evidence?.date || null,
+    delta: evidence?.delta || null,
     passed: failures.length === 0,
     failures
   }
@@ -7335,6 +7452,7 @@ async function main() {
     { path: '/exception-sla-policies', text: 'SLA策略' },
     { path: '/reports/traces', text: '暂无追踪事件' },
     { path: '/finance/periods', text: '会计期间管理' },
+    { path: '/finance/ledger', text: '试算平衡' },
     { path: '/finance/expenses', text: '费用管理' },
     { path: '/finance/budgets', text: '预算管理' },
     { path: '/contracts', text: '合同台账' },
@@ -7421,6 +7539,7 @@ async function main() {
     { name: 'exception-rule-config-toggle-and-scan-all', run: () => runExceptionRuleWorkflow(cdp) },
     { name: 'business-trace-search-and-reset', run: () => runBusinessTraceWorkflow(cdp) },
     { name: 'finance-period-generate-check-and-reconcile', run: () => runFinancePeriodWorkflow(cdp) },
+    { name: 'financial-statements-post-query-map-and-export', run: () => runFinancialStatementsWorkflow(cdp, auth) },
     { name: 'report-export-download', run: () => runReportExportWorkflow(cdp) },
     { name: 'attachment-upload-download-delete', run: () => runAttachmentWorkflow(cdp) },
     { name: 'readiness-run-evidence-result-and-no-go', run: () => runReadinessWorkflow(cdp) },

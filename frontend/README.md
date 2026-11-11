@@ -2,6 +2,8 @@
 
 基于 Vue 3 + TypeScript + Element Plus 开发的企业资源计划(ERP)管理系统前端。
 
+当前财务报表二期状态见 [2026-11-11 项目状态](../backend/docs/PROJECT-STATUS-2026-11-11.md)和 [FS-1–FS-12 验收清单](../backend/docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md)。`/finance/ledger` 已包含试算平衡、资产负债表、利润表、直接法现金流量表、科目映射和 CSV 导出；新增浏览器 smoke 已扩展为 31 个路由、43 个工作流，但仍待真实浏览器和完整 CI 验证。
+
 ## 技术栈
 
 - **框架**: Vue 3.4+ (Composition API)
@@ -20,7 +22,7 @@
 - ✅ 采购管理（采购订单/收货/退货）
 - ✅ 销售管理（销售订单/发货/退货）
 - ✅ 库存管理（库存查询/调整/盘点/调拨/预警）
-- ✅ 财务管理（应收应付/收付款/凭证/总账/费用）
+- ✅ 财务管理（应收应付/收付款/凭证/总账/费用/试算平衡/管理报表/直接法现金流）
 - ✅ 系统管理（用户/角色/权限/菜单/部门/岗位/字典/日志/配置）
 - ✅ 附件管理（上传/下载/查询/删除）
 - ✅ 通知消息（消息列表/未读提醒/标记已读）
@@ -190,7 +192,7 @@ npm run openapi:check
 
 ## 开发进度
 
-查看 [项目当前完成度与缺口盘点](../backend/docs/WHAT_IS_MISSING.md) 和 [未完成功能执行板](../backend/docs/未完成.md)。
+查看 [2026-11-11 项目状态](../backend/docs/PROJECT-STATUS-2026-11-11.md)、[财务报表验收清单](../backend/docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md)、[项目当前完成度与缺口盘点](../backend/docs/WHAT_IS_MISSING.md) 和 [未完成功能执行板](../backend/docs/未完成.md)。
 
 ## License
 
