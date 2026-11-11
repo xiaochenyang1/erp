@@ -87,6 +87,30 @@ class FinancialStatementConfigurationServiceTest {
     }
 
     @Test
+    void reportsAndRejectsDisabledMappedSubjects() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(itemTemplateMapper.selectList(any())).thenReturn(List.of(
+                template("BS_CASH_BANK", "货币资金", "ASSET", "DEBIT", null, 10)
+        ));
+        when(subjectMapMapper.selectList(any())).thenReturn(List.of(
+                mapping(1L, "BS_CASH_BANK", "1002")
+        ));
+        when(accountSubjectMapper.selectList(any())).thenReturn(List.of(
+                subject("1002", "ASSET", "DISABLED")
+        ));
+
+        assertThat(service().definition("BALANCE_SHEET").validationErrors())
+                .containsExactly("映射引用已停用的会计科目: 1002");
+        assertThatThrownBy(() -> service().replaceSubjects(
+                "BALANCE_SHEET",
+                "BS_CASH_BANK",
+                new StatementMappingUpdateRequest(List.of("1002"))
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("会计科目已停用: 1002");
+    }
+
+    @Test
     void reassignsSubjectWithinTheSameStatementAndKeepsTenantAudit() {
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
         when(itemTemplateMapper.selectList(any())).thenReturn(List.of(
@@ -171,9 +195,14 @@ class FinancialStatementConfigurationServiceTest {
     }
 
     private AccountSubjectEntity subject(String code, String type) {
+        return subject(code, type, "ACTIVE");
+    }
+
+    private AccountSubjectEntity subject(String code, String type, String status) {
         AccountSubjectEntity entity = new AccountSubjectEntity();
         entity.setSubjectCode(code);
         entity.setSubjectType(type);
+        entity.setStatus(status);
         entity.setDeletedFlag(0);
         return entity;
     }

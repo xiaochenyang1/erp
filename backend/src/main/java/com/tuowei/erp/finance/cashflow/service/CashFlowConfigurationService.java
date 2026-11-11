@@ -96,6 +96,7 @@ public class CashFlowConfigurationService {
         AuditMetadata audit = auditMetadataFactory.current();
         Map<String, AccountSubjectEntity> subjects = subjectsByCode(subjectCodes, audit);
         validateSubjectsExist(subjectCodes, subjects);
+        validateSubjectsActive(subjectCodes, subjects);
         List<String> nonAssets = subjectCodes.stream()
                 .filter(code -> !"ASSET".equals(subjects.get(code).getSubjectType()))
                 .toList();
@@ -154,6 +155,7 @@ public class CashFlowConfigurationService {
         AuditMetadata audit = auditMetadataFactory.current();
         Map<String, AccountSubjectEntity> subjects = subjectsByCode(subjectCodes, audit);
         validateSubjectsExist(subjectCodes, subjects);
+        validateSubjectsActive(subjectCodes, subjects);
         List<CashFlowSubjectMapEntity> existing = subjectMapMapper.selectList(
                 new LambdaQueryWrapper<CashFlowSubjectMapEntity>()
                         .eq(CashFlowSubjectMapEntity::getCompanyId, audit.companyId())
@@ -208,6 +210,8 @@ public class CashFlowConfigurationService {
             AccountSubjectEntity subject = subjects.get(cashCode);
             if (subject == null) {
                 errors.add("现金范围引用不存在的会计科目: " + cashCode);
+            } else if (!"ACTIVE".equals(subject.getStatus())) {
+                errors.add("现金范围引用已停用的会计科目: " + cashCode);
             } else if (!"ASSET".equals(subject.getSubjectType())) {
                 errors.add("现金及现金等价物不是资产类科目: " + cashCode);
             }
@@ -220,8 +224,11 @@ public class CashFlowConfigurationService {
                 errors.add("映射引用不存在的现金流量项目: " + mapping.getItemCode());
                 continue;
             }
-            if (!subjects.containsKey(mapping.getSubjectCode())) {
+            AccountSubjectEntity subject = subjects.get(mapping.getSubjectCode());
+            if (subject == null) {
                 errors.add("映射引用不存在的会计科目: " + mapping.getSubjectCode());
+            } else if (!"ACTIVE".equals(subject.getStatus())) {
+                errors.add("映射引用已停用的会计科目: " + mapping.getSubjectCode());
             }
             if (cashCodes.contains(mapping.getSubjectCode())) {
                 errors.add("现金科目不能作为对方科目映射: " + mapping.getSubjectCode());
@@ -275,6 +282,15 @@ public class CashFlowConfigurationService {
         List<String> missing = codes.stream().filter(code -> !subjects.containsKey(code)).toList();
         if (!missing.isEmpty()) {
             throw new IllegalArgumentException("会计科目不存在: " + String.join(", ", missing));
+        }
+    }
+
+    private void validateSubjectsActive(List<String> codes, Map<String, AccountSubjectEntity> subjects) {
+        List<String> inactive = codes.stream()
+                .filter(code -> !"ACTIVE".equals(subjects.get(code).getStatus()))
+                .toList();
+        if (!inactive.isEmpty()) {
+            throw new IllegalArgumentException("会计科目已停用: " + String.join(", ", inactive));
         }
     }
 

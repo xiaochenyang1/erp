@@ -94,6 +94,33 @@ class CashFlowConfigurationServiceTest {
     }
 
     @Test
+    void reportsDisabledConfiguredSubjectsAndRejectsNewDisabledMappings() {
+        when(auditMetadataFactory.current()).thenReturn(AUDIT);
+        when(itemTemplateMapper.selectList(any())).thenReturn(List.of(template("CFO_OTHER", "OPERATING", 10)));
+        when(cashSubjectMapper.selectList(any())).thenReturn(List.of(cashSubject(1L, "1002")));
+        when(subjectMapMapper.selectList(any())).thenReturn(List.of(mapping(2L, "CFO_OTHER", "1122")));
+        when(accountSubjectMapper.selectList(any())).thenReturn(List.of(
+                subject("1002", "ASSET", "DISABLED"),
+                subject("1122", "ASSET", "DISABLED")
+        ));
+
+        assertThat(service().definition().validationErrors())
+                .containsExactlyInAnyOrder(
+                        "现金范围引用已停用的会计科目: 1002",
+                        "映射引用已停用的会计科目: 1122"
+                );
+        assertThatThrownBy(() -> service().replaceCashSubjects(
+                new CashFlowSubjectCodesRequest(List.of("1002"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("会计科目已停用: 1002");
+        assertThatThrownBy(() -> service().replaceItemSubjects(
+                "CFO_OTHER",
+                new CashFlowSubjectCodesRequest(List.of("1122"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("会计科目已停用: 1122");
+    }
+
+    @Test
     void reassignsCounterpartAndKeepsTenantAudit() {
         when(auditMetadataFactory.current()).thenReturn(AUDIT);
         when(itemTemplateMapper.selectList(any())).thenReturn(List.of(
@@ -166,9 +193,14 @@ class CashFlowConfigurationServiceTest {
     }
 
     private AccountSubjectEntity subject(String code, String type) {
+        return subject(code, type, "ACTIVE");
+    }
+
+    private AccountSubjectEntity subject(String code, String type, String status) {
         AccountSubjectEntity entity = new AccountSubjectEntity();
         entity.setSubjectCode(code);
         entity.setSubjectType(type);
+        entity.setStatus(status);
         entity.setDeletedFlag(0);
         return entity;
     }

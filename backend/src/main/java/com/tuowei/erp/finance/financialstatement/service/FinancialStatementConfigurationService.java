@@ -111,6 +111,12 @@ public class FinancialStatementConfigurationService {
         if (!missing.isEmpty()) {
             throw new IllegalArgumentException("会计科目不存在: " + String.join(", ", missing));
         }
+        List<String> inactive = subjectCodes.stream()
+                .filter(code -> !"ACTIVE".equals(subjects.get(code).getStatus()))
+                .toList();
+        if (!inactive.isEmpty()) {
+            throw new IllegalArgumentException("会计科目已停用: " + String.join(", ", inactive));
+        }
         List<String> mismatched = subjectCodes.stream()
                 .filter(code -> !item.sectionCode().equals(subjects.get(code).getSubjectType()))
                 .toList();
@@ -186,6 +192,8 @@ public class FinancialStatementConfigurationService {
             AccountSubjectEntity subject = subjects.get(mapping.getSubjectCode());
             if (subject == null) {
                 errors.add("映射引用不存在的会计科目: " + mapping.getSubjectCode());
+            } else if (!"ACTIVE".equals(subject.getStatus())) {
+                errors.add("映射引用已停用的会计科目: " + mapping.getSubjectCode());
             } else if (!template.getSectionCode().equals(subject.getSubjectType())) {
                 errors.add("科目类别与报表项目不匹配: " + mapping.getSubjectCode() + " -> " + template.getItemCode());
             }
