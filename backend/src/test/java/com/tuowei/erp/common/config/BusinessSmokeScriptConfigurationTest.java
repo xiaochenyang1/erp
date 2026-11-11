@@ -174,7 +174,9 @@ class BusinessSmokeScriptConfigurationTest {
                 Path.of("scripts", "financial-statements-api-smoke.mjs"), StandardCharsets.UTF_8);
 
         assertThat(uiSmoke)
-                .contains("import { exerciseFinancialStatements } from './financial-statements-api-smoke.mjs'")
+                .contains("exerciseFinancialReportCloseSnapshot,")
+                .contains("exerciseFinancialStatements")
+                .contains("from './financial-statements-api-smoke.mjs'")
                 .contains("{ path: '/finance/ledger', text: '试算平衡' }")
                 .contains("financial-statements-post-query-map-and-export")
                 .contains("document.body.innerText.includes('CASH_FLOW_DIRECT_V1')")

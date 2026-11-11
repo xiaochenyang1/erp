@@ -180,6 +180,18 @@ class FlywayMigrationSmokeTest {
                   and formula_version = 'TYPE_MAPPING_V1'
                 """, Long.class);
         Assertions.assertThat(mappingCount).isEqualTo(16L);
+
+        Long defaultTaxSubjectCount = jdbcTemplate.queryForObject("""
+                select count(*) from fin_account_subject
+                where company_id = 1 and account_book_id = 1
+                  and subject_code = '222101'
+                  and subject_name = '应交税费-进项税额'
+                  and subject_type = 'LIABILITY'
+                  and balance_direction = 'DEBIT'
+                  and status = 'ACTIVE'
+                  and deleted_flag = 0
+                """, Long.class);
+        Assertions.assertThat(defaultTaxSubjectCount).isEqualTo(1L);
     }
 
     @Test

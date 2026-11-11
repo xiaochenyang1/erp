@@ -1,6 +1,6 @@
 # ERP Server
 
-当前开发状态见 [2026-11-11 项目状态](docs/PROJECT-STATUS-2026-11-11.md)。一期 PR #18 已于 2026-11-10 合并到 `main`（`1e1f6c5`），但尚无 tag、GitHub Release 或真实预生产签字。当前二期分支已实现试算平衡、资产负债表、利润表、直接法现金流量表、账套级映射和 CSV；它们属于管理报表最小版，间接法和完整法定格式不在本期范围。新增 31 路由/43 工作流 smoke 仍待 MySQL 8.4、真实浏览器和完整 CI 验证，之后按 [财务报表验收清单](docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md) 执行 FS-1–FS-12。
+当前开发状态见 [2026-11-11 项目状态](docs/PROJECT-STATUS-2026-11-11.md)。一期 PR #18 已于 2026-11-10 合并到 `main`（`1e1f6c5`），但尚无 tag、GitHub Release 或真实预生产签字。当前二期分支已实现试算平衡、资产负债表、利润表、直接法现金流量表、账套级映射、CSV 和 V177 月结不可变快照，V178 补齐默认报表映射引用的税费科目；它们属于管理报表最小版，间接法和完整法定格式不在本期范围。新增 31 路由/43 工作流 smoke 仍待 MySQL 8.4、真实浏览器和完整 CI 验证，之后按 [财务报表验收清单](docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md) 执行 FS-1–FS-13。
 
 一期制造与运维验收继续使用 [V170–V174 人工验收包](docs/P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md)；排程预览和执行账号必须具备 `ALL` 数据范围，V168→V174 升级恢复与旧版回退的历史完整证据基线为 `3b70299`，不能直接证明当前财务报表候选通过。
 
@@ -140,7 +140,7 @@ node scripts\financial-statements-api-smoke.mjs
 ## 关键文档
 
 - `docs/PROJECT-STATUS-2026-11-11.md`：当前财务报表二期候选的完成度、验证证据、范围边界和执行顺序
-- `docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md`：V175–V176 财务报表 FS-1–FS-12 预生产验收清单
+- `docs/FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md`：V175–V178 财务报表、月结快照及默认映射修正 FS-1–FS-13 预生产验收清单
 - `docs/PROJECT-STATUS-2026-11-09.md`：一期合并前的历史候选状态与完整 CI 基线
 - `docs/P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md`：V170–V174 真实预生产与人工签字包
 - `docs/WHAT_IS_MISSING.md`：当前完成度与缺口（以代码+smoke 为准）

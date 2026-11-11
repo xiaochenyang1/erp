@@ -24,7 +24,7 @@ const repo = path.resolve(path.dirname(script), '../..')
 const privateDirectoryPattern = /^erp-recovery-work-[a-zA-Z0-9]{6}$/
 const inventoryTables = ['inv_adjustment', 'inv_adjustment_line', 'inv_stock_check', 'inv_stock_check_line',
   'inv_balance', 'inv_lot_balance', 'inv_txn', 'fin_voucher', 'fin_voucher_entry']
-const targetMigrationVersions = ['169', '170', '171', '172', '173', '174', '175', '176', '177']
+const targetMigrationVersions = ['169', '170', '171', '172', '173', '174', '175', '176', '177', '178']
 const upgradeTableIncrease = 8
 export const recoveryChecks = [
   'Start the pinned V168 application on isolated services',
@@ -33,7 +33,7 @@ export const recoveryChecks = [
   'Create post-checkpoint changes and remove an original attachment',
   'Reject damaged and mismatched backups before target writes',
   'Restore the exact V168 database and attachment snapshot into fresh volumes',
-  'Upgrade the restored database to V177 using the accepted candidate',
+  'Upgrade the restored database to V178 using the accepted candidate',
   'Preserve historical inventory and configuration during migration',
   'Read restored documents and attachments and exclude later source changes',
   'Apply V169 approval rules to historical drafts and counted stock checks',
@@ -236,7 +236,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
   const report = { schemaVersion: 1, kind: 'erp-upgrade-recovery', status: 'RUNNING', startedAt: new Date().toISOString(),
     ...verified, runtimeToolRevision: revision, sourceRevision: legacyRevision, sourceJarSha256: legacy.jarSha256,
     legacyManifestSha256: expectedLegacyManifestSha256, project, privateDirectory: path.basename(directory), checks: [],
-    scope: 'Isolated V168 to V177 upgrade, joint DB/attachment recovery and fullstack V168 rollback using synthetic history; not production data acceptance' }
+    scope: 'Isolated V168 to V178 upgrade, joint DB/attachment recovery and fullstack V168 rollback using synthetic history; not production data acceptance' }
   let interrupted = false, configured = false, config, configuration, base, adminToken, fixture, beforeAttachments,
     sourceAfterDatabase, sourceAfterAttachments, baseline, inventoryBefore, settingsBefore, checkpoint,
     upgradedDatabase, upgradedAttachments, upgradedAttachment

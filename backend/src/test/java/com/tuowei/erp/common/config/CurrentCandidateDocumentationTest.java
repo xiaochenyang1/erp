@@ -20,9 +20,9 @@ class CurrentCandidateDocumentationTest {
         assertThat(status)
                 .contains("PR #18")
                 .contains("1e1f6c5")
-                .contains("1,200")
-                .contains("80 项")
-                .contains("110 项")
+                .contains("1,201")
+                .contains("83 项")
+                .contains("112 项")
                 .contains("31 个路由")
                 .contains("43 个工作流")
                 .contains("不能声称 31/31 或 43/43 已通过")
@@ -31,9 +31,11 @@ class CurrentCandidateDocumentationTest {
 
         assertThat(acceptance)
                 .contains("FS-1")
-                .contains("FS-12")
+                .contains("FS-13")
                 .contains("V175")
                 .contains("V176")
+                .contains("V177")
+                .contains("V178")
                 .contains("内部转账")
                 .contains("红冲")
                 .contains("账套隔离")
@@ -45,7 +47,7 @@ class CurrentCandidateDocumentationTest {
                 .contains("生产成本核算与期间关单")
                 .contains("有限产能排程一期")
                 .contains("FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md")
-                .contains("FS-1–FS-12");
+                .contains("FS-1–FS-13");
     }
 
     @Test

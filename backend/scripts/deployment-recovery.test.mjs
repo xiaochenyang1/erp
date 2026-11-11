@@ -64,8 +64,8 @@ function fixture(t) {
   report.checks[2].writersStopped = true
   Object.assign(report.checks[4], { databaseRejected: true, attachmentsRejected: true, mixedCheckpointRejected: true, targetsUntouched: true })
   Object.assign(report.checks[6], {
-    from: '168', to: '177', appliedOnce: true,
-    appliedVersions: ['169', '170', '171', '172', '173', '174', '175', '176', '177'],
+    from: '168', to: '178', appliedOnce: true,
+    appliedVersions: ['169', '170', '171', '172', '173', '174', '175', '176', '177', '178'],
     financialStatementTables: 6, financialReportSnapshotColumns: 8, jarSha256
   })
   Object.assign(report.checks[8], { postedPreserved: true, draftPreserved: true, cancelledPreserved: true, adjustedLinkPreserved: true,
@@ -96,7 +96,7 @@ test('accepts complete version-bound history, restore and cleanup evidence', t =
   assert.equal(result.rollbackSchema, '168')
 })
 
-test('upgrade evidence requires all post-V168 schema additions through V177', t => {
+test('upgrade evidence requires all post-V168 schema additions through V178', t => {
   const f = fixture(t)
   for (const name of ['database-upgraded-before-rollback.json', 'database-upgraded-after-rollback.json']) {
     const file = path.join(f.evidenceDirectory, name)

@@ -104,7 +104,9 @@ class AccountPeriodControllerTest {
     @Test
     @WithErpUser(userId = 863001L, authorities = {PERIOD_CLOSE, PERIOD_REOPEN, PERIOD_VIEW})
     void locksClosesAndReopensLatestLockedPeriod() {
-        seedPeriod(863201L, 2037, "2037-03", "OPEN");
+        // Keep the happy-path report period before every shared integration-test fixture so
+        // balance-sheet opening balances cannot leak in from another test using the default book.
+        seedPeriod(863201L, 2000, "2000-03", "OPEN");
 
         AccountPeriodResponse locked = accountPeriodService.lock(863201L);
         Assertions.assertThat(locked.status()).isEqualTo("LOCKED");
