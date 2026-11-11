@@ -16,6 +16,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const defaultBaseUrl = 'http://127.0.0.1:8080'
 const epsilon = 0.001
+const financialReportTypes = ['TRIAL_BALANCE', 'BALANCE_SHEET', 'INCOME_STATEMENT', 'CASH_FLOW_DIRECT']
+const financialReportVersions = {
+  TRIAL_BALANCE: 'LEDGER_TRIAL_BALANCE_V1',
+  BALANCE_SHEET: 'TYPE_MAPPING_V1',
+  INCOME_STATEMENT: 'TYPE_MAPPING_V1',
+  CASH_FLOW_DIRECT: 'CASH_FLOW_DIRECT_V1'
+}
+const sha256Pattern = /^[a-f0-9]{64}$/i
 
 const number = (value) => Number(value ?? 0)
 const closeTo = (actual, expected) => Math.abs(number(actual) - number(expected)) < epsilon
@@ -77,6 +85,86 @@ export function verifyFinancialStatementDelta(before, after, amount) {
     balanceSheetDelta: { assets: -amount, equity: -amount },
     incomeStatementDelta: { expense: amount, netProfit: -amount },
     cashFlowDelta: { operating: -amount, netIncrease: -amount, closingCash: -amount }
+  }
+}
+
+export function verifyFinancialReportCloseCheck(check) {
+  const item = (check?.checks || []).find((candidate) => candidate.code === 'FINANCIAL_REPORTS_RECONCILED')
+  requireCheck(item, 'period close check is missing FINANCIAL_REPORTS_RECONCILED')
+  requireCheck(item.passed === true, `financial-report close check failed: ${item.message || 'unknown error'}`)
+  requireCheck(number(item.metric) === 0, 'financial-report close check has a non-zero failure metric')
+  return { code: item.code, message: item.message, metric: number(item.metric) }
+}
+
+export function verifyFinancialReportCloseSnapshot(snapshot) {
+  requireCheck(snapshot?.actionType === 'CLOSE', 'financial-report evidence is not a CLOSE snapshot')
+  requireCheck(snapshot?.passed === true && number(snapshot?.issueCount) === 0,
+    'financial-report close snapshot is not a successful zero-issue snapshot')
+  verifyFinancialReportCloseCheck({ checks: snapshot.items || [] })
+
+  const reports = snapshot.financialReports || []
+  requireCheck(reports.length === financialReportTypes.length,
+    `expected ${financialReportTypes.length} financial-report snapshots, got ${reports.length}`)
+  const actualTypes = reports.map((report) => report.reportType)
+  requireCheck(new Set(actualTypes).size === financialReportTypes.length,
+    'financial-report snapshot contains duplicate report types')
+  requireCheck(financialReportTypes.every((reportType) => actualTypes.includes(reportType)),
+    `financial-report snapshot types are incomplete: ${actualTypes.join(', ')}`)
+
+  for (const report of reports) {
+    requireCheck(report.verified === true, `${report.reportType} snapshot is not verified`)
+    requireCheck(report.formulaVersion === financialReportVersions[report.reportType],
+      `${report.reportType} snapshot has unexpected formula version`)
+    requireCheck(sha256Pattern.test(report.configurationDigest || ''),
+      `${report.reportType} configuration digest is not SHA-256`)
+    requireCheck(sha256Pattern.test(report.payloadSha256 || ''),
+      `${report.reportType} payload digest is not SHA-256`)
+    requireCheck(report.configuration && typeof report.configuration === 'object',
+      `${report.reportType} configuration payload is missing`)
+    requireCheck(report.payload && typeof report.payload === 'object',
+      `${report.reportType} report payload is missing`)
+    requireCheck(Boolean(report.dateFrom) && Boolean(report.dateTo),
+      `${report.reportType} snapshot date range is missing`)
+  }
+
+  return {
+    snapshotId: String(snapshot.id),
+    reportTypes: financialReportTypes,
+    payloadDigests: Object.fromEntries(reports.map((report) => [report.reportType, report.payloadSha256]))
+  }
+}
+
+export async function exerciseFinancialReportCloseSnapshot(request, options = {}) {
+  const startYear = Number(options.startYear || 2000)
+  const endYear = Number(options.endYear || 2199)
+  let period
+  for (let year = startYear; year <= endYear && !period; year += 1) {
+    let periods = await request('GET', `/finance/periods?year=${year}`)
+    if (!periods?.length) periods = await request('POST', '/finance/periods/generate', { year })
+    period = (periods || []).find((candidate) => candidate.status !== 'CLOSED')
+  }
+  requireCheck(period?.id, `no reusable smoke accounting period found in ${startYear}-${endYear}`)
+  requireCheck(['OPEN', 'LOCKED'].includes(period.status),
+    `smoke accounting period ${period.periodMonth} has unsupported status ${period.status}`)
+
+  const closeCheck = await request('GET', `/finance/periods/${period.id}/close-check`)
+  const closeCheckEvidence = verifyFinancialReportCloseCheck(closeCheck)
+  if (period.status === 'OPEN') {
+    const locked = await request('POST', `/finance/periods/${period.id}/lock`)
+    requireCheck(locked?.status === 'LOCKED', `account period ${period.periodMonth} was not locked`)
+  }
+  const closed = await request('POST', `/finance/periods/${period.id}/close`)
+  requireCheck(closed?.status === 'CLOSED', `account period ${period.periodMonth} was not closed`)
+
+  const snapshots = await request('GET', `/finance/periods/${period.id}/close-snapshots`)
+  const closeSnapshot = (snapshots || []).find((snapshot) => snapshot.actionType === 'CLOSE')
+  const snapshotEvidence = verifyFinancialReportCloseSnapshot(closeSnapshot)
+  return {
+    periodId: String(period.id),
+    periodYear: period.periodYear,
+    periodMonth: period.periodMonth,
+    closeCheck: closeCheckEvidence,
+    ...snapshotEvidence
   }
 }
 
@@ -171,7 +259,9 @@ async function main() {
     return payload.data
   }
 
-  const evidence = await exerciseFinancialStatements(request)
+  const statementEvidence = await exerciseFinancialStatements(request)
+  const closeSnapshot = await exerciseFinancialReportCloseSnapshot(request)
+  const evidence = { ...statementEvidence, closeSnapshot }
   const outputDir = join(scriptDir, '..', 'target', 'financial-statements-api-smoke')
   mkdirSync(outputDir, { recursive: true })
   const reportPath = join(outputDir, `report-${Date.now()}.json`)
@@ -180,6 +270,7 @@ async function main() {
   console.log('[PASS] FS-2 trial balance debit and credit deltas reconcile')
   console.log('[PASS] FS-3 balance sheet and income statement deltas reconcile')
   console.log('[PASS] FS-4 direct cash flow reconciles to closing cash')
+  console.log(`[PASS] FS-5 period ${closeSnapshot.periodMonth} captured four immutable financial-report snapshots`)
   console.log(`REPORT ${reportPath}`)
 }
 

@@ -39,7 +39,7 @@ function fixture(t) {
   })
   save(path.join(evidenceDirectory, 'attachments-restored.json'), attachment)
   save(path.join(evidenceDirectory, 'attachments-rollback-restored.json'), attachment)
-  for (const name of ['database-upgraded-before-rollback.json', 'database-upgraded-after-rollback.json']) save(path.join(evidenceDirectory, name), { ...baseline, tableCount: baseline.tableCount + 2, dataSha256: '2'.repeat(64) })
+  for (const name of ['database-upgraded-before-rollback.json', 'database-upgraded-after-rollback.json']) save(path.join(evidenceDirectory, name), { ...baseline, tableCount: baseline.tableCount + 8, dataSha256: '2'.repeat(64) })
   for (const name of ['attachments-upgraded-before-rollback.json', 'attachments-upgraded-after-rollback.json']) save(path.join(evidenceDirectory, name), {
     ...attachment, entries: [...attachment.entries, { path: 'new.txt', kind: 'file', size: 42, sha256: '3'.repeat(64) }]
   })
@@ -63,7 +63,11 @@ function fixture(t) {
   report.checks[1].generatedThroughOldApplication = true
   report.checks[2].writersStopped = true
   Object.assign(report.checks[4], { databaseRejected: true, attachmentsRejected: true, mixedCheckpointRejected: true, targetsUntouched: true })
-  Object.assign(report.checks[6], { from: '168', to: '174', appliedOnce: true, appliedVersions: ['169', '170', '171', '172', '173', '174'], jarSha256 })
+  Object.assign(report.checks[6], {
+    from: '168', to: '177', appliedOnce: true,
+    appliedVersions: ['169', '170', '171', '172', '173', '174', '175', '176', '177'],
+    financialStatementTables: 6, financialReportSnapshotColumns: 8, jarSha256
+  })
   Object.assign(report.checks[8], { postedPreserved: true, draftPreserved: true, cancelledPreserved: true, adjustedLinkPreserved: true,
     countedPreserved: true, unicodeCustomerPreserved: true, originalAttachmentsRestored: true, laterRecordsAbsent: true })
   Object.assign(report.checks[9], { oldDraftRequiresApproval: true, selfApprovalRejected: true, duplicatePostingRejected: true, countWaitedForPosting: true,
@@ -92,7 +96,7 @@ test('accepts complete version-bound history, restore and cleanup evidence', t =
   assert.equal(result.rollbackSchema, '168')
 })
 
-test('upgrade evidence requires all post-V168 schema additions through V174', t => {
+test('upgrade evidence requires all post-V168 schema additions through V177', t => {
   const f = fixture(t)
   for (const name of ['database-upgraded-before-rollback.json', 'database-upgraded-after-rollback.json']) {
     const file = path.join(f.evidenceDirectory, name)
@@ -152,6 +156,7 @@ test('matching empty or unrelated configuration snapshots cannot satisfy histori
 test('missing negative checks and incorrect approval stock totals are rejected', t => {
   const f = fixture(t)
   for (const [index, key, value] of [[4, 'targetsUntouched', false], [6, 'to', '168'], [8, 'laterRecordsAbsent', false],
+    [6, 'financialStatementTables', 5], [6, 'financialReportSnapshotColumns', 7],
     [9, 'selfApprovalRejected', false], [9, 'draftStock', { quantity: 14, amount: 140, reserved: 0 }], [10, 'sourceDatabaseUnchanged', false]]) {
     const changed = structuredClone(f.report)
     changed.checks[index][key] = value

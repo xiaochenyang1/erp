@@ -30,6 +30,7 @@ import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.service.AccountPeriodGuard;
 import com.tuowei.erp.finance.period.service.AccountPeriodCloseChecker;
+import com.tuowei.erp.finance.period.service.PeriodFinancialReportSnapshotService;
 import com.tuowei.erp.finance.period.service.InventoryFinanceReconciliationService;
 import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckResponse;
 import com.tuowei.erp.finance.period.web.InventoryFinanceReconciliationResponse;
@@ -150,7 +151,34 @@ class FxRevaluationWorkflowTest {
                         assertThat(requiredType).isEqualTo(Long.class);
                         return requiredType.cast(0L);
                     }
-                }, service);
+                }, service, verifiedFinancialReports());
+    }
+
+    private PeriodFinancialReportSnapshotService verifiedFinancialReports() {
+        PeriodFinancialReportSnapshotService reports = mock(PeriodFinancialReportSnapshotService.class);
+        when(reports.prepare(any(AccountPeriodEntity.class)))
+                .thenAnswer(invocation -> verifiedPreparedReports(invocation.getArgument(0)));
+        return reports;
+    }
+
+    private PeriodFinancialReportSnapshotService.PreparedReports verifiedPreparedReports(AccountPeriodEntity period) {
+        String digest = "0".repeat(64);
+        return new PeriodFinancialReportSnapshotService.PreparedReports(List.of(
+                preparedReport("TRIAL_BALANCE", period, digest),
+                preparedReport("BALANCE_SHEET", period, digest),
+                preparedReport("INCOME_STATEMENT", period, digest),
+                preparedReport("CASH_FLOW_DIRECT", period, digest)
+        ));
+    }
+
+    private PeriodFinancialReportSnapshotService.PreparedReport preparedReport(
+            String reportType,
+            AccountPeriodEntity period,
+            String digest
+    ) {
+        return new PeriodFinancialReportSnapshotService.PreparedReport(
+                reportType, "TEST_V1", digest, "{}", period.getStartDate(), period.getEndDate(), true, "{}", digest
+        );
     }
 
     @AfterEach

@@ -218,6 +218,27 @@ class FlywayMigrationSmokeTest {
     }
 
     @Test
+    void createsImmutablePeriodFinancialReportSnapshots() {
+        Long tableCount = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) = 'fin_period_financial_report_snapshot'
+                """, Long.class);
+        Assertions.assertThat(tableCount).isEqualTo(1L);
+
+        Long columnCount = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.columns
+                where lower(table_schema) = 'public'
+                  and lower(table_name) = 'fin_period_financial_report_snapshot'
+                  and lower(column_name) in (
+                    'close_snapshot_id', 'report_type', 'formula_version', 'configuration_digest',
+                    'configuration_payload', 'report_payload', 'payload_sha256', 'verified_flag'
+                  )
+                """, Long.class);
+        Assertions.assertThat(columnCount).isEqualTo(8L);
+    }
+
+    @Test
     void createsProductionBatchExecutionTablesSequencesAndPermission() {
         Long tableCount = jdbcTemplate.queryForObject("""
                 select count(*)

@@ -11,6 +11,7 @@ public record AccountPeriodCloseSnapshotResponse(
         int issueCount,
         Long checkedBy,
         LocalDateTime checkedTime,
-        List<AccountPeriodCloseSnapshotItemResponse> items
+        List<AccountPeriodCloseSnapshotItemResponse> items,
+        List<PeriodFinancialReportSnapshotResponse> financialReports
 ) {
 }

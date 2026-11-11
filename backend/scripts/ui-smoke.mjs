@@ -4,7 +4,10 @@ import { connectCdpSocket, pageConditionExpression } from './ui-smoke-cdp.mjs'
 import { waitForBackendReadiness } from './ui-smoke-readiness.mjs'
 import { runMrpUiSmoke, runMultilevelMrpUiSmoke, runMrpWarehouseUiSmoke } from './mrp-ui-smoke.mjs'
 import { runCurrencyDocumentsUiSmoke, runRoundingReportUiSmoke } from './currency-document-ui-smoke.mjs'
-import { exerciseFinancialStatements } from './financial-statements-api-smoke.mjs'
+import {
+  exerciseFinancialReportCloseSnapshot,
+  exerciseFinancialStatements
+} from './financial-statements-api-smoke.mjs'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
@@ -1696,9 +1699,13 @@ async function runBusinessTraceWorkflow(cdp) {
   }
 }
 
-async function runFinancePeriodWorkflow(cdp) {
+async function runFinancePeriodWorkflow(cdp, auth) {
   resetEvents(cdp.events)
+  let snapshotEvidence = null
   try {
+    snapshotEvidence = await exerciseFinancialReportCloseSnapshot(
+      (method, path, body) => apiRequest(auth, method, path, body)
+    )
     await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/periods` })
     await waitForPage(cdp, `document.body.innerText.includes('会计期间管理') && document.body.innerText.includes('生成年期间')`, 'finance periods page')
 
@@ -1762,6 +1769,82 @@ async function runFinancePeriodWorkflow(cdp) {
     `, 'period reconciliation dialog').catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after period reconciliation'))}`)
     })
+    await clickButton(cdp, '关闭', dialogExpression('库存财务对账'))
+
+    await setElementValue(
+      cdp,
+      `document.querySelector('.toolbar-card .el-input-number input')`,
+      String(snapshotEvidence.periodYear),
+      'financial-report snapshot accounting year'
+    )
+    await clickButton(cdp, '查询')
+    const snapshotPeriodRow = `[...document.querySelectorAll('.el-table__body-wrapper tbody tr')]
+      .find((row) => visible(row) && row.innerText.includes(${JSON.stringify(snapshotEvidence.periodMonth)}) && row.innerText.includes('已结账'))`
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        return Boolean(${snapshotPeriodRow});
+      })()
+    `, 'closed period with financial-report snapshot')
+    await invokeButton(cdp, '结账向导', 'closed period evidence wizard', snapshotPeriodRow)
+
+    const evidenceDrawer = `[...document.querySelectorAll('.el-drawer')]
+      .find((drawer) => visible(drawer) && drawer.innerText.includes(${JSON.stringify(snapshotEvidence.periodMonth)}))`
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        const drawer = ${evidenceDrawer};
+        return Boolean(drawer) && drawer.innerText.includes('月结证据') && drawer.innerText.includes('结账');
+      })()
+    `, 'closed period evidence loaded')
+    await invokeElement(cdp, `${evidenceDrawer}.querySelector('.el-table__expand-icon')`, 'expand close evidence')
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        const drawer = ${evidenceDrawer};
+        return Boolean(drawer)
+          && drawer.innerText.includes('结账财务报表快照')
+          && drawer.innerText.includes('试算平衡')
+          && drawer.innerText.includes('资产负债表')
+          && drawer.innerText.includes('利润表')
+          && drawer.innerText.includes('现金流量表（直接法）');
+      })()
+    `, 'four close financial-report snapshots')
+    await invokeElement(
+      cdp,
+      `${evidenceDrawer}.querySelector('.financial-report-snapshots button')`,
+      'financial-report snapshot detail'
+    )
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        const dialog = ${dialogExpression('历史财务报表快照')};
+        return Boolean(dialog)
+          && dialog.innerText.includes('科目映射 SHA-256')
+          && dialog.innerText.includes('报表内容 SHA-256')
+          && dialog.innerText.includes('LEDGER_TRIAL_BALANCE_V1');
+      })()
+    `, 'financial-report snapshot detail dialog')
   } catch (error) {
     const diagnostic = await pageDiagnostics(cdp, 'finance period workflow failure').catch(() => null)
     throw new Error(`${error.message}${diagnostic ? `\n${JSON.stringify(diagnostic, null, 2)}` : ''}`)
@@ -1770,6 +1853,8 @@ async function runFinancePeriodWorkflow(cdp) {
   const failures = snapshotFailures(cdp.events)
   return {
     name: 'finance-period-generate-check-and-reconcile',
+    snapshotPeriod: snapshotEvidence?.periodMonth || null,
+    snapshotReportTypes: snapshotEvidence?.reportTypes || [],
     passed: failures.length === 0,
     failures
   }
@@ -7538,7 +7623,7 @@ async function main() {
     { name: 'exception-sla-policy-save', run: () => runSlaPolicyWorkflow(cdp) },
     { name: 'exception-rule-config-toggle-and-scan-all', run: () => runExceptionRuleWorkflow(cdp) },
     { name: 'business-trace-search-and-reset', run: () => runBusinessTraceWorkflow(cdp) },
-    { name: 'finance-period-generate-check-and-reconcile', run: () => runFinancePeriodWorkflow(cdp) },
+    { name: 'finance-period-generate-check-and-reconcile', run: () => runFinancePeriodWorkflow(cdp, auth) },
     { name: 'financial-statements-post-query-map-and-export', run: () => runFinancialStatementsWorkflow(cdp, auth) },
     { name: 'report-export-download', run: () => runReportExportWorkflow(cdp) },
     { name: 'attachment-upload-download-delete', run: () => runAttachmentWorkflow(cdp) },

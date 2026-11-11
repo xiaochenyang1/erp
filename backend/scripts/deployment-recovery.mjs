@@ -24,7 +24,8 @@ const repo = path.resolve(path.dirname(script), '../..')
 const privateDirectoryPattern = /^erp-recovery-work-[a-zA-Z0-9]{6}$/
 const inventoryTables = ['inv_adjustment', 'inv_adjustment_line', 'inv_stock_check', 'inv_stock_check_line',
   'inv_balance', 'inv_lot_balance', 'inv_txn', 'fin_voucher', 'fin_voucher_entry']
-const upgradeTableIncrease = 2
+const targetMigrationVersions = ['169', '170', '171', '172', '173', '174', '175', '176', '177']
+const upgradeTableIncrease = 8
 export const recoveryChecks = [
   'Start the pinned V168 application on isolated services',
   'Create historical inventory and attachment fixtures through V168 APIs',
@@ -32,7 +33,7 @@ export const recoveryChecks = [
   'Create post-checkpoint changes and remove an original attachment',
   'Reject damaged and mismatched backups before target writes',
   'Restore the exact V168 database and attachment snapshot into fresh volumes',
-  'Upgrade the restored database to V174 using the accepted candidate',
+  'Upgrade the restored database to V177 using the accepted candidate',
   'Preserve historical inventory and configuration during migration',
   'Read restored documents and attachments and exclude later source changes',
   'Apply V169 approval rules to historical drafts and counted stock checks',
@@ -161,7 +162,9 @@ export function validateRecoveryReports({ evidenceDirectory, expectedRevision, e
   const upgrade = report.checks[6]
   assert.equal(upgrade.from, '168'); assert.equal(upgrade.to, targetSchema); assert.equal(upgrade.appliedOnce, true)
   assert.equal(upgrade.jarSha256, expectedJarSha256)
-  assert.deepEqual(upgrade.appliedVersions, ['169', '170', '171', '172', '173', '174'])
+  assert.deepEqual(upgrade.appliedVersions, targetMigrationVersions)
+  assert.equal(upgrade.financialStatementTables, 6)
+  assert.equal(upgrade.financialReportSnapshotColumns, 8)
   const reads = report.checks[8]
   for (const key of ['postedPreserved', 'draftPreserved', 'cancelledPreserved', 'adjustedLinkPreserved', 'countedPreserved',
     'unicodeCustomerPreserved', 'originalAttachmentsRestored', 'laterRecordsAbsent']) assert.equal(reads[key], true)
@@ -233,7 +236,7 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
   const report = { schemaVersion: 1, kind: 'erp-upgrade-recovery', status: 'RUNNING', startedAt: new Date().toISOString(),
     ...verified, runtimeToolRevision: revision, sourceRevision: legacyRevision, sourceJarSha256: legacy.jarSha256,
     legacyManifestSha256: expectedLegacyManifestSha256, project, privateDirectory: path.basename(directory), checks: [],
-    scope: 'Isolated V168 to V174 upgrade, joint DB/attachment recovery and fullstack V168 rollback using synthetic history; not production data acceptance' }
+    scope: 'Isolated V168 to V177 upgrade, joint DB/attachment recovery and fullstack V168 rollback using synthetic history; not production data acceptance' }
   let interrupted = false, configured = false, config, configuration, base, adminToken, fixture, beforeAttachments,
     sourceAfterDatabase, sourceAfterAttachments, baseline, inventoryBefore, settingsBefore, checkpoint,
     upgradedDatabase, upgradedAttachments, upgradedAttachment
@@ -503,12 +506,9 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       const jarSha256 = (await compose(['exec', '-T', 'erp-server', 'sha256sum', '/app/erp-server.jar'])).stdout.split(/\s/)[0]
       assert.equal(jarSha256, readJson(path.join(work, 'deployment-manifest.json')).jarSha256)
       assert.equal(await schema('mysql-restore'), targetSchema)
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='170' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='171' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='172' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='173' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='174' AND success=1;"), '1')
+      for (const version of targetMigrationVersions) {
+        assert.equal(await sql('mysql-restore', `SELECT COUNT(*) FROM flyway_schema_history WHERE version='${version}' AND success=1;`), '1')
+      }
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='prd_cost_entry';"), '1')
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='prd_cost_entry' AND column_name IN ('reversal_of_entry_id','correction_of_entry_id');"), '2')
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='prd_cost_close';"), '1')
@@ -518,11 +518,27 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='prd_work_center' AND column_name IN ('daily_capacity_minutes','workday_start_time');"), '2')
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='prd_order_operation' AND column_name IN ('standard_minutes','scheduled_minutes','scheduled_start_time','scheduled_end_time','scheduled_by','scheduled_time');"), '6')
       assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM sys_menu WHERE permission IN ('production:schedule:view','production:schedule:run') AND deleted_flag=0;"), '3')
+      const financialStatementTables = await sql('mysql-restore', `SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema=DATABASE() AND table_name IN (
+          'sys_financial_statement_item_template','fin_financial_statement_subject_map',
+          'sys_cash_flow_item_template','fin_cash_equivalent_subject','fin_cash_flow_subject_map',
+          'fin_period_financial_report_snapshot'
+        );`)
+      assert.equal(financialStatementTables, '6')
+      const financialReportSnapshotColumns = await sql('mysql-restore', `SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema=DATABASE() AND table_name='fin_period_financial_report_snapshot'
+          AND column_name IN (
+            'close_snapshot_id','report_type','formula_version','configuration_digest',
+            'configuration_payload','report_payload','payload_sha256','verified_flag'
+          );`)
+      assert.equal(financialReportSnapshotColumns, '8')
       assert.equal(await sql('mysql-restore', 'SELECT COUNT(*) FROM flyway_schema_history WHERE success=0;'), '0')
       assert.equal(await sql('mysql-restore', 'SELECT COUNT(*) FROM flyway_schema_history WHERE CAST(version AS UNSIGNED)<=168;'),
         await sql('mysql', 'SELECT COUNT(*) FROM flyway_schema_history WHERE CAST(version AS UNSIGNED)<=168;'))
       report.targetImages = (await compose(['images', '--format', 'json'])).stdout
-      return { from: '168', to: targetSchema, appliedOnce: true, appliedVersions: ['169', '170', '171', '172', '173', '174'], jarSha256 }
+      return { from: '168', to: targetSchema, appliedOnce: true, appliedVersions: targetMigrationVersions,
+        financialStatementTables: Number(financialStatementTables),
+        financialReportSnapshotColumns: Number(financialReportSnapshotColumns), jarSha256 }
     })
     await check(7, async () => {
       const inventoryAfter = await snapshot('mysql-restore', inventoryTables)
@@ -557,12 +573,9 @@ export async function runRecovery({ bundleDirectory, expectedManifestSha256, leg
       await compose(['up', '-d', '--no-deps', '--no-recreate', '--wait', '--wait-timeout', '180', 'erp-server'])
       await ready(); await loginAdmin()
       for (const attachment of [...beforeAttachments, upgradedAttachment]) await download(attachment)
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='169' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='170' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='171' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='172' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='173' AND success=1;"), '1')
-      assert.equal(await sql('mysql-restore', "SELECT COUNT(*) FROM flyway_schema_history WHERE version='174' AND success=1;"), '1')
+      for (const version of targetMigrationVersions) {
+        assert.equal(await sql('mysql-restore', `SELECT COUNT(*) FROM flyway_schema_history WHERE version='${version}' AND success=1;`), '1')
+      }
       assert.deepEqual(await snapshot('mysql'), sourceAfterDatabase)
       assert.deepEqual(await attachmentSnapshot('/source'), sourceAfterAttachments)
       return { sourceDatabaseUnchanged: true, sourceAttachmentsUnchanged: true, newAttachmentWritable: true, restartPassed: true }

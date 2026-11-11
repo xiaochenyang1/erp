@@ -7,6 +7,7 @@ import com.tuowei.erp.finance.period.mapper.AccountPeriodMapper;
 import com.tuowei.erp.finance.period.model.AccountPeriodEntity;
 import com.tuowei.erp.finance.period.service.AccountPeriodCloseChecker;
 import com.tuowei.erp.finance.period.service.InventoryFinanceReconciliationService;
+import com.tuowei.erp.finance.period.service.PeriodFinancialReportSnapshotService;
 import com.tuowei.erp.finance.period.web.InventoryFinanceReconciliationResponse;
 import com.tuowei.erp.finance.period.web.AccountPeriodCloseCheckItemResponse;
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,8 @@ class AccountPeriodCloseCheckerTenantScopeTest {
                 auditMetadataFactory,
                 reconciliationService,
                 jdbcTemplate,
-                fxRevaluationService
+                fxRevaluationService,
+                verifiedFinancialReports(period)
         ).check(period.getId());
 
         assertThat(singleSqlContaining(jdbcTemplate.sqls(), "from fin_payment_allocation a"))
@@ -78,7 +80,8 @@ class AccountPeriodCloseCheckerTenantScopeTest {
                 auditMetadataFactory,
                 reconciliationService,
                 jdbcTemplate,
-                mock(FxRevaluationService.class)
+                mock(FxRevaluationService.class),
+                mock(PeriodFinancialReportSnapshotService.class)
         );
 
         assertThatThrownBy(() -> checker.check(period.getId()))
@@ -87,6 +90,32 @@ class AccountPeriodCloseCheckerTenantScopeTest {
 
         assertThat(jdbcTemplate.sqls()).isEmpty();
         verifyNoInteractions(reconciliationService);
+    }
+
+    private PeriodFinancialReportSnapshotService verifiedFinancialReports(AccountPeriodEntity period) {
+        PeriodFinancialReportSnapshotService reports = mock(PeriodFinancialReportSnapshotService.class);
+        when(reports.prepare(period))
+                .thenReturn(verifiedPreparedReports(period));
+        return reports;
+    }
+
+    private PeriodFinancialReportSnapshotService.PreparedReports verifiedPreparedReports(AccountPeriodEntity period) {
+        return new PeriodFinancialReportSnapshotService.PreparedReports(List.of(
+                preparedReport("TRIAL_BALANCE", period),
+                preparedReport("BALANCE_SHEET", period),
+                preparedReport("INCOME_STATEMENT", period),
+                preparedReport("CASH_FLOW_DIRECT", period)
+        ));
+    }
+
+    private PeriodFinancialReportSnapshotService.PreparedReport preparedReport(
+            String reportType,
+            AccountPeriodEntity period
+    ) {
+        String digest = "0".repeat(64);
+        return new PeriodFinancialReportSnapshotService.PreparedReport(
+                reportType, "TEST_V1", digest, "{}", period.getStartDate(), period.getEndDate(), true, "{}", digest
+        );
     }
 
     private AccountPeriodEntity period() {

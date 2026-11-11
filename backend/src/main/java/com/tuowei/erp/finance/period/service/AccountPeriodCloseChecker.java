@@ -29,6 +29,7 @@ public class AccountPeriodCloseChecker {
     private final InventoryFinanceReconciliationService reconciliationService;
     private final JdbcTemplate jdbcTemplate;
     private final FxRevaluationService fxRevaluationService;
+    private final PeriodFinancialReportSnapshotService financialReportSnapshotService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public AccountPeriodCloseChecker(
@@ -36,13 +37,15 @@ public class AccountPeriodCloseChecker {
             AuditMetadataFactory auditMetadataFactory,
             InventoryFinanceReconciliationService reconciliationService,
             JdbcTemplate jdbcTemplate,
-            FxRevaluationService fxRevaluationService
+            FxRevaluationService fxRevaluationService,
+            PeriodFinancialReportSnapshotService financialReportSnapshotService
     ) {
         this.accountPeriodMapper = accountPeriodMapper;
         this.auditMetadataFactory = auditMetadataFactory;
         this.reconciliationService = reconciliationService;
         this.jdbcTemplate = jdbcTemplate;
         this.fxRevaluationService = fxRevaluationService;
+        this.financialReportSnapshotService = financialReportSnapshotService;
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +68,7 @@ public class AccountPeriodCloseChecker {
         addBankStatementCheck(period, issues, checks);
         addInventoryBalanceCheck(period, issues, checks);
         addFxRevaluationCheck(period, issues, checks);
+        addFinancialReportCheck(period, issues, checks);
 
         return new AccountPeriodCloseCheckResponse(
                 period.getId(),
@@ -73,6 +77,52 @@ public class AccountPeriodCloseChecker {
                 issues,
                 checks
         );
+    }
+
+    private void addFinancialReportCheck(
+            AccountPeriodEntity period,
+            List<AccountPeriodCloseIssueResponse> issues,
+            List<AccountPeriodCloseCheckItemResponse> checks
+    ) {
+        try {
+            var prepared = financialReportSnapshotService.prepare(period);
+            boolean passed = prepared.verified();
+            List<String> failedTypes = prepared.failedReportTypes();
+            String message = passed
+                    ? "试算平衡、资产负债表、利润表和直接法现金流量表均已核对"
+                    : "财务报表核对未通过: " + String.join(", ", failedTypes);
+            checks.add(new AccountPeriodCloseCheckItemResponse(
+                    "FINANCIAL_REPORTS_RECONCILED",
+                    "财务报表核对",
+                    "财务",
+                    passed,
+                    message,
+                    BigDecimal.valueOf(failedTypes.size())
+            ));
+            if (!passed) {
+                issues.add(new AccountPeriodCloseIssueResponse(
+                        "FINANCIAL_REPORTS_RECONCILED",
+                        message,
+                        BigDecimal.valueOf(failedTypes.size())
+                ));
+            }
+        } catch (RuntimeException ex) {
+            String detail = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+            String message = "财务报表生成失败: " + detail;
+            checks.add(new AccountPeriodCloseCheckItemResponse(
+                    "FINANCIAL_REPORTS_RECONCILED",
+                    "财务报表核对",
+                    "财务",
+                    false,
+                    message,
+                    BigDecimal.ONE
+            ));
+            issues.add(new AccountPeriodCloseIssueResponse(
+                    "FINANCIAL_REPORTS_RECONCILED",
+                    message,
+                    BigDecimal.ONE
+            ));
+        }
     }
 
     private void addProductionCostCloseCheck(

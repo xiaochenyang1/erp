@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { verifyFinancialStatementDelta } from './financial-statements-api-smoke.mjs'
+import {
+  verifyFinancialReportCloseCheck,
+  verifyFinancialReportCloseSnapshot,
+  verifyFinancialStatementDelta
+} from './financial-statements-api-smoke.mjs'
 
 const reportSet = () => ({
   trial: {
@@ -71,4 +75,54 @@ test('financial statement smoke rejects a report that only looks successful', ()
   after.cash.closingCash -= 127
 
   assert.throws(() => verifyFinancialStatementDelta(before, after, 128), /closing cash delta/)
+})
+
+const reportSnapshot = (reportType, formulaVersion) => ({
+  id: `${reportType}-1`,
+  reportType,
+  formulaVersion,
+  configurationDigest: 'a'.repeat(64),
+  configuration: { formulaVersion },
+  dateFrom: '2000-01-01',
+  dateTo: '2000-01-31',
+  verified: true,
+  payloadSha256: 'b'.repeat(64),
+  payload: { formulaVersion }
+})
+
+const closeSnapshot = () => ({
+  id: '91',
+  actionType: 'CLOSE',
+  passed: true,
+  issueCount: 0,
+  items: [{
+    code: 'FINANCIAL_REPORTS_RECONCILED',
+    passed: true,
+    metric: 0,
+    message: 'all reports reconciled'
+  }],
+  financialReports: [
+    reportSnapshot('TRIAL_BALANCE', 'LEDGER_TRIAL_BALANCE_V1'),
+    reportSnapshot('BALANCE_SHEET', 'TYPE_MAPPING_V1'),
+    reportSnapshot('INCOME_STATEMENT', 'TYPE_MAPPING_V1'),
+    reportSnapshot('CASH_FLOW_DIRECT', 'CASH_FLOW_DIRECT_V1')
+  ]
+})
+
+test('financial statement smoke accepts a complete close check and immutable snapshot set', () => {
+  assert.equal(verifyFinancialReportCloseCheck({ checks: closeSnapshot().items }).metric, 0)
+  assert.deepEqual(verifyFinancialReportCloseSnapshot(closeSnapshot()).reportTypes, [
+    'TRIAL_BALANCE', 'BALANCE_SHEET', 'INCOME_STATEMENT', 'CASH_FLOW_DIRECT'
+  ])
+})
+
+test('financial statement smoke rejects missing or tampered close evidence', () => {
+  assert.throws(() => verifyFinancialReportCloseCheck({ checks: [] }), /missing FINANCIAL_REPORTS_RECONCILED/)
+  const incomplete = closeSnapshot()
+  incomplete.financialReports.pop()
+  assert.throws(() => verifyFinancialReportCloseSnapshot(incomplete), /expected 4/)
+
+  const tampered = closeSnapshot()
+  tampered.financialReports[0].payloadSha256 = 'not-a-digest'
+  assert.throws(() => verifyFinancialReportCloseSnapshot(tampered), /payload digest is not SHA-256/)
 })

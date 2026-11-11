@@ -80,8 +80,7 @@
               {{ $t('financeReportPages.periods.check') }}
             </el-button>
             <el-button
-              v-if="row.status === 'OPEN' || row.status === 'LOCKED'"
-              v-permission="'finance:period:close'"
+              v-permission="'finance:period:view'"
               type="success"
               link
               :icon="Guide"
@@ -234,7 +233,7 @@
     <el-drawer
       v-model="wizardVisible"
       :title="$t('financeReportPages.periods.wizardTitle', { period: wizardPeriod?.periodMonth || '' })"
-      size="560px"
+      size="760px"
       destroy-on-close
     >
       <div v-loading="wizardLoading" class="wizard-body">
@@ -348,6 +347,36 @@
                     </el-table-column>
                     <el-table-column prop="message" :label="$t('financeReportPages.periods.explanation')" min-width="220" />
                   </el-table>
+                  <div v-if="row.financialReports?.length" class="financial-report-snapshots">
+                    <div class="snapshot-subtitle">{{ $t('financeReportPages.periods.financialReportSnapshots') }}</div>
+                    <el-table :data="row.financialReports" size="small" class="snapshot-items">
+                      <el-table-column :label="$t('financeReportPages.periods.reportType')" min-width="150">
+                        <template #default="{ row: report }">{{ getReportTypeLabel(report.reportType) }}</template>
+                      </el-table-column>
+                      <el-table-column prop="formulaVersion" :label="$t('financeReportPages.periods.formulaVersion')" min-width="160" />
+                      <el-table-column :label="$t('financeReportPages.periods.configurationVersion')" min-width="130">
+                        <template #default="{ row: report }">
+                          <el-tooltip :content="report.configurationDigest" placement="top">
+                            <span class="digest-value">{{ shortDigest(report.configurationDigest) }}</span>
+                          </el-tooltip>
+                        </template>
+                      </el-table-column>
+                      <el-table-column :label="$t('financeReportPages.periods.reportVerified')" width="90" align="center">
+                        <template #default="{ row: report }">
+                          <el-tag :type="report.verified ? 'success' : 'danger'" size="small">
+                            {{ report.verified ? $t('financeReportPages.periods.passed') : $t('financeReportPages.periods.blocked') }}
+                          </el-tag>
+                        </template>
+                      </el-table-column>
+                      <el-table-column :label="$t('financeReportPages.common.details')" width="90" align="center">
+                        <template #default="{ row: report }">
+                          <el-button type="primary" link @click="openFinancialReportSnapshot(report)">
+                            {{ $t('financeReportPages.common.details') }}
+                          </el-button>
+                        </template>
+                      </el-table-column>
+                    </el-table>
+                  </div>
                 </template>
               </el-table-column>
               <el-table-column :label="$t('financeReportPages.periods.evidenceAction')" width="90">
@@ -379,6 +408,47 @@
         </div>
       </template>
     </el-drawer>
+
+    <el-dialog
+      v-model="financialReportSnapshotVisible"
+      :title="$t('financeReportPages.periods.financialReportSnapshotDetail')"
+      width="920px"
+      append-to-body
+    >
+      <template v-if="selectedFinancialReportSnapshot">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item :label="$t('financeReportPages.periods.reportType')">
+            {{ getReportTypeLabel(selectedFinancialReportSnapshot.reportType) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.periods.formulaVersion')">
+            {{ selectedFinancialReportSnapshot.formulaVersion }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.periods.dateSpan')">
+            {{ selectedFinancialReportSnapshot.dateFrom }} ~ {{ selectedFinancialReportSnapshot.dateTo }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.periods.evidenceTime')">
+            {{ formatDateTime(selectedFinancialReportSnapshot.capturedTime) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.periods.configurationDigest')" :span="2">
+            <code>{{ selectedFinancialReportSnapshot.configurationDigest }}</code>
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('financeReportPages.periods.payloadDigest')" :span="2">
+            <code>{{ selectedFinancialReportSnapshot.payloadSha256 }}</code>
+          </el-descriptions-item>
+        </el-descriptions>
+        <el-tabs class="snapshot-json-tabs">
+          <el-tab-pane :label="$t('financeReportPages.periods.configurationSnapshot')">
+            <pre class="snapshot-json">{{ prettyJson(selectedFinancialReportSnapshot.configuration) }}</pre>
+          </el-tab-pane>
+          <el-tab-pane :label="$t('financeReportPages.periods.reportSnapshot')">
+            <pre class="snapshot-json">{{ prettyJson(selectedFinancialReportSnapshot.payload) }}</pre>
+          </el-tab-pane>
+        </el-tabs>
+      </template>
+      <template #footer>
+        <el-button @click="financialReportSnapshotVisible = false">{{ $t('financeReportPages.common.close') }}</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog
       v-model="reconciliationVisible"
@@ -584,7 +654,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -614,10 +684,33 @@ import {
   cancelAccountPeriodRevaluation,
   reopenAccountPeriod as unlockAccountPeriod
 } from '@/api/finance'
+import type { PeriodFinancialReportSnapshot } from '@/api/finance'
 import { useFinancePeriodPresentation } from '@/composables/useFinancePeriodPresentation'
 import { useFinancePeriodActions } from '@/composables/useFinancePeriodActions'
 
 const { t } = useI18n()
+
+const financialReportSnapshotVisible = ref(false)
+const selectedFinancialReportSnapshot = ref<PeriodFinancialReportSnapshot>()
+
+const reportTypeKeys: Record<string, string> = {
+  TRIAL_BALANCE: 'trialBalance',
+  BALANCE_SHEET: 'balanceSheet',
+  INCOME_STATEMENT: 'incomeStatement',
+  CASH_FLOW_DIRECT: 'cashFlowDirect'
+}
+
+const getReportTypeLabel = (reportType: string) => {
+  const key = reportTypeKeys[reportType]
+  return key ? t(`financeReportPages.periods.reportTypes.${key}`) : reportType
+}
+
+const shortDigest = (digest?: string) => digest ? digest.slice(0, 12) : '-'
+const prettyJson = (value: unknown) => JSON.stringify(value ?? {}, null, 2)
+const openFinancialReportSnapshot = (snapshot: PeriodFinancialReportSnapshot) => {
+  selectedFinancialReportSnapshot.value = snapshot
+  financialReportSnapshotVisible.value = true
+}
 
 const {
   differenceTypeOptions,
@@ -724,6 +817,38 @@ onMounted(() => {
 .snapshot-items {
   width: calc(100% - 24px);
   margin: 0 12px;
+}
+
+.financial-report-snapshots {
+  margin-top: 16px;
+}
+
+.snapshot-subtitle {
+  margin: 0 12px 8px;
+  font-weight: 600;
+}
+
+.digest-value,
+.snapshot-json code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.snapshot-json-tabs {
+  margin-top: 16px;
+}
+
+.snapshot-json {
+  max-height: 460px;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .toolbar-card,

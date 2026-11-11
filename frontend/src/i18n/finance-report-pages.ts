@@ -304,6 +304,22 @@ export const financeReportPageMessages = {
         evidenceOperator: '操作人',
         blockingItems: '阻塞项',
         noCloseEvidence: '暂无成功锁定或结账证据',
+        financialReportSnapshots: '结账财务报表快照',
+        financialReportSnapshotDetail: '历史财务报表快照',
+        reportType: '报表类型',
+        formulaVersion: '公式版本',
+        configurationVersion: '口径标识',
+        configurationDigest: '科目映射 SHA-256',
+        payloadDigest: '报表内容 SHA-256',
+        reportVerified: '已核对',
+        configurationSnapshot: '科目映射快照',
+        reportSnapshot: '报表数据快照',
+        reportTypes: {
+          trialBalance: '试算平衡',
+          balanceSheet: '资产负债表',
+          incomeStatement: '利润表',
+          cashFlowDirect: '现金流量表（直接法）'
+        },
         previous: '上一步',
         next: '下一步',
         inventoryFinanceReconciliation: '库存财务对账',
@@ -351,7 +367,8 @@ export const financeReportPageMessages = {
           settlementAmountInvalid: '应收应付金额异常',
           bankStatementUnmatched: '银行流水未匹配',
           inventoryBalanceNegative: '负库存余额',
-          productionCostUnclosed: '已完工工单未成本关单'
+          productionCostUnclosed: '已完工工单未成本关单',
+          financialReportsReconciled: '财务报表未完成核对'
         },
         difference: {
           inventoryOnly: '仅库存有记录',
@@ -1097,6 +1114,15 @@ export const financeReportPageMessages = {
         lockPeriod: 'Lock period', confirmClose: 'Confirm closing', previous: 'Previous', next: 'Next',
         closeEvidence: 'Close evidence', evidenceAction: 'Action', evidenceTime: 'Checked at',
         evidenceOperator: 'Operator', blockingItems: 'Blocking items', noCloseEvidence: 'No successful lock or close evidence yet',
+        financialReportSnapshots: 'Closing financial-report snapshots',
+        financialReportSnapshotDetail: 'Historical financial-report snapshot', reportType: 'Report type',
+        formulaVersion: 'Formula version', configurationVersion: 'Configuration identity',
+        configurationDigest: 'Account mapping SHA-256', payloadDigest: 'Report payload SHA-256',
+        reportVerified: 'Verified', configurationSnapshot: 'Account mapping snapshot', reportSnapshot: 'Report data snapshot',
+        reportTypes: {
+          trialBalance: 'Trial balance', balanceSheet: 'Balance sheet', incomeStatement: 'Income statement',
+          cashFlowDirect: 'Cash flow statement (direct method)'
+        },
         inventoryFinanceReconciliation: 'Inventory and finance reconciliation', inventoryNetAmount: 'Inventory net amount',
         financeInventoryNetAmount: 'Finance inventory-account net amount', differenceAmount: 'Difference',
         reconciliationStatus: 'Reconciliation status', balanced: 'Balanced', unbalanced: 'Unbalanced',
@@ -1113,7 +1139,8 @@ export const financeReportPageMessages = {
           voucherEntryMissing: 'Voucher entries missing', voucherUnbalanced: 'Voucher is unbalanced',
           paymentAllocationMismatch: 'Payment allocation mismatch', receiptAllocationMismatch: 'Receipt allocation mismatch',
           settlementAmountInvalid: 'Invalid receivable/payable amount', bankStatementUnmatched: 'Unmatched bank statement',
-          inventoryBalanceNegative: 'Negative inventory balance', productionCostUnclosed: 'Completed production costs not closed'
+          inventoryBalanceNegative: 'Negative inventory balance', productionCostUnclosed: 'Completed production costs not closed',
+          financialReportsReconciled: 'Financial reports are not reconciled'
         },
         difference: { inventoryOnly: 'Inventory record only', financeOnly: 'Finance record only', amountMismatch: 'Amount mismatch' },
         source: {

@@ -73,6 +73,7 @@ public class MybatisPlusConfig {
             "fin_cash_flow_subject_map",
             "fin_period_close_snapshot",
             "fin_period_close_snapshot_item",
+            "fin_period_financial_report_snapshot",
             "fin_expense",
             "fin_budget",
             "fin_budget_line",

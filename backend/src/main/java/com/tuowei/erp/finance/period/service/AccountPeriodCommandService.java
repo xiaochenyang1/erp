@@ -23,6 +23,7 @@ public class AccountPeriodCommandService {
     private final AuditMetadataFactory auditMetadataFactory;
     private final AccountPeriodCloseChecker closeChecker;
     private final AccountPeriodCloseSnapshotService closeSnapshotService;
+    private final PeriodFinancialReportSnapshotService financialReportSnapshotService;
     private final AccountPeriodQueryService queryService;
 
     public AccountPeriodCommandService(
@@ -30,12 +31,14 @@ public class AccountPeriodCommandService {
             AuditMetadataFactory auditMetadataFactory,
             AccountPeriodCloseChecker closeChecker,
             AccountPeriodCloseSnapshotService closeSnapshotService,
+            PeriodFinancialReportSnapshotService financialReportSnapshotService,
             AccountPeriodQueryService queryService
     ) {
         this.accountPeriodMapper = accountPeriodMapper;
         this.auditMetadataFactory = auditMetadataFactory;
         this.closeChecker = closeChecker;
         this.closeSnapshotService = closeSnapshotService;
+        this.financialReportSnapshotService = financialReportSnapshotService;
         this.queryService = queryService;
     }
 
@@ -100,7 +103,8 @@ public class AccountPeriodCommandService {
         if (!check.passed()) {
             throw new BusinessConflictException("期间月结检查未通过，不能结账");
         }
-        closeSnapshotService.capture("CLOSE", check, audit);
+        Long closeSnapshotId = closeSnapshotService.capture("CLOSE", check, audit);
+        financialReportSnapshotService.capture(closeSnapshotId, entity, audit);
         entity.setStatus("CLOSED");
         entity.setClosedBy(audit.userId());
         entity.setClosedTime(audit.now());

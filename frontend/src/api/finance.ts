@@ -968,6 +968,21 @@ export interface AccountPeriodCloseSnapshotItem {
   metric: number
 }
 
+export interface PeriodFinancialReportSnapshot {
+  id: string
+  reportType: 'TRIAL_BALANCE' | 'BALANCE_SHEET' | 'INCOME_STATEMENT' | 'CASH_FLOW_DIRECT' | string
+  formulaVersion: string
+  configurationDigest: string
+  configuration: Record<string, unknown>
+  dateFrom: string
+  dateTo: string
+  verified: boolean
+  payloadSha256: string
+  capturedBy?: string
+  capturedTime?: string
+  payload: Record<string, unknown>
+}
+
 export interface AccountPeriodCloseSnapshot {
   id: string
   periodId: string
@@ -977,6 +992,7 @@ export interface AccountPeriodCloseSnapshot {
   checkedBy?: string
   checkedTime?: string
   items: AccountPeriodCloseSnapshotItem[]
+  financialReports: PeriodFinancialReportSnapshot[]
 }
 
 export interface InventoryFinanceReconciliation {
@@ -1126,6 +1142,13 @@ const normalizeAccountPeriodCloseSnapshot = (snapshot: AccountPeriodCloseSnapsho
   items: (snapshot.items || []).map((item) => ({
     ...item,
     metric: Number(item.metric ?? 0)
+  })),
+  financialReports: (snapshot.financialReports || []).map((report) => ({
+    ...report,
+    id: String(report.id),
+    capturedBy: report.capturedBy != null ? String(report.capturedBy) : undefined,
+    configuration: report.configuration || {},
+    payload: report.payload || {}
   }))
 })
 
