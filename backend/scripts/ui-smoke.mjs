@@ -1926,29 +1926,31 @@ async function runFinancialStatementsWorkflow(cdp, auth) {
         && document.body.innerText.includes('现金流量表（直接法）')
     `, 'financial statements page', 30000)
 
+    await clickElement(cdp, `document.querySelector('.el-date-editor--daterange input')`, 'financial statement date range')
     await waitForPage(cdp, `
-      (() => {
-        const inputs = [...document.querySelectorAll('.el-date-editor--daterange input')];
-        if (inputs.length !== 2) return false;
-        const values = [${JSON.stringify(evidence.date)}, ${JSON.stringify(evidence.date)}];
-        for (let index = 0; index < inputs.length; index += 1) {
-          const input = inputs[index];
-          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-          if (setter) setter.call(input, values[index]); else input.value = values[index];
-          input.dispatchEvent(new InputEvent('input', { bubbles: true, data: values[index], inputType: 'insertText' }));
-        }
-        inputs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
-        inputs[1].dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
-        inputs[1].blur();
-        return inputs.every((input, index) => input.value === values[index]);
-      })()
-    `, 'financial statement date range')
-    await sleep(300)
+      [...document.querySelectorAll('.el-date-range-picker')].some((picker) => {
+        const style = window.getComputedStyle(picker);
+        const rect = picker.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      })
+    `, 'financial statement date picker')
+    const todayCellExpression = `
+      [...document.querySelectorAll('.el-date-range-picker td.today.available')].find((cell) => visible(cell))
+    `
+    await clickElement(cdp, todayCellExpression, 'financial statement range start')
+    await clickElement(cdp, todayCellExpression, 'financial statement range end')
     await waitForPage(cdp, `
       (() => {
         const inputs = [...document.querySelectorAll('.el-date-editor--daterange input')];
         const values = [${JSON.stringify(evidence.date)}, ${JSON.stringify(evidence.date)}];
-        return inputs.length === 2 && inputs.every((input, index) => input.value === values[index]);
+        const pickerOpen = [...document.querySelectorAll('.el-date-range-picker')].some((picker) => {
+          const style = window.getComputedStyle(picker);
+          const rect = picker.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        });
+        return !pickerOpen
+          && inputs.length === 2
+          && inputs.every((input, index) => input.value === values[index]);
       })()
     `, 'financial statement date range committed')
 
