@@ -1936,13 +1936,21 @@ async function runFinancialStatementsWorkflow(cdp, auth) {
           const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
           if (setter) setter.call(input, values[index]); else input.value = values[index];
           input.dispatchEvent(new InputEvent('input', { bubbles: true, data: values[index], inputType: 'insertText' }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
         }
         inputs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+        inputs[1].dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
         inputs[1].blur();
         return inputs.every((input, index) => input.value === values[index]);
       })()
     `, 'financial statement date range')
+    await sleep(300)
+    await waitForPage(cdp, `
+      (() => {
+        const inputs = [...document.querySelectorAll('.el-date-editor--daterange input')];
+        const values = [${JSON.stringify(evidence.date)}, ${JSON.stringify(evidence.date)}];
+        return inputs.length === 2 && inputs.every((input, index) => input.value === values[index]);
+      })()
+    `, 'financial statement date range committed')
 
     const clickTab = async (label, condition, resultLabel) => {
       await invokeElement(

@@ -179,6 +179,7 @@ class BusinessSmokeScriptConfigurationTest {
                 .contains("from './financial-statements-api-smoke.mjs'")
                 .contains("{ path: '/finance/ledger', text: '试算平衡' }")
                 .contains("financial-statements-post-query-map-and-export")
+                .contains("financial statement date range committed")
                 .contains("document.body.innerText.includes('CASH_FLOW_DIRECT_V1')")
                 .contains("window.__uiSmokeFinancialStatementDownload");
 
