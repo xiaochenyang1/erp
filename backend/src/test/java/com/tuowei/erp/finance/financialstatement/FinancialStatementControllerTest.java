@@ -6,6 +6,7 @@ import com.tuowei.erp.finance.financialstatement.service.FinancialStatementExpor
 import com.tuowei.erp.finance.financialstatement.web.BalanceSheetResponse;
 import com.tuowei.erp.finance.financialstatement.web.FinancialStatementConfigurationResponse;
 import com.tuowei.erp.finance.financialstatement.web.IncomeStatementResponse;
+import com.tuowei.erp.system.log.service.SystemLogService;
 import com.tuowei.erp.testsupport.ControlledStreamingResponse;
 import com.tuowei.erp.testsupport.WithErpUser;
 import org.junit.jupiter.api.Test;
@@ -24,10 +25,14 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
@@ -49,6 +54,9 @@ class FinancialStatementControllerTest {
 
     @MockitoBean
     private FinancialStatementExportService exportService;
+
+    @MockitoBean
+    private SystemLogService systemLogService;
 
     @Test
     @WithErpUser(authorities = "system:user:view")
@@ -107,6 +115,34 @@ class FinancialStatementControllerTest {
                         .param("statementType", "BALANCE_SHEET"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.formulaVersion").value("TYPE_MAPPING_V1"));
+    }
+
+    @Test
+    @WithErpUser(authorities = "finance:subject:manage")
+    void updatesStatementMappingWithOperationAudit() throws Exception {
+        FinancialStatementConfigurationResponse configuration = new FinancialStatementConfigurationResponse(
+                "TYPE_MAPPING_V1", "BALANCE_SHEET", List.of(), List.of()
+        );
+        when(configurationService.replaceSubjects(eq("BALANCE_SHEET"), eq("BS_CASH_BANK"), any()))
+                .thenReturn(configuration);
+
+        mockMvc.perform(put("/api/finance/financial-statements/configuration/BALANCE_SHEET/BS_CASH_BANK/subjects")
+                        .contentType("application/json")
+                        .content("{\"subjectCodes\":[\"1002\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.statementType").value("BALANCE_SHEET"));
+
+        verify(systemLogService).recordOperation(
+                any(),
+                eq("finance"),
+                eq("update-financial-statement-mapping"),
+                eq("BALANCE_SHEET"),
+                eq("SUCCESS"),
+                eq("更新财务报表科目映射"),
+                argThat(request -> request.getRequestURI().equals(
+                        "/api/finance/financial-statements/configuration/BALANCE_SHEET/BS_CASH_BANK/subjects"
+                ))
+        );
     }
 
     @Test

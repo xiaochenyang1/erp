@@ -12,6 +12,7 @@ import com.tuowei.erp.finance.financialstatement.web.FinancialStatementConfigura
 import com.tuowei.erp.finance.financialstatement.web.IncomeStatementQuery;
 import com.tuowei.erp.finance.financialstatement.web.IncomeStatementResponse;
 import com.tuowei.erp.finance.financialstatement.web.StatementMappingUpdateRequest;
+import com.tuowei.erp.system.log.annotation.OperationLog;
 import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -81,6 +82,12 @@ public class FinancialStatementController {
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_SUBJECT_MANAGE)
     @PutMapping("/configuration/{statementType}/{itemCode}/subjects")
+    @OperationLog(
+            module = "finance",
+            operation = "update-financial-statement-mapping",
+            message = "更新财务报表科目映射",
+            bizNo = "#result.data.statementType"
+    )
     public ApiResponse<FinancialStatementConfigurationResponse> replaceSubjects(
             @PathVariable String statementType,
             @PathVariable String itemCode,

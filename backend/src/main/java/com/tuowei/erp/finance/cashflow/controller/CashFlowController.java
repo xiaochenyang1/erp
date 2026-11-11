@@ -10,6 +10,7 @@ import com.tuowei.erp.finance.cashflow.web.CashFlowConfigurationResponse;
 import com.tuowei.erp.finance.cashflow.web.CashFlowQuery;
 import com.tuowei.erp.finance.cashflow.web.CashFlowResponse;
 import com.tuowei.erp.finance.cashflow.web.CashFlowSubjectCodesRequest;
+import com.tuowei.erp.system.log.annotation.OperationLog;
 import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -69,6 +70,12 @@ public class CashFlowController {
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_SUBJECT_MANAGE)
     @PutMapping("/configuration/cash-subjects")
+    @OperationLog(
+            module = "finance",
+            operation = "update-cash-equivalent-subjects",
+            message = "更新现金及现金等价物科目范围",
+            bizNo = "#result.data.formulaVersion"
+    )
     public ApiResponse<CashFlowConfigurationResponse> replaceCashSubjects(
             @Valid @RequestBody CashFlowSubjectCodesRequest request
     ) {
@@ -77,6 +84,12 @@ public class CashFlowController {
 
     @PreAuthorize(PermissionCodes.HAS_FINANCE_SUBJECT_MANAGE)
     @PutMapping("/configuration/items/{itemCode}/subjects")
+    @OperationLog(
+            module = "finance",
+            operation = "update-cash-flow-item-mapping",
+            message = "更新现金流量表项目科目映射",
+            bizNo = "#result.data.formulaVersion"
+    )
     public ApiResponse<CashFlowConfigurationResponse> replaceItemSubjects(
             @PathVariable String itemCode,
             @Valid @RequestBody CashFlowSubjectCodesRequest request

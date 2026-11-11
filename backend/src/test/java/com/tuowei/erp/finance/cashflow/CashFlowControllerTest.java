@@ -5,6 +5,7 @@ import com.tuowei.erp.finance.cashflow.service.CashFlowExportService;
 import com.tuowei.erp.finance.cashflow.service.CashFlowService;
 import com.tuowei.erp.finance.cashflow.web.CashFlowConfigurationResponse;
 import com.tuowei.erp.finance.cashflow.web.CashFlowResponse;
+import com.tuowei.erp.system.log.service.SystemLogService;
 import com.tuowei.erp.testsupport.ControlledStreamingResponse;
 import com.tuowei.erp.testsupport.WithErpUser;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
@@ -49,6 +53,9 @@ class CashFlowControllerTest {
 
     @MockitoBean
     private CashFlowExportService exportService;
+
+    @MockitoBean
+    private SystemLogService systemLogService;
 
     @Test
     @WithErpUser(authorities = "system:user:view")
@@ -114,6 +121,29 @@ class CashFlowControllerTest {
                         .content("{\"subjectCodes\":[\"1122\"]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.cashSubjectCodes[0]").value("1002"));
+
+        verify(systemLogService).recordOperation(
+                any(),
+                eq("finance"),
+                eq("update-cash-equivalent-subjects"),
+                eq("CASH_FLOW_DIRECT_V1"),
+                eq("SUCCESS"),
+                eq("更新现金及现金等价物科目范围"),
+                argThat(request -> request.getRequestURI().equals(
+                        "/api/finance/financial-statements/cash-flow/configuration/cash-subjects"
+                ))
+        );
+        verify(systemLogService).recordOperation(
+                any(),
+                eq("finance"),
+                eq("update-cash-flow-item-mapping"),
+                eq("CASH_FLOW_DIRECT_V1"),
+                eq("SUCCESS"),
+                eq("更新现金流量表项目科目映射"),
+                argThat(request -> request.getRequestURI().equals(
+                        "/api/finance/financial-statements/cash-flow/configuration/items/CFO_OTHER/subjects"
+                ))
+        );
     }
 
     @Test
