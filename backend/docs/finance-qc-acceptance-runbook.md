@@ -20,7 +20,7 @@ UI_SMOKE_ROUTES=0 node scripts\ui-smoke.mjs
 | 费用 | `finance-expense-create-submit-approve-post-reverse` | 双账号提交/审批、过账凭证、红冲 |
 | 科目/凭证只读 | `finance-subject-save-toggle-and-voucher-readonly-detail` | 科目增改启停 + 凭证详情分录 |
 | 手工凭证 | `manual-voucher-create-submit-approve-post-cancel` | 草稿→提交→审批→过账→作废红冲 |
-| 会计期间 | `finance-period-generate-check-and-reconcile` | 生成年期间、检查、对账 |
+| 会计期间 | `finance-period-generate-check-and-reconcile` | 生成年期间、检查、对账；在专用历史期间完成锁定/结账，展开四张 V177 财务报表快照并查看摘要详情 |
 | 资金对账 | `fund-account-and-statement-create` / `fund-statement-match-unmatch-receipt` | 账户/流水创建、匹配/取消匹配 |
 | 销售应收 | `sales-delivery-create-post-receivable` / `sales-receipt-create-settle-receivable` | 发货应收、收款核销 |
 | 销售冲减 | `sales-return-create-post-stock-receivable-offset` | 退货过账 + 应收冲减 |

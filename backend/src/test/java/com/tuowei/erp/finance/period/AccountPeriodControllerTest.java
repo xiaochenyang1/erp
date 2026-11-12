@@ -50,6 +50,7 @@ class AccountPeriodControllerTest {
 
     @AfterEach
     void cleanup() {
+        deleteIfExists("fin_period_financial_report_snapshot", "period_id between 863000 and 863999");
         deleteIfExists("fin_period_close_snapshot_item", "snapshot_id in (select id from fin_period_close_snapshot where period_id between 863000 and 863999)");
         deleteIfExists("fin_period_close_snapshot", "period_id between 863000 and 863999");
         deleteIfExists("fin_bank_statement", "id between 863000 and 863999");
@@ -103,7 +104,9 @@ class AccountPeriodControllerTest {
     @Test
     @WithErpUser(userId = 863001L, authorities = {PERIOD_CLOSE, PERIOD_REOPEN, PERIOD_VIEW})
     void locksClosesAndReopensLatestLockedPeriod() {
-        seedPeriod(863201L, 2037, "2037-03", "OPEN");
+        // Keep the happy-path report period before every shared integration-test fixture so
+        // balance-sheet opening balances cannot leak in from another test using the default book.
+        seedPeriod(863201L, 2000, "2000-03", "OPEN");
 
         AccountPeriodResponse locked = accountPeriodService.lock(863201L);
         Assertions.assertThat(locked.status()).isEqualTo("LOCKED");
@@ -125,6 +128,22 @@ class AccountPeriodControllerTest {
                 .allSatisfy(snapshot -> {
                     Assertions.assertThat(snapshot.passed()).isTrue();
                     Assertions.assertThat(snapshot.items()).isNotEmpty();
+                });
+        Assertions.assertThat(accountPeriodService.closeSnapshots(863201L))
+                .filteredOn(snapshot -> snapshot.actionType().equals("CLOSE"))
+                .singleElement()
+                .satisfies(snapshot -> {
+                    Assertions.assertThat(snapshot.financialReports())
+                            .extracting("reportType")
+                            .containsExactly("TRIAL_BALANCE", "BALANCE_SHEET", "INCOME_STATEMENT", "CASH_FLOW_DIRECT");
+                    Assertions.assertThat(snapshot.financialReports())
+                            .allSatisfy(report -> {
+                                Assertions.assertThat(report.verified()).isTrue();
+                                Assertions.assertThat(report.configurationDigest()).hasSize(64);
+                                Assertions.assertThat(report.payloadSha256()).hasSize(64);
+                                Assertions.assertThat(report.configuration()).isNotNull();
+                                Assertions.assertThat(report.payload()).isNotNull();
+                            });
                 });
     }
 

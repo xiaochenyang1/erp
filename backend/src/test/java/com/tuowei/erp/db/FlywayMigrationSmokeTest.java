@@ -156,6 +156,101 @@ class FlywayMigrationSmokeTest {
     }
 
     @Test
+    void createsVersionedFinancialStatementMappings() {
+        Long tableCount = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) in (
+                    'sys_financial_statement_item_template',
+                    'fin_financial_statement_subject_map'
+                  )
+                """, Long.class);
+        Assertions.assertThat(tableCount).isEqualTo(2L);
+
+        Long templateCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_financial_statement_item_template
+                where formula_version = 'TYPE_MAPPING_V1'
+                  and status = 'ACTIVE'
+                """, Long.class);
+        Assertions.assertThat(templateCount).isEqualTo(17L);
+
+        Long mappingCount = jdbcTemplate.queryForObject("""
+                select count(*) from fin_financial_statement_subject_map
+                where company_id = 1 and account_book_id = 1
+                  and formula_version = 'TYPE_MAPPING_V1'
+                """, Long.class);
+        Assertions.assertThat(mappingCount).isEqualTo(16L);
+
+        Long defaultTaxSubjectCount = jdbcTemplate.queryForObject("""
+                select count(*) from fin_account_subject
+                where company_id = 1 and account_book_id = 1
+                  and subject_code = '222101'
+                  and subject_name = '应交税费-进项税额'
+                  and subject_type = 'LIABILITY'
+                  and balance_direction = 'DEBIT'
+                  and status = 'ACTIVE'
+                  and deleted_flag = 0
+                """, Long.class);
+        Assertions.assertThat(defaultTaxSubjectCount).isEqualTo(1L);
+    }
+
+    @Test
+    void createsDirectCashFlowMappings() {
+        Long tableCount = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) in (
+                    'sys_cash_flow_item_template',
+                    'fin_cash_equivalent_subject',
+                    'fin_cash_flow_subject_map'
+                  )
+                """, Long.class);
+        Assertions.assertThat(tableCount).isEqualTo(3L);
+
+        Long templateCount = jdbcTemplate.queryForObject("""
+                select count(*) from sys_cash_flow_item_template
+                where formula_version = 'CASH_FLOW_DIRECT_V1'
+                  and status = 'ACTIVE'
+                """, Long.class);
+        Assertions.assertThat(templateCount).isEqualTo(12L);
+
+        Long cashSubjectCount = jdbcTemplate.queryForObject("""
+                select count(*) from fin_cash_equivalent_subject
+                where company_id = 1 and account_book_id = 1
+                  and formula_version = 'CASH_FLOW_DIRECT_V1'
+                """, Long.class);
+        Assertions.assertThat(cashSubjectCount).isEqualTo(1L);
+
+        Long mappingCount = jdbcTemplate.queryForObject("""
+                select count(*) from fin_cash_flow_subject_map
+                where company_id = 1 and account_book_id = 1
+                  and formula_version = 'CASH_FLOW_DIRECT_V1'
+                """, Long.class);
+        Assertions.assertThat(mappingCount).isEqualTo(11L);
+    }
+
+    @Test
+    void createsImmutablePeriodFinancialReportSnapshots() {
+        Long tableCount = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.tables
+                where lower(table_schema) = 'public'
+                  and lower(table_name) = 'fin_period_financial_report_snapshot'
+                """, Long.class);
+        Assertions.assertThat(tableCount).isEqualTo(1L);
+
+        Long columnCount = jdbcTemplate.queryForObject("""
+                select count(*) from information_schema.columns
+                where lower(table_schema) = 'public'
+                  and lower(table_name) = 'fin_period_financial_report_snapshot'
+                  and lower(column_name) in (
+                    'close_snapshot_id', 'report_type', 'formula_version', 'configuration_digest',
+                    'configuration_payload', 'report_payload', 'payload_sha256', 'verified_flag'
+                  )
+                """, Long.class);
+        Assertions.assertThat(columnCount).isEqualTo(8L);
+    }
+
+    @Test
     void createsProductionBatchExecutionTablesSequencesAndPermission() {
         Long tableCount = jdbcTemplate.queryForObject("""
                 select count(*)

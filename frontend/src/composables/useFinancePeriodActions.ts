@@ -130,10 +130,20 @@ export const useFinancePeriodActions = (
 
   const openWizard = async (row: AccountPeriod) => {
     wizardPeriod.value = row
-    wizardStep.value = 0
+    wizardStep.value = row.status === 'CLOSED' ? 2 : 0
     wizardCheck.value = undefined
     wizardSnapshots.value = []
     wizardVisible.value = true
+    if (row.status === 'CLOSED') {
+      wizardLoading.value = true
+      try {
+        wizardSnapshots.value = await options.getCloseSnapshots(row.id)
+      } catch {
+        options.onError?.(t('financeReportPages.periods.message.evidenceLoadFailed'))
+      } finally {
+        wizardLoading.value = false
+      }
+    }
   }
 
   const runWizardCheck = async () => {

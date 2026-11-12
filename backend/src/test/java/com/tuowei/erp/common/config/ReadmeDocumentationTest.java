@@ -66,13 +66,20 @@ class ReadmeDocumentationTest {
     }
 
     @Test
-    void projectEntryPointLinksCurrentCandidateAndLatestAcceptancePackage() throws IOException {
+    void projectEntryPointLinksCurrentFinancialStatementsCandidateAndAcceptancePackage() throws IOException {
         String content = Files.readString(Path.of("README.md"), StandardCharsets.UTF_8);
 
         assertThat(content)
-                .contains("PROJECT-STATUS-2026-11-09.md")
+                .contains("PROJECT-STATUS-2026-11-11.md")
+                .contains("FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md")
                 .contains("P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md")
-                .contains("3b70299")
+                .contains("1e1f6c5")
+                .contains("560080e")
+                .contains("2,649")
+                .contains("31/31 路由")
+                .contains("43/43 工作流")
+                .contains("Monitoring Verify")
+                .contains("间接法")
                 .contains("`ALL` 数据范围")
                 .contains("V168 → V174")
                 .contains("MRP-MULTILEVEL-2026-11-07.md")

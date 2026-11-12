@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { AccountSubject, LedgerEntry, LedgerSummary } from '@/api/finance'
+import type {
+  AccountSubject,
+  BalanceSheet,
+  CashFlow,
+  IncomeStatement,
+  LedgerEntry,
+  LedgerSummary,
+  TrialBalance
+} from '@/api/finance'
 import { useFinanceLedgerList } from './useFinanceLedgerList'
 
 const t = (key: string, params?: Record<string, unknown>) =>
@@ -35,6 +43,69 @@ const entry = (overrides: Partial<LedgerEntry> = {}): LedgerEntry => ({
   debitAmount: 10,
   creditAmount: 0,
   ...overrides
+})
+
+const trialBalance = (): TrialBalance => ({
+  dateFrom: '2026-07-01',
+  dateTo: '2026-07-31',
+  rows: [],
+  openingDebit: 100,
+  openingCredit: 100,
+  periodDebit: 50,
+  periodCredit: 50,
+  closingDebit: 150,
+  closingCredit: 150,
+  openingBalanced: true,
+  periodBalanced: true,
+  closingBalanced: true
+})
+
+const balanceSheet = (): BalanceSheet => ({
+  asOfDate: '2026-07-31',
+  formulaVersion: 'TYPE_MAPPING_V1',
+  assetLines: [],
+  liabilityLines: [],
+  equityLines: [],
+  totalAssets: 100,
+  totalLiabilities: 60,
+  totalEquity: 40,
+  liabilitiesAndEquity: 100,
+  difference: 0,
+  balanced: true,
+  unclassifiedSubjectCodes: [],
+  mappingErrors: []
+})
+
+const incomeStatement = (): IncomeStatement => ({
+  dateFrom: '2026-07-01',
+  dateTo: '2026-07-31',
+  formulaVersion: 'TYPE_MAPPING_V1',
+  revenueLines: [],
+  expenseLines: [],
+  totalRevenue: 100,
+  totalExpense: 30,
+  netProfit: 70,
+  unclassifiedSubjectCodes: [],
+  mappingErrors: []
+})
+
+const cashFlow = (): CashFlow => ({
+  dateFrom: '2026-07-01',
+  dateTo: '2026-07-31',
+  formulaVersion: 'CASH_FLOW_DIRECT_V1',
+  operatingLines: [],
+  investingLines: [],
+  financingLines: [],
+  netOperatingCashFlow: 100,
+  netInvestingCashFlow: -20,
+  netFinancingCashFlow: 0,
+  netIncreaseInCash: 80,
+  openingCash: 20,
+  closingCash: 100,
+  reconciliationDifference: 0,
+  reconciled: true,
+  unmappedSubjectCodes: [],
+  mappingErrors: []
 })
 
 const createList = (overrides: Partial<Parameters<typeof useFinanceLedgerList>[1]> = {}) =>
@@ -120,5 +191,77 @@ describe('finance ledger list', () => {
     await list.handleReset()
     expect(list.queryForm.subjectId).toBeUndefined()
     expect(list.dateRange.value).toEqual([])
+  })
+
+  it('requires a date range and loads the trial balance', async () => {
+    const getTrialBalance = vi.fn(async () => trialBalance())
+    const onError = vi.fn()
+    const list = createList({ getTrialBalance, onError })
+
+    expect(await list.handleTabChange('trial')).toBe(false)
+    expect(onError).toHaveBeenCalledWith('financeReportPages.ledger.message.trialDateRequired')
+
+    list.dateRange.value = ['2026-07-01', '2026-07-31']
+    expect(await list.handleQuery()).toBe(true)
+    expect(getTrialBalance).toHaveBeenCalledWith(expect.objectContaining({
+      startDate: '2026-07-01',
+      endDate: '2026-07-31'
+    }))
+    expect(list.trialBalance.value?.closingBalanced).toBe(true)
+  })
+
+  it('loads balance sheet and income statement in sequence', async () => {
+    const getBalanceSheet = vi.fn(async () => balanceSheet())
+    const getIncomeStatement = vi.fn(async () => incomeStatement())
+    const list = createList({ getBalanceSheet, getIncomeStatement })
+    list.dateRange.value = ['2026-07-01', '2026-07-31']
+
+    expect(await list.handleTabChange('balance')).toBe(true)
+    expect(getBalanceSheet).toHaveBeenCalledWith('2026-07-31')
+    expect(list.balanceSheet.value?.balanced).toBe(true)
+
+    expect(await list.handleTabChange('income')).toBe(true)
+    expect(getIncomeStatement).toHaveBeenCalledWith(expect.objectContaining({
+      startDate: '2026-07-01',
+      endDate: '2026-07-31'
+    }))
+    expect(list.incomeStatement.value?.netProfit).toBe(70)
+  })
+
+  it('loads and exports the direct cash flow statement', async () => {
+    const getCashFlow = vi.fn(async () => cashFlow())
+    const exportCashFlow = vi.fn(async () => new Blob(['cash-flow']))
+    const downloadBlob = vi.fn()
+    const list = createList({ getCashFlow, exportCashFlow, downloadBlob })
+    list.dateRange.value = ['2026-07-01', '2026-07-31']
+
+    expect(await list.handleTabChange('cash')).toBe(true)
+    expect(getCashFlow).toHaveBeenCalledWith(expect.objectContaining({
+      startDate: '2026-07-01',
+      endDate: '2026-07-31'
+    }))
+    expect(list.cashFlow.value?.reconciled).toBe(true)
+
+    expect(await list.handleExport()).toBe(true)
+    expect(exportCashFlow).toHaveBeenCalled()
+    expect(downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      expect.stringContaining('financeReportPages.ledger.cashFlowFileName')
+    )
+  })
+
+  it('exports the active financial statement with its own file name', async () => {
+    const exportBalanceSheet = vi.fn(async () => new Blob(['balance']))
+    const downloadBlob = vi.fn()
+    const list = createList({ exportBalanceSheet, downloadBlob })
+    list.dateRange.value = ['2026-07-01', '2026-07-31']
+    list.activeTab.value = 'balance'
+
+    expect(await list.handleExport()).toBe(true)
+    expect(exportBalanceSheet).toHaveBeenCalledWith('2026-07-31')
+    expect(downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      expect.stringContaining('financeReportPages.ledger.balanceFileName')
+    )
   })
 })

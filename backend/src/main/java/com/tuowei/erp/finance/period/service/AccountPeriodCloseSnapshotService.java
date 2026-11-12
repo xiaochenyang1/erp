@@ -18,17 +18,20 @@ import java.util.List;
 public class AccountPeriodCloseSnapshotService {
     private final AccountPeriodCloseSnapshotMapper snapshotMapper;
     private final AccountPeriodCloseSnapshotItemMapper itemMapper;
+    private final PeriodFinancialReportSnapshotService financialReportSnapshotService;
 
     public AccountPeriodCloseSnapshotService(
             AccountPeriodCloseSnapshotMapper snapshotMapper,
-            AccountPeriodCloseSnapshotItemMapper itemMapper
+            AccountPeriodCloseSnapshotItemMapper itemMapper,
+            PeriodFinancialReportSnapshotService financialReportSnapshotService
     ) {
         this.snapshotMapper = snapshotMapper;
         this.itemMapper = itemMapper;
+        this.financialReportSnapshotService = financialReportSnapshotService;
     }
 
     @Transactional
-    public void capture(String actionType, AccountPeriodCloseCheckResponse check, AuditMetadata audit) {
+    public Long capture(String actionType, AccountPeriodCloseCheckResponse check, AuditMetadata audit) {
         AccountPeriodCloseSnapshotEntity snapshot = new AccountPeriodCloseSnapshotEntity();
         snapshot.setCompanyId(audit.companyId());
         snapshot.setAccountBookId(audit.accountBookId());
@@ -63,6 +66,7 @@ public class AccountPeriodCloseSnapshotService {
             item.setVersion(0);
             itemMapper.insert(item);
         }
+        return snapshot.getId();
     }
 
     @Transactional(readOnly = true)
@@ -103,7 +107,8 @@ public class AccountPeriodCloseSnapshotService {
                 snapshot.getIssueCount(),
                 snapshot.getCheckedBy(),
                 snapshot.getCheckedTime(),
-                items
+                items,
+                financialReportSnapshotService.list(snapshot.getId())
         );
     }
 }

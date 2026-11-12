@@ -2,8 +2,12 @@ import { reactive, ref } from 'vue'
 
 import type {
   AccountSubject,
+  BalanceSheet,
+  CashFlow,
+  IncomeStatement,
   LedgerEntry,
-  LedgerSummary
+  LedgerSummary,
+  TrialBalance
 } from '@/api/finance'
 import {
   findSubjectByCode,
@@ -29,13 +33,21 @@ export const useFinanceLedgerList = (
     getAccountSubjectTree: () => Promise<AccountSubject[]>
     getLedgerSummary: (params: LedgerQueryParams) => Promise<LedgerSummary[]>
     getLedgerEntries: (params: LedgerQueryParams) => Promise<LedgerEntry[]>
+    getTrialBalance?: (params: LedgerQueryParams) => Promise<TrialBalance>
+    getBalanceSheet?: (asOfDate: string) => Promise<BalanceSheet>
+    getIncomeStatement?: (params: LedgerQueryParams) => Promise<IncomeStatement>
+    getCashFlow?: (params: LedgerQueryParams) => Promise<CashFlow>
     exportLedger: (params: LedgerQueryParams) => Promise<Blob>
+    exportTrialBalance?: (params: LedgerQueryParams) => Promise<Blob>
+    exportBalanceSheet?: (asOfDate: string) => Promise<Blob>
+    exportIncomeStatement?: (params: LedgerQueryParams) => Promise<Blob>
+    exportCashFlow?: (params: LedgerQueryParams) => Promise<Blob>
     downloadBlob: (blob: Blob, fileName: string) => void
     onError?: Notify
     onSuccess?: Notify
   }
 ) => {
-  const activeTab = ref<'general' | 'detail'>('general')
+  const activeTab = ref<'general' | 'detail' | 'trial' | 'balance' | 'income' | 'cash'>('general')
   const queryForm = reactive({
     subjectId: undefined as string | number | undefined,
     startDate: '',
@@ -47,6 +59,12 @@ export const useFinanceLedgerList = (
   const generalLedger = ref<LedgerSummary[]>([])
   const detailLoading = ref(false)
   const detailLedger = ref<LedgerEntry[]>([])
+  const trialLoading = ref(false)
+  const trialBalance = ref<TrialBalance | null>(null)
+  const statementLoading = ref(false)
+  const balanceSheet = ref<BalanceSheet | null>(null)
+  const incomeStatement = ref<IncomeStatement | null>(null)
+  const cashFlow = ref<CashFlow | null>(null)
   const pagination = reactive({
     page: 1,
     size: 20,
@@ -115,10 +133,96 @@ export const useFinanceLedgerList = (
     }
   }
 
+  const loadTrialBalance = async () => {
+    syncDateRange()
+    if (!queryForm.startDate || !queryForm.endDate) {
+      options.onError?.(t('financeReportPages.ledger.message.trialDateRequired'))
+      return false
+    }
+    if (!options.getTrialBalance) {
+      options.onError?.(t('financeReportPages.ledger.message.trialLoadFailed'))
+      return false
+    }
+    trialLoading.value = true
+    try {
+      trialBalance.value = await options.getTrialBalance(buildLedgerQueryParams())
+      return true
+    } catch {
+      options.onError?.(t('financeReportPages.ledger.message.trialLoadFailed'))
+      return false
+    } finally {
+      trialLoading.value = false
+    }
+  }
+
+  const requireDateRange = (messageKey: string) => {
+    syncDateRange()
+    if (queryForm.startDate && queryForm.endDate) return true
+    options.onError?.(t(messageKey))
+    return false
+  }
+
+  const loadBalanceSheet = async () => {
+    if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired')) return false
+    if (!options.getBalanceSheet) return false
+    statementLoading.value = true
+    try {
+      balanceSheet.value = await options.getBalanceSheet(queryForm.endDate)
+      return true
+    } catch {
+      options.onError?.(t('financeReportPages.ledger.message.balanceLoadFailed'))
+      return false
+    } finally {
+      statementLoading.value = false
+    }
+  }
+
+  const loadIncomeStatement = async () => {
+    if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired')) return false
+    if (!options.getIncomeStatement) return false
+    statementLoading.value = true
+    try {
+      incomeStatement.value = await options.getIncomeStatement(buildLedgerQueryParams())
+      return true
+    } catch {
+      options.onError?.(t('financeReportPages.ledger.message.incomeLoadFailed'))
+      return false
+    } finally {
+      statementLoading.value = false
+    }
+  }
+
+  const loadCashFlow = async () => {
+    if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired')) return false
+    if (!options.getCashFlow) return false
+    statementLoading.value = true
+    try {
+      cashFlow.value = await options.getCashFlow(buildLedgerQueryParams())
+      return true
+    } catch {
+      options.onError?.(t('financeReportPages.ledger.message.cashFlowLoadFailed'))
+      return false
+    } finally {
+      statementLoading.value = false
+    }
+  }
+
   const handleQuery = () => {
     syncDateRange()
     if (activeTab.value === 'general') {
       return loadGeneralLedger()
+    }
+    if (activeTab.value === 'trial') {
+      return loadTrialBalance()
+    }
+    if (activeTab.value === 'balance') {
+      return loadBalanceSheet()
+    }
+    if (activeTab.value === 'income') {
+      return loadIncomeStatement()
+    }
+    if (activeTab.value === 'cash') {
+      return loadCashFlow()
     }
     pagination.page = 1
     return loadDetailLedger()
@@ -134,10 +238,22 @@ export const useFinanceLedgerList = (
   }
 
   const handleTabChange = (tabName: string | number) => {
-    const name = String(tabName) as 'general' | 'detail'
+    const name = String(tabName) as 'general' | 'detail' | 'trial' | 'balance' | 'income' | 'cash'
     activeTab.value = name
     if (name === 'general') {
       return loadGeneralLedger()
+    }
+    if (name === 'trial') {
+      return loadTrialBalance()
+    }
+    if (name === 'balance') {
+      return loadBalanceSheet()
+    }
+    if (name === 'income') {
+      return loadIncomeStatement()
+    }
+    if (name === 'cash') {
+      return loadCashFlow()
     }
     pagination.page = 1
     return loadDetailLedger()
@@ -167,10 +283,38 @@ export const useFinanceLedgerList = (
   const handleExport = async () => {
     try {
       syncDateRange()
-      const blob = await options.exportLedger(buildLedgerQueryParams())
+      let blob: Blob
+      let fileNameKey = 'financeReportPages.ledger.fileName'
+      if (activeTab.value === 'trial') {
+        if (!requireDateRange('financeReportPages.ledger.message.trialDateRequired') || !options.exportTrialBalance) {
+          return false
+        }
+        blob = await options.exportTrialBalance(buildLedgerQueryParams())
+        fileNameKey = 'financeReportPages.ledger.trialFileName'
+      } else if (activeTab.value === 'balance') {
+        if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired') || !options.exportBalanceSheet) {
+          return false
+        }
+        blob = await options.exportBalanceSheet(queryForm.endDate)
+        fileNameKey = 'financeReportPages.ledger.balanceFileName'
+      } else if (activeTab.value === 'income') {
+        if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired') || !options.exportIncomeStatement) {
+          return false
+        }
+        blob = await options.exportIncomeStatement(buildLedgerQueryParams())
+        fileNameKey = 'financeReportPages.ledger.incomeFileName'
+      } else if (activeTab.value === 'cash') {
+        if (!requireDateRange('financeReportPages.ledger.message.statementDateRequired') || !options.exportCashFlow) {
+          return false
+        }
+        blob = await options.exportCashFlow(buildLedgerQueryParams())
+        fileNameKey = 'financeReportPages.ledger.cashFlowFileName'
+      } else {
+        blob = await options.exportLedger(buildLedgerQueryParams())
+      }
       options.downloadBlob(
         blob,
-        t('financeReportPages.ledger.fileName', { timestamp: Date.now() })
+        t(fileNameKey, { timestamp: Date.now() })
       )
       options.onSuccess?.(t('financeReportPages.ledger.message.exported'))
       return true
@@ -182,6 +326,8 @@ export const useFinanceLedgerList = (
 
   return {
     activeTab,
+    balanceSheet,
+    cashFlow,
     buildLedgerQueryParams,
     dateRange,
     detailLedger,
@@ -195,11 +341,19 @@ export const useFinanceLedgerList = (
     handleSizeChange,
     handleTabChange,
     handleViewDetail,
+    incomeStatement,
+    loadBalanceSheet,
     loadDetailLedger,
     loadGeneralLedger,
+    loadIncomeStatement,
+    loadCashFlow,
+    loadTrialBalance,
     loadSubjects,
     pagination,
     queryForm,
-    subjectOptions
+    subjectOptions,
+    statementLoading,
+    trialBalance,
+    trialLoading
   }
 }

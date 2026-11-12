@@ -105,6 +105,25 @@ describe('finance period actions', () => {
     expect(actions.wizardCheck.value?.passed).toBe(false)
   })
 
+  it('opens a closed period directly on its immutable close evidence', async () => {
+    const getCloseSnapshots = vi.fn(async () => ([{
+      id: '10',
+      periodId: '1',
+      actionType: 'CLOSE',
+      passed: true,
+      issueCount: 0,
+      items: [],
+      financialReports: [{ reportType: 'BALANCE_SHEET' }]
+    }] as any))
+    const actions = createActions({ getCloseSnapshots })
+
+    await actions.openWizard({ id: '1', periodMonth: '2026-07', status: 'CLOSED' } as AccountPeriod)
+
+    expect(actions.wizardStep.value).toBe(2)
+    expect(getCloseSnapshots).toHaveBeenCalledWith('1')
+    expect(actions.wizardSnapshots.value[0].financialReports).toHaveLength(1)
+  })
+
   it('blocks close when the latest check has issues', async () => {
     const closePeriod = vi.fn(async () => ({}))
     const actions = createActions({

@@ -2,7 +2,7 @@
   <div class="app-container">
     <el-card shadow="never" class="search-card">
       <el-form :model="queryForm" inline>
-        <el-form-item :label="$t('financeReportPages.ledger.subject')">
+        <el-form-item v-if="activeTab === 'general' || activeTab === 'detail'" :label="$t('financeReportPages.ledger.subject')">
           <el-tree-select
             v-model="queryForm.subjectId"
             :data="subjectOptions"
@@ -28,6 +28,14 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleQuery">{{ $t('financeReportPages.common.search') }}</el-button>
           <el-button :icon="Refresh" @click="handleReset">{{ $t('financeReportPages.common.reset') }}</el-button>
+          <el-button
+            v-if="activeTab === 'balance' || activeTab === 'income' || activeTab === 'cash'"
+            v-permission="'finance:subject:manage'"
+            :icon="Setting"
+            @click="openMappingDialog"
+          >
+            {{ $t('financeReportPages.ledger.mappingConfiguration') }}
+          </el-button>
           <el-button v-permission="'finance:ledger:view'" :icon="Download" @click="handleExport">{{ $t('financeReportPages.ledger.export') }}</el-button>
         </el-form-item>
       </el-form>
@@ -104,27 +112,348 @@
             @current-change="handlePageChange"
           />
         </el-tab-pane>
+
+        <el-tab-pane :label="$t('financeReportPages.ledger.trialTab')" name="trial">
+          <el-alert
+            v-if="trialBalance"
+            :type="trialBalance.openingBalanced && trialBalance.periodBalanced && trialBalance.closingBalanced ? 'success' : 'error'"
+            :closable="false"
+            :title="trialBalance.openingBalanced && trialBalance.periodBalanced && trialBalance.closingBalanced
+              ? $t('financeReportPages.ledger.trialBalanced')
+              : $t('financeReportPages.ledger.trialUnbalanced')"
+            show-icon
+            style="margin-bottom: 16px"
+          />
+          <el-table v-loading="trialLoading" :data="trialBalance?.rows || []" border stripe>
+            <el-table-column prop="subjectCode" :label="$t('financeReportPages.common.subjectCode')" width="120" fixed="left" />
+            <el-table-column prop="subjectName" :label="$t('financeReportPages.common.subjectName')" min-width="160" fixed="left" />
+            <el-table-column :label="$t('financeReportPages.ledger.openingBalance')" align="center">
+              <el-table-column prop="openingDebit" :label="$t('financeReportPages.common.debit')" width="130" align="right">
+                <template #default="{ row }">{{ formatAmount(row.openingDebit) }}</template>
+              </el-table-column>
+              <el-table-column prop="openingCredit" :label="$t('financeReportPages.common.credit')" width="130" align="right">
+                <template #default="{ row }">{{ formatAmount(row.openingCredit) }}</template>
+              </el-table-column>
+            </el-table-column>
+            <el-table-column :label="$t('financeReportPages.ledger.periodMovement')" align="center">
+              <el-table-column prop="periodDebit" :label="$t('financeReportPages.common.debit')" width="130" align="right">
+                <template #default="{ row }">{{ formatAmount(row.periodDebit) }}</template>
+              </el-table-column>
+              <el-table-column prop="periodCredit" :label="$t('financeReportPages.common.credit')" width="130" align="right">
+                <template #default="{ row }">{{ formatAmount(row.periodCredit) }}</template>
+              </el-table-column>
+            </el-table-column>
+            <el-table-column :label="$t('financeReportPages.ledger.closingBalance')" align="center">
+              <el-table-column prop="closingDebit" :label="$t('financeReportPages.common.debit')" width="130" align="right">
+                <template #default="{ row }">{{ formatAmount(row.closingDebit) }}</template>
+              </el-table-column>
+              <el-table-column prop="closingCredit" :label="$t('financeReportPages.common.credit')" width="130" align="right">
+                <template #default="{ row }">{{ formatAmount(row.closingCredit) }}</template>
+              </el-table-column>
+            </el-table-column>
+          </el-table>
+          <el-descriptions v-if="trialBalance" :column="3" border style="margin-top: 16px">
+            <el-descriptions-item :label="$t('financeReportPages.ledger.openingTotal')">
+              {{ formatAmount(trialBalance.openingDebit) }} / {{ formatAmount(trialBalance.openingCredit) }}
+            </el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.periodTotal')">
+              {{ formatAmount(trialBalance.periodDebit) }} / {{ formatAmount(trialBalance.periodCredit) }}
+            </el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.closingTotal')">
+              {{ formatAmount(trialBalance.closingDebit) }} / {{ formatAmount(trialBalance.closingCredit) }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
+
+        <el-tab-pane :label="$t('financeReportPages.ledger.balanceSheetTab')" name="balance">
+          <el-alert
+            v-if="balanceSheet"
+            :type="balanceSheet.balanced ? 'success' : 'error'"
+            :closable="false"
+            :title="balanceSheet.mappingErrors.length
+              ? $t('financeReportPages.ledger.mappingErrors', { errors: balanceSheet.mappingErrors.join('; ') })
+              : balanceSheet.unclassifiedSubjectCodes.length
+              ? $t('financeReportPages.ledger.unclassifiedSubjects', { codes: balanceSheet.unclassifiedSubjectCodes.join(', ') })
+              : balanceSheet.balanced
+                ? $t('financeReportPages.ledger.balanceSheetBalanced')
+                : $t('financeReportPages.ledger.balanceSheetUnbalanced', { difference: formatAmount(balanceSheet.difference) })"
+            show-icon
+            style="margin-bottom: 16px"
+          />
+          <el-row v-loading="statementLoading" :gutter="16">
+            <el-col :span="8">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.assets') }}</template>
+                <el-table :data="balanceSheet?.assetLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" min-width="130" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+            <el-col :span="8">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.liabilities') }}</template>
+                <el-table :data="balanceSheet?.liabilityLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" min-width="130" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+            <el-col :span="8">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.equity') }}</template>
+                <el-table :data="balanceSheet?.equityLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" min-width="130" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+          </el-row>
+          <el-descriptions v-if="balanceSheet" :column="4" border style="margin-top: 16px">
+            <el-descriptions-item :label="$t('financeReportPages.ledger.totalAssets')">{{ formatAmount(balanceSheet.totalAssets) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.totalLiabilities')">{{ formatAmount(balanceSheet.totalLiabilities) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.totalEquity')">{{ formatAmount(balanceSheet.totalEquity) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.formulaVersion')">{{ balanceSheet.formulaVersion }}</el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
+
+        <el-tab-pane :label="$t('financeReportPages.ledger.incomeStatementTab')" name="income">
+          <el-alert
+            v-if="incomeStatement?.mappingErrors.length"
+            type="error"
+            :closable="false"
+            :title="$t('financeReportPages.ledger.mappingErrors', { errors: incomeStatement.mappingErrors.join('; ') })"
+            show-icon
+            style="margin-bottom: 16px"
+          />
+          <el-alert
+            v-if="incomeStatement?.unclassifiedSubjectCodes.length"
+            type="error"
+            :closable="false"
+            :title="$t('financeReportPages.ledger.unclassifiedSubjects', { codes: incomeStatement.unclassifiedSubjectCodes.join(', ') })"
+            show-icon
+            style="margin-bottom: 16px"
+          />
+          <el-row v-loading="statementLoading" :gutter="16">
+            <el-col :span="12">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.revenue') }}</template>
+                <el-table :data="incomeStatement?.revenueLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="160" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+            <el-col :span="12">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.expense') }}</template>
+                <el-table :data="incomeStatement?.expenseLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="160" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+          </el-row>
+          <el-descriptions v-if="incomeStatement" :column="4" border style="margin-top: 16px">
+            <el-descriptions-item :label="$t('financeReportPages.ledger.totalRevenue')">{{ formatAmount(incomeStatement.totalRevenue) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.totalExpense')">{{ formatAmount(incomeStatement.totalExpense) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.netProfit')">{{ formatAmount(incomeStatement.netProfit) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.formulaVersion')">{{ incomeStatement.formulaVersion }}</el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
+
+        <el-tab-pane :label="$t('financeReportPages.ledger.cashFlowTab')" name="cash">
+          <el-alert
+            v-if="cashFlow"
+            :type="cashFlow.reconciled ? 'success' : 'error'"
+            :closable="false"
+            :title="cashFlow.mappingErrors.length
+              ? $t('financeReportPages.ledger.mappingErrors', { errors: cashFlow.mappingErrors.join('; ') })
+              : cashFlow.unmappedSubjectCodes.length
+                ? $t('financeReportPages.ledger.unmappedCashFlowSubjects', { codes: cashFlow.unmappedSubjectCodes.join(', ') })
+                : cashFlow.reconciled
+                  ? $t('financeReportPages.ledger.cashFlowReconciled')
+                  : $t('financeReportPages.ledger.cashFlowUnreconciled', { difference: formatAmount(cashFlow.reconciliationDifference) })"
+            show-icon
+            style="margin-bottom: 16px"
+          />
+          <el-row v-loading="statementLoading" :gutter="16">
+            <el-col :span="8">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.operatingActivities') }}</template>
+                <el-table :data="cashFlow?.operatingLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" min-width="160" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+            <el-col :span="8">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.investingActivities') }}</template>
+                <el-table :data="cashFlow?.investingLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" min-width="160" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+            <el-col :span="8">
+              <el-card shadow="never">
+                <template #header>{{ $t('financeReportPages.ledger.financingActivities') }}</template>
+                <el-table :data="cashFlow?.financingLines || []" size="small">
+                  <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" min-width="160" />
+                  <el-table-column prop="amount" :label="$t('financeReportPages.common.amount')" width="130" align="right">
+                    <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+          </el-row>
+          <el-descriptions v-if="cashFlow" :column="4" border style="margin-top: 16px">
+            <el-descriptions-item :label="$t('financeReportPages.ledger.netOperatingCashFlow')">{{ formatAmount(cashFlow.netOperatingCashFlow) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.netInvestingCashFlow')">{{ formatAmount(cashFlow.netInvestingCashFlow) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.netFinancingCashFlow')">{{ formatAmount(cashFlow.netFinancingCashFlow) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.netIncreaseInCash')">{{ formatAmount(cashFlow.netIncreaseInCash) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.openingCash')">{{ formatAmount(cashFlow.openingCash) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.closingCash')">{{ formatAmount(cashFlow.closingCash) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.reconciliationDifference')">{{ formatAmount(cashFlow.reconciliationDifference) }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('financeReportPages.ledger.formulaVersion')">{{ cashFlow.formulaVersion }}</el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
+
+    <el-dialog
+      v-model="mappingDialogVisible"
+      :title="$t('financeReportPages.ledger.mappingConfiguration')"
+      width="900px"
+    >
+      <el-alert
+        v-if="(activeTab === 'cash' ? cashFlowConfiguration?.validationErrors : statementConfiguration?.validationErrors)?.length"
+        type="error"
+        :closable="false"
+        :title="$t('financeReportPages.ledger.mappingErrors', { errors: (activeTab === 'cash' ? cashFlowConfiguration?.validationErrors : statementConfiguration?.validationErrors)?.join('; ') })"
+        style="margin-bottom: 16px"
+      />
+      <el-form v-if="activeTab === 'cash' && cashFlowConfiguration" inline style="margin-bottom: 12px">
+        <el-form-item :label="$t('financeReportPages.ledger.cashEquivalentSubjects')">
+          <el-select v-model="cashFlowConfiguration.cashSubjectCodes" multiple filterable style="width: 560px">
+            <el-option
+              v-for="subject in cashSubjectOptions"
+              :key="subject.code"
+              :label="`${subject.code} ${subject.name}`"
+              :value="subject.code"
+            />
+          </el-select>
+        </el-form-item>
+        <el-button type="primary" @click="saveCashSubjects">{{ $t('financeReportPages.common.save') }}</el-button>
+      </el-form>
+      <el-table v-if="activeTab === 'cash'" v-loading="mappingLoading" :data="cashFlowConfiguration?.items || []" border>
+        <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" width="240" />
+        <el-table-column prop="activityType" :label="$t('financeReportPages.ledger.section')" width="130" />
+        <el-table-column :label="$t('financeReportPages.ledger.mappedSubjects')" min-width="360">
+          <template #default="{ row }">
+            <el-select v-model="row.subjectCodes" multiple filterable style="width: 100%">
+              <el-option
+                v-for="subject in cashCounterpartOptions"
+                :key="subject.code"
+                :label="`${subject.code} ${subject.name}`"
+                :value="subject.code"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="100" align="center">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="saveCashFlowMappingItem(row)">
+              {{ $t('financeReportPages.common.save') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-table v-else v-loading="mappingLoading" :data="statementConfiguration?.items || []" border>
+        <el-table-column prop="itemName" :label="$t('financeReportPages.ledger.reportItem')" width="200" />
+        <el-table-column prop="sectionCode" :label="$t('financeReportPages.ledger.section')" width="130" />
+        <el-table-column :label="$t('financeReportPages.ledger.mappedSubjects')" min-width="360">
+          <template #default="{ row }">
+            <span v-if="row.formulaCode">{{ $t('financeReportPages.ledger.formulaItem') }} · {{ row.formulaCode }}</span>
+            <el-select v-else v-model="row.subjectCodes" multiple filterable style="width: 100%">
+              <el-option
+                v-for="subject in mappingSubjectOptions(row.sectionCode)"
+                :key="subject.code"
+                :label="`${subject.code} ${subject.name}`"
+                :value="subject.code"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('financeReportPages.common.actions')" width="100" align="center">
+          <template #default="{ row }">
+            <el-button v-if="!row.formulaCode" type="primary" link @click="saveMappingItem(row)">
+              {{ $t('financeReportPages.common.save') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Download, Refresh, Search } from '@element-plus/icons-vue'
+import { Download, Refresh, Search, Setting } from '@element-plus/icons-vue'
 import { downloadBlob } from '@/utils/download'
 import {
+  exportBalanceSheet,
+  exportCashFlow,
+  exportIncomeStatement,
   exportLedger,
+  exportTrialBalance,
   getAccountSubjectTree,
+  getBalanceSheet,
+  getCashFlow,
+  getCashFlowConfiguration,
+  getIncomeStatement,
+  getFinancialStatementConfiguration,
   getLedgerEntries,
-  getLedgerSummary
+  getLedgerSummary,
+  getTrialBalance,
+  updateCashFlowCashSubjects,
+  updateCashFlowItemSubjects,
+  updateFinancialStatementItemSubjects
+} from '@/api/finance'
+import type {
+  CashFlowConfiguration,
+  CashFlowConfigurationItem,
+  FinancialStatementConfiguration,
+  FinancialStatementConfigurationItem
 } from '@/api/finance'
 import { useFinanceLedgerList } from '@/composables/useFinanceLedgerList'
-import { useFinanceLedgerPresentation } from '@/composables/useFinanceLedgerPresentation'
+import {
+  activeAccountSubjects,
+  useFinanceLedgerPresentation
+} from '@/composables/useFinanceLedgerPresentation'
 
 const { t } = useI18n()
+const mappingDialogVisible = ref(false)
+const mappingLoading = ref(false)
+const statementConfiguration = ref<FinancialStatementConfiguration | null>(null)
+const cashFlowConfiguration = ref<CashFlowConfiguration | null>(null)
 
 const {
   formatAmount,
@@ -134,6 +463,8 @@ const {
 
 const {
   activeTab,
+  balanceSheet,
+  cashFlow,
   dateRange,
   detailLedger,
   detailLoading,
@@ -146,20 +477,116 @@ const {
   handleSizeChange,
   handleTabChange,
   handleViewDetail,
+  incomeStatement,
   loadGeneralLedger,
   loadSubjects,
   pagination,
   queryForm,
-  subjectOptions
+  statementLoading,
+  subjectOptions,
+  trialBalance,
+  trialLoading
 } = useFinanceLedgerList(t, {
   getAccountSubjectTree,
+  getBalanceSheet,
+  getCashFlow,
+  getIncomeStatement,
   getLedgerSummary,
   getLedgerEntries,
+  getTrialBalance,
+  exportTrialBalance,
+  exportBalanceSheet,
+  exportCashFlow,
+  exportIncomeStatement,
   exportLedger,
   downloadBlob,
   onError: (message) => ElMessage.error(message),
   onSuccess: (message) => ElMessage.success(message)
 })
+
+const mappingStatementType = computed(() => activeTab.value === 'income' ? 'INCOME_STATEMENT' : 'BALANCE_SHEET')
+
+const mappingSubjectOptions = (sectionCode: string) => activeAccountSubjects(subjectOptions.value)
+  .filter((subject) => (subject.category || subject.subjectType) === sectionCode)
+  .map((subject) => ({
+    code: subject.code || subject.subjectCode || '',
+    name: subject.name || subject.subjectName || ''
+  }))
+  .filter((subject) => subject.code)
+
+const allSubjectOptions = computed(() => activeAccountSubjects(subjectOptions.value)
+  .map((subject) => ({
+    code: subject.code || subject.subjectCode || '',
+    name: subject.name || subject.subjectName || '',
+    type: subject.category || subject.subjectType || ''
+  }))
+  .filter((subject) => subject.code))
+
+const cashSubjectOptions = computed(() => allSubjectOptions.value.filter((subject) => subject.type === 'ASSET'))
+const cashCounterpartOptions = computed(() => {
+  const cashCodes = new Set(cashFlowConfiguration.value?.cashSubjectCodes || [])
+  return allSubjectOptions.value.filter((subject) => !cashCodes.has(subject.code))
+})
+
+const openMappingDialog = async () => {
+  mappingDialogVisible.value = true
+  mappingLoading.value = true
+  try {
+    if (activeTab.value === 'cash') {
+      cashFlowConfiguration.value = await getCashFlowConfiguration()
+    } else {
+      statementConfiguration.value = await getFinancialStatementConfiguration(mappingStatementType.value)
+    }
+  } catch {
+    ElMessage.error(t('financeReportPages.ledger.message.mappingLoadFailed'))
+  } finally {
+    mappingLoading.value = false
+  }
+}
+
+const saveCashSubjects = async () => {
+  if (!cashFlowConfiguration.value) return
+  mappingLoading.value = true
+  try {
+    cashFlowConfiguration.value = await updateCashFlowCashSubjects(cashFlowConfiguration.value.cashSubjectCodes)
+    ElMessage.success(t('financeReportPages.ledger.message.mappingSaved'))
+    await handleQuery()
+  } catch {
+    ElMessage.error(t('financeReportPages.ledger.message.mappingSaveFailed'))
+  } finally {
+    mappingLoading.value = false
+  }
+}
+
+const saveCashFlowMappingItem = async (item: CashFlowConfigurationItem) => {
+  mappingLoading.value = true
+  try {
+    cashFlowConfiguration.value = await updateCashFlowItemSubjects(item.itemCode, item.subjectCodes)
+    ElMessage.success(t('financeReportPages.ledger.message.mappingSaved'))
+    await handleQuery()
+  } catch {
+    ElMessage.error(t('financeReportPages.ledger.message.mappingSaveFailed'))
+  } finally {
+    mappingLoading.value = false
+  }
+}
+
+const saveMappingItem = async (item: FinancialStatementConfigurationItem) => {
+  mappingLoading.value = true
+  try {
+    statementConfiguration.value = await updateFinancialStatementItemSubjects(
+      mappingStatementType.value,
+      item.itemCode,
+      item.subjectCodes
+    )
+    ElMessage.success(t('financeReportPages.ledger.message.mappingSaved'))
+    await handleQuery()
+  } catch {
+    ElMessage.error(t('financeReportPages.ledger.message.mappingSaveFailed'))
+  } finally {
+    mappingLoading.value = false
+  }
+}
 
 onMounted(async () => {
   await loadSubjects()

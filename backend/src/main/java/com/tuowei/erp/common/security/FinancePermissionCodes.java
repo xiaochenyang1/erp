@@ -63,4 +63,7 @@ public interface FinancePermissionCodes {
     String HAS_FINANCE_BUDGET_VIEW = "hasAuthority('" + FINANCE_BUDGET_VIEW + "')";
     String HAS_FINANCE_BUDGET_MANAGE = "hasAuthority('" + FINANCE_BUDGET_MANAGE + "')";
     String HAS_FINANCE_BUDGET_APPROVE = "hasAuthority('" + FINANCE_BUDGET_APPROVE + "')";
+    String HAS_FINANCE_SUBJECT_TREE_VIEW = HAS_FINANCE_SUBJECT_MANAGE
+            + " or " + HAS_FINANCE_LEDGER_VIEW
+            + " or " + HAS_FINANCE_BUDGET_VIEW;
 }

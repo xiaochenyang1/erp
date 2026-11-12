@@ -4,6 +4,10 @@ import { connectCdpSocket, pageConditionExpression } from './ui-smoke-cdp.mjs'
 import { waitForBackendReadiness } from './ui-smoke-readiness.mjs'
 import { runMrpUiSmoke, runMultilevelMrpUiSmoke, runMrpWarehouseUiSmoke } from './mrp-ui-smoke.mjs'
 import { runCurrencyDocumentsUiSmoke, runRoundingReportUiSmoke } from './currency-document-ui-smoke.mjs'
+import {
+  exerciseFinancialReportCloseSnapshot,
+  exerciseFinancialStatements
+} from './financial-statements-api-smoke.mjs'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
@@ -1695,9 +1699,13 @@ async function runBusinessTraceWorkflow(cdp) {
   }
 }
 
-async function runFinancePeriodWorkflow(cdp) {
+async function runFinancePeriodWorkflow(cdp, auth) {
   resetEvents(cdp.events)
+  let snapshotEvidence = null
   try {
+    snapshotEvidence = await exerciseFinancialReportCloseSnapshot(
+      (method, path, body) => apiRequest(auth, method, path, body)
+    )
     await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/periods` })
     await waitForPage(cdp, `document.body.innerText.includes('会计期间管理') && document.body.innerText.includes('生成年期间')`, 'finance periods page')
 
@@ -1761,6 +1769,82 @@ async function runFinancePeriodWorkflow(cdp) {
     `, 'period reconciliation dialog').catch(async (error) => {
       throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, 'after period reconciliation'))}`)
     })
+    await clickButton(cdp, '关闭', dialogExpression('库存财务对账'))
+
+    await setElementValue(
+      cdp,
+      `document.querySelector('.toolbar-card .el-input-number input')`,
+      String(snapshotEvidence.periodYear),
+      'financial-report snapshot accounting year'
+    )
+    await clickButton(cdp, '查询')
+    const snapshotPeriodRow = `[...document.querySelectorAll('.el-table__body-wrapper tbody tr')]
+      .find((row) => visible(row) && row.innerText.includes(${JSON.stringify(snapshotEvidence.periodMonth)}) && row.innerText.includes('已结账'))`
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        return Boolean(${snapshotPeriodRow});
+      })()
+    `, 'closed period with financial-report snapshot')
+    await invokeButton(cdp, '结账向导', 'closed period evidence wizard', snapshotPeriodRow)
+
+    const evidenceDrawer = `[...document.querySelectorAll('.el-drawer')]
+      .find((drawer) => visible(drawer) && drawer.innerText.includes(${JSON.stringify(snapshotEvidence.periodMonth)}))`
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        const drawer = ${evidenceDrawer};
+        return Boolean(drawer) && drawer.innerText.includes('月结证据') && drawer.innerText.includes('结账');
+      })()
+    `, 'closed period evidence loaded')
+    await invokeElement(cdp, `${evidenceDrawer}.querySelector('.el-table__expand-icon')`, 'expand close evidence')
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        const drawer = ${evidenceDrawer};
+        return Boolean(drawer)
+          && drawer.innerText.includes('结账财务报表快照')
+          && drawer.innerText.includes('试算平衡')
+          && drawer.innerText.includes('资产负债表')
+          && drawer.innerText.includes('利润表')
+          && drawer.innerText.includes('现金流量表（直接法）');
+      })()
+    `, 'four close financial-report snapshots')
+    await invokeElement(
+      cdp,
+      `${evidenceDrawer}.querySelector('.financial-report-snapshots button')`,
+      'financial-report snapshot detail'
+    )
+    await waitForPage(cdp, `
+      (() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        const dialog = ${dialogExpression('历史财务报表快照')};
+        return Boolean(dialog)
+          && dialog.innerText.includes('科目映射 SHA-256')
+          && dialog.innerText.includes('报表内容 SHA-256')
+          && dialog.innerText.includes('LEDGER_TRIAL_BALANCE_V1');
+      })()
+    `, 'financial-report snapshot detail dialog')
   } catch (error) {
     const diagnostic = await pageDiagnostics(cdp, 'finance period workflow failure').catch(() => null)
     throw new Error(`${error.message}${diagnostic ? `\n${JSON.stringify(diagnostic, null, 2)}` : ''}`)
@@ -1769,6 +1853,8 @@ async function runFinancePeriodWorkflow(cdp) {
   const failures = snapshotFailures(cdp.events)
   return {
     name: 'finance-period-generate-check-and-reconcile',
+    snapshotPeriod: snapshotEvidence?.periodMonth || null,
+    snapshotReportTypes: snapshotEvidence?.reportTypes || [],
     passed: failures.length === 0,
     failures
   }
@@ -1819,6 +1905,132 @@ async function runReportExportWorkflow(cdp) {
   return {
     name: 'report-export-download',
     downloads: download,
+    passed: failures.length === 0,
+    failures
+  }
+}
+
+async function runFinancialStatementsWorkflow(cdp, auth) {
+  resetEvents(cdp.events)
+  let evidence = null
+  try {
+    evidence = await exerciseFinancialStatements(
+      (method, path, body) => apiRequest(auth, method, path, body),
+      { remarkPrefix: 'UI smoke 财务报表' }
+    )
+    await setBrowserAuth(cdp, auth)
+    await cdp.send('Page.navigate', { url: `${frontendBaseUrl}/finance/ledger` })
+    await waitForPage(cdp, `
+      document.body.innerText.includes('总账查询')
+        && document.body.innerText.includes('试算平衡')
+        && document.body.innerText.includes('现金流量表（直接法）')
+    `, 'financial statements page', 30000)
+
+    await clickElement(cdp, `document.querySelector('.el-date-editor--daterange input')`, 'financial statement date range')
+    await waitForPage(cdp, `
+      [...document.querySelectorAll('.el-date-range-picker')].some((picker) => {
+        const style = window.getComputedStyle(picker);
+        const rect = picker.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      })
+    `, 'financial statement date picker')
+    const todayCellExpression = `
+      [...document.querySelectorAll('.el-date-range-picker td.today.available')].find((cell) => visible(cell))
+    `
+    await clickElement(cdp, todayCellExpression, 'financial statement range start')
+    await clickElement(cdp, todayCellExpression, 'financial statement range end')
+    await waitForPage(cdp, `
+      (() => {
+        const inputs = [...document.querySelectorAll('.el-date-editor--daterange input')];
+        const values = [${JSON.stringify(evidence.date)}, ${JSON.stringify(evidence.date)}];
+        const pickerOpen = [...document.querySelectorAll('.el-date-range-picker')].some((picker) => {
+          const style = window.getComputedStyle(picker);
+          const rect = picker.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        });
+        return !pickerOpen
+          && inputs.length === 2
+          && inputs.every((input, index) => input.value === values[index]);
+      })()
+    `, 'financial statement date range committed')
+
+    const clickTab = async (label, condition, resultLabel) => {
+      await invokeElement(
+        cdp,
+        `[...document.querySelectorAll('.el-tabs__item')].find((item) => visible(item) && item.innerText.trim() === ${JSON.stringify(label)})`,
+        `${label} tab`
+      )
+      await waitForPage(cdp, condition, resultLabel, 30000).catch(async (error) => {
+        throw new Error(`${error.message}: ${JSON.stringify(await pageDiagnostics(cdp, `after ${label}`))}`)
+      })
+    }
+
+    await clickTab('试算平衡', `
+      document.body.innerText.includes('期初、本期和期末借贷均平衡')
+        && document.body.innerText.includes('1002')
+        && document.body.innerText.includes('6602')
+    `, 'trial balance rendered')
+    await clickTab('资产负债表', `
+      document.body.innerText.includes('资产总额与负债及权益合计勾稽一致')
+        && document.body.innerText.includes('TYPE_MAPPING_V1')
+    `, 'balance sheet rendered')
+    await clickTab('利润表', `
+      document.body.innerText.includes('净利润')
+        && document.body.innerText.includes('TYPE_MAPPING_V1')
+    `, 'income statement rendered')
+    await clickTab('现金流量表（直接法）', `
+      document.body.innerText.includes('期初现金、本期净现金流量与期末现金勾稽一致')
+        && document.body.innerText.includes('CASH_FLOW_DIRECT_V1')
+    `, 'cash-flow statement rendered')
+
+    await clickButton(cdp, '科目映射')
+    await waitForPage(cdp, `
+      (() => {
+        const dialog = ${dialogExpression('科目映射')};
+        return Boolean(dialog)
+          && dialog.innerText.includes('现金及现金等价物科目')
+          && dialog.innerText.includes('销售商品及提供劳务收到的现金')
+          && dialog.innerText.includes('支付的其他经营活动现金');
+      })()
+    `, 'cash-flow mapping dialog')
+    await clickElement(cdp, `${dialogExpression('科目映射')}.querySelector('.el-dialog__headerbtn')`, 'close mapping dialog')
+
+    await evaluatePage(cdp, `
+      (() => {
+        window.__uiSmokeFinancialStatementDownload = { blobs: [], clicks: [] };
+        const rawCreateObjectURL = URL.createObjectURL.bind(URL);
+        URL.createObjectURL = (blob) => {
+          window.__uiSmokeFinancialStatementDownload.blobs.push({ size: blob.size, type: blob.type });
+          return rawCreateObjectURL(blob);
+        };
+        const rawClick = HTMLAnchorElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function() {
+          window.__uiSmokeFinancialStatementDownload.clicks.push({ download: this.download || '' });
+          return rawClick.call(this);
+        };
+        return true;
+      })()
+    `)
+    await clickButton(cdp, '导出')
+    await waitForPage(cdp, `
+      (() => {
+        const download = window.__uiSmokeFinancialStatementDownload || { blobs: [], clicks: [] };
+        return document.body.innerText.includes('导出成功')
+          && download.blobs.some((blob) => blob.size > 0 && blob.type.includes('text/csv'))
+          && download.clicks.some((click) => click.download.includes('现金流量表'));
+      })()
+    `, 'cash-flow CSV exported', 30000)
+  } catch (error) {
+    const diagnostic = await pageDiagnostics(cdp, 'financial statements workflow failure').catch(() => null)
+    throw new Error(`${error.message}${diagnostic ? `\n${JSON.stringify(diagnostic, null, 2)}` : ''}`)
+  }
+
+  const failures = snapshotFailures(cdp.events)
+  return {
+    name: 'financial-statements-post-query-map-and-export',
+    voucherNo: evidence?.voucherNo || null,
+    date: evidence?.date || null,
+    delta: evidence?.delta || null,
     passed: failures.length === 0,
     failures
   }
@@ -7335,6 +7547,7 @@ async function main() {
     { path: '/exception-sla-policies', text: 'SLA策略' },
     { path: '/reports/traces', text: '暂无追踪事件' },
     { path: '/finance/periods', text: '会计期间管理' },
+    { path: '/finance/ledger', text: '试算平衡' },
     { path: '/finance/expenses', text: '费用管理' },
     { path: '/finance/budgets', text: '预算管理' },
     { path: '/contracts', text: '合同台账' },
@@ -7420,7 +7633,8 @@ async function main() {
     { name: 'exception-sla-policy-save', run: () => runSlaPolicyWorkflow(cdp) },
     { name: 'exception-rule-config-toggle-and-scan-all', run: () => runExceptionRuleWorkflow(cdp) },
     { name: 'business-trace-search-and-reset', run: () => runBusinessTraceWorkflow(cdp) },
-    { name: 'finance-period-generate-check-and-reconcile', run: () => runFinancePeriodWorkflow(cdp) },
+    { name: 'finance-period-generate-check-and-reconcile', run: () => runFinancePeriodWorkflow(cdp, auth) },
+    { name: 'financial-statements-post-query-map-and-export', run: () => runFinancialStatementsWorkflow(cdp, auth) },
     { name: 'report-export-download', run: () => runReportExportWorkflow(cdp) },
     { name: 'attachment-upload-download-delete', run: () => runAttachmentWorkflow(cdp) },
     { name: 'readiness-run-evidence-result-and-no-go', run: () => runReadinessWorkflow(cdp) },

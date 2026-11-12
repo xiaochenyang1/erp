@@ -45,7 +45,7 @@ public class AccountSubjectController {
         return ApiResponse.success(accountSubjectService.list(query));
     }
 
-    @PreAuthorize(PermissionCodes.HAS_FINANCE_SUBJECT_MANAGE)
+    @PreAuthorize(PermissionCodes.HAS_FINANCE_SUBJECT_TREE_VIEW)
     @GetMapping("/tree")
     public ApiResponse<List<AccountSubjectTreeNode>> tree() {
         return ApiResponse.success(accountSubjectService.tree());

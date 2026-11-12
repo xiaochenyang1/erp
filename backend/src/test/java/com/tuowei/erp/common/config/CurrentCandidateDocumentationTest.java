@@ -12,49 +12,61 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CurrentCandidateDocumentationTest {
 
     @Test
-    void currentStatusAndAcceptanceDocsCoverV170ThroughV174() throws IOException {
-        String status = readDoc("PROJECT-STATUS-2026-11-09.md");
-        String acceptance = readDoc("P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md");
+    void currentStatusAndAcceptanceDocsCoverFinancialStatementsCandidate() throws IOException {
+        String status = readDoc("PROJECT-STATUS-2026-11-11.md");
+        String acceptance = readDoc("FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md");
         String checklist = readDoc("business-readiness-checklist.md");
 
         assertThat(status)
-                .contains("3b70299")
-                .contains("2,593")
-                .contains("1,196")
-                .contains("30/30")
-                .contains("42/42")
-                .contains("V168")
-                .contains("V174")
-                .contains("三大财务报表");
+                .contains("PR #18")
+                .contains("1e1f6c5")
+                .contains("560080e")
+                .contains("2,649")
+                .contains("1,201")
+                .contains("定向 43 项")
+                .contains("1,202")
+                .contains("31/31 路由")
+                .contains("43/43 工作流")
+                .contains("V168 → V178")
+                .contains("Monitoring Verify")
+                .contains("42996163228")
+                .contains("代码评审")
+                .contains("管理报表最小版")
+                .contains("间接法尚未开发")
+                .doesNotContain("不能声称 31/31 或 43/43 已通过");
 
         assertThat(acceptance)
-                .contains("MRP-1")
-                .contains("COST-1")
-                .contains("SCH-1")
-                .contains("SCH-9")
-                .contains("`ALL` 数据范围")
-                .contains("UPG-1")
-                .contains("V168 → V174")
+                .contains("FS-1")
+                .contains("FS-13")
+                .contains("V175")
+                .contains("V176")
+                .contains("V177")
+                .contains("V178")
+                .contains("内部转账")
+                .contains("红冲")
+                .contains("账套隔离")
+                .contains("非法定格式")
                 .contains("GO / NO-GO");
 
         assertThat(checklist)
                 .contains("多层分仓 MRP")
                 .contains("生产成本核算与期间关单")
                 .contains("有限产能排程一期")
-                .contains("P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md");
+                .contains("FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md")
+                .contains("FS-1–FS-13");
     }
 
     @Test
     void historicalStatusEntryPointsLinkToCurrentCandidateStatus() throws IOException {
         assertThat(readDoc("WHAT_IS_MISSING.md"))
-                .contains("PROJECT-STATUS-2026-11-09.md")
+                .contains("PROJECT-STATUS-2026-11-11.md")
                 .doesNotContain("当前权威状态以本文件");
         assertThat(readDoc("未完成.md"))
-                .contains("PROJECT-STATUS-2026-11-09.md");
-        assertThat(readDoc("PREPROD-HANDOFF-2026-10-21.md"))
-                .contains("PROJECT-STATUS-2026-11-09.md");
-        assertThat(readDoc("P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-10-16.md"))
-                .contains("P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md");
+                .contains("PROJECT-STATUS-2026-11-11.md");
+        assertThat(readDoc("PROJECT-STATUS-2026-11-09.md"))
+                .contains("PROJECT-STATUS-2026-11-11.md");
+        assertThat(readDoc("P0-HUMAN-GATES-EXECUTION-PACKAGE-2026-11-09.md"))
+                .contains("FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md");
     }
 
     private static String readDoc(String fileName) throws IOException {
