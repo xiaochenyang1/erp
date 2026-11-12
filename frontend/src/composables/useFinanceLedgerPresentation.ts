@@ -3,6 +3,16 @@ import { formatLocalizedCurrency, formatLocalizedDate } from '@/utils/locale'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
 
+/** Flatten the chart of accounts while retaining inactive nodes for historical ledger filters. */
+export const flattenAccountSubjects = (subjects: AccountSubject[]): AccountSubject[] => subjects.flatMap((subject) => [
+  subject,
+  ...flattenAccountSubjects(subject.children || [])
+])
+
+/** Mapping editors must never offer subjects that the backend will reject as inactive. */
+export const activeAccountSubjects = (subjects: AccountSubject[]) =>
+  flattenAccountSubjects(subjects).filter((subject) => subject.status === 'ACTIVE')
+
 /** Recursively find a chart-of-accounts node by code. */
 export const findSubjectByCode = (
   subjects: AccountSubject[],

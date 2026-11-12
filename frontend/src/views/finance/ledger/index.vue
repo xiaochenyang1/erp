@@ -438,14 +438,16 @@ import {
   updateFinancialStatementItemSubjects
 } from '@/api/finance'
 import type {
-  AccountSubject,
   CashFlowConfiguration,
   CashFlowConfigurationItem,
   FinancialStatementConfiguration,
   FinancialStatementConfigurationItem
 } from '@/api/finance'
 import { useFinanceLedgerList } from '@/composables/useFinanceLedgerList'
-import { useFinanceLedgerPresentation } from '@/composables/useFinanceLedgerPresentation'
+import {
+  activeAccountSubjects,
+  useFinanceLedgerPresentation
+} from '@/composables/useFinanceLedgerPresentation'
 
 const { t } = useI18n()
 const mappingDialogVisible = ref(false)
@@ -504,12 +506,7 @@ const {
 
 const mappingStatementType = computed(() => activeTab.value === 'income' ? 'INCOME_STATEMENT' : 'BALANCE_SHEET')
 
-const flattenSubjects = (subjects: AccountSubject[]): AccountSubject[] => subjects.flatMap((subject) => [
-  subject,
-  ...flattenSubjects(subject.children || [])
-])
-
-const mappingSubjectOptions = (sectionCode: string) => flattenSubjects(subjectOptions.value)
+const mappingSubjectOptions = (sectionCode: string) => activeAccountSubjects(subjectOptions.value)
   .filter((subject) => (subject.category || subject.subjectType) === sectionCode)
   .map((subject) => ({
     code: subject.code || subject.subjectCode || '',
@@ -517,7 +514,7 @@ const mappingSubjectOptions = (sectionCode: string) => flattenSubjects(subjectOp
   }))
   .filter((subject) => subject.code)
 
-const allSubjectOptions = computed(() => flattenSubjects(subjectOptions.value)
+const allSubjectOptions = computed(() => activeAccountSubjects(subjectOptions.value)
   .map((subject) => ({
     code: subject.code || subject.subjectCode || '',
     name: subject.name || subject.subjectName || '',

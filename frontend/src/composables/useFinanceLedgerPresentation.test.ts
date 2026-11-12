@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import type { AccountSubject } from '@/api/finance'
 import {
+  activeAccountSubjects,
   findSubjectByCode,
   findSubjectById,
+  flattenAccountSubjects,
   paginateEntries,
   useFinanceLedgerPresentation
 } from './useFinanceLedgerPresentation'
@@ -28,6 +30,26 @@ describe('finance ledger presentation helpers', () => {
     expect(findSubjectById(tree, '2')?.code).toBe('100101')
     expect(findSubjectByCode(tree, 'missing')).toBeNull()
     expect(paginateEntries([1, 2, 3, 4, 5], 2, 2)).toEqual([3, 4])
+  })
+
+  it('keeps inactive subjects available for ledger history but excludes them from mapping choices', () => {
+    const subjects: AccountSubject[] = [
+      {
+        id: '10',
+        code: '1000',
+        name: 'Assets',
+        status: 'ACTIVE',
+        children: [
+          { id: '11', code: '1001', name: 'Cash', status: 'ACTIVE' },
+          { id: '12', code: '1002', name: 'Closed bank', status: 'DISABLED' }
+        ]
+      }
+    ]
+
+    expect(flattenAccountSubjects(subjects).map((subject) => subject.code))
+      .toEqual(['1000', '1001', '1002'])
+    expect(activeAccountSubjects(subjects).map((subject) => subject.code))
+      .toEqual(['1000', '1001'])
   })
 
   it('formats amounts/dates and builds general summary', () => {

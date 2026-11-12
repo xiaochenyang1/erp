@@ -1,4 +1,4 @@
-# ERP 当前开发状态与财务报表二期候选（含最终自动化门禁，2026-11-11）
+# ERP 当前开发状态与财务报表二期候选（含评审修复，2026-11-12）
 
 ## 结论
 
@@ -6,7 +6,7 @@
 
 当前分支 `feature/phase2-financial-statements` 已实现财务报表二期最小管理报表能力：试算平衡、资产负债表、利润表、直接法现金流量表、账套级科目映射、校验结果和 CSV 导出。V177 又把四张报表接入月结检查，并在正式结账时保存公式版本、完整配置、报表 JSON 与双 SHA-256 的不可变历史快照。首次真实浏览器门禁发现 V175/V176 的默认映射引用 `222101`、但空库没有预置该科目；V178 以前向迁移补齐默认账套税费科目，避免新装数据库的资产负债表和现金流配置天然无效。
 
-候选 `717bb24135a1b0fc54b4c55d8ca04f576f24118e` 已通过 MySQL 8.4/Testcontainers 后端全量门禁、前端全门禁、真实 Chrome UI smoke、完整部署、V168 → V178 升级恢复和旧版全栈回退。该分支仍是 **Draft PR #19**，尚无代码评审、同一最终 SHA 的 Monitoring Verify、真实预生产签字或正式发布授权，因此“自动化全绿”不等于“可直接发布”。本文件同步提交会形成 `717bb24` 之后的新候选；后续结论必须以 PR 上新 SHA 的实际门禁结果为准。
+候选 `560080e92295ca0fb9f464e7a57e14a896b92882` 已通过 MySQL 8.4/Testcontainers 后端全量门禁、前端全门禁、真实 Chrome UI smoke、完整部署、V168 → V178 升级恢复、旧版全栈回退和同一 SHA 的 Monitoring Verify。该分支仍是 **Draft PR #19**，尚无外部代码评审、真实预生产签字或正式发布授权，因此“自动化全绿”不等于“可直接发布”。2026-11-12 的评审工作区又发现并修复只读总账/预算角色无法加载科目树，以及报表映射选择器展示停用科目的问题；本轮源码与文档提交会形成 `560080e` 之后的新候选，必须以新 SHA 的实际门禁结果为准。
 
 ## 当前实现范围
 
@@ -26,18 +26,18 @@
 
 | 检查 | 结果 | 说明 |
 |---|---|---|
-| Backend Verify | 2,646 项测试通过，0 failure / 0 error / 0 skipped；MySQL 8.4.13、Testcontainers、JAR、SBOM 和发布报告复验通过 | GitHub Actions run `42977316050`，绑定 `717bb24` |
-| Frontend Verify | 252 个测试文件、1,201 项测试通过；契约、类型、lint、生产构建和生产依赖审计通过，0 vulnerabilities | GitHub Actions run `42977316001`，绑定 `717bb24` |
-| UI Smoke | 31/31 路由、43/43 工作流通过，失败列表为空 | GitHub Actions run `42977316004`，使用真实 Chrome 与 MySQL 8.4，报告绑定完整 SHA |
-| Deployment Verify | 发布包构建、下载后摘要复验、生产 profile 全栈业务试用、V168 → V178 升级恢复和旧版全栈回退通过 | GitHub Actions run `42977316010`，全部步骤成功 |
-| 本机补充验证 | 后端定向 83 项、Node 工具 112 项及前端全门禁通过 | 用于开发定位；正式证据仍以干净候选 CI artifact 为准 |
+| Backend Verify | 2,649 项测试通过，0 failure / 0 error / 0 skipped；MySQL 8.4.13、Testcontainers、JAR、SBOM 和发布报告复验通过 | GitHub Actions run `42996096902`，绑定 `560080e` |
+| Frontend Verify | 252 个测试文件、1,201 项测试通过；契约、类型、lint、生产构建和生产依赖审计通过，0 vulnerabilities | GitHub Actions run `42996097030`，绑定 `560080e` |
+| UI Smoke | 31/31 路由、43/43 工作流通过，失败列表为空 | GitHub Actions run `42996096913`，使用真实 Chrome 与 MySQL 8.4，报告绑定完整 SHA |
+| Deployment Verify | 发布包构建、下载后摘要复验、生产 profile 全栈业务试用、V168 → V178 升级恢复和旧版全栈回退通过 | GitHub Actions run `42996096835`，成功 attempt 2 |
+| Monitoring Verify | 监控配置、告警时序、接收器路由及隔离运行验证通过 | GitHub Actions run `42996163228`，绑定 `560080e` |
+| 2026-11-12 评审修复 | 后端财务与权限定向 43 项、后端打包编译、前端 252 个测试文件/1,202 项测试、契约、类型检查、lint 和生产构建通过 | 用于本轮开发定位；正式证据须等待新干净候选 CI artifact |
 
-以上自动化结果证明 `717bb24` 的技术候选闭环。任何后续源码、测试、文档、配置或脚本提交都会生成新 SHA，并要求对应门禁重新通过。
+以上自动化结果证明 `560080e` 的技术候选闭环。任何后续源码、测试、文档、配置或脚本提交都会生成新 SHA，并要求对应门禁重新通过。
 
 ## 尚未完成的发布门禁
 
-- 本文件、README 和文档门禁同步会形成 `717bb24` 之后的新候选；Backend、Frontend、UI Smoke 和 Deployment Verify 必须在新 SHA 上重新通过。
-- Monitoring Verify 最近一次通过记录属于一期 `main` 的 `1e1f6c5`；最终二期候选仍须手工触发并保存同一 SHA 的监控配置、告警时序和隔离运行证据。
+- 本轮权限与映射选择器评审修复、README 和状态文档同步会形成 `560080e` 之后的新候选；Backend、Frontend、UI Smoke、Deployment Verify 和 Monitoring Verify 必须在新 SHA 上重新通过。
 - PR #19 仍为 Draft，尚未指定评审人或获得代码评审结论；PR 描述中的候选 SHA 和门禁摘要也必须同步到最终提交。
 - 财务负责人尚未按真实账套、期初余额、凭证和权限执行 [FS-1–FS-13](FINANCIAL-STATEMENTS-ACCEPTANCE-2026-11-11.md) 并签字。
 - 原有财务 F1–F12、质检 Q1–Q5、多币种、MRP、生产成本、排程、目标环境监控及数据库/附件恢复仍须在独立预生产完成并签字。
@@ -52,7 +52,7 @@
 
 ## 后续执行顺序
 
-1. 提交并推送本次状态文档同步，更新 PR #19 描述中的完整 SHA、自动化结果和剩余门禁。
+1. 提交并推送本轮权限、映射选择器、测试和状态文档修复，更新 PR #19 描述中的完整 SHA、自动化结果和剩余门禁。
 2. 等待新 SHA 的 Backend、Frontend、UI Smoke 和 Deployment Verify 全绿，并手工触发同一 SHA 的 Monitoring Verify。
 3. 指定评审人，将 PR 从 Draft 转为 Ready for review，完成代码评审；评审修订产生新 SHA 时重复第 2 步。
 4. 合并后冻结最终 `main` 提交，并在该提交上保留同一 SHA 的发布门禁和制品摘要。
@@ -63,4 +63,4 @@
 
 - 任何源码、迁移、配置或脚本变化都必须产生新候选并重跑相应门禁。
 - 最终证据必须绑定完整 commit SHA、制品 SHA-256、数据库版本、浏览器 smoke 报告和预生产环境。
-- 本文件记录的 `717bb24` 结果是文档同步前的已验证基线；最终测试数量和通过结论以 PR 最新干净候选的 CI 原始报告为准。
+- 本文件记录的 `560080e` 结果是本轮评审修复前的已验证基线；最终测试数量和通过结论以 PR 最新干净候选的 CI 原始报告为准。
